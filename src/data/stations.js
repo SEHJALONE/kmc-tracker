@@ -4,12 +4,12 @@
 
 export const LINES = [
   { id: 'MACHINE',     label: 'Machine Shop',                models: ['KDC','EVS'] },
-  { id: 'BODY',        label: 'Body Shop',                   models: ['EVS'] },
-  { id: 'BODY_KDC',   label: 'Body Shop',                   models: ['KDC'] },
+  { id: 'BODY',        label: 'Frame Parts Making',          models: ['EVS'] },
+  { id: 'BODY_KDC',   label: 'Frame Parts Making',          models: ['KDC'] },
   { id: 'FRAME',       label: 'Frame & Body Welding',        models: ['KDC','EVS'] },
+  { id: 'CHASSIS1',    label: 'Chassis Line 01',             models: ['KDC','EVS'] },
   { id: 'ELECTRO',     label: 'Electrophoresis',             models: ['KDC','EVS'] },
   { id: 'PAINT',       label: 'Paint Shop',                  models: ['KDC','EVS'] },
-  { id: 'CHASSIS1',    label: 'Chassis Line 01',             models: ['KDC','EVS'] },
   { id: 'CHASSIS2',    label: 'Chassis Line 02',             models: ['KDC','EVS'] },
   { id: 'TRIM',        label: 'Trim Line & Final Assembly',  models: ['KDC','EVS'] },
   { id: 'QA',          label: 'Quality Inspection & Testing',models: ['KDC','EVS'] },
@@ -37,7 +37,7 @@ export const STATIONS = {
   'B03-04': { name: 'Side Roof Panel Roller Press',                    line: 'MACHINE', order: 18, models: ['KDC','EVS'] },
   'B03-05': { name: 'Steel Plate Storage',                             line: 'MACHINE', order: 19, models: ['KDC'] },
 
-  // ─── BODY SHOP — EVS only (has roof, side wall frames) ──────────
+  // ─── FRAME PARTS MAKING — EVS only (has roof, side wall frames) ──────────
   'B04-01': { name: 'Roof Frame Welding',                              line: 'BODY', order: 1,  models: ['EVS'] },
   'B04-02': { name: 'Repair Welding of Roof Panel Framework',          line: 'BODY', order: 2,  models: ['EVS'] },
   'B04-03': { name: 'Turn Over Welding of Roof Framework',             line: 'BODY', order: 3,  models: ['EVS'] },
@@ -54,7 +54,7 @@ export const STATIONS = {
   'B06-03': { name: 'Turn Over & Repair Welding — Left Side Wall',     line: 'BODY', order: 14, models: ['EVS'] },
   'B06-04': { name: 'Grinding & Correction — Left Side Wall',          line: 'BODY', order: 15, models: ['EVS'] },
 
-  // ─── BODY SHOP — KDC (rear/front face + chassis frame + U-hoop) ─
+  // ─── FRAME PARTS MAKING — KDC (rear/front face + chassis frame + U-hoop) ─
   'B07-01': { name: 'Welding of Rear Face Framework',                  line: 'BODY_KDC', order: 1,  models: ['KDC','EVS'] },
   'B07-02': { name: 'Repair Welding & Correction — Rear Face',         line: 'BODY_KDC', order: 2,  models: ['KDC','EVS'] },
   'B07-03': { name: 'Welding of Rear Panel',                           line: 'BODY_KDC', order: 3,  models: ['KDC','EVS'] },
