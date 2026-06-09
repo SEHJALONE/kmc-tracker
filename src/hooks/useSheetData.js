@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { lookupStation } from '../data/stations';
 
-// ✅ Original working URL — do not add gid, this fetches Sheet1 by default
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYG6cmN-DMkeKAIBJmEMUsocg_yLAhgC_dr7aRfu4ICkc8aLOC4mrYdXyOXULcBA/pub?output=csv';
 const REFRESH_INTERVAL = 60000;
 
@@ -38,7 +37,6 @@ function parseCSV(text) {
     cells.push(current.trim());
 
     const vin       = cells[vinIdx]?.trim();
-    // ✅ preserve casing: "12m EVS" not "12M EVS"
     const model     = cells[modelIdx]?.trim() ?? '';
     const stCode    = cells[stationIdx]?.trim().toUpperCase().replace(/\s+/g, '-');
     const timestamp = timestampIdx >= 0 ? cells[timestampIdx]?.trim() : '';
@@ -62,7 +60,6 @@ function getLatestPositions(rows) {
     return { ...entry, station };
   });
 
-  // Log unknown codes to console so you can add them to stations.js
   const unknown = [...new Set(
     enriched.filter(e => !e.station && e.stationCode).map(e => e.stationCode)
   )];
@@ -73,12 +70,34 @@ function getLatestPositions(rows) {
   return enriched.filter(e => e.station);
 }
 
+// ── Pure filter function (exported for use in App.jsx or anywhere) ──────────
+// Returns the subset of rows whose rawTimestamp falls within [startDate, endDate].
+// Either bound can be null to mean "open-ended".
+// startDate / endDate are 'YYYY-MM-DD' strings or null.
+export function filterByDateRange(rows, startDate, endDate) {
+  if (!startDate && !endDate) return rows;
+  const start = startDate ? new Date(startDate + 'T00:00:00').getTime() : null;
+  const end   = endDate   ? new Date(endDate   + 'T23:59:59.999').getTime() : null;
+  return rows.filter(row => {
+    if (!row.rawTimestamp) return false;
+    const t = new Date(row.rawTimestamp).getTime();
+    if (isNaN(t)) return false;
+    if (start !== null && t < start) return false;
+    if (end   !== null && t > end)   return false;
+    return true;
+  });
+}
+
 export function useSheetData() {
   const [buses, setBuses]             = useState([]);
   const [allRows, setAllRows]         = useState([]);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // Date range filter state — null means no bound applied
+  const [startDate, setStartDate] = useState(null);
+  const [endDate,   setEndDate]   = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -104,5 +123,30 @@ export function useSheetData() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  return { buses, allRows, loading, error, lastUpdated, refresh: fetchData };
+  // Derived: allRows filtered to the active date window.
+  // Re-computes only when allRows, startDate, or endDate changes.
+  const filteredRows = useMemo(
+    () => filterByDateRange(allRows, startDate, endDate),
+    [allRows, startDate, endDate]
+  );
+
+  // Single convenience setter — normalises empty strings to null
+  const setDateRange = useCallback((start, end) => {
+    setStartDate(start || null);
+    setEndDate(end   || null);
+  }, []);
+
+  return {
+    // ── existing returns (unchanged) ──
+    buses,
+    allRows,
+    loading,
+    error,
+    lastUpdated,
+    refresh: fetchData,
+    // ── new additions ──
+    filteredRows,                    // allRows scoped to current date range
+    setDateRange,                    // (start, end) => void  ('YYYY-MM-DD' | null)
+    dateRange: { startDate, endDate }, // current bounds, for display/persistence
+  };
 }

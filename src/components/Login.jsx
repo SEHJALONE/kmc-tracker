@@ -45,6 +45,10 @@ export default function Login({ onLogin }) {
     <div style={{
       minHeight: '100vh',
       background: '#07090f',
+      backgroundImage: "url('/Bus background.png')",
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -52,6 +56,12 @@ export default function Login({ onLogin }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
+      {/* Dark overlay to keep form legible over the photo */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(7,9,15,0.10)',
+        zIndex: 0, pointerEvents: 'none',
+      }} />
       <style>{`
         /* Ambient background glow */
         .login-bg-glow {
@@ -141,7 +151,7 @@ export default function Login({ onLogin }) {
       {/* Card */}
       <div style={{
         width: '100%', maxWidth: 420,
-        background: 'rgba(13,21,38,0.85)',
+        background: 'rgba(13,21,38,0.1)',
         border: '1px solid rgba(255,255,255,0.07)',
         borderTop: '2px solid #dc2626',
         borderRadius: 12,
@@ -173,7 +183,7 @@ export default function Login({ onLogin }) {
           <div style={{
             fontFamily: "'Space Mono', monospace",
             fontSize: 10,
-            color: '#334155',
+            color: '#ffffff',
             letterSpacing: '0.12em',
             marginTop: 6,
             textTransform: 'uppercase',
@@ -204,7 +214,7 @@ export default function Login({ onLogin }) {
         <div style={{ marginBottom: 14 }}>
           <label style={{
             display: 'block', fontSize: 11, fontWeight: 700,
-            color: '#334155', letterSpacing: '0.14em',
+            color: '#ffffff', letterSpacing: '0.14em',
             textTransform: 'uppercase',
             fontFamily: "'Space Mono', monospace",
             marginBottom: 7,
@@ -227,7 +237,7 @@ export default function Login({ onLogin }) {
         <div style={{ marginBottom: 20 }}>
           <label style={{
             display: 'block', fontSize: 11, fontWeight: 700,
-            color: '#334155', letterSpacing: '0.14em',
+            color: '#ffffff', letterSpacing: '0.14em',
             textTransform: 'uppercase',
             fontFamily: "'Space Mono', monospace",
             marginBottom: 7,
@@ -268,7 +278,7 @@ export default function Login({ onLogin }) {
             onChange={e => setRemember(e.target.checked)}
           />
           <label htmlFor="remember" style={{
-            fontSize: 13, color: '#475569', cursor: 'pointer',
+            fontSize: 13, color: '#c2c6cc', cursor: 'pointer',
             fontFamily: "'Barlow Condensed', sans-serif",
             letterSpacing: '0.06em',
           }}>
@@ -295,7 +305,7 @@ export default function Login({ onLogin }) {
           marginTop: 28,
           textAlign: 'center',
           fontSize: 10,
-          color: '#1e2d40',
+          color: '#d2dbe7',
           fontFamily: "'Space Mono', monospace",
           letterSpacing: '0.06em',
         }}>

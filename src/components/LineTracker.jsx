@@ -203,7 +203,7 @@ function StationDot({ station, code, buses, filter }) {
   );
 }
 
-function LineCard({ line, stations, buses, filter, lineColor }) {
+function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
   const [collapsed, setCollapsed] = useState(false);
   const [bgLoaded, setBgLoaded]   = useState(false);
   const bgImage = LINE_BG[line.id];
@@ -227,8 +227,9 @@ function LineCard({ line, stations, buses, filter, lineColor }) {
     <div style={{
       position: 'relative',
       border: '1px solid rgba(255,255,255,0.06)',
-      borderLeft: `3px solid ${lineColor}`,
-      borderRadius: '0 10px 10px 0',
+      ...(zigzagRight
+        ? { borderRight: `3px solid ${lineColor}`, borderRadius: '10px 0 0 10px' }
+        : { borderLeft:  `3px solid ${lineColor}`, borderRadius: '0 10px 10px 0' }),
       overflow: 'hidden',
     }}>
       {/* Background image layer — only shown if image loaded */}
@@ -254,8 +255,8 @@ function LineCard({ line, stations, buses, filter, lineColor }) {
         onClick={() => setCollapsed(c => !c)}
         style={{
           position: 'relative', zIndex: 1,
-          display: 'flex', alignItems: 'center', gap: 12,
-          padding: '12px 20px', cursor: 'pointer', userSelect: 'none',
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 14px', cursor: 'pointer', userSelect: 'none',
         }}
       >
         <div style={{
@@ -271,7 +272,7 @@ function LineCard({ line, stations, buses, filter, lineColor }) {
         </div>
 
         <span style={{
-          fontFamily: "'Syne', sans-serif", fontSize: 28, color: lineColor,
+          fontFamily: "'Syne', sans-serif", fontSize: 20, color: '#ffffff',
           letterSpacing: '0.04em', textTransform: 'uppercase',
           fontWeight: 800, lineHeight: 1, flex: 1,
           textShadow: '0 2px 12px rgba(0,0,0,0.9)',
@@ -296,7 +297,7 @@ function LineCard({ line, stations, buses, filter, lineColor }) {
 
       {/* Rail */}
       {!collapsed && (
-        <div style={{ position: 'relative', zIndex: 1, padding: '0 20px 12px' }}>
+        <div style={{ position: 'relative', zIndex: 1, padding: '0 14px 10px' }}>
           <style>{`
             .rail-${line.id}::-webkit-scrollbar { height: 5px; }
             .rail-${line.id}::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
@@ -356,16 +357,23 @@ export default function LineTracker({ buses, filter }) {
     PAINT:    '#ec4899', CHASSIS2: '#059669', TRIM: '#3b82f6', QA: '#ef4444',
   };
 
+  const visibleLines = linesToShow
+    .map(line => ({ line, stations: stationsByLine[line.id] || [] }))
+    .filter(({ stations }) => stations.length > 0);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {linesToShow.map(line => {
-        const stations = stationsByLine[line.id] || [];
-        if (stations.length === 0) return null;
-        return (
-          <LineCard key={line.id} line={line} stations={stations}
-            buses={buses} filter={filter} lineColor={lineColors[line.id] || '#64748b'} />
-        );
-      })}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start' }}>
+      {visibleLines.map(({ line, stations }, idx) => (
+        <LineCard
+          key={line.id}
+          line={line}
+          stations={stations}
+          buses={buses}
+          filter={filter}
+          lineColor={lineColors[line.id] || '#64748b'}
+          zigzagRight={idx % 2 === 1}
+        />
+      ))}
     </div>
   );
 }
