@@ -1,16 +1,35 @@
-# React + Vite
+# KMC Bus Production Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React dashboard for monitoring bus production lines in real time. Data is pulled from a Google Sheet and refreshed automatically every minute.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Line Tracker** — visual map of each bus's current station position
+- **Bus Report** — per-bus history with cycle times, approval status, and OHS flags
+- **Dashboard** — aggregated production metrics
+- **Travel Card** — form to log or look up a bus at a station
 
-## React Compiler
+Buses can be filtered by model family (KDC / EVS) and by date range across all views.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech Stack
 
-## Expanding the ESLint configuration
+- [React](https://react.dev) + [Vite](https://vitejs.dev)
+- Data source: Google Sheets (published CSV, no backend required)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Getting Started
+
+```bash
+npm install
+npm run dev
+```
+
+The app will be available at `http://localhost:5173`.
+
+## Data Source
+
+Production data is read from a publicly published Google Sheet CSV. The sheet is expected to have columns for VIN, bus model, station code, and timestamp. Optional columns (designed cycle time, approval status, OHS issue, overrun minutes) are supported when present.
+
+## Notes
+
+- Login is handled client-side via `localStorage`. No server or auth service is required.
+- The project is under active development — features and structure will change.
