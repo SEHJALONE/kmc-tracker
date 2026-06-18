@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Google Drive temp uploads
+.tmp.driveupload/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
