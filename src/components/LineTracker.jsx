@@ -77,8 +77,10 @@ function BusCallout({ bus }) {
         ref={cardRef}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
+        onTouchStart={() => setHover(h => !h)}
         style={{
           width: 100,
+          minHeight: 44,
           background: c.bg,
           border: `1.5px solid ${c.border}`,
           borderRadius: 6,
@@ -272,7 +274,7 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
         </div>
 
         <span style={{
-          fontFamily: "'Syne', sans-serif", fontSize: 20, color: '#ffffff',
+          fontFamily: "'Syne', sans-serif", fontSize: 'clamp(14px, 2.5vw, 20px)', color: '#ffffff',
           letterSpacing: '0.04em', textTransform: 'uppercase',
           fontWeight: 800, lineHeight: 1, flex: 1,
           textShadow: '0 2px 12px rgba(0,0,0,0.9)',
@@ -362,7 +364,7 @@ export default function LineTracker({ buses, filter }) {
     .filter(({ stations }) => stations.length > 0);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start' }}>
+    <div className="line-tracker-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, alignItems: 'start' }}>
       {visibleLines.map(({ line, stations }, idx) => (
         <LineCard
           key={line.id}

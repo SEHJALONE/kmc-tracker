@@ -1,79 +1,79 @@
-import { useState, useMemo } from 'react';
-import { useSheetData } from './hooks/useSheetData';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSheetData, filterByDateRange } from './hooks/useSheetData';
 import { useStationTimes } from './hooks/useStationTimes';
+import { useBreakpoint } from './hooks/useBreakpoint';
 import { lookupStation } from './data/stations';
 import LineTracker from './components/LineTracker';
 import Dashboard from './components/Dashboard';
 import BusReport from './components/BusReport';
 import Login from './components/Login';
+import TravelCard from './components/TravelCard';
+import HomeScreen from './components/HomeScreen';
+import FilterBar from './components/FilterBar';
 
-// ── Inline DateRangePicker ─────────────────────────────────────────────────────
-function DateRangePicker({ startDate, endDate, onChange }) {
-  const inputStyle = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 3,
-    color: '#94a3b8',
-    fontSize: 11,
-    fontFamily: "'Space Mono', monospace",
-    padding: '4px 8px',
-    cursor: 'pointer',
-    colorScheme: 'dark',
-    outline: 'none',
-  };
-  const labelStyle = {
-    fontSize: 10,
-    color: '#334155',
-    fontFamily: "'Space Mono', monospace",
-    letterSpacing: '0.1em',
-    textTransform: 'uppercase',
-  };
+// ── Theme helpers ──────────────────────────────────────────────────────────────
+function getInitialTheme() {
+  const saved = localStorage.getItem('kmc_theme');
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
+// ── Sun / Moon icons ───────────────────────────────────────────────────────────
+function SunIcon() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={labelStyle}>From</span>
-      <input
-        type="date"
-        value={startDate || ''}
-        onChange={e => onChange(e.target.value || null, endDate)}
-        style={inputStyle}
-      />
-      <span style={labelStyle}>To</span>
-      <input
-        type="date"
-        value={endDate || ''}
-        onChange={e => onChange(startDate, e.target.value || null)}
-        style={inputStyle}
-      />
-      {(startDate || endDate) && (
-        <button
-          onClick={() => onChange(null, null)}
-          style={{
-            background: 'transparent',
-            border: '1px solid rgba(239,68,68,0.3)',
-            borderRadius: 3,
-            color: '#f87171',
-            fontSize: 10,
-            fontFamily: "'Space Mono', monospace",
-            padding: '4px 8px',
-            cursor: 'pointer',
-            letterSpacing: '0.08em',
-          }}
-        >
-          CLEAR
-        </button>
-      )}
-    </div>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1"  x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+    </svg>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Date resolution helper ─────────────────────────────────────────────────────
+function resolveDateBounds(datePreset, startDate, endDate) {
+  const todayDate = new Date();
+  const todayStr = todayDate.toISOString().slice(0, 10);
+  if (datePreset === 'today') return { startDate: todayStr, endDate: todayStr };
+  if (datePreset === 'yesterday') {
+    const d = new Date(todayDate); d.setDate(d.getDate() - 1);
+    const s = d.toISOString().slice(0, 10);
+    return { startDate: s, endDate: s };
+  }
+  if (datePreset === '7d') {
+    const d = new Date(todayDate); d.setDate(d.getDate() - 6);
+    return { startDate: d.toISOString().slice(0, 10), endDate: todayStr };
+  }
+  if (datePreset === '30d') {
+    const d = new Date(todayDate); d.setDate(d.getDate() - 29);
+    return { startDate: d.toISOString().slice(0, 10), endDate: todayStr };
+  }
+  if (datePreset === 'custom') return { startDate, endDate };
+  return { startDate: null, endDate: null };
+}
 
-const FILTERS = [
-  { id: 'ALL', label: 'All buses' },
-  { id: 'KDC', label: 'KDC' },
-  { id: 'EVS', label: 'EVS' },
-];
+const DEFAULT_FILTERS = {
+  model: 'ALL',
+  project: '',
+  line: 'ALL',
+  station: '',
+  status: 'ALL',
+  datePreset: 'all',
+  startDate: null,
+  endDate: null,
+};
 
 const TABS = [
   { id: 'tracker',   label: 'Line Tracker' },
@@ -83,83 +83,235 @@ const TABS = [
 
 export default function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('kmc_auth') === 'true');
+  const [mode,   setMode]   = useState('home'); // 'home' | 'travelcard' | 'tracker'
   const [view,   setView]   = useState('tracker');
-  const [filter, setFilter] = useState('ALL');
+  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  const [theme,  setTheme]  = useState(getInitialTheme);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const { isMobile, isTablet } = useBreakpoint();
+
+  const [tcPrefill, setTcPrefill] = useState(null);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(t => t === 'dark' ? 'light' : 'dark');
+  }, []);
+
+  // Sync theme to DOM + localStorage
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('kmc_theme', theme);
+  }, [theme]);
 
   const {
     buses,
     allRows,
-    filteredRows,
     loading,
     error,
     lastUpdated,
     refresh,
-    setDateRange,
-    dateRange,
   } = useSheetData();
 
   const { stationTimes, loading: timesLoading } = useStationTimes();
 
-  const { startDate, endDate } = dateRange;
+  // Resolve date bounds from active preset
+  const dateBounds = useMemo(
+    () => resolveDateBounds(filters.datePreset, filters.startDate, filters.endDate),
+    [filters.datePreset, filters.startDate, filters.endDate]
+  );
 
-  // ── FIX: filteredBuses re-derives latest position from date-filtered rows ──
-  // This ensures the date filter actually affects which buses appear and where.
+  // Distinct project names from all data (for filter dropdown)
+  const allProjects = useMemo(() => {
+    const set = new Set(allRows.map(r => r.project).filter(Boolean));
+    return [...set].sort();
+  }, [allRows]);
+
+  // All rows filtered by date + model + project (used for Dashboard metrics)
+  const filteredRows = useMemo(() => {
+    let rows = filterByDateRange(allRows, dateBounds.startDate, dateBounds.endDate);
+    if (filters.model !== 'ALL') {
+      rows = rows.filter(r => r.model?.toUpperCase().includes(filters.model));
+    }
+    if (filters.project) {
+      rows = rows.filter(r => r.project === filters.project);
+    }
+    return rows;
+  }, [allRows, dateBounds, filters.model, filters.project]);
+
+  // Latest bus positions after all filters applied
   const filteredBuses = useMemo(() => {
-    const sourceRows = filteredRows ?? allRows;
     const map = {};
-    for (const row of sourceRows) {
+    for (const row of filteredRows) {
       const ts = new Date(row.rawTimestamp || 0).getTime() || 0;
       if (!map[row.vin] || ts >= map[row.vin].ts) {
         map[row.vin] = { ...row, ts };
       }
     }
-    return Object.values(map)
+    let result = Object.values(map)
       .map(entry => {
         const station = lookupStation(entry.stationCode);
         return station ? { ...entry, station } : null;
       })
-      .filter(Boolean)
-      .filter(b => filter === 'ALL' || b.model?.toUpperCase().includes(filter));
-  }, [filteredRows, allRows, filter]);
+      .filter(Boolean);
 
-  // Count for filter buttons — always based on unfiltered buses so counts don't change with date
-  const countFor = id =>
-    id === 'ALL'
-      ? buses.length
-      : buses.filter(b => b.model?.toUpperCase().includes(id)).length;
+    if (filters.line !== 'ALL') {
+      result = result.filter(b => b.station?.line === filters.line);
+    }
+    if (filters.station) {
+      result = result.filter(b => b.stationCode === filters.station);
+    }
+    if (filters.status !== 'ALL') {
+      result = result.filter(b => {
+        if (filters.status === 'APPROVED') return b.approvalStatus?.toLowerCase().includes('approved');
+        if (filters.status === 'PENDING')  return !b.approvalStatus || b.approvalStatus?.toLowerCase().includes('pending');
+        if (filters.status === 'OHS')      return !!b.ohsIssue;
+        if (filters.status === 'OVERRUN')  return (b.overrunMin || 0) > 0;
+        if (filters.status === 'REWORK')   return b.reworkFlag === true;
+        return true;
+      });
+    }
+    return result;
+  }, [filteredRows, filters.line, filters.station, filters.status]);
 
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
     setAuthed(false);
   };
 
-  if (!authed) return <Login onLogin={() => setAuthed(true)} />;
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  if (!authed) return <Login onLogin={() => { setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
+
+  if (mode === 'home') return (
+    <HomeScreen
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onSelectTravelCard={() => setMode('travelcard')}
+      onSelectTracker={() => setMode('tracker')}
+    />
+  );
+
+  if (mode === 'travelcard') return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)',
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      <header style={{
+        borderBottom: '1px solid var(--header-border)',
+        padding: '0 32px',
+        display: 'flex',
+        alignItems: 'center',
+        height: 68,
+        position: 'sticky',
+        top: 0,
+        background: 'var(--header-bg)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        zIndex: 100,
+        gap: 16,
+      }}>
+        <button
+          onClick={() => setMode('home')}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-muted)',
+            borderRadius: 6,
+            padding: '5px 12px',
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            cursor: 'pointer',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          Home
+        </button>
+        <img src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-heading)', textTransform: 'uppercase' }}>
+          Travel Card
+        </div>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={toggleTheme}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--border-subtle)',
+            color: 'var(--text-muted)',
+            borderRadius: 6,
+            padding: '5px 12px',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--text-muted)',
+            borderRadius: 6,
+            padding: '5px 12px',
+            fontSize: 11,
+            cursor: 'pointer',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          Sign Out
+        </button>
+      </header>
+      <main style={{ padding: '28px 32px', maxWidth: 1440, margin: '0 auto' }}>
+        <TravelCard
+          prefillVin={tcPrefill?.vin ?? ''}
+          prefillModel={tcPrefill?.model ?? ''}
+          prefillStation={tcPrefill?.stationCode ?? ''}
+          onReset={() => setTcPrefill(null)}
+          onSubmitSuccess={refresh}
+          theme={theme}
+        />
+      </main>
+    </div>
+  );
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#07090f',
-      color: '#e2e8f0',
-      fontFamily: "'Barlow Condensed', sans-serif",
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)',
+      fontFamily: "'Inter', system-ui, sans-serif",
+      transition: 'background 0.25s ease, color 0.25s ease',
     }}>
       <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { height: 4px; width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1e2d40; border-radius: 2px; }
-
         .nav-btn {
           position: relative;
           background: transparent;
           border: none;
-          color: #4a5568;
+          color: var(--nav-color);
           padding: 6px 20px;
-          font-size: 14px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
           text-transform: uppercase;
           cursor: pointer;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', system-ui, sans-serif;
           transition: color 0.2s;
           height: 100%;
         }
@@ -170,57 +322,24 @@ export default function App() {
           left: 20px;
           right: 20px;
           height: 2px;
-          background: #dc2626;
+          background: var(--accent);
           transform: scaleX(0);
           transition: transform 0.2s;
         }
-        .nav-btn.active { color: #f8fafc; }
+        .nav-btn.active { color: var(--nav-active); }
         .nav-btn.active::after { transform: scaleX(1); }
-        .nav-btn:hover { color: #cbd5e1; }
-
-        .filter-btn {
-          background: transparent;
-          border: 1px solid rgba(255,255,255,0.08);
-          color: #64748b;
-          border-radius: 3px;
-          padding: 5px 18px;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          cursor: pointer;
-          font-family: 'Space Mono', monospace;
-          transition: all 0.15s;
-        }
-        .filter-btn:hover {
-          border-color: rgba(255,255,255,0.2);
-          color: #94a3b8;
-        }
-        .filter-btn.active-all {
-          background: rgba(248,250,252,0.07);
-          border-color: rgba(248,250,252,0.2);
-          color: #f8fafc;
-        }
-        .filter-btn.active-kdc {
-          background: rgba(220,38,38,0.12);
-          border-color: #dc2626;
-          color: #fca5a5;
-        }
-        .filter-btn.active-evs {
-          background: rgba(56,189,248,0.1);
-          border-color: #38bdf8;
-          color: #7dd3fc;
-        }
+        .nav-btn:hover { color: var(--nav-hover); }
 
         .icon-btn {
           background: transparent;
-          border: 1px solid rgba(255,255,255,0.08);
-          color: #475569;
-          border-radius: 3px;
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          border-radius: 6px;
           font-size: 11px;
+          font-weight: 500;
           cursor: pointer;
-          font-family: 'Barlow Condensed', sans-serif;
-          letter-spacing: 0.1em;
+          font-family: 'Inter', system-ui, sans-serif;
+          letter-spacing: 0.03em;
           text-transform: uppercase;
           transition: all 0.15s;
           display: flex;
@@ -229,14 +348,14 @@ export default function App() {
           padding: 5px 12px;
         }
         .icon-btn:hover {
-          border-color: rgba(220,38,38,0.5);
-          color: #dc2626;
+          border-color: var(--accent-border);
+          color: var(--accent);
         }
 
         .loading-spinner {
           width: 14px; height: 14px;
-          border: 2px solid rgba(220,38,38,0.2);
-          border-top-color: #dc2626;
+          border: 2px solid var(--accent-alpha);
+          border-top-color: var(--accent);
           border-radius: 50%;
           animation: spin 0.8s linear infinite;
           display: inline-block;
@@ -245,7 +364,7 @@ export default function App() {
 
         .pulse-dot {
           width: 6px; height: 6px;
-          background: #dc2626;
+          background: var(--accent);
           border-radius: 50%;
           animation: pulse 2s ease-in-out infinite;
         }
@@ -254,57 +373,169 @@ export default function App() {
           50%       { opacity: 0.4; transform: scale(0.7); }
         }
 
-        .scanlines::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background: repeating-linear-gradient(
-            0deg, transparent, transparent 2px,
-            rgba(0,0,0,0.025) 2px, rgba(0,0,0,0.025) 4px
-          );
-          pointer-events: none;
-          z-index: 100;
-        }
-
         @keyframes loadbar {
           0%   { transform: translateX(-100%); }
           100% { transform: translateX(350%); }
         }
+
+        /* Mobile hamburger lines */
+        .hamburger { display: flex; flex-direction: column; gap: 4px; cursor: pointer; padding: 4px; }
+        .hamburger span { display: block; width: 20px; height: 2px; background: var(--text-secondary); border-radius: 2px; transition: all 0.25s; }
+        .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(4px, 4px); }
+        .hamburger.open span:nth-child(2) { opacity: 0; }
+        .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(4px, -4px); }
+
+        /* Mobile drawer nav button */
+        .drawer-nav-btn {
+          display: flex; align-items: center; gap: 12px;
+          padding: 16px 24px;
+          font-size: 16px; font-weight: 600;
+          letter-spacing: 0.05em; text-transform: uppercase;
+          color: var(--nav-color);
+          background: transparent; border: none;
+          width: 100%; text-align: left;
+          cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          border-bottom: 1px solid var(--border);
+          transition: color 0.15s, background 0.15s;
+        }
+        .drawer-nav-btn.active { color: var(--nav-active); background: var(--bg-surface-2); }
+        .drawer-nav-btn:hover  { color: var(--nav-hover); }
+
+        /* Condensed right controls on tablet */
+        @media (max-width: 1023px) {
+          .icon-btn .btn-label { display: none; }
+          .icon-btn { padding: 5px 8px !important; }
+        }
       `}</style>
 
-      <div className="scanlines" />
-      <div style={{
-        position: 'fixed', top: 0, left: '15%', right: '15%', height: 1,
-        background: 'linear-gradient(90deg, transparent, rgba(220,38,38,0.6), transparent)', zIndex: 60,
-      }} />
-
-      {/* Header */}
-      <header style={{
-        borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '0 32px',
-        display: 'flex', alignItems: 'stretch', height: 64,
-        position: 'sticky', top: 0,
-        background: 'rgba(7,9,15,0.97)', backdropFilter: 'blur(12px)', zIndex: 50,
-      }}>
+      {/* ── Mobile Nav Drawer ── */}
+      <div className={`mobile-nav-drawer ${menuOpen ? 'open' : ''}`}>
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 12,
-          marginRight: 40, borderRight: '1px solid rgba(255,255,255,0.05)', paddingRight: 32,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 20px', borderBottom: '1px solid var(--border)',
         }}>
-          <img src="/kmc logo 2.png" alt="KMC" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
-          <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif", fontSize: 17, fontWeight: 800,
-            letterSpacing: '0.14em', color: '#ffffff', textTransform: 'uppercase', lineHeight: 1.2,
-          }}>
-            Bus Production<br />Tracker
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src={logo} alt="KMC" style={{ height: 34, width: 'auto', objectFit: 'contain' }} />
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-heading)', textTransform: 'uppercase', lineHeight: 1.25 }}>
+              Bus Production<br />Tracker
+            </div>
           </div>
+          <button
+            onClick={() => setMenuOpen(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 8, fontSize: 20, lineHeight: 1 }}
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Nav */}
-        <nav style={{ display: 'flex', alignItems: 'stretch' }}>
+        <nav style={{ flex: 1, overflowY: 'auto' }}>
+          <button
+            onClick={() => { setMode('home'); setMenuOpen(false); }}
+            className="drawer-nav-btn"
+          >
+            ← Home
+          </button>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => { setView(tab.id); setMenuOpen(false); }}
+              className={`drawer-nav-btn ${view === tab.id ? 'active' : ''}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border)' }}>
+          {/* Sync status */}
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="loading-spinner" />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>Syncing…</span>
+            </div>
+          ) : lastUpdated ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="pulse-dot" />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+          ) : null}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="icon-btn" onClick={() => { refresh(); setMenuOpen(false); }} style={{ flex: 1, justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M23 4v6h-6M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              Refresh
+            </button>
+            <button className="icon-btn" onClick={toggleTheme} style={{ flex: 1, justifyContent: 'center' }}>
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+              {theme === 'dark' ? 'Light' : 'Dark'}
+            </button>
+            <button className="icon-btn" onClick={() => { handleLogout(); setMenuOpen(false); }} style={{ flex: 1, justifyContent: 'center', borderColor: 'var(--accent-border)' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+              </svg>
+              Out
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Header ── */}
+      <header className="app-header" style={{
+        borderBottom: '1px solid var(--header-border)',
+        padding: '0 32px',
+        display: 'flex',
+        alignItems: 'stretch',
+        height: 68,
+        position: 'sticky',
+        top: 0,
+        background: 'var(--header-bg)',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        zIndex: 100,
+        transition: 'background 0.25s ease, border-color 0.25s ease',
+      }}>
+        {/* Logo + brand */}
+        <div className="app-header-brand" style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          marginRight: 40,
+          borderRight: '1px solid var(--header-border)',
+          paddingRight: 32,
+        }}>
+          <img src={logo} alt="KMC" style={{ height: isMobile ? 32 : 40, width: 'auto', objectFit: 'contain' }} />
+          {!isMobile && (
+            <div style={{
+              fontFamily: "'Inter', system-ui, sans-serif",
+              fontSize: 13, fontWeight: 700,
+              letterSpacing: '0.06em',
+              color: 'var(--text-heading)',
+              textTransform: 'uppercase',
+              lineHeight: 1.25,
+            }}>
+              Bus Production<br />Tracker
+            </div>
+          )}
+        </div>
+
+        {/* Desktop/Tablet Nav */}
+        <nav className="app-header-nav" style={{ display: 'flex', alignItems: 'stretch' }}>
+          <button
+            onClick={() => setMode('home')}
+            className="nav-btn"
+            style={isTablet ? { padding: '6px 12px', fontSize: 11 } : {}}
+          >
+            ← Home
+          </button>
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setView(tab.id)}
               className={`nav-btn ${view === tab.id ? 'active' : ''}`}
+              style={isTablet ? { padding: '6px 12px', fontSize: 11 } : {}}
             >
               {tab.label}
             </button>
@@ -313,163 +544,148 @@ export default function App() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Right controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Mobile row: hamburger on the right */}
+        <div className="app-mobile-row" style={{
+          display: 'none', alignItems: 'center', gap: 8, marginLeft: 'auto',
+        }}>
+          {/* Sync dot on mobile */}
+          {loading ? (
+            <div className="loading-spinner" />
+          ) : lastUpdated ? (
+            <div className="pulse-dot" />
+          ) : null}
+          <button
+            onClick={toggleTheme}
+            className="icon-btn"
+            style={{ padding: '6px 8px' }}
+            title="Toggle theme"
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            className={`hamburger ${menuOpen ? 'open' : ''}`}
+            aria-label="Open menu"
+            style={{ background: 'none', border: 'none', padding: 8 }}
+          >
+            <span /><span /><span />
+          </button>
+        </div>
+
+        {/* Desktop right controls */}
+        <div className="app-header-controls" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
 
           {/* Station estimates badge */}
-          {timesLoading ? (
+          {!isMobile && !isTablet && (timesLoading ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#334155' }} />
-              <span style={{
-                fontSize: 9, color: '#1e2d40',
-                fontFamily: "'Space Mono', monospace", letterSpacing: '0.06em',
-              }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--border-medium)' }} />
+              <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
                 ESTIMATES…
               </span>
             </div>
           ) : Object.keys(stationTimes).length > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981' }} />
-              <span style={{
-                fontSize: 9, color: '#334155',
-                fontFamily: "'Space Mono', monospace", letterSpacing: '0.06em',
-              }}>
+              <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--success-color)' }} />
+              <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
                 {Object.keys(stationTimes).length} ESTIMATES
               </span>
             </div>
-          ) : null}
+          ) : null)}
 
           {/* Sync status */}
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div className="loading-spinner" />
-              <span style={{
-                fontSize: 10, color: '#475569',
-                fontFamily: "'Space Mono', monospace", letterSpacing: '0.06em',
-              }}>SYNCING</span>
+              {!isTablet && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>SYNCING</span>}
             </div>
           ) : lastUpdated ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div className="pulse-dot" />
-              <span style={{
-                fontSize: 10, color: '#64748b',
-                fontFamily: "'Space Mono', monospace", letterSpacing: '0.06em',
-              }}>
+              {!isTablet && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
                 {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+              </span>}
             </div>
           ) : null}
 
           <button className="icon-btn" onClick={refresh} title="Refresh data">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M23 4v6h-6M1 20v-6h6"/>
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
             </svg>
-            Refresh
+            <span className="btn-label">Refresh</span>
           </button>
 
-          <button
-            className="icon-btn"
-            onClick={handleLogout}
-            style={{ borderColor: 'rgba(220,38,38,0.2)' }}
-            title="Sign out"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5">
+          <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            <span className="btn-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+
+          <button className="icon-btn" onClick={handleLogout} style={{ borderColor: 'var(--accent-border)' }} title="Sign out">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
             </svg>
-            Sign Out
+            <span className="btn-label">Sign Out</span>
           </button>
         </div>
       </header>
 
       {/* ── Main ── */}
-      <main style={{ padding: '28px 32px', maxWidth: 1440, margin: '0 auto' }}>
+      <main className="app-main" style={{ padding: '28px 32px', maxWidth: 1440, margin: '0 auto' }}>
 
         {error && (
           <div style={{
-            background: 'rgba(220,38,38,0.07)',
-            border: '1px solid rgba(220,38,38,0.2)',
-            borderLeft: '3px solid #dc2626',
+            background: 'var(--accent-alpha)',
+            border: '1px solid var(--accent-border)',
+            borderLeft: '3px solid var(--accent)',
             borderRadius: '0 4px 4px 0',
-            padding: '11px 16px', marginBottom: 22,
-            fontSize: 12, color: '#fca5a5',
-            fontFamily: "'Space Mono', monospace", letterSpacing: '0.04em',
+            padding: '11px 16px',
+            marginBottom: 22,
+            fontSize: 12,
+            color: 'var(--accent-text)',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            letterSpacing: '0.04em',
           }}>
             ⚠ {error}
           </div>
         )}
 
-        {/* Filter bar — tracker + report only */}
-        {(view === 'tracker' || view === 'report') && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            marginBottom: 26, flexWrap: 'wrap',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
-            paddingBottom: 18,
-          }}>
-            <span style={{
-              fontSize: 10, color: '#334155',
-              fontFamily: "'Space Mono', monospace",
-              letterSpacing: '0.14em', marginRight: 8, textTransform: 'uppercase',
-            }}>
-              Filter
-            </span>
+        {/* Filter bar — all views */}
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          busCount={filteredBuses.length}
+          totalBusCount={buses.length}
+          projects={allProjects}
+          theme={theme}
+        />
 
-            {FILTERS.map(f => {
-              const count = countFor(f.id);
-              const isActive = filter === f.id;
-              const cls = isActive
-                ? f.id === 'KDC' ? 'active-kdc'
-                : f.id === 'EVS' ? 'active-evs'
-                : 'active-all'
-                : '';
-              return (
-                <button key={f.id} onClick={() => setFilter(f.id)}
-                  className={`filter-btn ${cls}`}>
-                  {f.label}
-                  <span style={{ marginLeft: 8, opacity: 0.6, fontSize: 10 }}>{count}</span>
-                </button>
-              );
-            })}
-
-            {/* Legend — tracker only */}
-            {view === 'tracker' && (
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 20, alignItems: 'center' }}>
-                {[
-                  { dot: '#2d3f52', label: 'Station' },
-                  { dot: '#059669', label: 'QA Gate' },
-                ].map(item => (
-                  <div key={item.label} style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    fontSize: 10, color: '#334155',
-                    fontFamily: "'Space Mono', monospace",
-                    letterSpacing: '0.06em', textTransform: 'uppercase',
-                  }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.dot }} />
-                    {item.label}
-                  </div>
-                ))}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  fontSize: 10, color: '#334155',
-                  fontFamily: "'Space Mono', monospace",
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                }}>
-                  <img src="/Bus.png" alt="bus"
-                    style={{ height: 16, width: 'auto', objectFit: 'contain', opacity: 0.6 }} />
-                  Bus Position
-                </div>
+        {/* Tracker legend — desktop/tablet only */}
+        {view === 'tracker' && !isMobile && (
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 18, marginTop: -10 }}>
+            {[
+              { dot: 'var(--border-medium)', label: 'Station' },
+              { dot: 'var(--success-color)', label: 'QA Gate' },
+            ].map(item => (
+              <div key={item.label} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 10, color: 'var(--text-dim)',
+                fontFamily: "'Inter', system-ui, sans-serif",
+                letterSpacing: '0.06em', textTransform: 'uppercase',
+              }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.dot }} />
+                {item.label}
               </div>
-            )}
-
-            {/* Date range picker — tracker + report */}
-            <DateRangePicker
-              startDate={startDate}
-              endDate={endDate}
-              onChange={setDateRange}
-            />
+            ))}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 10, color: 'var(--text-dim)',
+              fontFamily: "'Inter', system-ui, sans-serif",
+              letterSpacing: '0.06em', textTransform: 'uppercase',
+            }}>
+              <img src="/Bus.png" alt="bus"
+                style={{ height: 16, width: 'auto', objectFit: 'contain', opacity: 0.5 }} />
+              Bus Position
+            </div>
           </div>
         )}
 
@@ -479,21 +695,17 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             height: 320, flexDirection: 'column', gap: 20,
           }}>
-            <img src="/kmc logo 2.png" alt="KMC" style={{ height: 48, opacity: 0.25 }} />
+            <img src={logo} alt="KMC" style={{ height: 48, opacity: 0.2 }} />
             <div style={{
-              fontSize: 11, color: '#334155',
-              fontFamily: "'Space Mono', monospace",
+              fontSize: 11, color: 'var(--text-dim)',
+              fontFamily: "'Inter', system-ui, sans-serif",
               letterSpacing: '0.16em', textTransform: 'uppercase',
             }}>
               Loading production data
             </div>
-            <div style={{
-              width: 180, height: 2,
-              background: 'rgba(255,255,255,0.04)',
-              borderRadius: 1, overflow: 'hidden',
-            }}>
+            <div style={{ width: 180, height: 2, background: 'var(--border-subtle)', borderRadius: 1, overflow: 'hidden' }}>
               <div style={{
-                height: '100%', background: '#dc2626',
+                height: '100%', background: 'var(--accent)',
                 animation: 'loadbar 1.5s ease-in-out infinite', width: '40%',
               }} />
             </div>
@@ -502,22 +714,32 @@ export default function App() {
         ) : view === 'tracker' ? (
           <LineTracker
             buses={filteredBuses}
-            filter={filter}
+            filter={filters.model}
+            onOpenTravelCard={({ vin, model, stationCode }) => {
+              setTcPrefill({ vin, model, stationCode });
+              setMode('travelcard');
+            }}
           />
 
         ) : view === 'report' ? (
           <BusReport
             buses={filteredBuses}
             allRows={filteredRows}
-            filter={filter}
+            filter={filters.model}
             stationTimes={stationTimes}
+            theme={theme}
+            onOpenTravelCard={({ vin, model, stationCode }) => {
+              setTcPrefill({ vin, model, stationCode });
+              setMode('travelcard');
+            }}
           />
 
         ) : (
           <Dashboard
-            buses={buses}
-            allRows={allRows}
+            buses={filteredBuses}
+            allRows={filteredRows}
             stationTimes={stationTimes}
+            theme={theme}
           />
         )}
       </main>

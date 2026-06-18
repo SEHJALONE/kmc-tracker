@@ -119,7 +119,9 @@ function BarRow({ label, value, max, color }) {
 }
 
 // ── Cover Slide ───────────────────────────────────────────────
-function CoverSlide({ buses, rows, metrics, stationTimes, now, slideNum, total }) {
+function CoverSlide({ buses, rows = [], metrics, stationTimes, now, slideNum, total }) {
+  buses = Array.isArray(buses) ? buses : [];
+  rows  = Array.isArray(rows)  ? rows  : [];
   const lineColors = {
     MACHINE: '#64748b', BODY: '#8b5cf6', BODY_KDC: '#7c3aed',
     FRAME: '#f97316', CHASSIS1: '#10b981', CHASSIS2: '#059669',
@@ -165,6 +167,12 @@ function CoverSlide({ buses, rows, metrics, stationTimes, now, slideNum, total }
         <KpiCard label="EVS Units"          value={metrics.evsCount || 0}        accent="#38bdf8" />
         <KpiCard label="Delayed"            value={delayed}                      accent="#ef4444" />
         <KpiCard label="Prod Rate (7-day)"  value={`${metrics.prodRate || 0}/d`} accent="#10b981" />
+        {metrics.firstPassYield != null && (
+          <KpiCard label="First Pass Yield"
+            value={`${metrics.firstPassYield}%`}
+            accent={metrics.firstPassYield >= 90 ? '#10b981' : metrics.firstPassYield >= 75 ? '#f59e0b' : '#dc2626'}
+          />
+        )}
       </div>
 
       {/* Charts row */}
@@ -217,6 +225,7 @@ function CoverSlide({ buses, rows, metrics, stationTimes, now, slideNum, total }
                     </div>
                     <div style={{ fontSize: 9, color: '#475569', fontFamily: "'Space Mono', monospace", marginTop: 3 }}>
                       {item.hours ? `avg ${item.hours.toFixed(1)}h` : ''}
+                      {item.efficiency != null ? ` · ${item.efficiency}% eff.` : ''}
                       {item.variancePct != null ? ` · ${item.variancePct > 0 ? '+' : ''}${item.variancePct}% vs est.` : ''}
                     </div>
                   </>
@@ -224,6 +233,141 @@ function CoverSlide({ buses, rows, metrics, stationTimes, now, slideNum, total }
               }
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Analytics Slide ───────────────────────────────────────────
+function AnalyticsSlide({ metrics, now, slideNum, total }) {
+  const lineColorMap = {
+    MACHINE: '#64748b', BODY: '#8b5cf6', BODY_KDC: '#7c3aed',
+    FRAME: '#f97316', CHASSIS1: '#10b981', CHASSIS2: '#059669',
+    ELECTRO: '#06b6d4', PAINT: '#ec4899', TRIM: '#3b82f6', QA: '#ef4444',
+  };
+  const effData  = (metrics.stationEfficiency || []).filter(s => s.efficiency != null).slice(0, 10);
+  const overrun  = (metrics.overrunPareto     || []).slice(0, 8);
+  const downtime = (metrics.downtimePareto    || []);
+  const rework   = (metrics.reworkByStationList || []).slice(0, 8);
+  const maxEff   = Math.max(...effData.map(s => s.efficiency), 1);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 0, overflow: 'hidden' }}>
+      <SlideHeader now={now} slideNum={slideNum} total={total} />
+
+      <div style={{ textAlign: 'center', padding: '6px 0', flexShrink: 0 }}>
+        <span style={{ fontSize: 10, color: '#475569', letterSpacing: '0.2em', fontFamily: "'Space Mono', monospace", textTransform: 'uppercase' }}>
+          PRODUCTION ANALYTICS · EFFICIENCY · DOWNTIME · REWORK
+        </span>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 24px 8px', overflow: 'hidden' }}>
+
+        {/* LEFT: Station Efficiency */}
+        <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '12px 14px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 10, paddingBottom: 5, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            Station Efficiency (Planned ÷ Actual)
+          </div>
+          {effData.length === 0
+            ? <div style={{ fontSize: 9, color: '#334155', fontFamily: "'Space Mono', monospace" }}>No estimated times configured</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflow: 'hidden' }}>
+                {effData.map(s => {
+                  const color = s.efficiency >= 95 ? '#10b981' : s.efficiency >= 80 ? '#f59e0b' : '#dc2626';
+                  const barW = Math.min((s.efficiency / 130) * 100, 100);
+                  const lc = lineColorMap[s.line] || '#64748b';
+                  return (
+                    <div key={s.code} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,2.5fr) 42px', gap: 8, alignItems: 'center' }}>
+                      <div style={{ fontSize: 9, color: '#cbd5e1', fontFamily: "'Space Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {s.name || s.code}
+                      </div>
+                      <div style={{ position: 'relative', height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${barW}%`, background: color, borderRadius: 2 }} />
+                        <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / 130) * 100}%`, width: 1.5, background: 'rgba(255,255,255,0.25)' }} />
+                      </div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color, textAlign: 'right', fontFamily: "'Space Mono', monospace" }}>{s.efficiency}%</div>
+                    </div>
+                  );
+                })}
+                <div style={{ marginTop: 'auto', fontSize: 8, color: '#1e2d40', fontFamily: "'Space Mono', monospace', display: 'flex', gap: 10" }}>
+                  <span style={{ color: '#10b981' }}>● ≥95% on plan</span>
+                  <span style={{ color: '#f59e0b' }}>● 80–94%</span>
+                  <span style={{ color: '#dc2626' }}>● &lt;80% bottleneck</span>
+                </div>
+              </div>
+          }
+        </div>
+
+        {/* RIGHT: Overrun + Downtime + Rework */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden', minHeight: 0 }}>
+
+          {overrun.length > 0 && (
+            <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px', flex: downtime.length > 0 || rework.length > 0 ? '0 0 auto' : 1 }}>
+              <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                Overrun by Station — Top {overrun.length}
+              </div>
+              {overrun.map((item, i) => {
+                const pct = (item.totalMin / (overrun[0]?.totalMin || 1)) * 100;
+                const hrs = Math.floor(item.totalMin / 60), mins = Math.round(item.totalMin % 60);
+                const c = i === 0 ? '#dc2626' : '#f59e0b';
+                return (
+                  <div key={item.code} style={{ display: 'grid', gridTemplateColumns: '18px minmax(0,2fr) minmax(0,2fr) 44px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 8, color: i === 0 ? '#dc2626' : '#475569', fontFamily: "'Space Mono', monospace", textAlign: 'right' }}>#{i + 1}</span>
+                    <span style={{ fontSize: 9, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: c }} />
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: c, textAlign: 'right', fontFamily: "'Space Mono', monospace" }}>{hrs > 0 ? `${hrs}h${mins}m` : `${mins}m`}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {downtime.length > 0 && (
+            <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px', flex: 1 }}>
+              <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                Downtime by Reason — Pareto
+              </div>
+              {downtime.map((d, i) => {
+                const pct = (d.mins / (downtime[0]?.mins || 1)) * 100;
+                const c = i === 0 ? '#dc2626' : i === 1 ? '#f97316' : '#f59e0b';
+                return (
+                  <div key={d.reason} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,2fr) 36px 36px', gap: 6, alignItems: 'center', marginBottom: 5 }}>
+                    <span style={{ fontSize: 9, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.reason}</span>
+                    <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: c }} />
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: c, textAlign: 'right', fontFamily: "'Space Mono', monospace" }}>{d.pct}%</span>
+                    <span style={{ fontSize: 8, color: '#334155', textAlign: 'right', fontFamily: "'Space Mono', monospace" }}>c{d.cumPct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {rework.length > 0 && !downtime.length && (
+            <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px', flex: 1 }}>
+              <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                Rework Hours by Station
+              </div>
+              {rework.map((r, i) => {
+                const pct = (r.hrs / (rework[0]?.hrs || 1)) * 100;
+                const c = i === 0 ? '#f97316' : '#f59e0b';
+                return (
+                  <div key={r.code} style={{ display: 'grid', gridTemplateColumns: '18px minmax(0,2fr) minmax(0,2fr) 40px', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 8, color: i === 0 ? '#f97316' : '#475569', fontFamily: "'Space Mono', monospace", textAlign: 'right' }}>#{i + 1}</span>
+                    <span style={{ fontSize: 9, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                    <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: c }} />
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: c, textAlign: 'right', fontFamily: "'Space Mono', monospace" }}>{r.hrs.toFixed(1)}h</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -422,7 +566,11 @@ function TableSlide({ rows, slideNum, total, now, globalRowOffset, metrics }) {
 }
 
 // ── Main Presentation component ───────────────────────────────
-export default function Presentation({ buses, rows, startDate, endDate, metrics, stationTimes = {}, onClose }) {
+export default function Presentation({ buses, rows, allRows, startDate, endDate, metrics, stationTimes = {}, onClose }) {
+  // Accept either `rows` or `allRows` (Dashboard passes allRows); always an array
+  rows = Array.isArray(rows) ? rows : Array.isArray(allRows) ? allRows : [];
+  buses = Array.isArray(buses) ? buses : [];
+
   const [slide, setSlide] = useState(0);
 
   const now = new Date().toLocaleString('en-GB', {
@@ -480,7 +628,12 @@ export default function Presentation({ buses, rows, startDate, endDate, metrics,
     tablePages.push(sortedBusRows.slice(i, i + BUSES_PER_SLIDE));
   }
 
-  const totalSlides = 1 + tablePages.length;
+  const hasAnalytics = (metrics.overrunPareto?.length > 0) ||
+    (metrics.stationEfficiency?.some(s => s.efficiency != null)) ||
+    metrics.hasDowntimeData || metrics.hasReworkData;
+
+  // Slide 0: Cover, Slide 1 (optional): Analytics, then table slides
+  const totalSlides = (hasAnalytics ? 2 : 1) + tablePages.length;
   const clamp = n => Math.max(0, Math.min(n, totalSlides - 1));
 
   const handleKey = e => {
@@ -519,13 +672,18 @@ export default function Presentation({ buses, rows, startDate, endDate, metrics,
             metrics={metrics} stationTimes={stationTimes}
             now={now} slideNum={1} total={totalSlides}
           />
+        ) : hasAnalytics && slide === 1 ? (
+          <AnalyticsSlide
+            metrics={metrics} now={now}
+            slideNum={2} total={totalSlides}
+          />
         ) : (
           <TableSlide
-            rows={tablePages[slide - 1] || []}
+            rows={tablePages[slide - (hasAnalytics ? 2 : 1)] || []}
             slideNum={slide + 1}
             total={totalSlides}
             now={now}
-            globalRowOffset={(slide - 1) * BUSES_PER_SLIDE}
+            globalRowOffset={(slide - (hasAnalytics ? 2 : 1)) * BUSES_PER_SLIDE}
             metrics={metrics}
           />
         )}

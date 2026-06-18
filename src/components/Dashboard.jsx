@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { LINES, STATIONS, lookupStation } from '../data/stations';
+import { LINES, STATIONS } from '../data/stations';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
@@ -10,18 +10,21 @@ const isEVS = (m = '') => m.toUpperCase().includes('EVS');
 function MetricCard({ label, value, sub, accent }) {
   return (
     <div style={{
-      background: 'rgba(13,21,38,0.8)',
-      border: `1px solid ${accent || 'rgba(255,255,255,0.07)'}`,
-      borderRadius: 8, padding: '14px 16px',
-      display: 'flex', flexDirection: 'column', gap: 3,
+      background: 'var(--bg-surface)',
+      border: `1px solid ${accent ? accent + '44' : 'var(--border-subtle)'}`,
+      borderTop: `2px solid ${accent || 'var(--border-medium)'}`,
+      borderRadius: 8, padding: '16px 18px',
+      display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', textAlign: 'center',
+      boxShadow: 'var(--shadow-card)',
+      transition: 'background 0.25s ease',
     }}>
-      <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace" }}>
+      <div style={{ fontSize: 9, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700 }}>
         {label}
       </div>
-      <div style={{ fontSize: 26, fontWeight: 700, color: accent || '#f1f5f9', lineHeight: 1.1 }}>
+      <div style={{ fontSize: 30, fontWeight: 800, color: accent || 'var(--text-heading)', lineHeight: 1.05, letterSpacing: '-0.5px' }}>
         {value}
       </div>
-      {sub && <div style={{ fontSize: 10, color: '#475569', fontFamily: "'Space Mono', monospace" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>{sub}</div>}
     </div>
   );
 }
@@ -29,13 +32,13 @@ function MetricCard({ label, value, sub, accent }) {
 function BarRow({ label, value, max, color, sub }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, color: '#cbd5e1', fontFamily: "'Barlow Condensed', sans-serif" }}>{label}</span>
-        <span style={{ fontSize: 10, color: '#64748b', fontFamily: "'Space Mono', monospace" }}>{sub || value}</span>
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>{sub || value}</span>
       </div>
-      <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.6s ease' }} />
+      <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
       </div>
     </div>
   );
@@ -44,9 +47,9 @@ function BarRow({ label, value, max, color, sub }) {
 function SectionTitle({ children }) {
   return (
     <div style={{
-      fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.14em',
-      fontFamily: "'Space Mono', monospace", marginBottom: 10,
-      paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.04)',
+      fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em',
+      fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 12,
+      paddingBottom: 8, borderBottom: '1px solid var(--border)',
     }}>
       {children}
     </div>
@@ -60,287 +63,84 @@ function PerfCard({ title, name, detail, accent, subDetail }) {
       border: `1px solid rgba(${accent === 'green' ? '16,185,129' : '220,38,38'},0.2)`,
       borderRadius: 8, padding: '14px 16px',
     }}>
-      <div style={{ fontSize: 9, color: accent === 'green' ? '#10b981' : '#dc2626', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>
+      <div style={{ fontSize: 9, color: accent === 'green' ? '#10b981' : '#dc2626', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
         {title}
       </div>
       {name
         ? <>
             <div style={{ fontSize: 12, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>{name}</div>
-            <div style={{ fontSize: 9, color: '#475569', marginTop: 4, fontFamily: "'Space Mono', monospace" }}>{detail}</div>
-            {subDetail && <div style={{ fontSize: 9, color: '#334155', marginTop: 2, fontFamily: "'Space Mono', monospace" }}>{subDetail}</div>}
+            <div style={{ fontSize: 9, color: '#475569', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>{detail}</div>
+            {subDetail && <div style={{ fontSize: 9, color: '#334155', marginTop: 2, fontFamily: "'Inter', system-ui, sans-serif" }}>{subDetail}</div>}
           </>
-        : <div style={{ fontSize: 10, color: '#334155', fontFamily: "'Space Mono', monospace" }}>Not enough data yet</div>
+        : <div style={{ fontSize: 10, color: '#334155', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>
       }
     </div>
   );
 }
 
-// ── Date helpers ─────────────────────────────────────────
-function toLocalDateStr(date) {
-  // Returns 'YYYY-MM-DD' in local time
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
-function dayBounds(dateStr) {
-  // Returns [startMs, endMs] for a 'YYYY-MM-DD' string in local time
-  const start = new Date(dateStr + 'T00:00:00');
-  const end   = new Date(dateStr + 'T23:59:59.999');
-  return [start.getTime(), end.getTime()];
-}
 
-function rangeBounds(fromStr, toStr) {
-  // Returns [startMs, endMs] spanning fromStr 00:00 → toStr 23:59:59
-  const start = new Date(fromStr + 'T00:00:00');
-  const end   = new Date(toStr   + 'T23:59:59.999');
-  return [start.getTime(), end.getTime()];
-}
+// ── Production Trend SVG chart ───────────────────────────
+function ProductionTrendChart({ data }) {
+  const W = 600, H = 160;
+  const pad = { top: 24, right: 16, bottom: 36, left: 28 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+  const n = data.length;
+  if (n < 2) return null;
 
-// ── DateFilterBar component ──────────────────────────────
-function DateFilterBar({
-  mode, setMode,
-  rangeFrom, setRangeFrom,
-  rangeTo,   setRangeTo,
-  filteredCount, totalCount,
-}) {
-  const today     = toLocalDateStr(new Date());
-  const yesterday = toLocalDateStr(new Date(Date.now() - 86400000));
+  const maxCount = Math.max(...data.map(d => d.count), 1);
+  const xOf = (i) => pad.left + (i / (n - 1)) * cw;
+  const yOf = (v) => pad.top + ch - (v / maxCount) * ch;
 
-  const btnBase = {
-    display: 'flex', alignItems: 'center', gap: 6,
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 5, padding: '5px 13px',
-    fontSize: 12, fontWeight: 700, letterSpacing: '0.10em',
-    textTransform: 'uppercase', fontFamily: "'Barlow Condensed', sans-serif",
-    cursor: 'pointer', transition: 'all 0.15s', background: 'none',
-  };
-  const active = {
-    background: 'rgba(220,38,38,0.15)',
-    borderColor: 'rgba(220,38,38,0.55)',
-    color: '#fca5a5',
-  };
-  const inactive = {
-    background: 'rgba(255,255,255,0.03)',
-    color: '#475569',
-  };
-  const isActive = (m) => mode === m;
+  const pts = data.map((d, i) => `${xOf(i)},${yOf(d.count)}`).join(' ');
+  const areaPts = `${xOf(0)},${yOf(0)} ${pts} ${xOf(n - 1)},${yOf(0)}`;
 
-  const dateInputStyle = (on) => ({
-    background: on ? 'rgba(220,38,38,0.08)' : 'rgba(255,255,255,0.03)',
-    border: `1px solid ${on ? 'rgba(220,38,38,0.45)' : 'rgba(255,255,255,0.08)'}`,
-    borderRadius: 5,
-    color: on ? '#fca5a5' : '#475569',
-    fontSize: 11,
-    fontFamily: "'Space Mono', monospace",
-    padding: '5px 8px',
-    outline: 'none',
-    cursor: 'pointer',
-    colorScheme: 'dark',
-    width: 120,
-  });
-
-  // Human-readable summary of active range
-  function rangeSummary() {
-    if (mode === 'all')       return null;
-    if (mode === 'today')     return `Today · ${today.slice(5).replace('-','/')}`;
-    if (mode === 'yesterday') return `Yesterday · ${yesterday.slice(5).replace('-','/')}`;
-    if (mode === 'last7')     return 'Last 7 days';
-    if (mode === 'last30')    return 'Last 30 days';
-    if (mode === 'range') {
-      if (rangeFrom && rangeTo) return `${rangeFrom.slice(5).replace('-','/')} → ${rangeTo.slice(5).replace('-','/')}`;
-      if (rangeFrom)            return `From ${rangeFrom.slice(5).replace('-','/')}`;
-    }
-    return null;
-  }
-
-  const summary = rangeSummary();
+  const yTicks = [];
+  const step = maxCount <= 5 ? 1 : Math.ceil(maxCount / 5);
+  for (let v = 0; v <= maxCount; v += step) yTicks.push(v);
+  if (yTicks[yTicks.length - 1] !== maxCount) yTicks.push(maxCount);
 
   return (
-    <div style={{
-      background: 'rgba(13,21,38,0.75)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 8, padding: '9px 14px',
-      display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
-      {/* Row 1: icon + preset buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {/* Icon + label */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginRight: 4 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#334155" strokeWidth="2">
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8"  y1="2" x2="8"  y2="6"/>
-            <line x1="3"  y1="10" x2="21" y2="10"/>
-          </svg>
-          <span style={{ fontSize: 9, color: '#334155', fontFamily: "'Space Mono', monospace", letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-            Date Filter
-          </span>
-        </div>
-
-        {/* Preset buttons */}
-        {[
-          { id: 'all',       label: 'All Time' },
-          { id: 'today',     label: 'Today',     hint: today.slice(5).replace('-','/') },
-          { id: 'yesterday', label: 'Yesterday', hint: yesterday.slice(5).replace('-','/') },
-          { id: 'last7',     label: 'Last 7 days' },
-          { id: 'last30',    label: 'Last 30 days' },
-          { id: 'range',     label: 'Custom Range' },
-        ].map(({ id, label, hint }) => (
-          <button
-            key={id}
-            onClick={() => setMode(id)}
-            style={{ ...btnBase, ...(isActive(id) ? active : inactive) }}
-          >
-            {label}
-            {hint && (
-              <span style={{ fontSize: 9, opacity: 0.6, fontWeight: 400, letterSpacing: '0.04em' }}>
-                {hint}
-              </span>
-            )}
-          </button>
-        ))}
-
-        {/* Record count badge */}
-        {mode !== 'all' && (
-          <div style={{
-            marginLeft: 'auto',
-            fontSize: 9, fontFamily: "'Space Mono', monospace",
-            color: filteredCount === 0 ? '#dc2626' : '#475569',
-            letterSpacing: '0.08em',
-          }}>
-            {filteredCount} / {totalCount} record{totalCount !== 1 ? 's' : ''}
-            {filteredCount === 0 && ' — no data'}
-          </div>
-        )}
-      </div>
-
-      {/* Row 2: date range inputs (only when mode === 'range') */}
-      {mode === 'range' && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, color: '#334155', fontFamily: "'Space Mono', monospace", letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            From
-          </span>
-          <input
-            type="date"
-            value={rangeFrom}
-            max={rangeTo || today}
-            onChange={e => setRangeFrom(e.target.value)}
-            style={dateInputStyle(!!rangeFrom)}
-          />
-          <span style={{ fontSize: 9, color: '#334155', fontFamily: "'Space Mono', monospace", letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-            To
-          </span>
-          <input
-            type="date"
-            value={rangeTo}
-            min={rangeFrom || undefined}
-            max={today}
-            onChange={e => setRangeTo(e.target.value)}
-            style={dateInputStyle(!!rangeTo)}
-          />
-          {rangeFrom && rangeTo && (
-            <span style={{ fontSize: 9, color: '#475569', fontFamily: "'Space Mono', monospace" }}>
-              {Math.round((new Date(rangeTo) - new Date(rangeFrom)) / 86400000) + 1} day{Math.round((new Date(rangeTo) - new Date(rangeFrom)) / 86400000) + 1 !== 1 ? 's' : ''}
-            </span>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {yTicks.map(v => (
+        <g key={v}>
+          <line x1={pad.left} y1={yOf(v)} x2={W - pad.right} y2={yOf(v)} stroke="rgba(148,163,184,0.1)" strokeWidth={1} />
+          <text x={pad.left - 5} y={yOf(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-dim)" fontFamily="'Inter',system-ui">{v}</text>
+        </g>
+      ))}
+      <polygon points={areaPts} fill="rgba(59,130,246,0.08)" />
+      <polyline points={pts} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((d, i) => (
+        <g key={d.key}>
+          <circle cx={xOf(i)} cy={yOf(d.count)} r={d.count > 0 ? 4 : 2.5}
+            fill={d.count > 0 ? '#3b82f6' : 'rgba(148,163,184,0.2)'}
+            stroke="var(--bg-surface)" strokeWidth={1.5} />
+          {d.count > 0 && (
+            <text x={xOf(i)} y={yOf(d.count) - 9} textAnchor="middle" fontSize={9}
+              fill="#3b82f6" fontWeight={700} fontFamily="'Inter',system-ui">{d.count}</text>
           )}
-          {/* Quick-clear */}
-          {(rangeFrom || rangeTo) && (
-            <button
-              onClick={() => { setRangeFrom(''); setRangeTo(''); }}
-              style={{ ...btnBase, ...inactive, padding: '4px 10px', fontSize: 10 }}
-            >
-              Clear
-            </button>
+          {i % 2 === 0 && (
+            <text x={xOf(i)} y={H - 4} textAnchor="middle" fontSize={8}
+              fill="var(--text-dim)" fontFamily="'Inter',system-ui">{d.label}</text>
           )}
-        </div>
-      )}
-
-      {/* Active filter summary strip */}
-      {summary && mode !== 'range' && (
-        <div style={{
-          fontSize: 9, color: '#dc2626', fontFamily: "'Space Mono', monospace",
-          letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <span style={{ color: '#334155' }}>●</span>
-          Filtering: {summary}
-          <button
-            onClick={() => setMode('all')}
-            style={{ marginLeft: 4, background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 10, fontFamily: "'Space Mono', monospace", padding: 0 }}
-          >
-            ✕ clear
-          </button>
-        </div>
-      )}
-    </div>
+        </g>
+      ))}
+    </svg>
   );
 }
 
 // ── Main Dashboard export ────────────────────────────────
-export default function Dashboard({ buses, allRows, stationTimes = {} }) {
+export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stationTimes = {}, theme = 'dark' }) {
+  // Guard against undefined during initial render before sheet data loads
+  const buses   = Array.isArray(busesProp)   ? busesProp   : [];
+  const allRows = Array.isArray(allRowsProp) ? allRowsProp : [];
+
   const dashboardRef = useRef(null);
   const slideRef     = useRef(null);
   const [presenting, setPresenting] = useState(false);
 
-  // ── Date filter state ──────────────────────────────────
-  // mode: 'all' | 'today' | 'yesterday' | 'last7' | 'last30' | 'range'
-  const [dateMode,  setDateMode]  = useState('all');
-  const [rangeFrom, setRangeFrom] = useState('');
-  const [rangeTo,   setRangeTo]   = useState('');
-
-  // Resolve active [startMs, endMs] bounds (null = no filter)
-  const activeBounds = useMemo(() => {
-    const now   = Date.now();
-    const today = toLocalDateStr(new Date());
-    if (dateMode === 'today')
-      return dayBounds(today);
-    if (dateMode === 'yesterday')
-      return dayBounds(toLocalDateStr(new Date(now - 86400000)));
-    if (dateMode === 'last7')
-      return rangeBounds(toLocalDateStr(new Date(now - 6 * 86400000)), today);
-    if (dateMode === 'last30')
-      return rangeBounds(toLocalDateStr(new Date(now - 29 * 86400000)), today);
-    if (dateMode === 'range' && rangeFrom && rangeTo)
-      return rangeBounds(rangeFrom, rangeTo);
-    if (dateMode === 'range' && rangeFrom)
-      return [new Date(rangeFrom + 'T00:00:00').getTime(), now];
-    return null; // 'all' or incomplete range
-  }, [dateMode, rangeFrom, rangeTo]);
-
-  // Filter allRows to the active time window
-  const filteredAllRows = useMemo(() => {
-    if (!activeBounds) return allRows;
-    const [start, end] = activeBounds;
-    return allRows.filter(r => {
-      if (!r.rawTimestamp) return false;
-      const t = new Date(r.rawTimestamp).getTime();
-      return t >= start && t <= end;
-    });
-  }, [allRows, activeBounds]);
-
-  // Re-derive latest bus positions from filteredAllRows so the station shown
-  // is the last known position *within the selected day*, not the global latest.
-  const filteredBuses = useMemo(() => {
-    if (!activeBounds) return buses; // 'All Time' — use pre-computed prop as-is
-
-    // Replicate getLatestPositions logic on the day-scoped rows
-    const map = {};
-    for (const row of filteredAllRows) {
-      const ts = new Date(row.rawTimestamp || 0).getTime() || 0;
-      if (!map[row.vin] || ts >= map[row.vin].ts) {
-        map[row.vin] = { ...row, ts };
-      }
-    }
-    return Object.values(map)
-      .map(entry => ({ ...entry, station: lookupStation(entry.stationCode) }))
-      .filter(e => e.station); // drop unknown station codes, matching original behaviour
-  }, [buses, filteredAllRows, activeBounds]);
-
   const metrics = useMemo(() => {
-    // Use filtered data for date-scoped metrics
-    const buses   = filteredBuses;
-    const allRows = filteredAllRows;
     const total      = buses.length;
     const kdcCount   = buses.filter(b => isKDC(b.model)).length;
     const evsCount   = buses.filter(b => isEVS(b.model)).length;
@@ -384,10 +184,14 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
         const variancePct = estimatedHours
           ? Math.round(((hours - estimatedHours) / estimatedHours) * 100)
           : null;
+        const efficiency = estimatedHours
+          ? Math.round((estimatedHours / hours) * 100)
+          : null;
         return {
           code, hours,
           name: STATIONS[code]?.name,
-          estimatedHours, variancePct,
+          line: STATIONS[code]?.line,
+          estimatedHours, variancePct, efficiency,
           sortKey: variancePct !== null ? variancePct : hours,
         };
       });
@@ -430,12 +234,129 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
       byModel[bus.model] = (byModel[bus.model] || 0) + 1;
     }
 
+    // ── Phase 3: Overrun Pareto ──────────────────────────────
+    // Aggregate overrunMin from rows that have it (written by Phase 2 Apps Script).
+    // Produces two ranked lists: by station and by production line.
+    const overrunByStation = {}, overrunCountByStation = {};
+    for (const row of allRows) {
+      if (!row.overrunMin || row.overrunMin <= 0) continue;
+      const code = row.stationCode;
+      overrunByStation[code]      = (overrunByStation[code]      || 0) + row.overrunMin;
+      overrunCountByStation[code] = (overrunCountByStation[code] || 0) + 1;
+    }
+    const overrunPareto = Object.entries(overrunByStation)
+      .filter(([code]) => STATIONS[code])
+      .map(([code, totalMin]) => ({
+        code,
+        name:       STATIONS[code]?.name || code,
+        line:       STATIONS[code]?.line,
+        lineName:   LINES.find(l => l.id === STATIONS[code]?.line)?.label || STATIONS[code]?.line || '—',
+        totalMin,
+        count:      overrunCountByStation[code],
+        avgMin:     Math.round(totalMin / overrunCountByStation[code]),
+      }))
+      .sort((a, b) => b.totalMin - a.totalMin)
+      .slice(0, 8); // top 8 stations
+
+    // ── Phase 4: Downtime Pareto ────────────────────────────
+    const downtimeByReason = {}, downtimeByStation = {}, downtimeStationCount = {};
+    let totalDowntimeMin = 0;
+    for (const row of allRows) {
+      if (!row.downtimeMin || row.downtimeMin <= 0) continue;
+      totalDowntimeMin += row.downtimeMin;
+      const reason = row.downtimeReason || 'Unspecified';
+      downtimeByReason[reason] = (downtimeByReason[reason] || 0) + row.downtimeMin;
+      if (row.stationCode && STATIONS[row.stationCode]) {
+        downtimeByStation[row.stationCode]      = (downtimeByStation[row.stationCode]      || 0) + row.downtimeMin;
+        downtimeStationCount[row.stationCode]   = (downtimeStationCount[row.stationCode]   || 0) + 1;
+      }
+    }
+    const downtimePareto = Object.entries(downtimeByReason)
+      .map(([reason, mins]) => ({ reason, mins, pct: totalDowntimeMin > 0 ? Math.round((mins / totalDowntimeMin) * 100) : 0 }))
+      .sort((a, b) => b.mins - a.mins);
+    let cumPct = 0;
+    for (const d of downtimePareto) { cumPct += d.pct; d.cumPct = Math.min(cumPct, 100); }
+
+    // ── Phase 4: Rework + First Pass Yield ──────────────────
+    const reworkByStation = {};
+    const reworkVins = new Set(), completedVinsAll = new Set();
+    for (const row of allRows) {
+      if (row.stationCode?.startsWith('Q')) completedVinsAll.add(row.vin);
+      if (row.reworkFlag === true) {
+        reworkVins.add(row.vin);
+        if (row.stationCode && STATIONS[row.stationCode]) {
+          reworkByStation[row.stationCode] = (reworkByStation[row.stationCode] || 0) + (row.reworkHrs || 0);
+        }
+      }
+    }
+    const hasReworkData = allRows.some(r => r.reworkFlag !== null);
+    const hasDowntimeData = totalDowntimeMin > 0;
+    const firstPassYield = hasReworkData && completedVinsAll.size > 0
+      ? Math.round(((completedVinsAll.size - reworkVins.size) / completedVinsAll.size) * 100)
+      : null;
+    const reworkByStationList = Object.entries(reworkByStation)
+      .map(([code, hrs]) => ({ code, name: STATIONS[code]?.name || code, line: STATIONS[code]?.line, hrs }))
+      .sort((a, b) => b.hrs - a.hrs);
+
+    const stationEfficiency = [...stationPerf]
+      .sort((a, b) => {
+        if (a.efficiency !== null && b.efficiency !== null) return a.efficiency - b.efficiency;
+        if (a.efficiency !== null) return -1;
+        if (b.efficiency !== null) return 1;
+        return b.hours - a.hours;
+      });
+
     return {
       total, kdcCount, evsCount, prodRate,
       bestStation, worstStation, bestLine, worstLine,
       busesByLine, avgDwell, byModel,
+      overrunPareto, stationEfficiency,
+      downtimePareto, totalDowntimeMin, hasDowntimeData,
+      firstPassYield, hasReworkData, reworkByStationList,
     };
-  }, [filteredBuses, filteredAllRows, stationTimes]);
+  }, [buses, allRows, stationTimes]);
+
+  // Weekly production trend — always uses unfiltered allRows so trend is stable
+  const weeklyProduction = useMemo(() => {
+    function isoWeekKey(ts) {
+      const d = new Date(ts);
+      const day = d.getDay() || 7;
+      d.setDate(d.getDate() + 4 - day);
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+    }
+    // First QA-station timestamp per VIN
+    const qaByVin = {};
+    for (const row of (Array.isArray(allRows) ? allRows : [])) {
+      if (!row.stationCode?.toUpperCase().startsWith('Q') || !row.rawTimestamp) continue;
+      const ts = new Date(row.rawTimestamp).getTime();
+      if (isNaN(ts)) continue;
+      if (!qaByVin[row.vin] || ts < qaByVin[row.vin]) qaByVin[row.vin] = ts;
+    }
+    const weekCounts = {};
+    for (const ts of Object.values(qaByVin)) {
+      const k = isoWeekKey(ts);
+      weekCounts[k] = (weekCounts[k] || 0) + 1;
+    }
+    const seen = new Set();
+    const result = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 7 * 86400000);
+      const key = isoWeekKey(d.getTime());
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const day = d.getDay() || 7;
+      const monday = new Date(d);
+      monday.setDate(d.getDate() - day + 1);
+      result.push({
+        key,
+        label: monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        count: weekCounts[key] || 0,
+      });
+    }
+    return result;
+  }, [allRows]);
 
   const lineDistribution = LINES.map(l => ({ ...l, count: metrics.busesByLine[l.id] || 0 })).filter(l => l.count > 0).sort((a, b) => b.count - a.count);
   const maxLineCount     = Math.max(...lineDistribution.map(l => l.count), 1);
@@ -448,7 +369,15 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
     CHASSIS1: '#10b981', CHASSIS2: '#059669', TRIM: '#3b82f6', QA: '#ef4444',
   };
   const modelColor = (model = '') => isKDC(model) ? '#dc2626' : isEVS(model) ? '#38bdf8' : '#64748b';
-  const card = (bg, border) => ({ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '14px 18px' });
+  const card = (accentRgb, borderVar) => ({
+    background: 'var(--bg-surface)',
+    border: `1px solid ${borderVar}`,
+    borderLeft: `3px solid ${accentRgb}`,
+    borderRadius: 8,
+    padding: '14px 18px',
+    boxShadow: 'var(--shadow-card)',
+    transition: 'background 0.25s ease',
+  });
 
   const hasEstimates = Object.keys(stationTimes).length > 0;
 
@@ -457,8 +386,8 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
       {/* Presentation modal */}
       {presenting && (
         <Presentation
-          buses={filteredBuses}
-          allRows={filteredAllRows}
+          buses={buses}
+          allRows={allRows}
           metrics={metrics}
           stationTimes={stationTimes}
           onClose={() => setPresenting(false)}
@@ -467,63 +396,55 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
 
       <div ref={dashboardRef} style={{
         position: 'relative',
-        backgroundImage: "url('/Bus background.png')",
+        backgroundImage: theme === 'dark' ? "url('/Bus background.png')" : "url('/Bus background 2.png')",
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
       }}>
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'rgba(7,9,15,0.82)',
-          zIndex: 0, pointerEvents: 'none',
-        }} />
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 72, paddingTop: 16 }}>
 
           {/* ── Export panel (fixed at bottom, no flow space) ── */}
           <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'visible' }}>
             <ExportPanel
-              buses={filteredBuses} allRows={filteredAllRows} metrics={metrics}
+              buses={buses} allRows={allRows} metrics={metrics}
               dashboardRef={dashboardRef} slideRef={slideRef}
               onPresent={() => setPresenting(true)}
               stationTimes={stationTimes}
+              theme={theme}
             />
           </div>
 
-          {/* ── Date filter bar ── */}
-          <DateFilterBar
-            mode={dateMode}
-            setMode={setDateMode}
-            rangeFrom={rangeFrom}
-            setRangeFrom={setRangeFrom}
-            rangeTo={rangeTo}
-            setRangeTo={setRangeTo}
-            filteredCount={filteredAllRows.length}
-            totalCount={allRows.length}
-          />
-
           {/* Top metrics */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+          <div className="dashboard-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <MetricCard label="Total on floor"  value={metrics.total}             sub="all active buses"    accent="#475569" />
             <MetricCard label="KDC units"       value={metrics.kdcCount}          sub="on production floor" accent="#dc2626" />
             <MetricCard label="EVS units"       value={metrics.evsCount}          sub="on production floor" accent="#38bdf8" />
             <MetricCard label="Prod. rate"      value={`${metrics.prodRate}/day`} sub="7-day rolling avg"   accent="#10b981" />
+            {metrics.firstPassYield !== null && (
+              <MetricCard
+                label="First Pass Yield"
+                value={`${metrics.firstPassYield}%`}
+                sub="no-rework buses"
+                accent={metrics.firstPassYield >= 90 ? '#10b981' : metrics.firstPassYield >= 75 ? '#f59e0b' : '#dc2626'}
+              />
+            )}
           </div>
 
           {/* Model + Line distribution */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={{ background: 'rgba(13,21,38,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '18px 20px' }}>
+          <div className="dashboard-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
               <SectionTitle>Buses by model</SectionTitle>
               {modelEntries.length === 0
-                ? <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>No buses on floor</div>
+                ? <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>No buses on floor</div>
                 : modelEntries.map(([model, count]) => (
                   <BarRow key={model} label={model} value={count} max={maxModelCount} color={modelColor(model)} sub={`${count} bus${count !== 1 ? 'es' : ''}`} />
                 ))}
             </div>
-            <div style={{ background: 'rgba(13,21,38,0.8)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '18px 20px' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
               <SectionTitle>Buses by line</SectionTitle>
               {lineDistribution.length === 0
-                ? <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>No buses on tracked lines</div>
+                ? <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>No buses on tracked lines</div>
                 : lineDistribution.map(line => (
                   <BarRow key={line.id} label={line.label} value={line.count} max={maxLineCount} color={lineColors[line.id] || '#64748b'} sub={`${line.count} bus${line.count !== 1 ? 'es' : ''}`} />
                 ))}
@@ -531,92 +452,312 @@ export default function Dashboard({ buses, allRows, stationTimes = {} }) {
           </div>
 
           {/* Performance highlights */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div style={card('rgba(16,185,129,0.07)', 'rgba(16,185,129,0.2)')}>
-              <div style={{ fontSize: 9, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>
+          <div className="dashboard-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={card('var(--success-color)', 'var(--success-border)')}>
+              <div style={{ fontSize: 9, color: 'var(--success-color)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
                 ↑ Best station {hasEstimates ? '(by variance vs estimate)' : '(by avg dwell)'}
               </div>
               {metrics.bestStation ? (<>
-                <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>{metrics.bestStation.name}</div>
-                <div style={{ fontSize: 10, color: '#475569', marginTop: 4, fontFamily: "'Space Mono', monospace" }}>
+                <div style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600, lineHeight: 1.4 }}>{metrics.bestStation.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>
                   {metrics.bestStation.code} · avg {metrics.bestStation.hours.toFixed(1)}h actual
                 </div>
                 {metrics.bestStation.estimatedHours != null && (
-                  <div style={{ fontSize: 10, color: '#10b981', marginTop: 2, fontFamily: "'Space Mono', monospace" }}>
-                    est. {metrics.bestStation.estimatedHours.toFixed(1)}h ·&nbsp;
-                    {metrics.bestStation.variancePct > 0 ? '+' : ''}{metrics.bestStation.variancePct}% variance
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--success-color)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1 }}>
+                      {metrics.bestStation.efficiency}%
+                    </span>
+                    <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                      efficient · est. {metrics.bestStation.estimatedHours.toFixed(1)}h
+                    </span>
                   </div>
                 )}
-              </>) : <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>Not enough data yet</div>}
+              </>) : <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>}
             </div>
 
-            <div style={card('rgba(220,38,38,0.07)', 'rgba(220,38,38,0.2)')}>
-              <div style={{ fontSize: 9, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>
+            <div style={card('var(--accent)', 'var(--accent-border)')}>
+              <div style={{ fontSize: 9, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
                 ↓ Slowest station {hasEstimates ? '(by variance vs estimate)' : '(by avg dwell)'}
               </div>
               {metrics.worstStation ? (<>
-                <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>{metrics.worstStation.name}</div>
-                <div style={{ fontSize: 10, color: '#475569', marginTop: 4, fontFamily: "'Space Mono', monospace" }}>
+                <div style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600, lineHeight: 1.4 }}>{metrics.worstStation.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>
                   {metrics.worstStation.code} · avg {metrics.worstStation.hours.toFixed(1)}h actual
                 </div>
                 {metrics.worstStation.estimatedHours != null && (
-                  <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2, fontFamily: "'Space Mono', monospace" }}>
-                    est. {metrics.worstStation.estimatedHours.toFixed(1)}h ·&nbsp;
-                    {metrics.worstStation.variancePct > 0 ? '+' : ''}{metrics.worstStation.variancePct}% variance
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1 }}>
+                      {metrics.worstStation.efficiency}%
+                    </span>
+                    <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                      efficient · est. {metrics.worstStation.estimatedHours.toFixed(1)}h
+                    </span>
                   </div>
                 )}
-              </>) : <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>Not enough data yet</div>}
+              </>) : <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>}
             </div>
 
-            <div style={card('rgba(16,185,129,0.07)', 'rgba(16,185,129,0.2)')}>
-              <div style={{ fontSize: 9, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>
+            <div style={card('var(--success-color)', 'var(--success-border)')}>
+              <div style={{ fontSize: 9, color: 'var(--success-color)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
                 ↑ Best line {hasEstimates ? '(avg variance vs estimate)' : '(avg dwell)'}
               </div>
               {metrics.bestLine ? (<>
-                <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600 }}>{metrics.bestLine.label}</div>
-                <div style={{ fontSize: 10, color: '#475569', marginTop: 4, fontFamily: "'Space Mono', monospace" }}>
+                <div style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600 }}>{metrics.bestLine.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>
                   avg {metrics.bestLine.hours.toFixed(1)}h per station
                 </div>
-                {metrics.bestLine.variancePct != null && (
-                  <div style={{ fontSize: 10, color: '#10b981', marginTop: 2, fontFamily: "'Space Mono', monospace" }}>
-                    {metrics.bestLine.variancePct > 0 ? '+' : ''}{metrics.bestLine.variancePct}% avg vs estimates
-                  </div>
-                )}
-              </>) : <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>Not enough data yet</div>}
+                {metrics.bestLine.variancePct != null && (() => {
+                  const eff = Math.round(100 / (1 + metrics.bestLine.variancePct / 100));
+                  return (
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--success-color)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1 }}>{eff}%</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>avg efficiency</span>
+                    </div>
+                  );
+                })()}
+              </>) : <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>}
             </div>
 
-            <div style={card('rgba(220,38,38,0.07)', 'rgba(220,38,38,0.2)')}>
-              <div style={{ fontSize: 9, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Space Mono', monospace", marginBottom: 8 }}>
+            <div style={card('var(--accent)', 'var(--accent-border)')}>
+              <div style={{ fontSize: 9, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
                 ↓ Slowest line {hasEstimates ? '(avg variance vs estimate)' : '(avg dwell)'}
               </div>
               {metrics.worstLine ? (<>
-                <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 600 }}>{metrics.worstLine.label}</div>
-                <div style={{ fontSize: 10, color: '#475569', marginTop: 4, fontFamily: "'Space Mono', monospace" }}>
+                <div style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600 }}>{metrics.worstLine.label}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>
                   avg {metrics.worstLine.hours.toFixed(1)}h per station
                 </div>
-                {metrics.worstLine.variancePct != null && (
-                  <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2, fontFamily: "'Space Mono', monospace" }}>
-                    {metrics.worstLine.variancePct > 0 ? '+' : ''}{metrics.worstLine.variancePct}% avg vs estimates
-                  </div>
-                )}
-              </>) : <div style={{ fontSize: 11, color: '#334155', fontFamily: "'Space Mono', monospace" }}>Not enough data yet</div>}
+                {metrics.worstLine.variancePct != null && (() => {
+                  const eff = Math.round(100 / (1 + metrics.worstLine.variancePct / 100));
+                  return (
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1 }}>{eff}%</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>avg efficiency</span>
+                    </div>
+                  );
+                })()}
+              </>) : <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>}
             </div>
           </div>
 
-          {filteredAllRows.length === 0 && allRows.length > 0 && (
-            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: '#fbbf24', fontFamily: "'Space Mono', monospace", letterSpacing: '0.04em' }}>
+          {/* ── Phase 3: Overrun Pareto chart ── */}
+          {metrics.overrunPareto.length > 0 && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+              <div style={{
+                fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.14em',
+                fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14,
+                paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.04)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span>Overrun by Station — top {metrics.overrunPareto.length} (total overrun minutes)</span>
+                <span style={{ color: 'var(--text-dim)' }}>from travel card data</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(() => {
+                  const maxMin = metrics.overrunPareto[0]?.totalMin || 1;
+                  return metrics.overrunPareto.map((item, idx) => {
+                    const pct = Math.min((item.totalMin / maxMin) * 100, 100);
+                    const lineColor = lineColors[item.line] || '#64748b';
+                    const hours = Math.floor(item.totalMin / 60);
+                    const mins  = Math.round(item.totalMin % 60);
+                    const label = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+                    return (
+                      <div key={item.code} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,2fr) minmax(0,3fr) 64px 52px', gap: 10, alignItems: 'center' }}>
+                        {/* Rank */}
+                        <div style={{ fontSize: 9, color: idx === 0 ? 'var(--accent)' : 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, textAlign: 'right' }}>
+                          #{idx + 1}
+                        </div>
+                        {/* Station name */}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                          <div style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 }}>
+                            {item.code} · <span style={{ color: lineColor }}>{item.lineName}</span>
+                          </div>
+                        </div>
+                        {/* Bar */}
+                        <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', width: `${pct}%`,
+                            background: idx === 0
+                              ? 'linear-gradient(90deg, #dc2626, #f87171)'
+                              : `linear-gradient(90deg, ${lineColor}99, ${lineColor})`,
+                            borderRadius: 3, transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                        {/* Total overrun */}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: idx === 0 ? 'var(--accent-text)' : 'var(--text-secondary)', fontFamily: "'Inter', system-ui, sans-serif", textAlign: 'right' }}>
+                          {label}
+                        </div>
+                        {/* Occurrences */}
+                        <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", textAlign: 'right' }}>
+                          {item.count}× avg {item.avgMin}m
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+              <div style={{ marginTop: 12, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
+                ● Bar length = total overrun minutes · count = number of travel cards with an overrun at that station
+              </div>
+            </div>
+          )}
+
+          {/* ── Downtime Pareto ── */}
+          {metrics.hasDowntimeData && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Downtime by Reason — Pareto</span>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {Math.floor(metrics.totalDowntimeMin / 60)}h {Math.round(metrics.totalDowntimeMin % 60)}m total
+                </span>
+              </div>
+              {(() => {
+                const maxMins = metrics.downtimePareto[0]?.mins || 1;
+                const W = 600, H = 24;
+                const chartH = metrics.downtimePareto.length * 44 + 32;
+                return (
+                  <div style={{ position: 'relative' }}>
+                    {metrics.downtimePareto.map((d, i) => {
+                      const barPct = (d.mins / maxMins) * 100;
+                      const hrs = Math.floor(d.mins / 60);
+                      const mins = Math.round(d.mins % 60);
+                      const label = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+                      const barColor = i === 0 ? '#dc2626' : i === 1 ? '#f97316' : i === 2 ? '#f59e0b' : '#64748b';
+                      return (
+                        <div key={d.reason} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 52px 40px', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.reason}</div>
+                          <div style={{ height: 8, background: 'var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${barPct}%`, background: barColor, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: barColor, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{label}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{d.pct}%</div>
+                        </div>
+                      );
+                    })}
+                    <div style={{ marginTop: 6, padding: '8px 0', borderTop: '1px solid var(--border)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {metrics.downtimePareto.map(d => (
+                        <span key={d.reason} style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                          {d.reason} {d.pct}% (cum. {d.cumPct}%)
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ── Rework by Station ── */}
+          {metrics.hasReworkData && metrics.reworkByStationList.length > 0 && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Rework Hours by Station</span>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {metrics.reworkByStationList.reduce((s, r) => s + r.hrs, 0).toFixed(1)}h total rework
+                </span>
+              </div>
+              {(() => {
+                const maxHrs = metrics.reworkByStationList[0]?.hrs || 1;
+                return metrics.reworkByStationList.map((r, i) => {
+                  const pct = (r.hrs / maxHrs) * 100;
+                  const lc = lineColors[r.line] || '#64748b';
+                  return (
+                    <div key={r.code} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,2fr) minmax(0,3fr) 52px', gap: 10, alignItems: 'center', marginBottom: 9 }}>
+                      <div style={{ fontSize: 9, color: i === 0 ? '#f97316' : 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, textAlign: 'right' }}>#{i + 1}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                        <div style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 }}>
+                          {r.code} · <span style={{ color: lc }}>{LINES.find(l => l.id === r.line)?.label || r.line}</span>
+                        </div>
+                      </div>
+                      <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: i === 0 ? '#f97316' : `${lc}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: i === 0 ? '#f97316' : 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                        {r.hrs.toFixed(1)}h
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+
+          {/* ── Station Efficiency Chart ── */}
+          {metrics.stationEfficiency.filter(s => s.efficiency !== null).length > 0 && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Station Efficiency — Planned ÷ Actual Time</span>
+                <span style={{ display: 'flex', gap: 14 }}>
+                  <span style={{ color: '#10b981' }}>● ≥95% on plan</span>
+                  <span style={{ color: '#f59e0b' }}>● 80–94%</span>
+                  <span style={{ color: '#dc2626' }}>● &lt;80% bottleneck</span>
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {metrics.stationEfficiency.map(s => {
+                  const eff = s.efficiency;
+                  const color = eff === null ? '#64748b'
+                    : eff >= 95 ? '#10b981'
+                    : eff >= 80 ? '#f59e0b'
+                    : '#dc2626';
+                  const barW = eff !== null ? Math.min(eff, 130) : 0;
+                  const lc = lineColors[s.line] || '#64748b';
+                  return (
+                    <div key={s.code} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 52px', gap: 10, alignItems: 'center' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                        <div style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 }}>
+                          {s.code} · <span style={{ color: lc }}>{LINES.find(l => l.id === s.line)?.label || s.line}</span>
+                          {s.estimatedHours != null && ` · ${s.hours.toFixed(1)}h / ${s.estimatedHours.toFixed(1)}h est.`}
+                        </div>
+                      </div>
+                      <div style={{ position: 'relative', height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${(barW / 130) * 100}%`, background: color, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                        {/* 100% marker */}
+                        <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / 130) * 100}%`, width: 1.5, background: 'rgba(255,255,255,0.3)' }} />
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                        {eff !== null ? `${eff}%` : '—'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 10, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                ▏ white marker = 100% target · bars extending past marker = running faster than planned
+              </div>
+            </div>
+          )}
+
+          {/* ── Weekly Production Trend ── */}
+          {weeklyProduction.some(w => w.count > 0) && (
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Weekly Production Trend — buses reaching QA (last 12 weeks)</span>
+                <span style={{ color: '#3b82f6' }}>
+                  avg {(weeklyProduction.filter(w => w.count > 0).reduce((s, w) => s + w.count, 0) / Math.max(weeklyProduction.filter(w => w.count > 0).length, 1)).toFixed(1)}/wk
+                </span>
+              </div>
+              <ProductionTrendChart data={weeklyProduction} />
+            </div>
+          )}
+
+          {allRows.length === 0 && allRows.length > 0 && (
+            <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
               ⚠ No records found for the selected date. Try "All Time" or a different date.
             </div>
           )}
 
-          {filteredAllRows.length === 0 && allRows.length === 0 && (
-            <div style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: '#fbbf24', fontFamily: "'Space Mono', monospace", letterSpacing: '0.04em' }}>
+          {allRows.length === 0 && allRows.length === 0 && (
+            <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
               ⚠ Performance metrics require historical data. They will populate as your travel tool logs more moves.
             </div>
           )}
 
-          {!hasEstimates && filteredAllRows.length > 0 && (
-            <div style={{ background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: '#7dd3fc', fontFamily: "'Space Mono', monospace", letterSpacing: '0.04em' }}>
+          {!hasEstimates && allRows.length > 0 && (
+            <div style={{ background: 'var(--info-alpha)', border: '1px solid var(--info-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--info-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
               ℹ Station estimated times are loading — performance rankings will switch to variance-based once they arrive.
             </div>
           )}

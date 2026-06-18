@@ -1,111 +1,388 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+/* ── KMC Bus Tracker — Design Token System ───────────────────────────────── */
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* Dark theme (default) */
+:root,
+[data-theme="dark"] {
+  --bg-base:      #07090f;
+  --bg-surface:   rgba(13, 21, 38, 0.85);
+  --bg-surface-2: rgba(255, 255, 255, 0.04);
+  --bg-card:      rgba(13, 21, 38, 0.95);
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --border:        rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --text-primary:   #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+  --text-dim:       #334155;
+  --text-heading:   #f8fafc;
+
+  --accent:        #dc2626;
+  --accent-hover:  #b91c1c;
+  --accent-alpha:  rgba(220, 38, 38, 0.12);
+  --accent-border: rgba(220, 38, 38, 0.35);
+  --accent-text:   #fca5a5;
+
+  --kdc-color:  #dc2626;
+  --kdc-alpha:  rgba(220, 38, 38, 0.12);
+  --kdc-border: #dc2626;
+  --kdc-text:   #fca5a5;
+
+  --evs-color:  #38bdf8;
+  --evs-alpha:  rgba(56, 189, 248, 0.10);
+  --evs-border: #38bdf8;
+  --evs-text:   #7dd3fc;
+
+  --success-color: #10b981;
+  --success-alpha: rgba(16, 185, 129, 0.10);
+  --success-border: rgba(16, 185, 129, 0.25);
+
+  --warning-color: #f59e0b;
+  --warning-alpha: rgba(245, 158, 11, 0.10);
+  --warning-border: rgba(245, 158, 11, 0.25);
+
+  --info-color: #38bdf8;
+  --info-alpha: rgba(56, 189, 248, 0.08);
+  --info-border: rgba(56, 189, 248, 0.25);
+
+  --header-bg:     rgba(7, 9, 15, 0.97);
+  --header-border: rgba(255, 255, 255, 0.05);
+
+  --input-bg:           rgba(255, 255, 255, 0.04);
+  --input-border:       rgba(255, 255, 255, 0.09);
+  --input-focus-border: rgba(220, 38, 38, 0.55);
+  --input-focus-bg:     rgba(220, 38, 38, 0.05);
+  --input-color:        #f1f5f9;
+  --input-placeholder:  #334155;
+
+  --nav-color:      #4a5568;
+  --nav-active:     #f8fafc;
+  --nav-hover:      #cbd5e1;
+
+  --filter-color:        #64748b;
+  --filter-border:       rgba(255, 255, 255, 0.08);
+  --filter-hover-border: rgba(255, 255, 255, 0.22);
+  --filter-hover-color:  #94a3b8;
+
+  --scrollbar-thumb: #1e2d40;
+  --color-scheme:    dark;
+
+  --shadow-card:  0 4px 20px rgba(0, 0, 0, 0.45);
+  --shadow-login: 0 24px 64px rgba(0, 0, 0, 0.65);
+
+  --overlay-bg: rgba(7, 9, 15, 0.82);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* Light theme */
+[data-theme="light"] {
+  --bg-base:      #f1f5f9;
+  --bg-surface:   #ffffff;
+  --bg-surface-2: rgba(0, 0, 0, 0.03);
+  --bg-card:      #ffffff;
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  --border:        rgba(0, 0, 0, 0.07);
+  --border-subtle: rgba(0, 0, 0, 0.10);
+  --border-medium: rgba(0, 0, 0, 0.16);
+
+  --text-primary:   #1e293b;
+  --text-secondary: #475569;
+  --text-muted:     #64748b;
+  --text-dim:       #94a3b8;
+  --text-heading:   #0f172a;
+
+  --accent:        #dc2626;
+  --accent-hover:  #b91c1c;
+  --accent-alpha:  rgba(220, 38, 38, 0.08);
+  --accent-border: rgba(220, 38, 38, 0.28);
+  --accent-text:   #dc2626;
+
+  --kdc-color:  #dc2626;
+  --kdc-alpha:  rgba(220, 38, 38, 0.08);
+  --kdc-border: rgba(220, 38, 38, 0.5);
+  --kdc-text:   #dc2626;
+
+  --evs-color:  #0284c7;
+  --evs-alpha:  rgba(2, 132, 199, 0.08);
+  --evs-border: rgba(2, 132, 199, 0.5);
+  --evs-text:   #0284c7;
+
+  --success-color:  #059669;
+  --success-alpha:  rgba(5, 150, 105, 0.08);
+  --success-border: rgba(5, 150, 105, 0.3);
+
+  --warning-color:  #d97706;
+  --warning-alpha:  rgba(217, 119, 6, 0.08);
+  --warning-border: rgba(217, 119, 6, 0.3);
+
+  --info-color:  #0284c7;
+  --info-alpha:  rgba(2, 132, 199, 0.08);
+  --info-border: rgba(2, 132, 199, 0.3);
+
+  --header-bg:     rgba(255, 255, 255, 0.97);
+  --header-border: rgba(0, 0, 0, 0.09);
+
+  --input-bg:           rgba(0, 0, 0, 0.03);
+  --input-border:       rgba(0, 0, 0, 0.13);
+  --input-focus-border: rgba(220, 38, 38, 0.5);
+  --input-focus-bg:     rgba(220, 38, 38, 0.03);
+  --input-color:        #1e293b;
+  --input-placeholder:  #94a3b8;
+
+  --nav-color:      #94a3b8;
+  --nav-active:     #1e293b;
+  --nav-hover:      #475569;
+
+  --filter-color:        #64748b;
+  --filter-border:       rgba(0, 0, 0, 0.12);
+  --filter-hover-border: rgba(0, 0, 0, 0.24);
+  --filter-hover-color:  #334155;
+
+  --scrollbar-thumb: #cbd5e1;
+  --color-scheme:    light;
+
+  --shadow-card:  0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-login: 0 24px 64px rgba(0, 0, 0, 0.18);
+
+  --overlay-bg: rgba(241, 245, 249, 0.88);
+}
+
+/* ── Global reset ────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+::-webkit-scrollbar          { height: 4px; width: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--scrollbar-thumb); border-radius: 2px; }
+
+/* ── iOS / touch global resets ──────────────────────────────────────────── */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* ── Safe-area utilities ─────────────────────────────────────────────────── */
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-x      { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* ── Responsive layout helpers ───────────────────────────────────────────── */
+/* Mobile: < 640px  |  Tablet: 640–1023px  |  Desktop: >= 1024px */
+
+/* Header — responsive */
+@media (max-width: 639px) {
+  .app-header {
+    padding: 0 16px !important;
+    height: auto !important;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding-top: env(safe-area-inset-top) !important;
+  }
+  .app-header-brand {
+    padding-right: 0 !important;
+    border-right: none !important;
+    margin-right: 0 !important;
+  }
+  .app-header-nav {
+    display: none !important;
+  }
+  .app-header-controls {
+    display: none !important;
+  }
+  .app-mobile-row {
+    display: flex !important;
+  }
+  .app-main {
+    padding: 16px 16px env(safe-area-inset-bottom) !important;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  }
+  .filter-bar {
+    gap: 6px !important;
+    padding-bottom: 12px !important;
+  }
+  .filter-btn {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 40px;
+  }
+  .date-range-picker {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    width: 100%;
+    gap: 6px !important;
+  }
+  .date-range-picker input[type="date"] {
+    width: 100%;
+    font-size: 14px !important;
+    padding: 8px 10px !important;
+    min-height: 40px;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .app-header {
+    padding: 0 20px !important;
+    height: 60px !important;
+    padding-top: env(safe-area-inset-top) !important;
+  }
+  .app-main {
+    padding: 20px 20px env(safe-area-inset-bottom) !important;
+  }
+  .app-mobile-row {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-mobile-row {
+    display: none !important;
+  }
+}
+
+/* BusReport grid → cards on mobile */
+@media (max-width: 639px) {
+  .report-row-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+  .report-row-grid > div {
+    min-width: 0;
+  }
+  /* VIN+model spans full width */
+  .report-row-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+  /* Badges span full width */
+  .report-row-grid > div:last-child {
+    grid-column: 1 / -1;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
+  .report-summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .report-row-grid {
+    grid-template-columns: minmax(160px,1.4fr) minmax(0,1fr) minmax(0,0.9fr) minmax(80px,auto) !important;
+  }
+  .report-col-total,
+  .report-col-firstentry {
+    display: none !important;
+  }
+}
+
+/* Dashboard grid → 2-col on tablet, 1-col on mobile */
+@media (max-width: 639px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .dashboard-2col {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* LineTracker → single column on mobile */
+@media (max-width: 1023px) {
+  .line-tracker-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* TravelCard form → single column grid on mobile */
+@media (max-width: 639px) {
+  .tc-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .tc-wrap {
+    padding: 0 0 calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Mobile nav drawer */
+.mobile-nav-drawer {
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--header-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 200;
+  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  transform: translateX(-100%);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mobile-nav-drawer.open {
+  transform: translateX(0);
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* Ensure min 44px touch targets on mobile */
+@media (max-width: 1023px) {
+  .nav-btn,
+  .filter-btn,
+  .icon-btn {
+    min-height: 44px;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+/* TravelCard action/resource row → stack on mobile */
+@media (max-width: 639px) {
+  .tc-act-row {
+    grid-template-columns: 1fr !important;
+    gap: 6px !important;
+  }
+  .tc-res-row {
+    grid-template-columns: 1fr 80px !important;
+  }
+  .tc-cb-grid {
+    grid-template-columns: 1fr !important;
   }
 }
-p {
-  margin: 0;
+
+/* Dashboard DateFilterBar → wrap buttons on mobile */
+@media (max-width: 639px) {
+  .dashboard-date-filter-row {
+    gap: 5px !important;
+  }
+  .dashboard-date-filter-row button {
+    font-size: 10px !important;
+    padding: 6px 8px !important;
+    min-height: 38px;
+  }
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* iOS Safari scroll fix — prevents bouncy overscroll from glitching sticky header */
+html {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* Prevent double-tap zoom on buttons */
+button {
+  touch-action: manipulation;
 }

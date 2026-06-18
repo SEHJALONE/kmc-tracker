@@ -1,17 +1,17 @@
 import { useState } from 'react';
 
-// ── Single shared company credentials ───────────────────
-// Change these to your actual username and password
 const VALID_USERNAME = 'kmc';
 const VALID_PASSWORD = 'kmc1234!';
 
-export default function Login({ onLogin }) {
-  const [username, setUsername]   = useState('');
-  const [password, setPassword]   = useState('');
-  const [showPass, setShowPass]   = useState(false);
-  const [remember, setRemember]   = useState(false);
-  const [error, setError]         = useState('');
-  const [loading, setLoading]     = useState(false);
+export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   const handleSubmit = () => {
     setError('');
@@ -20,15 +20,12 @@ export default function Login({ onLogin }) {
       return;
     }
     setLoading(true);
-    // Simulate a brief auth delay for polish
     setTimeout(() => {
       if (
         username.trim().toLowerCase() === VALID_USERNAME.toLowerCase() &&
         password === VALID_PASSWORD
       ) {
-        if (remember) {
-          localStorage.setItem('kmc_auth', 'true');
-        }
+        if (remember) localStorage.setItem('kmc_auth', 'true');
         onLogin();
       } else {
         setError('Incorrect username or password.');
@@ -44,26 +41,21 @@ export default function Login({ onLogin }) {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#07090f',
-      backgroundImage: "url('/Bus background.png')",
+      background: 'var(--bg-base)',
+      backgroundImage: theme === 'dark' ? "url('/Bus background.png')" : "url('/Bus background 2.png')",
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundRepeat: 'no-repeat',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'Barlow Condensed', sans-serif",
+      fontFamily: "'Inter', system-ui, sans-serif",
       position: 'relative',
       overflow: 'hidden',
+      transition: 'background 0.25s ease',
     }}>
-      {/* Dark overlay to keep form legible over the photo */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(7,9,15,0.10)',
-        zIndex: 0, pointerEvents: 'none',
-      }} />
+
       <style>{`
-        /* Ambient background glow */
         .login-bg-glow {
           position: absolute;
           width: 600px; height: 600px;
@@ -73,35 +65,31 @@ export default function Login({ onLogin }) {
           transform: translate(-50%, -60%);
           pointer-events: none;
         }
-
-        /* Top line accent */
         .login-top-line {
           position: fixed; top: 0; left: 10%; right: 10%; height: 1px;
-          background: linear-gradient(90deg, transparent, rgba(220,38,38,0.6), transparent);
+          background: linear-gradient(90deg, transparent, rgba(220,38,38,0.55), transparent);
         }
-
         .login-input {
           width: 100%;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.09);
+          background: var(--input-bg);
+          border: 1px solid var(--input-border);
           border-radius: 6px;
           padding: 13px 16px;
-          color: #f1f5f9;
+          color: var(--input-color);
           font-size: 16px;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', system-ui, sans-serif;
           letter-spacing: 0.04em;
           outline: none;
           transition: border-color 0.2s, background 0.2s;
         }
-        .login-input::placeholder { color: #334155; }
+        .login-input::placeholder { color: var(--input-placeholder); }
         .login-input:focus {
-          border-color: rgba(220,38,38,0.5);
-          background: rgba(220,38,38,0.04);
+          border-color: var(--input-focus-border);
+          background: var(--input-focus-bg);
         }
-
         .login-btn {
           width: 100%;
-          background: #dc2626;
+          background: var(--accent);
           border: none;
           border-radius: 6px;
           padding: 14px;
@@ -110,30 +98,23 @@ export default function Login({ onLogin }) {
           font-weight: 700;
           letter-spacing: 0.16em;
           text-transform: uppercase;
-          font-family: 'Barlow Condensed', sans-serif;
+          font-family: 'Inter', system-ui, sans-serif;
           cursor: pointer;
           transition: background 0.15s, transform 0.1s;
           margin-top: 8px;
         }
-        .login-btn:hover:not(:disabled) { background: #b91c1c; }
+        .login-btn:hover:not(:disabled) { background: var(--accent-hover); }
         .login-btn:active:not(:disabled) { transform: scale(0.98); }
         .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
         .show-pass-btn {
           position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-          background: none; border: none; color: #475569; cursor: pointer;
-          font-size: 11px; font-family: 'Space Mono', monospace;
+          background: none; border: none; color: var(--text-muted); cursor: pointer;
+          font-size: 11px; font-family: 'Inter', system-ui, sans-serif;
           letter-spacing: 0.06em; padding: 2px 4px;
           transition: color 0.15s;
         }
-        .show-pass-btn:hover { color: #94a3b8; }
-
-        .remember-check {
-          width: 15px; height: 15px;
-          accent-color: #dc2626;
-          cursor: pointer;
-        }
-
+        .show-pass-btn:hover { color: var(--text-secondary); }
+        .remember-check { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinner {
           width: 16px; height: 16px;
@@ -143,47 +124,76 @@ export default function Login({ onLogin }) {
           animation: spin 0.7s linear infinite;
           display: inline-block;
         }
+        .theme-toggle-login {
+          position: fixed; top: 16px; right: 16px;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 11px;
+          font-family: 'Inter', system-ui, sans-serif;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          display: flex; align-items: center; gap: 6px;
+          transition: all 0.15s;
+          z-index: 10;
+        }
+        .theme-toggle-login:hover {
+          border-color: var(--accent-border);
+          color: var(--accent);
+        }
       `}</style>
 
       <div className="login-bg-glow" />
       <div className="login-top-line" />
 
+      {/* Theme toggle */}
+      {toggleTheme && (
+        <button className="theme-toggle-login" onClick={toggleTheme}>
+          {theme === 'dark'
+            ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          }
+          {theme === 'dark' ? 'Light' : 'Dark'}
+        </button>
+      )}
+
       {/* Card */}
       <div style={{
         width: '100%', maxWidth: 420,
-        background: 'rgba(13,21,38,0.1)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        borderTop: '2px solid #dc2626',
-        borderRadius: 12,
-        padding: '40px 36px 36px',
-        backdropFilter: 'blur(16px)',
-        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+        background: theme === 'dark' ? 'rgba(7,9,15,0.65)' : 'rgba(255,255,255,0.72)',
+        border: '1px solid var(--border-subtle)',
+        borderTop: '3px solid var(--accent)',
+        borderRadius: 14,
+        padding: 'clamp(24px, 5vw, 40px) clamp(20px, 5vw, 36px) clamp(24px, 5vw, 36px)',
+        margin: '0 16px',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.55)',
         position: 'relative',
         zIndex: 1,
+        transition: 'background 0.25s ease',
       }}>
 
         {/* Logo + brand */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img
-            src="/kmc logo 2.png"
-            alt="KMC"
-            style={{ height: 52, width: 'auto', objectFit: 'contain', marginBottom: 14 }}
-          />
+          <img src={logo} alt="KMC" style={{ height: 52, width: 'auto', objectFit: 'contain', marginBottom: 14 }} />
           <div style={{
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 22,
-            fontWeight: 800,
-            letterSpacing: '0.18em',
-            color: '#ffffff',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            fontSize: 'clamp(16px, 4vw, 22px)', fontWeight: 800,
+            letterSpacing: '0.12em',
+            color: 'var(--text-heading)',
             textTransform: 'uppercase',
             lineHeight: 1.1,
           }}>
             Bus Production Tracker
           </div>
           <div style={{
-            fontFamily: "'Space Mono', monospace",
+            fontFamily: "'Inter', system-ui, sans-serif",
             fontSize: 10,
-            color: '#ffffff',
+            color: 'var(--text-muted)',
             letterSpacing: '0.12em',
             marginTop: 6,
             textTransform: 'uppercase',
@@ -195,15 +205,15 @@ export default function Login({ onLogin }) {
         {/* Error */}
         {error && (
           <div style={{
-            background: 'rgba(220,38,38,0.08)',
-            border: '1px solid rgba(220,38,38,0.25)',
-            borderLeft: '3px solid #dc2626',
+            background: 'var(--accent-alpha)',
+            border: '1px solid var(--accent-border)',
+            borderLeft: '3px solid var(--accent)',
             borderRadius: '0 5px 5px 0',
             padding: '9px 12px',
             marginBottom: 18,
             fontSize: 13,
-            color: '#fca5a5',
-            fontFamily: "'Space Mono', monospace",
+            color: 'var(--accent-text)',
+            fontFamily: "'Inter', system-ui, sans-serif",
             letterSpacing: '0.03em',
           }}>
             ⚠ {error}
@@ -214,9 +224,9 @@ export default function Login({ onLogin }) {
         <div style={{ marginBottom: 14 }}>
           <label style={{
             display: 'block', fontSize: 11, fontWeight: 700,
-            color: '#ffffff', letterSpacing: '0.14em',
+            color: 'var(--text-secondary)', letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            fontFamily: "'Space Mono', monospace",
+            fontFamily: "'Inter', system-ui, sans-serif",
             marginBottom: 7,
           }}>
             Username
@@ -237,9 +247,9 @@ export default function Login({ onLogin }) {
         <div style={{ marginBottom: 20 }}>
           <label style={{
             display: 'block', fontSize: 11, fontWeight: 700,
-            color: '#ffffff', letterSpacing: '0.14em',
+            color: 'var(--text-secondary)', letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            fontFamily: "'Space Mono', monospace",
+            fontFamily: "'Inter', system-ui, sans-serif",
             marginBottom: 7,
           }}>
             Password
@@ -267,9 +277,7 @@ export default function Login({ onLogin }) {
         </div>
 
         {/* Remember me */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 9, marginBottom: 24,
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 24 }}>
           <input
             className="remember-check"
             type="checkbox"
@@ -278,8 +286,10 @@ export default function Login({ onLogin }) {
             onChange={e => setRemember(e.target.checked)}
           />
           <label htmlFor="remember" style={{
-            fontSize: 13, color: '#c2c6cc', cursor: 'pointer',
-            fontFamily: "'Barlow Condensed', sans-serif",
+            fontSize: 13,
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontFamily: "'Inter', system-ui, sans-serif",
             letterSpacing: '0.06em',
           }}>
             Keep me signed in
@@ -287,11 +297,7 @@ export default function Login({ onLogin }) {
         </div>
 
         {/* Submit */}
-        <button
-          className="login-btn"
-          onClick={handleSubmit}
-          disabled={loading}
-        >
+        <button className="login-btn" onClick={handleSubmit} disabled={loading}>
           {loading
             ? <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 <span className="spinner" /> Signing in...
@@ -302,11 +308,9 @@ export default function Login({ onLogin }) {
 
         {/* Footer */}
         <div style={{
-          marginTop: 28,
-          textAlign: 'center',
-          fontSize: 10,
-          color: '#d2dbe7',
-          fontFamily: "'Space Mono', monospace",
+          marginTop: 28, textAlign: 'center',
+          fontSize: 10, color: 'var(--text-dim)',
+          fontFamily: "'Inter', system-ui, sans-serif",
           letterSpacing: '0.06em',
         }}>
           KIIRA MOTORS CORPORATION © {new Date().getFullYear()}

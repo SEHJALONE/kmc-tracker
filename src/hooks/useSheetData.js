@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { lookupStation } from '../data/stations';
 
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYG6cmN-DMkeKAIBJmEMUsocg_yLAhgC_dr7aRfu4ICkc8aLOC4mrYdXyOXULcBA/pub?output=csv';
+// NI Travel Tool Data → "Travel Card Data" tab.
+// The gviz endpoint reads by spreadsheet ID + tab name directly, so no
+// "Publish to web" step is needed — the sheet just has to be shared as
+// "Anyone with the link can view".
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es/gviz/tq?tqx=out:csv&sheet=Travel%20Card%20Data';
 const REFRESH_INTERVAL = 60000;
 
 function parseCSV(text) {
@@ -18,6 +22,20 @@ function parseCSV(text) {
   const modelIdx     = col(['bus model', 'model']);
   const stationIdx   = col(['station code', 'station_code', 'stationcode', 'station']);
   const timestampIdx = col(['timestamp', 'time', 'date']);
+
+  // Phase 3: new columns written by the Apps Script.
+  // If a column doesn't exist yet, its index is -1 and the field will
+  // be null on every row — no breakage on sheets that predate Phase 2.
+  const designedIdx      = col(['designed time', 'designed_time', 'designedtime', 'cycle time', 'cycle_time']);
+  const approvalIdx      = col(['approval status', 'approval_status', 'approvalstatus']);
+  const ohsIdx           = col(['ohs issue', 'ohs_issue', 'ohsissue', 'ohs']);
+  const overrunIdx       = col(['overrun min', 'overrun_min', 'overrunmin', 'overrun']);
+  // Phase 4: downtime + rework columns — null when absent
+  const downtimeMinIdx   = col(['downtime min', 'downtime_min', 'downtimemin', 'downtime minutes', 'downtime_minutes']);
+  const downtimeReasonIdx= col(['downtime reason', 'downtime_reason', 'downtimere']);
+  const reworkFlagIdx    = col(['rework flag', 'rework_flag', 'reworkflag', 'rework']);
+  const reworkHrsIdx     = col(['rework hours', 'rework_hours', 'reworkhours', 'rework hrs', 'rework_hrs']);
+  const projectIdx       = col(['bus project', 'project', 'proj', 'contract', 'order']);
 
   if (vinIdx === -1 || modelIdx === -1 || stationIdx === -1) {
     console.warn('KMC Tracker: Could not find required columns. Headers:', headers);
@@ -42,7 +60,26 @@ function parseCSV(text) {
     const timestamp = timestampIdx >= 0 ? cells[timestampIdx]?.trim() : '';
 
     if (!vin || !stCode) continue;
-    rows.push({ vin, model, stationCode: stCode, timestamp, rawTimestamp: timestamp });
+
+    // Phase 3 fields — null when column is absent or value is empty
+    const designedTime   = designedIdx >= 0 ? (parseFloat(cells[designedIdx])  || null) : null;
+    const approvalStatus = approvalIdx >= 0 ? (cells[approvalIdx]?.trim()  || null) : null;
+    const ohsIssue       = ohsIdx      >= 0 ? (cells[ohsIdx]?.trim()       || null) : null;
+    const overrunMin     = overrunIdx  >= 0 ? (parseFloat(cells[overrunIdx]) || null) : null;
+    // Phase 4 fields
+    const downtimeMin    = downtimeMinIdx    >= 0 ? (parseFloat(cells[downtimeMinIdx])    || null) : null;
+    const downtimeReason = downtimeReasonIdx >= 0 ? (cells[downtimeReasonIdx]?.trim()    || null) : null;
+    const reworkRaw      = reworkFlagIdx     >= 0 ? (cells[reworkFlagIdx]?.trim()        || null) : null;
+    const reworkFlag     = reworkRaw !== null ? /^(yes|true|1|y)$/i.test(reworkRaw) : null;
+    const reworkHrs      = reworkHrsIdx      >= 0 ? (parseFloat(cells[reworkHrsIdx])     || null) : null;
+    const project        = projectIdx        >= 0 ? (cells[projectIdx]?.trim()           || null) : null;
+
+    rows.push({
+      vin, model, stationCode: stCode,
+      timestamp, rawTimestamp: timestamp,
+      designedTime, approvalStatus, ohsIssue, overrunMin,
+      downtimeMin, downtimeReason, reworkFlag, reworkHrs, project,
+    });
   }
   return rows;
 }
