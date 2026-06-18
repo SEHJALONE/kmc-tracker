@@ -186,6 +186,7 @@ export default function App() {
     <HomeScreen
       theme={theme}
       toggleTheme={toggleTheme}
+      onLogout={handleLogout}
       onSelectTravelCard={() => setMode('travelcard')}
       onSelectTracker={() => setMode('tracker')}
     />
@@ -198,87 +199,76 @@ export default function App() {
       color: 'var(--text-primary)',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-      <header style={{
-        borderBottom: '1px solid var(--header-border)',
-        padding: '0 32px',
-        display: 'flex',
-        alignItems: 'center',
-        height: 68,
-        position: 'sticky',
-        top: 0,
-        background: 'var(--header-bg)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        zIndex: 100,
-        gap: 16,
-      }}>
-        <button
-          onClick={() => setMode('home')}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-muted)',
-            borderRadius: 6,
-            padding: '5px 12px',
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
+      <style>{`
+        .tc-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex;
+          align-items: center;
+          height: 64;
+          position: sticky;
+          top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          z-index: 100;
+          gap: clamp(8px, 2vw, 16px);
+        }
+        .tc-btn {
+          background: transparent;
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .tc-btn.accent { border-color: var(--accent-border); }
+        .tc-title {
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          color: var(--text-heading);
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        @media (max-width: 560px) {
+          .tc-title { display: none; }
+          .tc-logo { height: 30px !important; }
+          .tc-btn { padding: 6px 9px; }
+          .tc-btn .tc-label { display: none; }
+        }
+      `}</style>
+      <header className="tc-header" style={{ height: 64 }}>
+        <button className="tc-btn" onClick={() => setMode('home')}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
-          Home
+          <span className="tc-label">Home</span>
         </button>
-        <img src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
-        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-heading)', textTransform: 'uppercase' }}>
-          Travel Card
-        </div>
+        <img className="tc-logo" src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="tc-title">Travel Card</div>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={toggleTheme}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-muted)',
-            borderRadius: 6,
-            padding: '5px 12px',
-            fontSize: 11,
-            cursor: 'pointer',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          {theme === 'dark' ? '☀ Light' : '☾ Dark'}
+        <button className="tc-btn" onClick={toggleTheme}>
+          {theme === 'dark' ? '☀' : '☾'}<span className="tc-label">{theme === 'dark' ? ' Light' : ' Dark'}</span>
         </button>
-        <button
-          onClick={handleLogout}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--accent-border)',
-            color: 'var(--text-muted)',
-            borderRadius: 6,
-            padding: '5px 12px',
-            fontSize: 11,
-            cursor: 'pointer',
-            fontFamily: "'Inter', system-ui, sans-serif",
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          Sign Out
+        <button className="tc-btn accent" onClick={handleLogout}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+          </svg>
+          <span className="tc-label">Sign Out</span>
         </button>
       </header>
-      <main style={{ padding: '28px 32px', maxWidth: 1440, margin: '0 auto' }}>
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
         <TravelCard
           prefillVin={tcPrefill?.vin ?? ''}
           prefillModel={tcPrefill?.model ?? ''}

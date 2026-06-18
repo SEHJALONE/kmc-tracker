@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme, toggleTheme }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onLogout, theme, toggleTheme }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   function SunIcon() {
@@ -25,7 +25,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
   }
 
   return (
-    <div style={{
+    <div className="home-screen" style={{
       minHeight: '100vh',
       background: 'var(--bg-base)',
       display: 'flex',
@@ -34,9 +34,8 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
       justifyContent: 'center',
       fontFamily: "'Inter', system-ui, sans-serif",
       position: 'relative',
-      overflow: 'hidden',
-      gap: 48,
-      padding: '40px 24px',
+      gap: 'clamp(28px, 6vw, 48px)',
+      padding: 'clamp(28px, 6vw, 48px) clamp(16px, 5vw, 24px)',
     }}>
       <style>{`
         .home-card-btn {
@@ -47,7 +46,10 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
           cursor: pointer;
           width: 100%;
           max-width: 420px;
-          height: 260px;
+          height: clamp(170px, 38vw, 260px);
+          /* fallback gradient shown while the image loads (slow networks) */
+          background-color: #1a1c24;
+          background-image: linear-gradient(135deg, #d6177a 0%, #6b1fb0 100%);
           background-size: cover;
           background-position: center;
           background-repeat: no-repeat;
@@ -135,8 +137,12 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
         .home-card-btn:hover::before {
           border-color: rgba(255,255,255,0.30);
         }
-        .theme-toggle-home {
+        .home-top-controls {
           position: fixed; top: 16px; right: 16px;
+          display: flex; align-items: center; gap: 8px;
+          z-index: 10;
+        }
+        .home-top-btn {
           background: var(--bg-surface);
           border: 1px solid var(--border-subtle);
           color: var(--text-muted);
@@ -149,12 +155,12 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
           cursor: pointer;
           display: flex; align-items: center; gap: 6px;
           transition: all 0.15s;
-          z-index: 10;
         }
-        .theme-toggle-home:hover {
+        .home-top-btn:hover {
           border-color: var(--accent-border);
           color: var(--accent);
         }
+        .home-top-btn.signout { border-color: var(--accent-border); }
         @media (min-width: 900px) {
           .home-cards-row {
             flex-direction: row !important;
@@ -165,12 +171,22 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
         }
       `}</style>
 
-      {toggleTheme && (
-        <button className="theme-toggle-home" onClick={toggleTheme}>
-          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-      )}
+      <div className="home-top-controls">
+        {toggleTheme && (
+          <button className="home-top-btn" onClick={toggleTheme}>
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+        )}
+        {onLogout && (
+          <button className="home-top-btn signout" onClick={onLogout}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+            </svg>
+            Sign Out
+          </button>
+        )}
+      </div>
 
       {/* Brand */}
       <div style={{ textAlign: 'center' }}>
@@ -201,7 +217,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
 
         <button
           className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background.png')" }}
+          style={{ backgroundImage: "url('/Bus background.png'), linear-gradient(135deg, #d6177a 0%, #6b1fb0 100%)" }}
           onClick={onSelectTravelCard}
         >
           <div className="home-card-overlay">
@@ -212,7 +228,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, theme,
 
         <button
           className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 2.png')" }}
+          style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #6b1fb0 0%, #d6177a 100%)" }}
           onClick={onSelectTracker}
         >
           <div className="home-card-overlay">
