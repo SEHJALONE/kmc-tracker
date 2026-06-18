@@ -161,12 +161,22 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onLogo
           color: var(--accent);
         }
         .home-top-btn.signout { border-color: var(--accent-border); }
+        .home-cards-row {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          align-items: center;
+          width: 100%;
+          max-width: 420px;
+        }
         @media (min-width: 900px) {
           .home-cards-row {
-            flex-direction: row !important;
+            flex-direction: row;
+            max-width: 820px;
           }
           .home-card-btn {
             width: 380px;
+            max-width: 380px;
           }
         }
       `}</style>
@@ -213,7 +223,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onLogo
       </div>
 
       {/* Two large buttons */}
-      <div className="home-cards-row" style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center' }}>
+      <div className="home-cards-row">
 
         <button
           className="home-card-btn"
