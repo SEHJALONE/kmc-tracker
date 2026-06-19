@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { LINES, STATIONS } from '../data/stations';
+import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel } from '../data/stations';
+import { isActive, stationMatchesProject } from '../data/catalogConfig';
+
+// Normalise a free-text model string to 'KDC' | 'EVS' | null.
+function modelKindOf(model = '') {
+  const m = model.toUpperCase();
+  if (m.includes('KDC')) return 'KDC';
+  if (m.includes('EVS')) return 'EVS';
+  return null;
+}
 
 const BUS_IMAGES = {
   '7m EVS':    '/7m EVS.png',
@@ -134,7 +143,7 @@ function BusCallout({ bus }) {
               padding: '4px 8px', fontSize: 10, color: '#94a3b8',
               lineHeight: 1.4, marginBottom: 4,
             }}>
-              📍 {bus.station.name}
+              📍 {stationNameForModel(bus.station, bus.model)}
             </div>
           )}
           {bus.timestamp && <div style={{ color: '#475569', fontSize: 10 }}>{bus.timestamp}</div>}
@@ -156,9 +165,20 @@ function StationDot({ station, code, buses, filter }) {
 
   const isQuality = station.name.toLowerCase().includes('quality') ||
                     station.name.toLowerCase().includes('gate');
+  const archived = !!station.archived;
+
+  // Per-model station naming. A station shared by both models can describe
+  // different work for each; resolve which name(s) to show in the callout:
+  //   • model filter active  → that model's name
+  //   • single model parked  → that model's name
+  //   • otherwise (homogenous view) → show EVS and KDC names distinctly
+  const names = stationDisplayNames(station);
+  const filterModel = filter === 'KDC' || filter === 'EVS' ? filter : null;
+  const hereModels = [...new Set(busesHere.map(b => modelKindOf(b.model)).filter(Boolean))];
+  const ctxModel = filterModel || (hereModels.length === 1 ? hereModels[0] : null);
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: archived ? 0.55 : 1 }}>
       {busesHere.length > 0 && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 8, flexWrap: 'nowrap', justifyContent: 'center' }}>
           {busesHere.map(bus => <BusCallout key={bus.vin} bus={bus} />)}
@@ -189,11 +209,24 @@ function StationDot({ station, code, buses, filter }) {
           width: 190, textAlign: 'center',
         }}>
           <div style={{ fontSize: 9, color: '#475569', fontFamily: "'Space Mono', monospace", letterSpacing: '0.1em', marginBottom: 4 }}>
-            {code}
+            {code}{archived ? ' · ARCHIVED' : ''}
           </div>
-          <div style={{ fontSize: 11, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4, wordBreak: 'break-word' }}>
-            {station.name}
-          </div>
+          {names.differs && !ctxModel ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ fontSize: 10.5, color: '#7dd3fc', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
+                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '0.08em', opacity: 0.85 }}>EVS </span>
+                {names.evs}
+              </div>
+              <div style={{ fontSize: 10.5, color: '#fca5a5', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
+                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '0.08em', opacity: 0.85 }}>KDC </span>
+                {names.kdc}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4, wordBreak: 'break-word' }}>
+              {ctxModel ? (ctxModel === 'KDC' ? names.kdc : names.evs) : station.name}
+            </div>
+          )}
           {busesHere.length > 0 && (
             <div style={{ marginTop: 5, fontSize: 9, color: '#dc2626', fontFamily: "'Space Mono', monospace" }}>
               {busesHere.length} bus{busesHere.length > 1 ? 'es' : ''} here
@@ -337,17 +370,26 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
   );
 }
 
-export default function LineTracker({ buses, filter }) {
+export default function LineTracker({ buses, filter, projectFilter = null }) {
   const linesToShow = LINES.filter(line => {
+    if (!isActive(line)) return false;
     if (filter === 'ALL') return true;
     return line.models.some(m => filter.toUpperCase().includes(m) || m === filter);
   });
 
+  // Critical path only — subassembly feeder stations are excluded from the
+  // line tracker display (their data is still collected via the travel card).
+  // Archived stations are hidden by default; they reappear only when a project
+  // filter is active and the station belongs to that project (explicit tag or
+  // overlapping effective-date window) — so historical lines stay retrievable.
   const stationsByLine = {};
-  for (const [code, st] of Object.entries(STATIONS)) {
+  for (const [code, st] of Object.entries(MAJOR_STATIONS)) {
     if (filter !== 'ALL' && !st.models.some(m => filter.toUpperCase().includes(m) || m === filter)) continue;
+    if (!isActive(st)) {
+      if (!projectFilter || !stationMatchesProject(st, projectFilter)) continue;
+    }
     if (!stationsByLine[st.line]) stationsByLine[st.line] = [];
-    stationsByLine[st.line].push({ code, ...st });
+    stationsByLine[st.line].push({ code, ...st, archived: !isActive(st) });
   }
   for (const lineId of Object.keys(stationsByLine)) {
     stationsByLine[lineId].sort((a, b) => a.order - b.order);

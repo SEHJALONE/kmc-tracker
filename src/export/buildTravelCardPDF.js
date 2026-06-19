@@ -188,8 +188,8 @@ export async function buildStationReportPDF(sub, logoBase64) {
     doc.text('ACTIVITY', M + 3, y + 5);
     doc.text('STATUS', W - M - 3, y + 5, { align: 'right' });
     y += TH_H;
-    const statusLabel = { complete: '✔ Complete', issue: '⚠ Issue noted', rework: '↺ Rework', na: 'N/A', '': '—' };
-    const statusColor = { complete: GREEN, issue: AMBER, rework: RED, na: MID, '': MID };
+    const statusLabel = { complete: '✔ Complete', incomplete: '⏳ Incomplete', issue: '⚠ Issue noted', rework: '↺ Rework', na: 'N/A', '': '—' };
+    const statusColor = { complete: GREEN, incomplete: AMBER, issue: AMBER, rework: RED, na: MID, '': MID };
     acts.slice(0, 30).forEach(([act, st], i) => {
       doc.setFillColor(...(i % 2 === 0 ? WHITE : XLIT));
       doc.rect(M, y, CW, ROW_H, 'F');
@@ -235,20 +235,43 @@ export async function buildStationReportPDF(sub, logoBase64) {
   // ── Overrun detail ──
   if (sub.hasOverrun && sub.overrun) {
     y = sectionTitle(doc, y, 'Overrun analysis');
+    const ov = sub.overrun;
+    const sel = ov.selMs || [];
+    // One line per selected cause: "<detail> — <delay> min"
+    const causeLines = sel.map(m => {
+      const detail = ov.subCauses?.[m];
+      const mins = ov.causeTimes?.[m];
+      const t = (mins !== undefined && mins !== '' && mins !== null) ? `${mins} min` : null;
+      return { label: m, value: [detail, t].filter(Boolean).join(' — ') || '—' };
+    });
+    const summedDelay = sel.reduce((tot, m) => tot + (Number(ov.causeTimes?.[m]) || 0), 0);
+
+    // Dynamic box height based on the rows we'll draw.
+    const rowCount = 1 /* root causes */ + causeLines.length
+      + (summedDelay ? 1 : 0) + 1 /* corrective */ + (ov.comments ? 1 : 0);
+    const boxH = 4 + rowCount * 9 + 2;
     doc.setFillColor(...LTRED);
-    doc.roundedRect(M, y, CW, 28, 1.5, 1.5, 'F');
+    doc.roundedRect(M, y, CW, boxH, 1.5, 1.5, 'F');
     doc.setDrawColor(...RED); doc.setLineWidth(0.3);
-    doc.roundedRect(M, y, CW, 28, 1.5, 1.5, 'D');
+    doc.roundedRect(M, y, CW, boxH, 1.5, 1.5, 'D');
     y += 4;
-    kvRow(doc, M + 4, y, 'Root causes (6Ms)', (sub.overrun.selMs || []).join(', ') || '—', half, true);
+    kvRow(doc, M + 4, y, 'Root causes', sel.join(', ') || '—', CW - 8, true);
     y += 9;
-    kvRow(doc, M + 4, y, 'Corrective action', sub.overrun.correctiveAction || '—', CW - 8);
-    y += 9;
-    if (sub.overrun.comments) {
-      kvRow(doc, M + 4, y, 'Additional comments', sub.overrun.comments, CW - 8);
+    causeLines.forEach(c => {
+      kvRow(doc, M + 4, y, c.label, c.value, CW - 8);
+      y += 9;
+    });
+    if (summedDelay) {
+      kvRow(doc, M + 4, y, 'Total delay attributed', `${summedDelay} min of +${sub.actualTime - sub.designedTime} min overrun`, CW - 8, true);
       y += 9;
     }
-    y += 10;
+    kvRow(doc, M + 4, y, 'Corrective action', ov.correctiveAction || '—', CW - 8);
+    y += 9;
+    if (ov.comments) {
+      kvRow(doc, M + 4, y, 'Additional comments', ov.comments, CW - 8);
+      y += 9;
+    }
+    y += 6;
   }
 
   // ── HSE ──

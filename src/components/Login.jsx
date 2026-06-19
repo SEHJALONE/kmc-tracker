@@ -1,7 +1,10 @@
 import { useState } from 'react';
 
-const VALID_USERNAME = 'kmc';
-const VALID_PASSWORD = 'kmc1234!';
+// Credential sets → role. Username match is case-insensitive; password is exact.
+const CREDENTIALS = [
+  { username: 'kmcadmin', password: 'KMC1234!', role: 'admin' },
+  { username: 'kmc',      password: 'kmc1234!', role: 'user'  },
+];
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
   const [username, setUsername] = useState('');
@@ -21,12 +24,15 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
     }
     setLoading(true);
     setTimeout(() => {
-      if (
-        username.trim().toLowerCase() === VALID_USERNAME.toLowerCase() &&
-        password === VALID_PASSWORD
-      ) {
-        if (remember) localStorage.setItem('kmc_auth', 'true');
-        onLogin();
+      const match = CREDENTIALS.find(
+        c => c.username.toLowerCase() === username.trim().toLowerCase() && c.password === password
+      );
+      if (match) {
+        if (remember) {
+          localStorage.setItem('kmc_auth', 'true');
+          localStorage.setItem('kmc_role', match.role);
+        }
+        onLogin(match.role);
       } else {
         setError('Incorrect username or password.');
         setLoading(false);

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { LINES, STATIONS } from '../data/stations';
+import { LINES, STATIONS, MAJOR_STATIONS } from '../data/stations';
+import { isActive, stationMatchesProject } from '../data/catalogConfig';
 
 const DATE_PRESETS = [
   { id: 'all',       label: 'All Time' },
@@ -97,14 +98,17 @@ function Divider() {
   );
 }
 
-export default function FilterBar({ filters, onChange, busCount, totalBusCount, projects = [], theme }) {
+export default function FilterBar({ filters, onChange, busCount, totalBusCount, projects = [], selectedProject = null, theme }) {
   const lineStations = useMemo(() => {
     if (filters.line === 'ALL') return [];
-    return Object.entries(STATIONS)
+    // Critical-path stations only — subassembly feeders aren't offered as filters.
+    // Archived stations are hidden unless the active project filter includes them.
+    return Object.entries(MAJOR_STATIONS)
       .filter(([, s]) => s.line === filters.line)
+      .filter(([, s]) => isActive(s) || (selectedProject && stationMatchesProject(s, selectedProject)))
       .sort((a, b) => a[1].order - b[1].order)
-      .map(([code, s]) => ({ code, name: s.name }));
-  }, [filters.line]);
+      .map(([code, s]) => ({ code, name: s.name, archived: !isActive(s) }));
+  }, [filters.line, selectedProject]);
 
   const set = (key, value) => {
     const update = { ...filters, [key]: value };
@@ -341,7 +345,7 @@ export default function FilterBar({ filters, onChange, busCount, totalBusCount, 
           >
             <option value="">All Stations</option>
             {lineStations.map(s => (
-              <option key={s.code} value={s.code}>{s.name}</option>
+              <option key={s.code} value={s.code}>{s.archived ? '⌫ ' : ''}{s.name}</option>
             ))}
           </select>
         </SelectWrapper>

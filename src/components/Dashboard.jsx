@@ -1,10 +1,149 @@
-import { useMemo, useRef, useState } from 'react';
-import { LINES, STATIONS } from '../data/stations';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { LINES, STATIONS, isMajorStation } from '../data/stations';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
+
+function fmtHours(h) {
+  if (h == null || !isFinite(h) || h <= 0) return '—';
+  const hrs  = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
+// ── Takt Time components ──────────────────────────────────
+function TaktKpiBox({ label, value, sub, color }) {
+  return (
+    <div style={{ background: 'var(--bg-surface-2, var(--bg-surface))', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '12px 16px', flex: '1 1 140px', minWidth: 0 }}>
+      <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: color || 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1, letterSpacing: '-0.5px' }}>{value}</div>
+      {sub && <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+// Convert a target quantity + period into buses-per-week (5 working days/week assumed)
+const TAKT_PERIOD_OPTIONS = [
+  { value: 'day',   label: '/day',   toPerWeek: n => n * 5  },
+  { value: 'week',  label: '/week',  toPerWeek: n => n      },
+  { value: 'month', label: '/month', toPerWeek: n => n / 4.33 },
+  { value: 'year',  label: '/year',  toPerWeek: n => n / 52  },
+];
+
+function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTaktTarget, taktPeriod, setTaktPeriod, prodRateStr }) {
+  const hours      = taktHoursPerDay > 0 ? taktHoursPerDay : 8;
+  const prodRate   = parseFloat(prodRateStr) || 0;
+  const periodDef  = TAKT_PERIOD_OPTIONS.find(p => p.value === taktPeriod) || TAKT_PERIOD_OPTIONS[1];
+  const targetPerWeek = taktTarget > 0 ? periodDef.toPerWeek(taktTarget) : 0;
+
+  const actualCycle = prodRate > 0 ? hours / prodRate : null;
+  const reqTakt     = targetPerWeek > 0 ? (hours * 5) / targetPerWeek : null;
+  const ratio       = reqTakt && actualCycle ? actualCycle / reqTakt : null;
+  const status      = ratio == null ? null : ratio <= 0.95 ? 'ahead' : ratio <= 1.05 ? 'on-takt' : 'behind';
+  const statusColor = status === 'ahead' ? '#10b981' : status === 'on-takt' ? '#f59e0b' : status === 'behind' ? '#dc2626' : '#64748b';
+  const statusLabel = status === 'ahead' ? 'AHEAD OF TAKT' : status === 'on-takt' ? 'ON TAKT' : status === 'behind' ? 'BEHIND TAKT' : 'SET TARGET BELOW';
+  const actualPerWeek = prodRate * 5;
+  const weeklyGap   = targetPerWeek > 0 ? actualPerWeek - targetPerWeek : null;
+
+  const inputStyle = { background: 'var(--input-bg, var(--bg-surface))', border: '1px solid var(--input-border, var(--border-subtle))', borderRadius: 4, padding: '4px 6px', color: 'var(--input-color, var(--text-primary))', fontSize: 11, fontFamily: "'Inter', system-ui, sans-serif", outline: 'none' };
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${statusColor}55`, borderLeft: `4px solid ${statusColor}`, borderRadius: 8, padding: '16px 20px', boxShadow: 'var(--shadow-card)' }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif" }}>Takt Time</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: statusColor, background: `${statusColor}18`, border: `1px solid ${statusColor}44`, borderRadius: 20, padding: '2px 9px', letterSpacing: '0.08em', fontFamily: "'Inter', system-ui, sans-serif" }}>{statusLabel}</span>
+        </div>
+        {/* Inline config */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Working hrs/day</span>
+          <input
+            type="number" min="0.5" max="24" step="0.5"
+            value={taktHoursPerDay}
+            onChange={e => setTaktHoursPerDay(Math.max(0.5, parseFloat(e.target.value) || 8))}
+            style={{ ...inputStyle, width: 54, textAlign: 'right' }}
+          />
+          <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginLeft: 6 }}>Target buses</span>
+          <input
+            type="number" min="0" max="99999" step="1"
+            value={taktTarget || ''}
+            placeholder="e.g. 15"
+            onChange={e => setTaktTarget(parseFloat(e.target.value) || 0)}
+            style={{ ...inputStyle, width: 66, textAlign: 'right' }}
+          />
+          <select
+            value={taktPeriod}
+            onChange={e => setTaktPeriod(e.target.value)}
+            style={{ ...inputStyle, cursor: 'pointer' }}
+          >
+            {TAKT_PERIOD_OPTIONS.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* KPI boxes */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: ratio != null ? 14 : 0 }}>
+        <TaktKpiBox
+          label="Required Takt"
+          value={reqTakt != null ? fmtHours(reqTakt) : '—'}
+          sub={targetPerWeek > 0 ? `${taktTarget} buses${periodDef.label} ≈ ${targetPerWeek.toFixed(1)}/wk @ ${hours}h/day` : 'set target to calculate'}
+          color={statusColor}
+        />
+        <TaktKpiBox
+          label="Actual Cycle Time"
+          value={actualCycle != null ? fmtHours(actualCycle) : '—'}
+          sub={prodRate > 0 ? `based on ${prodRateStr}/day × ${hours}h shift` : 'no production data'}
+          color={reqTakt && actualCycle ? (actualCycle <= reqTakt ? '#10b981' : '#dc2626') : 'var(--text-primary)'}
+        />
+        {ratio != null && (
+          <TaktKpiBox
+            label="Takt Ratio"
+            value={`${(ratio * 100).toFixed(0)}%`}
+            sub={ratio < 1 ? `${fmtHours(reqTakt - actualCycle)} buffer per bus` : `${fmtHours(actualCycle - reqTakt)} overrun per bus`}
+            color={statusColor}
+          />
+        )}
+        {weeklyGap != null && (
+          <TaktKpiBox
+            label="Weekly Output Gap"
+            value={weeklyGap >= 0 ? `+${weeklyGap.toFixed(1)}` : weeklyGap.toFixed(1)}
+            sub={`${actualPerWeek.toFixed(1)} actual vs ${targetPerWeek.toFixed(1)} required buses/wk`}
+            color={weeklyGap >= 0 ? '#10b981' : '#dc2626'}
+          />
+        )}
+      </div>
+
+      {/* Visual gauge */}
+      {ratio != null && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", width: 86, flexShrink: 0 }}>Cycle vs Takt</span>
+            <div style={{ flex: 1, position: 'relative', height: 10, background: 'var(--border-subtle)', borderRadius: 5, overflow: 'visible' }}>
+              <div style={{
+                position: 'absolute', left: 0, top: 0, height: '100%',
+                width: `${Math.min(ratio * 75, 100)}%`,
+                background: statusColor,
+                borderRadius: 5,
+                transition: 'width 0.6s ease',
+              }} />
+              <div style={{ position: 'absolute', top: -4, bottom: -4, left: '75%', width: 2, background: 'rgba(255,255,255,0.75)', borderRadius: 1 }} />
+              <span style={{ position: 'absolute', top: -14, left: '75%', transform: 'translateX(-50%)', fontSize: 7, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>TARGET</span>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 800, color: statusColor, fontFamily: "'Inter', system-ui, sans-serif", minWidth: 42, textAlign: 'right' }}>{(ratio * 100).toFixed(0)}%</span>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            White marker = required takt · bar left of marker = ahead of takt · bar right = behind takt
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Tiny helpers ─────────────────────────────────────────
 function MetricCard({ label, value, sub, accent }) {
@@ -140,6 +279,14 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
   const slideRef     = useRef(null);
   const [presenting, setPresenting] = useState(false);
 
+  const [taktHoursPerDay, setTaktHoursPerDayRaw] = useState(() => { try { return parseFloat(localStorage.getItem('kmc_takt_hours')  || '8') || 8; } catch { return 8; } });
+  const [taktTarget,      setTaktTargetRaw]      = useState(() => { try { return parseFloat(localStorage.getItem('kmc_takt_target') || '0') || 0; } catch { return 0; } });
+  const [taktPeriod,      setTaktPeriodRaw]      = useState(() => { try { return localStorage.getItem('kmc_takt_period') || 'week'; } catch { return 'week'; } });
+
+  const setTaktHoursPerDay = v => { setTaktHoursPerDayRaw(v); try { localStorage.setItem('kmc_takt_hours',  String(v)); } catch {} };
+  const setTaktTarget      = v => { setTaktTargetRaw(v);      try { localStorage.setItem('kmc_takt_target', String(v)); } catch {} };
+  const setTaktPeriod      = v => { setTaktPeriodRaw(v);      try { localStorage.setItem('kmc_takt_period', v);        } catch {} };
+
   const metrics = useMemo(() => {
     const total      = buses.length;
     const kdcCount   = buses.filter(b => isKDC(b.model)).length;
@@ -176,8 +323,10 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
       avgDwell[code] = dwellByStation[code] / countByStation[code];
     }
 
+    // Critical-path stations only — subassembly feeders are excluded from all
+    // performance metrics (their data is still collected, just not surfaced here).
     const stationPerf = Object.entries(avgDwell)
-      .filter(([code]) => STATIONS[code])
+      .filter(([code]) => isMajorStation(code))
       .map(([code, hours]) => {
         const estimated = stationTimes[code];
         const estimatedHours = estimated ? estimated / 60 : null;
@@ -245,7 +394,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
       overrunCountByStation[code] = (overrunCountByStation[code] || 0) + 1;
     }
     const overrunPareto = Object.entries(overrunByStation)
-      .filter(([code]) => STATIONS[code])
+      .filter(([code]) => isMajorStation(code))
       .map(([code, totalMin]) => ({
         code,
         name:       STATIONS[code]?.name || code,
@@ -266,7 +415,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
       totalDowntimeMin += row.downtimeMin;
       const reason = row.downtimeReason || 'Unspecified';
       downtimeByReason[reason] = (downtimeByReason[reason] || 0) + row.downtimeMin;
-      if (row.stationCode && STATIONS[row.stationCode]) {
+      if (row.stationCode && isMajorStation(row.stationCode)) {
         downtimeByStation[row.stationCode]      = (downtimeByStation[row.stationCode]      || 0) + row.downtimeMin;
         downtimeStationCount[row.stationCode]   = (downtimeStationCount[row.stationCode]   || 0) + 1;
       }
@@ -284,7 +433,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
       if (row.stationCode?.startsWith('Q')) completedVinsAll.add(row.vin);
       if (row.reworkFlag === true) {
         reworkVins.add(row.vin);
-        if (row.stationCode && STATIONS[row.stationCode]) {
+        if (row.stationCode && isMajorStation(row.stationCode)) {
           reworkByStation[row.stationCode] = (reworkByStation[row.stationCode] || 0) + (row.reworkHrs || 0);
         }
       }
@@ -430,6 +579,17 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
               />
             )}
           </div>
+
+          {/* Takt Time panel */}
+          <TaktTimePanel
+            taktHoursPerDay={taktHoursPerDay}
+            setTaktHoursPerDay={setTaktHoursPerDay}
+            taktTarget={taktTarget}
+            setTaktTarget={setTaktTarget}
+            taktPeriod={taktPeriod}
+            setTaktPeriod={setTaktPeriod}
+            prodRateStr={metrics.prodRate}
+          />
 
           {/* Model + Line distribution */}
           <div className="dashboard-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>

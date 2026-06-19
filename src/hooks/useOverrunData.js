@@ -1,16 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // ─── URL ──────────────────────────────────────────────────────────────────────
-// The Travel Card Google Sheet published as CSV — overruns tab.
-// Replace GID with the actual sheet tab ID of the "overruns" tab.
-// To find it: open the sheet → click the overruns tab → copy the gid= value
-// from the URL bar, e.g.: ?gid=1234567890
-//
-// Then publish the tab:
-//   File → Share → Publish to web → choose "overruns" tab → CSV → Publish
-// and paste the resulting URL below.
+// The "overruns" tab of the NI Travel Tool Data spreadsheet, read as CSV via the
+// gviz endpoint by tab name — the same approach as useSheetData. No "Publish to
+// web" step is needed; the sheet just has to be shared as
+// "Anyone with the link can view".
 export const OVERRUN_URL =
-  'https://docs.google.com/spreadsheets/d/e/__TRAVEL_CARD_SHEET_ID__/pub?gid=__OVERRUNS_GID__&single=true&output=csv';
+  'https://docs.google.com/spreadsheets/d/1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es/gviz/tq?tqx=out:csv&sheet=overruns';
 
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
@@ -169,13 +165,6 @@ export function useOverrunData() {
   const [lastFetched, setLastFetched] = useState(null);
 
   const fetchData = useCallback(async () => {
-    // Guard: if the URL hasn't been configured yet, fail gracefully
-    if (OVERRUN_URL.includes('__TRAVEL_CARD_SHEET_ID__')) {
-      setError('useOverrunData: OVERRUN_URL not configured. Set the Travel Card sheet ID and overruns tab GID.');
-      setLoading(false);
-      return;
-    }
-
     try {
       const res = await fetch(OVERRUN_URL + '&t=' + Date.now());
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

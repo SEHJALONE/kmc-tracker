@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { LINES, STATIONS } from '../data/stations';
+import { LINES, isMajorStation, majorStationCountForLine } from '../data/stations';
 import { isKDC, isEVS, fmt, fmtDate, getStatus } from './exportHelpers';
 
 export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
@@ -39,9 +39,9 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     const latestTs = history[history.length - 1] ? new Date(history[history.length - 1].rawTimestamp).getTime() : null;
     const totalMs  = firstTs  ? nowMs - firstTs  : null;
     const curMs    = latestTs ? nowMs - latestTs : null;
-    const visited  = new Set(history.map(r => r.stationCode)).size;
+    const visited  = new Set(history.map(r => r.stationCode).filter(isMajorStation)).size;
     const lineId   = bus.station?.line;
-    const lineTot  = lineId ? Object.values(STATIONS).filter(s => s.line === lineId).length : 0;
+    const lineTot  = lineId ? majorStationCountForLine(lineId) : 0;
     const progress = lineTot > 0 ? Math.min(Math.round((visited / lineTot) * 100), 100) : 0;
     const status   = getStatus(curMs);
     return {

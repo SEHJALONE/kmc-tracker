@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSheetData, filterByDateRange } from './hooks/useSheetData';
 import { useStationTimes } from './hooks/useStationTimes';
+import { useCatalog } from './hooks/useCatalog';
+import { isActive } from './data/catalogConfig';
 import { useBreakpoint } from './hooks/useBreakpoint';
 import { lookupStation } from './data/stations';
 import LineTracker from './components/LineTracker';
@@ -10,6 +12,7 @@ import Login from './components/Login';
 import TravelCard from './components/TravelCard';
 import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
+import CatalogAdmin from './components/CatalogAdmin';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -83,6 +86,7 @@ const TABS = [
 
 export default function App() {
   const [authed, setAuthed] = useState(() => localStorage.getItem('kmc_auth') === 'true');
+  const [role,   setRole]   = useState(() => localStorage.getItem('kmc_role') || 'user');
   const [mode,   setMode]   = useState('home'); // 'home' | 'travelcard' | 'tracker'
   const [view,   setView]   = useState('tracker');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -114,17 +118,33 @@ export default function App() {
 
   const { stationTimes, loading: timesLoading } = useStationTimes();
 
+  // Shared catalog — drives travel-card dropdowns AND the bus tracker so admin
+  // edits to lines/stations/projects reflect everywhere.
+  const { catalog, saveCatalog, saving: catalogSaving } = useCatalog();
+  const [adminOpen, setAdminOpen] = useState(false);
+
   // Resolve date bounds from active preset
   const dateBounds = useMemo(
     () => resolveDateBounds(filters.datePreset, filters.startDate, filters.endDate),
     [filters.datePreset, filters.startDate, filters.endDate]
   );
 
-  // Distinct project names from all data (for filter dropdown)
+  // Distinct project names for the filter dropdown: union of catalog projects
+  // (active) and any projects present in historical data (so legacy projects
+  // stay filterable even after they're archived/removed from the catalog).
   const allProjects = useMemo(() => {
     const set = new Set(allRows.map(r => r.project).filter(Boolean));
+    (catalog.projects || []).filter(isActive).forEach(p => p.name && set.add(p.name));
     return [...set].sort();
-  }, [allRows]);
+  }, [allRows, catalog.projects]);
+
+  // Resolve the selected project to its catalog entry (for legacy-station
+  // visibility in the tracker). Falls back to a bare name when only data-derived.
+  const selectedProject = useMemo(() => {
+    if (!filters.project) return null;
+    return (catalog.projects || []).find(p => p.name === filters.project)
+      || { name: filters.project };
+  }, [filters.project, catalog.projects]);
 
   // All rows filtered by date + model + project (used for Dashboard metrics)
   const filteredRows = useMemo(() => {
@@ -175,12 +195,14 @@ export default function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
+    localStorage.removeItem('kmc_role');
+    setRole('user');
     setAuthed(false);
   };
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  if (!authed) return <Login onLogin={() => { setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
+  if (!authed) return <Login onLogin={(r) => { setRole(r || 'user'); setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
 
   if (mode === 'home') return (
     <HomeScreen
@@ -258,6 +280,14 @@ export default function App() {
         <img className="tc-logo" src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         <div className="tc-title">Travel Card</div>
         <div style={{ flex: 1 }} />
+        {role === 'admin' && (
+          <button className="tc-btn accent" onClick={() => setAdminOpen(true)}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15l-4.9 2.5L8 11.9 4 8l5.6-1.2z"/>
+            </svg>
+            <span className="tc-label">Edit Catalog</span>
+          </button>
+        )}
         <button className="tc-btn" onClick={toggleTheme}>
           {theme === 'dark' ? '☀' : '☾'}<span className="tc-label">{theme === 'dark' ? ' Light' : ' Dark'}</span>
         </button>
@@ -276,8 +306,18 @@ export default function App() {
           onReset={() => setTcPrefill(null)}
           onSubmitSuccess={refresh}
           theme={theme}
+          role={role}
+          catalog={catalog}
         />
       </main>
+      {adminOpen && role === 'admin' && (
+        <CatalogAdmin
+          catalog={catalog}
+          saveCatalog={saveCatalog}
+          saving={catalogSaving}
+          onClose={() => setAdminOpen(false)}
+        />
+      )}
     </div>
   );
 
@@ -597,6 +637,15 @@ export default function App() {
             </div>
           ) : null}
 
+          {role === 'admin' && (
+            <button className="icon-btn" onClick={() => setAdminOpen(true)} style={{ borderColor: 'var(--accent-border)' }} title="Edit catalog">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15l-4.9 2.5L8 11.9 4 8l5.6-1.2z"/>
+              </svg>
+              <span className="btn-label">Catalog</span>
+            </button>
+          )}
+
           <button className="icon-btn" onClick={refresh} title="Refresh data">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M23 4v6h-6M1 20v-6h6"/>
@@ -646,6 +695,7 @@ export default function App() {
           busCount={filteredBuses.length}
           totalBusCount={buses.length}
           projects={allProjects}
+          selectedProject={selectedProject}
           theme={theme}
         />
 
@@ -705,6 +755,7 @@ export default function App() {
           <LineTracker
             buses={filteredBuses}
             filter={filters.model}
+            projectFilter={selectedProject}
             onOpenTravelCard={({ vin, model, stationCode }) => {
               setTcPrefill({ vin, model, stationCode });
               setMode('travelcard');
@@ -733,6 +784,14 @@ export default function App() {
           />
         )}
       </main>
+      {adminOpen && role === 'admin' && (
+        <CatalogAdmin
+          catalog={catalog}
+          saveCatalog={saveCatalog}
+          saving={catalogSaving}
+          onClose={() => setAdminOpen(false)}
+        />
+      )}
     </div>
   );
 }

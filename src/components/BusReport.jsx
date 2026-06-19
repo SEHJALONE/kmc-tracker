@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { STATIONS, LINES } from '../data/stations';
+import { LINES, isMajorStation, majorStationCountForLine } from '../data/stations';
 
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
@@ -253,11 +253,13 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
         const totalMs          = firstTs  ? now - firstTs  : null;
         const currentStationMs = latestTs ? now - latestTs : null;
 
-        const stationsVisited = new Set(history.map(r => r.stationCode)).size;
+        // Progress is measured along the critical path only — subassembly
+        // feeder visits are excluded from both numerator and denominator.
+        const stationsVisited = new Set(
+          history.map(r => r.stationCode).filter(isMajorStation)
+        ).size;
         const lineId = bus.station?.line;
-        const lineStations = lineId
-          ? Object.values(STATIONS).filter(s => s.line === lineId).length
-          : 0;
+        const lineStations = lineId ? majorStationCountForLine(lineId) : 0;
 
         const rawPct      = lineStations > 0 ? (stationsVisited / lineStations) * 100 : 0;
         const progressPct = Math.min(Math.round(rawPct), 100);

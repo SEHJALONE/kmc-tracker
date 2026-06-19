@@ -2,7 +2,7 @@
 // Each station: { name, line, lineLabel, order, models }
 // models: ['KDC'] | ['EVS'] | ['KDC','EVS']
 
-export const LINES = [
+export const SEED_LINES = [
   { id: 'MACHINE',  label: 'Machine Shop',                 models: ['KDC','EVS'] },
   { id: 'BODY',     label: 'Frame Parts Making',           models: ['KDC','EVS'] },
   { id: 'ELECTRO',  label: 'Electrophoresis',              models: ['KDC','EVS'] },
@@ -14,7 +14,7 @@ export const LINES = [
   { id: 'QA',       label: 'Quality Inspection & Testing', models: ['KDC','EVS'] },
 ];
 
-export const STATIONS = {
+export const SEED_STATIONS = {
   // ─── MACHINE SHOP ────────────────────────────────────────────────────────────
   // B01: Rectangular Tubes Making
   'B01-01': { name: 'Rectangular Tubes & Steel Plate Storage',            line: 'MACHINE', order: 1,  models: ['KDC','EVS'] },
@@ -249,9 +249,139 @@ export const STATIONS = {
   'WASHING': { name: 'Washing Bay — Washing and Cleaning',               line: 'QA', order: 18, models: ['KDC','EVS'] },
 };
 
-// Helper: look up a station by code (case-insensitive, spaces→hyphens)
+// ── Live, catalog-aware bindings ────────────────────────────────────────────
+// These start as the built-in seed and are replaced when the shared catalog
+// loads (see applyCatalog). ES module live bindings mean importers see the
+// updated values on their next render — so the bus tracker reflects admin edits.
+export let LINES = SEED_LINES;
+export let STATIONS = SEED_STATIONS;
+
+function computeMajorStations(stations) {
+  return Object.fromEntries(
+    Object.entries(stations).filter(([code]) => !isSubassembly(code))
+  );
+}
+
+export let MAJOR_STATIONS = computeMajorStations(SEED_STATIONS);
+
+// Merge a loaded catalog over the seed. Catalog entries win per-line / per-code,
+// supporting add / edit / archive (active:false) without losing the seed.
+// Archived stations stay in STATIONS so they remain resolvable and legacy bus
+// data never disappears from the tracker.
+export function applyCatalog(catalog) {
+  LINES = (catalog && Array.isArray(catalog.lines) && catalog.lines.length)
+    ? catalog.lines
+    : SEED_LINES;
+
+  if (catalog && catalog.stations && Object.keys(catalog.stations).length) {
+    const merged = { ...SEED_STATIONS };
+    for (const [code, val] of Object.entries(catalog.stations)) {
+      merged[code] = { ...(SEED_STATIONS[code] || {}), ...val };
+    }
+    STATIONS = merged;
+  } else {
+    STATIONS = SEED_STATIONS;
+  }
+
+  MAJOR_STATIONS = computeMajorStations(STATIONS);
+}
+
+// Helper: look up a station by code (case-insensitive, spaces→hyphens).
+// Resolves active AND archived stations so historical bus data stays visible.
 export function lookupStation(rawCode) {
   if (!rawCode) return null;
   const code = rawCode.trim().toUpperCase().replace(/\s+/g, '-');
   return STATIONS[code] ? { code, ...STATIONS[code] } : null;
+}
+
+// ── Per-model station names ───────────────────────────────────────────────────
+// Some shared codes (models: ['KDC','EVS']) describe DIFFERENT work for each
+// model in the Build Process Summary documents. The seed `name` is a neutral
+// fallback; this map gives the model-specific name so the line-tracker callout
+// can show the correct one for the bus actually parked at the station (and both,
+// distinctly, when no single model is in context). Codes not listed are
+// identical for both models.
+export const STATION_MODEL_NAMES = {
+  // FRAME & BODY WELDING
+  'W01-02': { evs: 'Passenger Door Step & Additional Chassis Infuse Profiles', kdc: 'Coach Frame Alignment, Door Step & Chassis Infuse Profiles' },
+  'W01-04': { evs: 'Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates', kdc: 'Welding of Attachment Brackets & Sealing Plates' },
+  'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant' },
+  'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts' },
+  'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light' },
+  // CHASSIS LINE 01
+  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving' },
+  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes' },
+  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly' },
+  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket' },
+  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness' },
+  // CHASSIS LINE 02
+  'C02-01': { evs: 'HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing', kdc: 'TPMS & Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing' },
+  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination' },
+  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System' },
+  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers' },
+  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors' },
+  'C02-06': { evs: 'Wheel Arch Profile & Customer Tyres', kdc: 'Air Cleaner, Air Intake, Emissions System & Silencer' },
+  'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
+  // PAINT SHOP
+  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting' },
+  // TRIM LINE & FINAL ASSEMBLY
+  'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels' },
+  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights' },
+  'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant' },
+  'T01-07-EE': { evs: 'Final Dashboard Components & Display Screens', kdc: 'Dashboard Accessories & Display Screens' },
+  'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats' },
+  'T01-08-EE': { evs: 'Interior Cameras & Speakers', kdc: 'Speakers/Reading Lights & Interior Cameras' },
+  'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks' },
+  'T01-10-EE': { evs: 'BMS, USB, Steering Column & Side Cameras', kdc: 'Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination' },
+  'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection' },
+  // QUALITY INSPECTION & TESTING
+  'Q01-02': { evs: 'Speed Test', kdc: 'Vehicle Exhaust & Speed Test' },
+};
+
+// Returns { evs, kdc, differs } display names for a station ({ code, name, ... }).
+// Falls back to the neutral seed name when no per-model override exists.
+export function stationDisplayNames(station) {
+  const base = station?.name || '';
+  const m = station?.code ? STATION_MODEL_NAMES[station.code] : null;
+  if (!m) return { evs: base, kdc: base, differs: false };
+  const evs = m.evs || base;
+  const kdc = m.kdc || base;
+  return { evs, kdc, differs: evs !== kdc };
+}
+
+// Resolves the single name to show for a given bus model ('KDC' / 'EVS' / mixed).
+export function stationNameForModel(station, model) {
+  const { evs, kdc } = stationDisplayNames(station);
+  const M = (model || '').toUpperCase();
+  if (M.includes('KDC')) return kdc;
+  if (M.includes('EVS')) return evs;
+  return station?.name || evs;
+}
+
+// ── Critical-path classification ──────────────────────────────────────────────
+// "Subassemblies" are component feeder stations that sit off the main production
+// critical path (e.g. axle, tyre, wiring-harness and radiator-fan pre-assembly).
+// Their travel-card data is still COLLECTED and stored — only the bus tracker
+// (line tracker, dashboard, bus report, exports) restricts itself to the MAJOR
+// stations that form the critical path.
+//
+// Subassembly codes carry a third numeric segment (e.g. "C01-02-01", "T01-09-01").
+// Electrical "-EE" sub-stations are NOT subassemblies — they belong to their
+// parent major station and stay on the critical path.
+export function isSubassembly(code) {
+  return typeof code === 'string' && /-\d+-\d+$/.test(code.trim().toUpperCase());
+}
+
+// True only for known critical-path (major) stations.
+export function isMajorStation(code) {
+  return !!STATIONS[code] && !isSubassembly(code);
+}
+
+// MAJOR_STATIONS (critical-path stations, for display/metrics) is defined above
+// as a live binding so it tracks catalog edits.
+
+// Count of major (critical-path) stations on a given line — used as the
+// denominator for progress so subassemblies don't distort completion %.
+export function majorStationCountForLine(lineId) {
+  return Object.values(MAJOR_STATIONS).filter(s => s.line === lineId).length;
 }

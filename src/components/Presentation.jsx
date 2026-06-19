@@ -9,7 +9,7 @@
  */
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { LINES, STATIONS } from '../data/stations';
+import { LINES, isMajorStation, majorStationCountForLine } from '../data/stations';
 
 // ── constants ────────────────────────────────────────────────
 const BUSES_PER_SLIDE = 8;
@@ -599,9 +599,9 @@ export default function Presentation({ buses, rows, allRows, startDate, endDate,
         const totalMs = firstTs  ? now2 - firstTs  : null;
         const curMs   = latestTs ? now2 - latestTs : null;
 
-        const visited = new Set(history.map(r => r.stationCode)).size;
+        const visited = new Set(history.map(r => r.stationCode).filter(isMajorStation)).size;
         const lineId  = bus.station?.line;
-        const lineTot = lineId ? Object.values(STATIONS).filter(s => s.line === lineId).length : 0;
+        const lineTot = lineId ? majorStationCountForLine(lineId) : 0;
         const progress = lineTot > 0 ? Math.min(Math.round((visited / lineTot) * 100), 100) : 0;
 
         return {
