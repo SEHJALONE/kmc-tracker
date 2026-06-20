@@ -23,7 +23,7 @@ export const CATALOG_WRITE_URL =
 // it server-side before accepting a catalog write. CHANGE THIS to a value of
 // your choosing and paste the identical value into the Apps Script (see
 // APPS_SCRIPT_CATALOG.md). This is the real protection against non-admin writes.
-export const CATALOG_ADMIN_TOKEN = 'CHANGE-ME-kmc-admin-token';
+export const CATALOG_ADMIN_TOKEN = 'kmcisgood';
 
 // An empty catalog. Every field is optional; consumers merge whatever is present
 // over their own built-in seed data, so the app works fully even with no backend.

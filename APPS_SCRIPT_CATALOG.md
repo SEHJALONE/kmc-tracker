@@ -1,132 +1,294 @@
-# Shared Catalog — Google Sheets + Apps Script setup
+# Apps Script — complete script (catalog + submissions + analysis fields)
 
-The admin "Edit Catalog" feature stores one JSON document in a **`Catalog`** tab of
-the same Google Sheet the app already reads, and writes to it through your
-existing Apps Script web app. This is the only part that must be set up on the
-Google side — the app itself needs no changes.
+This is the full, ready-to-paste Apps Script. It merges:
+- your existing travel-card submission logic,
+- the **catalog save** branch (token-protected, chunked so large catalogs don't
+  hit Google's 50,000-char single-cell limit), and
+- the **new analysis fields** (break/gross time, per-cause delay minutes, custom
+  causes, added activities) written into the submission sheets.
 
-There are three one-time steps.
+## Steps
+1. The **`Catalog`** tab already exists (key | value). ✅
+2. Token is set to **`kmcisgood`** in both `src/data/catalogConfig.js` and the
+   script below — keep them identical.
+3. Replace your entire Apps Script with the code below.
+4. **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy.**
+   This keeps the same `/exec` URL so nothing else changes.
 
----
+> Reads use the public gviz CSV of the `Catalog` tab; the front-end reassembles
+> the chunked rows. Writes are token-checked here.
 
-## 1. Create the `Catalog` tab
+```javascript
+const TRACKER_SHEET_ID = "1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es";
+const TRACKER_TAB_NAME = "Travel Card Data";
 
-1. Open the tracker spreadsheet
-   (`…/d/1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es/edit`).
-2. Add a new tab named exactly **`Catalog`** (case-sensitive).
-3. In the first row, put headers in **A1** and **B1**:
-
-   | key | value |
-   |-----|-------|
-
-4. Leave the rest empty. The app will create/update the `catalog` row on the
-   first admin save. (The sheet is already shared "anyone with the link can
-   view", which is what the app's read path needs — no extra sharing required.)
-
----
-
-## 2. Pick an admin token
-
-Open `src/data/catalogConfig.js` and change:
-
-```js
-export const CATALOG_ADMIN_TOKEN = 'CHANGE-ME-kmc-admin-token';
-```
-
-to a secret value of your choosing (any hard-to-guess string). Use the **same**
-value in the Apps Script below. This token is what actually stops a non-admin
-from writing catalog changes — only the admin build/session sends it, and the
-script rejects writes without it.
-
----
-
-## 3. Add the catalog branch to your Apps Script
-
-Open the Apps Script project bound to the sheet
-(**Extensions → Apps Script** from the spreadsheet, or the project behind the
-`/macros/s/AKfycbwd…/exec` URL the app posts to).
-
-Your current `doPost(e)` already handles travel-card submissions. Add the
-catalog branch at the **top** of `doPost`, before your existing logic, and paste
-the helper function. Replace the token to match step 2.
-
-```js
-// === SHARED ADMIN TOKEN — must equal CATALOG_ADMIN_TOKEN in catalogConfig.js ===
-var CATALOG_ADMIN_TOKEN = 'CHANGE-ME-kmc-admin-token';
+// Must match CATALOG_ADMIN_TOKEN in src/data/catalogConfig.js
+const CATALOG_ADMIN_TOKEN = "kmcisgood";
 
 function doPost(e) {
-  // ---- Catalog save branch (added) -------------------------------------------
-  if (e && e.parameter && e.parameter.action === 'saveCatalog') {
-    if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
-        .setMimeType(ContentService.MimeType.JSON);
+  try {
+    // ── Catalog save branch (admin only) ──────────────────────────────────────
+    if (e && e.parameter && e.parameter.action === "saveCatalog") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
+        return response({ status: "error", message: "unauthorized" });
+      }
+      return saveCatalog_(e.parameter.payload);
     }
-    return saveCatalog_(e.parameter.payload);
-  }
-  // ---------------------------------------------------------------------------
 
-  // ↓↓↓ YOUR EXISTING TRAVEL-CARD SUBMISSION CODE STAYS HERE, UNCHANGED ↓↓↓
-  // (the part that reads e.parameter.payload and appends a row to
-  //  "Travel Card Data"). Do not delete it.
+    // ── Travel-card submission (existing) ─────────────────────────────────────
+    const data      = JSON.parse(e.parameter.payload);
+    const ss        = SpreadsheetApp.getActiveSpreadsheet();
+    const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+    const id        = Utilities.getUuid();
+
+    writeSubmission(ss, data, id);
+    writeActivities(ss, data, id);
+    writeResources(ss, data, id);
+    if (data.hasOverrun) {
+      writeOverrun(ss, data, id);
+      writeOverrunCauses(ss, data, id);
+    }
+    writeOperators(ss, data, id);
+    writeProjects(ss, data);
+    writeTrackerLog(trackerSs, data, id);
+
+    return response({ status: "ok", id });
+  } catch (err) {
+    return response({ status: "error", message: err.message });
+  }
 }
 
-// Writes the catalog JSON into the Catalog tab as a single key/value row.
+function doGet() {
+  return response({ status: "ok", message: "KMC Travel Card endpoint is live." });
+}
+
+// ── Catalog: store JSON across chunked rows (50k char/cell limit) ────────────
 function saveCatalog_(payload) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Catalog');
-  if (!sheet) {
-    sheet = ss.insertSheet('Catalog');
-    sheet.getRange('A1:B1').setValues([['key', 'value']]);
+  try { JSON.parse(payload); }
+  catch (err) { return response({ status: "error", message: "bad-json" }); }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName("Catalog");
+  if (!sh) sh = ss.insertSheet("Catalog");
+
+  sh.clear();
+  sh.getRange("A1:B1").setValues([["key", "value"]]);
+
+  const CHUNK = 45000;
+  const rows = [];
+  for (let i = 0, n = 0; i < payload.length; i += CHUNK, n++) {
+    rows.push([n === 0 ? "catalog" : "catalog." + n, payload.slice(i, i + CHUNK)]);
   }
-  // Validate it is parseable JSON before storing.
-  try { JSON.parse(payload); } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: 'bad-json' }))
-      .setMimeType(ContentService.MimeType.JSON);
+  if (rows.length) sh.getRange(2, 1, rows.length, 2).setValues(rows);
+  return response({ status: "ok", chunks: rows.length });
+}
+
+function writeTrackerLog(trackerSs, d, id) {
+  const sh = trackerSs.getSheetByName(TRACKER_TAB_NAME);
+  if (!sh) throw new Error('Tab "' + TRACKER_TAB_NAME + '" not found in tracker sheet.');
+
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+  const headerValues = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  const headers = headerValues.map(h => String(h).toLowerCase().trim());
+
+  function colIdx(candidates) {
+    return headers.findIndex(h => candidates.some(c => h.includes(c)));
   }
 
-  // Find an existing 'catalog' row, else append.
-  var data = sheet.getDataRange().getValues();
-  var rowIndex = -1;
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim().toLowerCase() === 'catalog') { rowIndex = i + 1; break; }
+  let vinCol       = colIdx(['vin']);
+  let modelCol     = colIdx(['bus model', 'model']);
+  let stationCol   = colIdx(['station code', 'station_code', 'stationcode']);
+  let timestampCol = colIdx(['timestamp', 'time', 'date']);
+  let designedCol  = colIdx(['designed time', 'designed_time', 'cycle time']);
+
+  if ([vinCol, modelCol, stationCol, timestampCol].includes(-1)) {
+    sh.getRange(1, 1, 1, 5).setValues([['Timestamp', 'VIN', 'Bus Model', 'Station Code', 'Designed Time (min)']]);
+    const hdr = sh.getRange(1, 1, 1, 5);
+    hdr.setBackground('#1D9E75');
+    hdr.setFontColor('#ffffff');
+    hdr.setFontWeight('bold');
+    sh.setFrozenRows(1);
+    timestampCol = 0; vinCol = 1; modelCol = 2; stationCol = 3; designedCol = 4;
   }
-  if (rowIndex === -1) {
-    sheet.appendRow(['catalog', payload]);
+
+  if (designedCol === -1) {
+    designedCol = sh.getLastColumn();
+    sh.getRange(1, designedCol + 1).setValue('Designed Time (min)');
+  }
+
+  const rowWidth = Math.max(sh.getLastColumn(), designedCol + 1);
+  const row = new Array(rowWidth).fill('');
+  row[timestampCol] = d.clockOut || d.timestamp;
+  row[vinCol]       = d.vin;
+  row[modelCol]     = d.busModel;
+  row[stationCol]   = d.stationCode;
+  row[designedCol]  = Number(d.designedTime) || '';
+  sh.appendRow(row);
+}
+
+function writeSubmission(ss, d, id) {
+  const sh = getOrCreate(ss, "submissions", [
+    "record_id","timestamp","bus_model","project","vin",
+    "production_line","station","station_code",
+    "hse_resources","clock_in","clock_out",
+    "actual_time_min","gross_time_min","break_min","designed_time_min",
+    "overrun_min","has_overrun",
+    "ohs_issue","waste_generated",
+    "reviewer","approval_status","review_date","review_comments"
+  ]);
+  sh.appendRow([
+    id, d.timestamp, d.busModel, d.project, d.vin,
+    d.line, d.station, d.stationCode,
+    d.hseResources || 0, d.clockIn, d.clockOut,
+    d.actualTime, Number(d.grossTime) || "", Number(d.breakMinutes) || 0, d.designedTime,
+    d.hasOverrun ? (d.actualTime - d.designedTime) : 0,
+    d.hasOverrun ? "YES" : "NO",
+    d.ohsIssue || "", d.wasteGenerated || "",
+    d.reviewer, d.approvalStatus, d.reviewDate, d.reviewComments || ""
+  ]);
+}
+
+function writeActivities(ss, d, id) {
+  const sh = getOrCreate(ss, "activities", [
+    "record_id","timestamp","station_code","vin","project","activity","status","is_added"
+  ]);
+  const statuses = d.activityStatuses || {};
+  const added = d.addedActivities || [];
+  const all = {};
+  Object.keys(statuses).forEach(a => { all[a] = statuses[a]; });
+  added.forEach(a => { if (!(a in all)) all[a] = ""; });
+  Object.entries(all).forEach(([activity, status]) => {
+    sh.appendRow([
+      id, d.timestamp, d.stationCode, d.vin, d.project,
+      activity, status || "not_set",
+      added.indexOf(activity) > -1 ? "YES" : "NO"
+    ]);
+  });
+}
+
+function writeResources(ss, d, id) {
+  const sh = getOrCreate(ss, "resources", [
+    "record_id","timestamp","station_code","vin","project","resource_name","quantity","is_other"
+  ]);
+  Object.entries(d.resourcesUsed || {}).forEach(([name, qty]) => {
+    if (qty > 0) sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, name, qty, "NO"]);
+  });
+  (d.otherResources || []).forEach(r => {
+    sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, r.name, r.qty, "YES"]);
+  });
+}
+
+function writeOverrun(ss, d, id) {
+  const sh = getOrCreate(ss, "overruns", [
+    "record_id","timestamp","station_code","vin","project",
+    "designed_min","actual_min","overrun_min",
+    "root_causes","sub_causes","cause_delays","custom_causes",
+    "corrective_action","comments"
+  ]);
+  const or = d.overrun || {};
+  sh.appendRow([
+    id, d.timestamp, d.stationCode, d.vin, d.project,
+    d.designedTime, d.actualTime, d.actualTime - d.designedTime,
+    (or.selMs || []).join(", "),
+    Object.entries(or.subCauses || {}).map(([m, s]) => `${m}: ${s}`).join(" | "),
+    Object.entries(or.causeTimes || {}).map(([m, t]) => `${m}: ${t} min`).join(" | "),
+    (or.customCauses || []).join(", "),
+    or.correctiveAction || "", or.comments || ""
+  ]);
+}
+
+// One row per cause — the analysis-friendly breakdown of where time was lost.
+function writeOverrunCauses(ss, d, id) {
+  const sh = getOrCreate(ss, "overrun_causes", [
+    "record_id","timestamp","station_code","vin","project",
+    "cause","is_custom","detail","delay_min"
+  ]);
+  const or = d.overrun || {};
+  (or.selMs || []).forEach(cause => {
+    const delay = (or.causeTimes || {})[cause];
+    sh.appendRow([
+      id, d.timestamp, d.stationCode, d.vin, d.project,
+      cause,
+      (or.customCauses || []).indexOf(cause) > -1 ? "YES" : "NO",
+      (or.subCauses || {})[cause] || "",
+      (delay === undefined || delay === null || delay === "") ? "" : Number(delay)
+    ]);
+  });
+}
+
+function writeOperators(ss, d, id) {
+  const sh = getOrCreate(ss, "operators", [
+    "record_id","timestamp","station_code","vin","project","operator_name"
+  ]);
+  (d.operators || []).forEach(op => {
+    sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, op]);
+  });
+}
+
+function writeProjects(ss, d) {
+  const sh = getOrCreate(ss, "projects", ["project","vin","bus_model","last_seen"]);
+  const data = sh.getDataRange().getValues();
+  const exists = data.some(r => r[0] === d.project && r[1] === d.vin);
+  if (!exists) {
+    sh.appendRow([d.project, d.vin, d.busModel, d.timestamp]);
   } else {
-    sheet.getRange(rowIndex, 1, 1, 2).setValues([['catalog', payload]]);
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === d.project && data[i][1] === d.vin) {
+        sh.getRange(i + 1, 4).setValue(d.timestamp); break;
+      }
+    }
   }
+}
 
-  return ContentService
-    .createTextOutput(JSON.stringify({ ok: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+function getOrCreate(ss, name, headers) {
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+    const hdr = sh.getRange(1, 1, 1, headers.length);
+    hdr.setBackground("#1D9E75");
+    hdr.setFontColor("#ffffff");
+    hdr.setFontWeight("bold");
+    sh.setFrozenRows(1);
+    sh.autoResizeColumns(1, headers.length);
+  }
+  return sh;
+}
+
+function response(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Test function (matches production: payload as a parameter) ────────────────
+function testDoPost() {
+  const fakeData = {
+    timestamp: new Date().toISOString(),
+    busModel: "12m KDC", project: "45 Bus Project", vin: "KMC TEST 001",
+    line: "Frame & Body Welding", station: "W01-01: Six Parts Merging", stationCode: "W01-01",
+    hseResources: 2, clockIn: new Date().toISOString(), clockOut: new Date().toISOString(),
+    actualTime: 150, grossTime: 180, breakMinutes: 30, designedTime: 90, hasOverrun: true,
+    activityStatuses: { "Six parts merging & initial alignment": "complete" },
+    addedActivities: ["Extra re-alignment check"],
+    resourcesUsed: { "Welding Wire ER70S-6 (kg)": "2" },
+    otherResources: [], ohsIssue: null, wasteGenerated: "Metal offcuts",
+    overrun: {
+      selMs: ["Man", "Power outage"],
+      subCauses: { "Man": "Skill gap / lack of training", "Power outage": "Grid failure" },
+      causeTimes: { "Man": 30, "Power outage": 30 },
+      customCauses: ["Power outage"],
+      correctiveAction: "Reassigned senior welder", comments: "Test"
+    },
+    reviewer: "Test Reviewer", approvalStatus: "approved",
+    reviewDate: new Date().toISOString().slice(0,10), reviewComments: ""
+  };
+  const result = doPost({ parameter: { payload: JSON.stringify(fakeData) } });
+  Logger.log(result.getContent());
+}
+
+// Optional: test the catalog branch
+function testSaveCatalog() {
+  const result = doPost({ parameter: { action: "saveCatalog", token: CATALOG_ADMIN_TOKEN,
+    payload: JSON.stringify({ projects: [{ id: "p1", name: "Demo", active: true }] }) } });
+  Logger.log(result.getContent());
 }
 ```
-
-### Redeploy (keep the same URL)
-
-After saving the script:
-
-1. **Deploy → Manage deployments**.
-2. Click the pencil (Edit) on your existing Web App deployment.
-3. Set **Version → New version**, then **Deploy**.
-
-Editing the existing deployment keeps the same `/exec` URL, so no app config has
-to change. (Creating a brand-new deployment would mint a new URL and break
-posting.)
-
----
-
-## Notes
-
-- **Reads** use the public gviz CSV of the `Catalog` tab — no token, no auth.
-  The browser fetches the JSON and merges it over the app's built-in seed data,
-  so the app works fully even before the first save.
-- **Writes** are `no-cors` POSTs, so the browser can't read the response; the app
-  optimistically applies the change locally and re-fetches shortly after to
-  reconcile with the server copy.
-- The admin token only travels from admin sessions. Keep the deployed build's
-  `catalogConfig.js` token private (anyone with the static JS bundle can read it,
-  so this is "good enough" gating, not bank-grade security — see the caveat we
-  discussed).

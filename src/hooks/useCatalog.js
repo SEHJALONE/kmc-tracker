@@ -38,18 +38,23 @@ function parseCSV(text) {
 }
 
 // Extract the catalog JSON document from the Catalog tab CSV.
-// The tab holds rows of [key, value]; we want the row whose key === 'catalog'.
+// The tab holds rows of [key, value]. A large catalog is split across several
+// rows ('catalog', 'catalog.1', 'catalog.2', …) because a single Sheets cell
+// caps at 50k characters — so we gather every chunk, order them, and join.
 function extractCatalog(csvText) {
   const rows = parseCSV(csvText);
   if (rows.length < 2) return null;
+  const chunks = [];
   for (let i = 1; i < rows.length; i++) {
     const key = (rows[i][0] || '').trim().toLowerCase();
-    if (key === 'catalog') {
-      const val = rows[i][1] || '';
-      try { return JSON.parse(val); } catch { return null; }
+    if (key === 'catalog' || key.startsWith('catalog.')) {
+      const idx = key === 'catalog' ? 0 : parseInt(key.split('.')[1] || '0', 10);
+      chunks.push({ idx, val: rows[i][1] || '' });
     }
   }
-  return null;
+  if (!chunks.length) return null;
+  chunks.sort((a, b) => a.idx - b.idx);
+  try { return JSON.parse(chunks.map(c => c.val).join('')); } catch { return null; }
 }
 
 export function useCatalog() {

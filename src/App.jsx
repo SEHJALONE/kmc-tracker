@@ -13,6 +13,7 @@ import TravelCard from './components/TravelCard';
 import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
 import CatalogAdmin from './components/CatalogAdmin';
+import InfoModal from './components/InfoModal';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -122,6 +123,7 @@ export default function App() {
   // edits to lines/stations/projects reflect everywhere.
   const { catalog, saveCatalog, saving: catalogSaving } = useCatalog();
   const [adminOpen, setAdminOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // Resolve date bounds from active preset
   const dateBounds = useMemo(
@@ -288,6 +290,14 @@ export default function App() {
             <span className="tc-label">Edit Catalog</span>
           </button>
         )}
+        <button className="tc-btn" onClick={() => setInfoOpen(true)} title="About this module">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span className="tc-label">Info</span>
+        </button>
         <button className="tc-btn" onClick={toggleTheme}>
           {theme === 'dark' ? '☀' : '☾'}<span className="tc-label">{theme === 'dark' ? ' Light' : ' Dark'}</span>
         </button>
@@ -318,6 +328,7 @@ export default function App() {
           onClose={() => setAdminOpen(false)}
         />
       )}
+      {infoOpen && <InfoModal mode="travelcard" onClose={() => setInfoOpen(false)} />}
     </div>
   );
 
@@ -475,6 +486,12 @@ export default function App() {
               {tab.label}
             </button>
           ))}
+          <button
+            onClick={() => { setInfoOpen(true); setMenuOpen(false); }}
+            className="drawer-nav-btn"
+          >
+            ⓘ Info
+          </button>
         </nav>
 
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border)' }}>
@@ -654,6 +671,15 @@ export default function App() {
             <span className="btn-label">Refresh</span>
           </button>
 
+          <button className="icon-btn" onClick={() => setInfoOpen(true)} title="About this module">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <span className="btn-label">Info</span>
+          </button>
+
           <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
             <span className="btn-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
@@ -792,6 +818,7 @@ export default function App() {
           onClose={() => setAdminOpen(false)}
         />
       )}
+      {infoOpen && <InfoModal mode="tracker" onClose={() => setInfoOpen(false)} />}
     </div>
   );
 }
