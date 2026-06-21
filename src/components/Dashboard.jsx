@@ -24,9 +24,9 @@ function fmtHours(h) {
 function TaktKpiBox({ label, value, sub, color }) {
   return (
     <div style={{ background: 'var(--bg-surface-2, var(--bg-surface))', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '12px 16px', flex: '1 1 140px', minWidth: 0 }}>
-      <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 9, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 6 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 800, color: color || 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1, letterSpacing: '-0.5px' }}>{value}</div>
-      {sub && <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -66,14 +66,14 @@ function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTak
         </div>
         {/* Inline config */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>Working hrs/day</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>Working hrs/day</span>
           <input
             type="number" min="0.5" max="24" step="0.5"
             value={taktHoursPerDay}
             onChange={e => setTaktHoursPerDay(Math.max(0.5, parseFloat(e.target.value) || 8))}
             style={{ ...inputStyle, width: 54, textAlign: 'right' }}
           />
-          <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginLeft: 6 }}>Target buses</span>
+          <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", marginLeft: 6 }}>Target buses</span>
           <input
             type="number" min="0" max="99999" step="1"
             value={taktTarget || ''}
@@ -129,7 +129,7 @@ function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTak
       {ratio != null && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", width: 86, flexShrink: 0 }}>Cycle vs Takt</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", width: 86, flexShrink: 0 }}>Cycle vs Takt</span>
             <div style={{ flex: 1, position: 'relative', height: 10, background: 'var(--border-subtle)', borderRadius: 5, overflow: 'visible' }}>
               <div style={{
                 position: 'absolute', left: 0, top: 0, height: '100%',
@@ -139,11 +139,11 @@ function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTak
                 transition: 'width 0.6s ease',
               }} />
               <div style={{ position: 'absolute', top: -4, bottom: -4, left: '75%', width: 2, background: 'rgba(255,255,255,0.75)', borderRadius: 1 }} />
-              <span style={{ position: 'absolute', top: -14, left: '75%', transform: 'translateX(-50%)', fontSize: 7, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>TARGET</span>
+              <span style={{ position: 'absolute', top: -14, left: '75%', transform: 'translateX(-50%)', fontSize: 7, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", whiteSpace: 'nowrap', letterSpacing: '0.06em' }}>TARGET</span>
             </div>
             <span style={{ fontSize: 12, fontWeight: 800, color: statusColor, fontFamily: "'Inter', system-ui, sans-serif", minWidth: 42, textAlign: 'right' }}>{(ratio * 100).toFixed(0)}%</span>
           </div>
-          <div style={{ marginTop: 6, fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+          <div style={{ marginTop: 6, fontSize: 8, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>
             White marker = required takt · bar left of marker = ahead of takt · bar right = behind takt
           </div>
         </div>

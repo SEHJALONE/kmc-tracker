@@ -175,6 +175,15 @@ body {
 
 button, input, select, textarea {
   touch-action: manipulation;
+  /* Render native controls (dropdown popups, date pickers, spinners) in the
+     active theme so option lists aren't white-on-white in dark mode. */
+  color-scheme: var(--color-scheme);
+}
+
+/* Native <option> popups are drawn by the OS using these colors. */
+option {
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 /* ── Safe-area utilities ─────────────────────────────────────────────────── */
