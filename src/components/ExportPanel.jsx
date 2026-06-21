@@ -8,7 +8,7 @@ import { buildPDF } from '../export/buildPDF';
 import HiddenCoverSlide from './export/HiddenCoverSlide';
 import EmailModal from './export/EmailModal';
 
-export default function ExportPanel({ buses, rows, allRows, metrics, dashboardRef, slideRef, onPresent, stationTimes = {}, theme = 'dark' }) {
+export default function ExportPanel({ buses, rows, allRows, metrics, filters = {}, dashboardRef, slideRef, onPresent, stationTimes = {}, theme = 'dark' }) {
   rows = rows ?? allRows ?? [];
   const [busy,      setBusy]      = useState({});
   const [toast,     setToast]     = useState(null);
@@ -123,6 +123,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, dashboardRe
           buses={buses}
           rows={rows}
           metrics={metrics}
+          filters={filters}
           coverRef={coverRef}
           theme={theme}
         />

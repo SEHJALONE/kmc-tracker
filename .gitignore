@@ -15,6 +15,9 @@ dist-ssr
 # Google Drive temp uploads
 .tmp.driveupload/
 
+# Microsoft Office temp/lock files
+~$*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -25,3 +28,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

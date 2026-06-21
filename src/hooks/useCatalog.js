@@ -96,8 +96,10 @@ export function useCatalog() {
   }, [fetchCatalog]);
 
   // Persist a new catalog. Optimistically applies locally, then writes through
-  // the Apps Script. no-cors gives an opaque response, so we re-fetch after a
-  // short delay to confirm/reconcile with the server copy.
+  // the Apps Script. no-cors gives an opaque response, so we can't read success.
+  // We deliberately do NOT immediately re-fetch: the gviz read can lag several
+  // seconds behind a write, which would momentarily revert a good save. The
+  // optimistic state stays authoritative; the periodic refresh reconciles later.
   const saveCatalog = useCallback(async (next) => {
     const normalized = apply(next); // optimistic local update + tracker reflect
     setSaving(true);
@@ -108,8 +110,6 @@ export function useCatalog() {
         payload: JSON.stringify(normalized),
       });
       await fetch(CATALOG_WRITE_URL, { method: 'POST', mode: 'no-cors', body });
-      // Give Sheets a moment to commit, then reconcile.
-      setTimeout(() => { if (mounted.current) fetchCatalog(); }, 1500);
       return { ok: true };
     } catch (e) {
       console.error('Catalog save failed:', e);

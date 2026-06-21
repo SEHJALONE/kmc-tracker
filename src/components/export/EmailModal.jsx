@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import { fetchLogoBase64 } from '../../export/exportHelpers';
 import { buildSlidePDF } from '../../export/buildSlidePDF';
 import { buildPDF } from '../../export/buildPDF';
+import { summarizeFilters, summarizeFiltersText } from '../../utils/filterSummary';
 
 // ── localStorage schedule helpers ────────────────────────────
 const SCHEDULES_KEY = 'kmc_email_schedules';
@@ -49,6 +50,7 @@ async function postEmailRequest(payload) {
       `Generated: ${new Date().toLocaleString('en-GB')}\n` +
       `Schedule: ${payload.schedule}\n` +
       (payload.scheduledTime ? `Time: ${payload.scheduledTime}\n` : '') +
+      (payload.filterSummary ? `Dashboard filters: ${payload.filterSummary}\n` : '') +
       `Buses on floor: ${payload.busCount}\n` +
       (payload.firstPassYield != null ? `First Pass Yield: ${payload.firstPassYield}%\n` : '') +
       (payload.totalDowntimeMin ? `Total Downtime Recorded: ${Math.floor(payload.totalDowntimeMin / 60)}h ${Math.round(payload.totalDowntimeMin % 60)}m\n` : '') +
@@ -75,7 +77,9 @@ async function postEmailRequest(payload) {
   return res.json();
 }
 
-export default function EmailModal({ onClose, buses, rows, metrics, coverRef, theme = 'dark' }) {
+export default function EmailModal({ onClose, buses, rows, metrics, filters = {}, coverRef, theme = 'dark' }) {
+  const filterChips   = summarizeFilters(filters);
+  const filterSummary = summarizeFiltersText(filters);
   const [to, setTo]                       = useState('');
   const [subject, setSubject]             = useState('KMC Bus Production Dashboard Report');
   const [schedule, setSchedule]           = useState('now');
@@ -168,6 +172,8 @@ export default function EmailModal({ onClose, buses, rows, metrics, coverRef, th
         schedule, scheduledTime: schedule !== 'now' ? scheduledTime : null,
         weekday: schedule === 'weekly' ? weekday : null,
         busCount: buses.length, attachments,
+        filterSummary,
+        filters,
         dataStartDate: emailStartDate || null,
         dataEndDate:   emailEndDate   || null,
         firstPassYield:    metrics.firstPassYield    ?? null,
@@ -184,6 +190,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, coverRef, th
           weekday:   schedule === 'weekly' ? weekday : null,
           startDate: emailStartDate || null,
           endDate:   emailEndDate   || null,
+          filterSummary,
           createdAt: new Date().toISOString(),
         };
         saveSchedules([...loadSchedules(), entry]);
@@ -277,9 +284,43 @@ export default function EmailModal({ onClose, buses, rows, metrics, coverRef, th
           <input type="text" value={subject} onChange={e => setSubject(e.target.value)} style={inputStyle} />
         </div>
 
-        {/* Data date range */}
+        {/* Active dashboard filters (read-only) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelStyle}>Active Dashboard Filters</label>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+            background: 'rgba(99,102,241,0.06)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: 6, padding: '9px 12px',
+          }}>
+            {filterChips.length === 0 ? (
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em' }}>
+                No filters applied — report covers the full dataset.
+              </span>
+            ) : (
+              filterChips.map(c => (
+                <span key={c.key} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, color: '#a5b4fc',
+                  fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em',
+                  background: 'rgba(99,102,241,0.1)',
+                  border: '1px solid rgba(99,102,241,0.28)',
+                  borderRadius: 20, padding: '3px 10px',
+                }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.08em' }}>{c.label}</span>
+                  <span style={{ fontWeight: 700 }}>{c.value}</span>
+                </span>
+              ))
+            )}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em', paddingLeft: 2 }}>
+            The report reflects the filters currently set on your dashboard. Adjust them there, then reopen this dialog.
+          </div>
+        </div>
+
+        {/* Data date range — overrides the dashboard date filter for this report only */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={labelStyle}>Report Data Range (optional)</label>
+          <label style={labelStyle}>Override Data Range (for scheduled sends)</label>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'rgba(99,102,241,0.06)',
@@ -304,12 +345,16 @@ export default function EmailModal({ onClose, buses, rows, metrics, coverRef, th
               </button>
             )}
           </div>
-          {(emailStartDate || emailEndDate) && (
+          {(emailStartDate || emailEndDate) ? (
             <div style={{ fontSize: 10, color: '#6366f1', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em', paddingLeft: 2 }}>
-              ◈ Report will include data
+              ◈ Overrides the dashboard date filter — report includes data
               {emailStartDate ? ` from ${emailStartDate}` : ''}
               {emailEndDate   ? ` to ${emailEndDate}` : ''}
               {' '}only
+            </div>
+          ) : (
+            <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em', paddingLeft: 2 }}>
+              Leave blank to follow the dashboard date filter above. Set a fixed window here for recurring reports (e.g. a quarter), independent of the dashboard.
             </div>
           )}
         </div>
@@ -473,6 +518,17 @@ export default function EmailModal({ onClose, buses, rows, metrics, coverRef, th
                           borderRadius: 3, padding: '2px 6px',
                         }}>
                           ◈ {s.startDate || '…'} → {s.endDate || '…'}
+                        </span>
+                      )}
+                      {s.filterSummary && s.filterSummary !== 'No filters applied (full dataset)' && (
+                        <span style={{
+                          fontSize: 9, color: '#a5b4fc',
+                          fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em',
+                          background: 'rgba(99,102,241,0.08)',
+                          border: '1px solid rgba(99,102,241,0.2)',
+                          borderRadius: 3, padding: '2px 6px',
+                        }}>
+                          ⛃ {s.filterSummary}
                         </span>
                       )}
                     </div>

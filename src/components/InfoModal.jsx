@@ -59,10 +59,10 @@ export default function InfoModal({ mode, onClose }) {
           padding: '18px 22px',
           borderBottom: '1px solid var(--border-subtle)',
         }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="9.5" />
+            <circle cx="12" cy="7.5" r="0.6" fill="var(--accent)" stroke="var(--accent)" strokeWidth="1.6" />
+            <line x1="12" y1="11" x2="12" y2="17" strokeWidth="2.8" />
           </svg>
           <div style={{ flex: 1 }}>
             <div style={{

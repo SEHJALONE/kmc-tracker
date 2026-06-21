@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LINES, STATIONS, isMajorStation } from '../data/stations';
+import { useOverrunData } from '../hooks/useOverrunData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
+
+const lineColors = {
+  MACHINE: '#64748b', BODY: '#8b5cf6', BODY_KDC: '#7c3aed',
+  FRAME: '#f97316', ELECTRO: '#06b6d4', PAINT: '#ec4899',
+  CHASSIS1: '#10b981', CHASSIS2: '#059669', TRIM: '#3b82f6', QA: '#ef4444',
+};
 
 function fmtHours(h) {
   if (h == null || !isFinite(h) || h <= 0) return '—';
@@ -269,8 +276,279 @@ function ProductionTrendChart({ data }) {
   );
 }
 
+// ── Overrun Root-Cause Insights (from the dedicated overruns tab) ──────────────
+// Sources the rich 6M data (root_causes, sub_causes, corrective_action) that the
+// station-level overrun bar chart above cannot show. Self-contained: renders
+// nothing until the overruns tab has at least one row.
+const CAUSE_COLORS = {
+  Man: '#3b82f6', Machine: '#dc2626', Method: '#f59e0b',
+  Material: '#10b981', Measurement: '#8b5cf6',
+  Environment: '#06b6d4', 'Mother Nature': '#06b6d4',
+};
+const causeColor = (c = '') => {
+  const key = Object.keys(CAUSE_COLORS).find(k => c.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
+  return key ? CAUSE_COLORS[key] : '#64748b';
+};
+const fmtMin = (m) => {
+  if (!m || m <= 0) return '0m';
+  const h = Math.floor(m / 60), mins = Math.round(m % 60);
+  return h > 0 ? `${h}h ${mins}m` : `${mins}m`;
+};
+
+function OverrunPanel({ title, note, children }) {
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+      <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span>{title}</span>
+        {note && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{note}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function OverrunInsights({ modelColor }) {
+  const { rows, aggregated, loading, error } = useOverrunData();
+
+  const data = useMemo(() => {
+    // 6M tree: cause → { totalMin, count, subs: { subText → { totalMin, count } } }
+    const causeTree = {};
+    const projectMap = {};
+    const stationMap = {};
+    for (const row of rows) {
+      const om = row.overrunMin || 0;
+      if (om <= 0) continue;
+
+      for (const cause of row.rootCauses || []) {
+        const node = causeTree[cause] || (causeTree[cause] = { totalMin: 0, count: 0, subs: {} });
+        node.totalMin += om; node.count += 1;
+        const sub = row.subCauses?.[cause];
+        if (sub) {
+          const s = node.subs[sub] || (node.subs[sub] = { totalMin: 0, count: 0 });
+          s.totalMin += om; s.count += 1;
+        }
+      }
+
+      const proj = row.project || 'Unspecified';
+      const p = projectMap[proj] || (projectMap[proj] = { totalMin: 0, count: 0 });
+      p.totalMin += om; p.count += 1;
+
+      const code = row.stationCode;
+      if (code) {
+        const st = stationMap[code] || (stationMap[code] = { designed: 0, actual: 0, overrun: 0, count: 0 });
+        st.designed += row.designedMin || 0;
+        st.actual   += row.actualMin   || 0;
+        st.overrun  += om;
+        st.count    += 1;
+      }
+    }
+
+    const byCause = Object.entries(causeTree)
+      .map(([cause, n]) => ({
+        cause, totalMin: n.totalMin, count: n.count,
+        subs: Object.entries(n.subs)
+          .map(([sub, s]) => ({ sub, ...s }))
+          .sort((a, b) => b.totalMin - a.totalMin),
+      }))
+      .sort((a, b) => b.totalMin - a.totalMin);
+
+    const byProject = Object.entries(projectMap)
+      .map(([project, n]) => ({ project, ...n, avgMin: Math.round(n.totalMin / n.count) }))
+      .sort((a, b) => b.totalMin - a.totalMin);
+
+    const byStationVar = Object.entries(stationMap)
+      .map(([code, n]) => ({
+        code,
+        name: STATIONS[code]?.name || code,
+        line: STATIONS[code]?.line,
+        designed: n.designed, actual: n.actual, overrun: n.overrun, count: n.count,
+        variancePct: n.designed > 0 ? Math.round(((n.actual - n.designed) / n.designed) * 100) : null,
+      }))
+      .sort((a, b) => b.overrun - a.overrun)
+      .slice(0, 8);
+
+    const actionLog = rows
+      .filter(r => (r.overrunMin || 0) > 0 && (r.correctiveAction || r.comments))
+      .sort((a, b) => (b.overrunMin || 0) - (a.overrunMin || 0))
+      .slice(0, 10);
+
+    return { byCause, byProject, byStationVar, actionLog };
+  }, [rows]);
+
+  if (loading && rows.length === 0) return null;
+  if (error) {
+    return (
+      <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
+        ⚠ {error}
+      </div>
+    );
+  }
+  if (rows.length === 0) return null;
+
+  const totalMin = aggregated?.total?.overrunMin || 0;
+  const maxCause   = data.byCause[0]?.totalMin || 1;
+  const maxProject = data.byProject[0]?.totalMin || 1;
+  const maxStnOver = data.byStationVar[0]?.overrun || 1;
+
+  return (
+    <>
+      {/* ── #1 + #2: Root-Cause Pareto with sub-cause drill-down ── */}
+      {data.byCause.length > 0 && (
+        <OverrunPanel
+          title="Overrun by Root Cause — 6M analysis"
+          note={`${fmtMin(totalMin)} total · ${aggregated?.total?.count || 0} events`}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {data.byCause.map((c, idx) => {
+              const pct = Math.min((c.totalMin / maxCause) * 100, 100);
+              const color = causeColor(c.cause);
+              const maxSub = c.subs[0]?.totalMin || 1;
+              return (
+                <div key={c.cause}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,2fr) minmax(0,3fr) 64px 52px', gap: 10, alignItems: 'center' }}>
+                    <div style={{ fontSize: 9, color: idx === 0 ? color : 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, textAlign: 'right' }}>#{idx + 1}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.cause}</div>
+                    <div style={{ height: 8, background: 'var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}99, ${color})`, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(c.totalMin)}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{c.count}×</div>
+                  </div>
+                  {/* sub-cause drill-down */}
+                  {c.subs.length > 0 && (
+                    <div style={{ marginLeft: 38, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {c.subs.map(s => {
+                        const sp = Math.min((s.totalMin / maxSub) * 100, 100);
+                        return (
+                          <div key={s.sub} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 56px 40px', gap: 10, alignItems: 'center' }}>
+                            <div style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>↳ {s.sub}</div>
+                            <div style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${sp}%`, background: `${color}66`, borderRadius: 2 }} />
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.totalMin)}</div>
+                            <div style={{ fontSize: 8, color: 'var(--text-dim)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{s.count}×</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 12, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
+            ● Bar = total overrun minutes attributed to each 6M category · ↳ = specific sub-cause
+          </div>
+        </OverrunPanel>
+      )}
+
+      {/* ── #3: Overrun by Project ── */}
+      {data.byProject.length > 0 && (
+        <OverrunPanel title="Overrun by Project" note={`${data.byProject.length} project${data.byProject.length !== 1 ? 's' : ''}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {data.byProject.map((p, idx) => {
+              const pct = Math.min((p.totalMin / maxProject) * 100, 100);
+              const color = modelColor(p.project);
+              return (
+                <div key={p.project} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 64px 64px', gap: 10, alignItems: 'center' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.project}</div>
+                  <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: idx === 0 ? `linear-gradient(90deg, ${color}99, ${color})` : `${color}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(p.totalMin)}</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{p.count}× avg {p.avgMin}m</div>
+                </div>
+              );
+            })}
+          </div>
+        </OverrunPanel>
+      )}
+
+      {/* ── #4: Designed vs Actual variance by station ── */}
+      {data.byStationVar.length > 0 && (
+        <OverrunPanel title="Designed vs Actual Time by Station — top overruns" note="from overruns tab">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+            {data.byStationVar.map((s, idx) => {
+              const lc = lineColors[s.line] || '#64748b';
+              const dMax = Math.max(s.designed, s.actual, 1);
+              const vColor = s.variancePct == null ? '#64748b' : s.variancePct <= 5 ? '#10b981' : s.variancePct <= 25 ? '#f59e0b' : '#dc2626';
+              return (
+                <div key={s.code}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
+                      #{idx + 1} {s.name} <span style={{ color: lc, fontSize: 8 }}>({s.code})</span>
+                    </span>
+                    {s.variancePct != null && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: vColor, fontFamily: "'Inter', system-ui, sans-serif" }}>
+                        {s.variancePct > 0 ? '+' : ''}{s.variancePct}%
+                      </span>
+                    )}
+                  </div>
+                  {/* designed (under) vs actual (over) twin bars */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 7, color: 'var(--text-dim)', width: 46, flexShrink: 0, fontFamily: "'Inter', system-ui, sans-serif" }}>DESIGNED</span>
+                      <div style={{ flex: 1, height: 5, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${(s.designed / dMax) * 100}%`, background: '#64748b', borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 8, color: 'var(--text-dim)', width: 52, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.designed)}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 7, color: 'var(--text-dim)', width: 46, flexShrink: 0, fontFamily: "'Inter', system-ui, sans-serif" }}>ACTUAL</span>
+                      <div style={{ flex: 1, height: 5, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${(s.actual / dMax) * 100}%`, background: vColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      </div>
+                      <span style={{ fontSize: 8, color: vColor, width: 52, textAlign: 'right', fontWeight: 700, fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.actual)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            % = how far actual exceeds designed time (green ≤5% · amber ≤25% · red &gt;25%)
+          </div>
+        </OverrunPanel>
+      )}
+
+      {/* ── #5: Corrective-action log ── */}
+      {data.actionLog.length > 0 && (
+        <OverrunPanel title="Corrective Actions Log — biggest overruns" note={`${data.actionLog.length} entries`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.actionLog.map((r, i) => {
+              const stn = STATIONS[r.stationCode];
+              return (
+                <div key={r.id || i} style={{ display: 'grid', gridTemplateColumns: '120px 60px 1fr', gap: 12, alignItems: 'start', padding: '8px 0', borderBottom: i < data.actionLog.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stn?.name || r.stationCode || '—'}</div>
+                    <div style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 }}>
+                      {r.stationCode}{r.project ? ` · ${r.project}` : ''}
+                    </div>
+                    {(r.rootCauses || []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 3 }}>
+                        {r.rootCauses.map(c => (
+                          <span key={c} style={{ fontSize: 7, color: causeColor(c), background: `${causeColor(c)}1a`, border: `1px solid ${causeColor(c)}44`, borderRadius: 8, padding: '1px 5px', fontFamily: "'Inter', system-ui, sans-serif" }}>{c}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#dc2626', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(r.overrunMin)}</div>
+                  <div style={{ minWidth: 0 }}>
+                    {r.correctiveAction && <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{r.correctiveAction}</div>}
+                    {r.comments && <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 2, fontStyle: 'italic' }}>{r.comments}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </OverrunPanel>
+      )}
+    </>
+  );
+}
+
 // ── Main Dashboard export ────────────────────────────────
-export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stationTimes = {}, theme = 'dark' }) {
+export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark' }) {
   // Guard against undefined during initial render before sheet data loads
   const buses   = Array.isArray(busesProp)   ? busesProp   : [];
   const allRows = Array.isArray(allRowsProp) ? allRowsProp : [];
@@ -512,11 +790,6 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
   const modelEntries     = Object.entries(metrics.byModel).sort((a, b) => b[1] - a[1]);
   const maxModelCount    = Math.max(...modelEntries.map(e => e[1]), 1);
 
-  const lineColors = {
-    MACHINE: '#64748b', BODY: '#8b5cf6', BODY_KDC: '#7c3aed',
-    FRAME: '#f97316', ELECTRO: '#06b6d4', PAINT: '#ec4899',
-    CHASSIS1: '#10b981', CHASSIS2: '#059669', TRIM: '#3b82f6', QA: '#ef4444',
-  };
   const modelColor = (model = '') => isKDC(model) ? '#dc2626' : isEVS(model) ? '#38bdf8' : '#64748b';
   const card = (accentRgb, borderVar) => ({
     background: 'var(--bg-surface)',
@@ -557,6 +830,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
           <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'visible' }}>
             <ExportPanel
               buses={buses} allRows={allRows} metrics={metrics}
+              filters={filters}
               dashboardRef={dashboardRef} slideRef={slideRef}
               onPresent={() => setPresenting(true)}
               stationTimes={stationTimes}
@@ -762,6 +1036,9 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, stat
               </div>
             </div>
           )}
+
+          {/* ── Overrun Root-Cause Insights (6M / project / variance / actions) ── */}
+          <OverrunInsights modelColor={modelColor} />
 
           {/* ── Downtime Pareto ── */}
           {metrics.hasDowntimeData && (
