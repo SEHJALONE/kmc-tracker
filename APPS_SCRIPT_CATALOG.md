@@ -5,7 +5,9 @@ This is the full, ready-to-paste Apps Script. It merges:
 - the **catalog save** branch (token-protected, chunked so large catalogs don't
   hit Google's 50,000-char single-cell limit),
 - **automatic catalog backups** — every `saveCatalog` snapshots whatever was in
-  the `Catalog` tab into `Catalog_Backups` *before* overwriting it, and
+  the `Catalog` tab into `Catalog_Backups` *before* overwriting it,
+- **Incident Register** create/update (`saveIncident`/`updateIncident`),
+  writing to a new `incidents` tab, and
 - the **new analysis fields** (break/gross time, per-cause delay minutes, custom
   causes, added activities) written into the submission sheets.
 
@@ -71,8 +73,15 @@ function doPost(e) {
       return restoreCatalogBackup_(e.parameter.backupId);
     }
 
-    // ── Travel-card submission (existing) ─────────────────────────────────────
-    const data      = JSON.parse(e.parameter.payload);
+    // Every other write (Incident Register, and future modules) sends its
+    // action *inside* the payload JSON rather than as a top-level form param —
+    // parse once and route on it before assuming this is a travel-card submission.
+    const data = JSON.parse(e.parameter.payload);
+
+    if (data && data.action === "saveIncident")   return saveIncident_(data);
+    if (data && data.action === "updateIncident") return updateIncident_(data);
+
+    // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.getActiveSpreadsheet();
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const id        = Utilities.getUuid();
@@ -189,6 +198,68 @@ function restoreCatalogBackup_(backupId) {
   sh.getRange("A1:B1").setValues([["key", "value"]]);
   sh.getRange(2, 1, rows.length, 2).setValues(rows);
   return response({ status: "ok", restored: backupId, rows: rows.length });
+}
+
+// ── Incident Register — create + update ───────────────────────────────────────
+// Mirrors the shape src/hooks/useIncidentData.js expects back out of the
+// "incidents" tab.
+function saveIncident_(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getOrCreate(ss, "incidents", [
+    "incident_id", "timestamp", "reported_by", "location_line", "location_station",
+    "incident_type", "classification", "description", "immediate_action",
+    "injured_persons", "property_damage", "equipment_affected", "witness_names",
+    "status", "investigation_due", "investigation_submitted", "root_cause",
+    "rca_method", "corrective_action", "preventive_action",
+    "assigned_investigator", "closed_date", "escalated_to",
+  ]);
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, d.timestamp || new Date().toISOString(), d.reportedBy || "", d.locationLine || "",
+    d.locationStation || "", d.incidentType || "", d.classification || "", d.description || "",
+    d.immediateAction || "", d.injuredPersons || "", d.propertyDamage || "",
+    d.equipmentAffected || "", d.witnessNames || "", d.status || "Reported",
+    d.investigationDue || "", d.investigationSubmitted || "", d.rootCause || "",
+    d.rcaMethod || "", d.correctiveAction || "", d.preventiveAction || "",
+    d.assignedInvestigator || "", d.closedDate || "", d.escalatedTo || "",
+  ]);
+  return response({ status: "ok", id });
+}
+
+// Patches only the fields present on the incoming payload — everything else
+// on the row is left untouched.
+function updateIncident_(d) {
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("incidents");
+  if (!sh) return response({ status: "error", message: "no-incidents-sheet" });
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("incident_id");
+  if (idCol === -1) return response({ status: "error", message: "bad-sheet-shape" });
+
+  const fieldMap = {
+    status: "status", investigationSubmitted: "investigation_submitted",
+    rootCause: "root_cause", rcaMethod: "rca_method",
+    correctiveAction: "corrective_action", preventiveAction: "preventive_action",
+    assignedInvestigator: "assigned_investigator", closedDate: "closed_date",
+    escalatedTo: "escalated_to",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.id) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, col]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(col);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", id: d.id });
+    }
+  }
+  return response({ status: "error", message: "incident-not-found" });
 }
 
 function writeTrackerLog(trackerSs, d, id) {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LINES, STATIONS, isMajorStation } from '../data/stations';
 import { useDowntimeData } from '../hooks/useOverrunData';
+import { useIncidentData } from '../hooks/useIncidentData';
+import { CLASS_COLOR as INC_CLASS_COLOR } from './IncidentModal';
 import { useHandoverData } from '../hooks/useHandoverData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
@@ -627,6 +629,47 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
   );
 }
 
+// ── Incident Summary card ─────────────────────────────────
+function IncidentSummaryCard({ onOpenIncident }) {
+  const { summary, loading } = useIncidentData();
+
+  const classACount = summary.byClass.A.length;
+  const overdueInv  = summary.overdueInvestigation.length;
+  const accentColor = classACount > 0 ? '#dc2626' : overdueInv > 0 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${classACount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          Incident Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC.DQHSE.01/26-PR003</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Class A', value: loading ? '…' : classACount,                      color: INC_CLASS_COLOR['Class A — Critical'] },
+            { label: 'Class B', value: loading ? '…' : summary.byClass.B.length,          color: INC_CLASS_COLOR['Class B — Major'] },
+            { label: 'Class C', value: loading ? '…' : summary.byClass.C.length,          color: INC_CLASS_COLOR['Class C — Minor'] },
+            { label: 'Open',    value: loading ? '…' : summary.open.length,               color: '#f59e0b' },
+            { label: 'Inv. Overdue', value: loading ? '…' : overdueInv,                  color: overdueInv > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Total',   value: loading ? '…' : summary.total,                    color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {onOpenIncident && (
+        <div style={{ marginLeft: 'auto' }}>
+          <button onClick={onOpenIncident} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            Open Register →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HandoverSummaryCard({ onOpenHandover }) {
   const { summary, loading } = useHandoverData();
   const openCount    = Array.isArray(summary.open)        ? summary.open.length        : 0;
@@ -668,7 +711,7 @@ function HandoverSummaryCard({ onOpenHandover }) {
 }
 
 // ── Main Dashboard export ────────────────────────────────
-export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenHandover }) {
+export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenIncident, onOpenHandover }) {
   // Guard against undefined during initial render before sheet data loads
   const buses   = Array.isArray(busesProp)   ? busesProp   : [];
   const allRows = Array.isArray(allRowsProp) ? allRowsProp : [];
@@ -972,6 +1015,11 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                 accent={metrics.firstPassYield >= 90 ? '#10b981' : metrics.firstPassYield >= 75 ? '#f59e0b' : '#dc2626'}
               />
             )}
+          </div>
+
+          {/* IMS summary cards — Incident (NCR, MOC, Handover join as they ship) */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+            <IncidentSummaryCard onOpenIncident={onOpenIncident} />
           </div>
 
           {/* Takt Time panel */}
