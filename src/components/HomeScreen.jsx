@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectNCR, onSelectIncident, onSelectMOC, onSelectHandover, onSelectDWI, onLogout, theme, toggleTheme }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onLogout, theme, toggleTheme }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   function SunIcon() {
@@ -248,51 +248,6 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
           </div>
         </button>
-
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #dc2626 0%, #7c3aed 100%)" }}
-          onClick={onSelectNCR}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">NCR Register</div>
-            <div className="home-card-sub">Non-conformance · PR009</div>
-          </div>
-        </button>
-
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 4.png'), linear-gradient(135deg, #b45309 0%, #dc2626 100%)" }}
-          onClick={onSelectIncident}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">Incident Register</div>
-            <div className="home-card-sub">Safety & incidents · PR003</div>
-          </div>
-        </button>
-
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #0f766e 0%, #1e40af 100%)" }}
-          onClick={onSelectMOC}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">MOC Register</div>
-            <div className="home-card-sub">Management of change · FM001</div>
-          </div>
-        </button>
-
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #1e40af 0%, #4f46e5 100%)" }}
-          onClick={onSelectDWI}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">Work Instructions</div>
-            <div className="home-card-sub">Digital WI · Parts &amp; consumables</div>
-          </div>
-        </button>
-
 
       </div>
 

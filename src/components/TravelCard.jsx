@@ -1,5 +1,3 @@
-import WorkInstructions from './WorkInstructions';
-
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwd3fW_ygzXVAtU3vgJg_l9hxab52l-nRt5S-X4I8nuqm5f0anh9JvLv8TjjsQtoWFf/exec";
 
 const STATION_TIMES_URL =
@@ -1449,13 +1447,6 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             </div>
           </div>}
         </>}
-
-        {/* Work Instructions — shown when a station is selected and DWI exists for it */}
-        {curCode && catalog.dwi && (
-          <div style={css.px}>
-            <WorkInstructions stationCode={curCode} dwi={catalog.dwi} model={modelKind} />
-          </div>
-        )}
 
         <div style={css.px}>
           <button style={css.btnP} onClick={p0next}>Continue to activities →</button>
