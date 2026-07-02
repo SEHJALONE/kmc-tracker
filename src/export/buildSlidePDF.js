@@ -414,9 +414,9 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
       });
     }
 
-    // RIGHT: Overrun Pareto
+    // RIGHT: Downtime Pareto
     if ((metrics.overrunPareto || []).length > 0) {
-      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Overrun by Station — Top ${metrics.overrunPareto.length}`);
+      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Downtime by Station — Top ${metrics.overrunPareto.length}`);
       const maxMin = metrics.overrunPareto[0].totalMin;
       const maxBW2 = AL_W - 40;
       const rowH2 = Math.min((AH * 0.5) / metrics.overrunPareto.length, 10);

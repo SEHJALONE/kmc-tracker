@@ -5,7 +5,7 @@ const STATUS_LABELS = {
   APPROVED: 'Approved',
   PENDING:  'Pending',
   OHS:      'OHS Issue',
-  OVERRUN:  'Overrun',
+  OVERRUN:  'Downtime',
   REWORK:   'Rework',
 };
 

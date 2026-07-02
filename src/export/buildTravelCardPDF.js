@@ -159,9 +159,9 @@ export async function buildStationReportPDF(sub, logoBase64) {
     { label: 'Actual time',   val: fmtDur(sub.actualTime),   color: BLACK, bg: XLIT },
     {
       label: 'Time status',
-      val: sub.hasOverrun ? `+${sub.actualTime - sub.designedTime} min overrun` : 'Within designed time',
-      color: sub.hasOverrun ? RED : GREEN,
-      bg: sub.hasOverrun ? LTRED : LTGRN,
+      val: (sub.hasDowntime ?? sub.hasOverrun) ? `+${sub.actualTime - sub.designedTime} min downtime` : 'Within designed time',
+      color: (sub.hasDowntime ?? sub.hasOverrun) ? RED : GREEN,
+      bg: (sub.hasDowntime ?? sub.hasOverrun) ? LTRED : LTGRN,
     },
   ];
   const pillW = CW / 3 - 2;
@@ -232,10 +232,10 @@ export async function buildStationReportPDF(sub, logoBase64) {
     y += 4;
   }
 
-  // ── Overrun detail ──
-  if (sub.hasOverrun && sub.overrun) {
-    y = sectionTitle(doc, y, 'Overrun analysis');
-    const ov = sub.overrun;
+  // ── Downtime detail ──
+  if ((sub.hasDowntime ?? sub.hasOverrun) && (sub.downtime ?? sub.overrun)) {
+    y = sectionTitle(doc, y, 'Downtime analysis');
+    const ov = sub.downtime ?? sub.overrun;
     const sel = ov.selMs || [];
     // One line per selected cause: "<detail> — <delay> min"
     const causeLines = sel.map(m => {
@@ -262,7 +262,7 @@ export async function buildStationReportPDF(sub, logoBase64) {
       y += 9;
     });
     if (summedDelay) {
-      kvRow(doc, M + 4, y, 'Total delay attributed', `${summedDelay} min of +${sub.actualTime - sub.designedTime} min overrun`, CW - 8, true);
+      kvRow(doc, M + 4, y, 'Total delay attributed', `${summedDelay} min of +${sub.actualTime - sub.designedTime} min downtime`, CW - 8, true);
       y += 9;
     }
     kvRow(doc, M + 4, y, 'Corrective action', ov.correctiveAction || '—', CW - 8);
@@ -297,7 +297,7 @@ export async function buildBusReportPDF(log, logoBase64) {
   const first  = sorted[0] || {};
   const totalActual   = sorted.reduce((a, s) => a + (s.actualTime   || 0), 0);
   const totalDesigned = sorted.reduce((a, s) => a + (s.designedTime || 0), 0);
-  const overruns      = sorted.filter(s => s.hasOverrun);
+  const overruns      = sorted.filter(s => s.hasDowntime ?? s.hasOverrun);
 
   const half = CW / 2;
   const totalPages = 1 + Math.ceil(sorted.length / 18);
@@ -327,8 +327,8 @@ export async function buildBusReportPDF(log, logoBase64) {
     { label: 'Stations completed', val: String(sorted.length),      color: BLACK, bg: XLIT },
     { label: 'Total actual time',  val: fmtDur(totalActual),        color: BLACK, bg: XLIT },
     { label: 'Total designed time',val: fmtDur(totalDesigned),      color: BLACK, bg: XLIT },
-    { label: 'Total overruns',     val: String(overruns.length),     color: overruns.length ? RED : GREEN, bg: overruns.length ? LTRED : LTGRN },
-    { label: 'Total overrun time', val: fmtDur(totalActual - totalDesigned), color: overruns.length ? RED : GREEN, bg: overruns.length ? LTRED : LTGRN },
+    { label: 'Total downtimes',     val: String(overruns.length),     color: overruns.length ? RED : GREEN, bg: overruns.length ? LTRED : LTGRN },
+    { label: 'Total downtime',      val: fmtDur(totalActual - totalDesigned), color: overruns.length ? RED : GREEN, bg: overruns.length ? LTRED : LTGRN },
     { label: 'Efficiency',
       val: totalDesigned > 0 ? `${Math.round((totalDesigned / Math.max(totalActual, 1)) * 100)}%` : '—',
       color: totalActual <= totalDesigned ? GREEN : RED,
@@ -379,7 +379,7 @@ export async function buildBusReportPDF(log, logoBase64) {
     rows.forEach((s, ri) => {
       doc.setFillColor(...(ri % 2 === 0 ? WHITE : XLIT));
       doc.rect(M, ry, CW, ROW_H, 'F');
-      if (s.hasOverrun) { doc.setFillColor(254, 242, 242); doc.rect(M, ry, 2.5, ROW_H, 'F'); }
+      if (s.hasDowntime ?? s.hasOverrun) { doc.setFillColor(254, 242, 242); doc.rect(M, ry, 2.5, ROW_H, 'F'); }
       doc.setDrawColor(...XLIT); doc.setLineWidth(0.1);
       doc.line(M, ry + ROW_H, W - M, ry + ROW_H);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...BLACK);
@@ -387,10 +387,10 @@ export async function buildBusReportPDF(log, logoBase64) {
         { text: (s.station || '').split(':').pop()?.trim() || s.station || '—', bold: false },
         { text: s.stationCode || '—',                                            bold: false },
         { text: s.clockIn ? new Date(s.clockIn).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—', bold: false },
-        { text: String(s.actualTime ?? '—'),  bold: true,  color: s.hasOverrun ? RED : BLACK },
+        { text: String(s.actualTime ?? '—'),  bold: true,  color: (s.hasDowntime ?? s.hasOverrun) ? RED : BLACK },
         { text: String(s.designedTime ?? '—'), bold: false },
-        { text: s.hasOverrun ? `+${(s.actualTime||0) - (s.designedTime||0)} min` : 'On time',
-          bold: true, color: s.hasOverrun ? RED : GREEN },
+        { text: (s.hasDowntime ?? s.hasOverrun) ? `+${(s.actualTime||0) - (s.designedTime||0)} min` : 'On time',
+          bold: true, color: (s.hasDowntime ?? s.hasOverrun) ? RED : GREEN },
       ];
       cells.forEach((cell, ci) => {
         const maxW = CW * COLS[ci].pct - 4;

@@ -1,3 +1,4 @@
+import WorkInstructions from './WorkInstructions';
 
 const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwd3fW_ygzXVAtU3vgJg_l9hxab52l-nRt5S-X4I8nuqm5f0anh9JvLv8TjjsQtoWFf/exec";
 
@@ -889,7 +890,7 @@ function Tag({ label, onDel }) {
   return (
     <div style={css.tag}>
       {label}
-      <button style={css.tagX} onClick={onDel}>×</button>
+      {onDel && <button style={css.tagX} onClick={onDel}>×</button>}
     </div>
   );
 }
@@ -980,8 +981,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [ohsTxt, setOhsTxt] = useState("");
   const [waste, setWaste] = useState("");
 
-  // Overrun
-  const [hasOverrun, setHasOverrun] = useState(false);
+  // Downtime
+  const [hasDowntime, setHasDowntime] = useState(false);
   const [actualTime, setActualTime] = useState(0);  // net productive minutes
   const [grossTime, setGrossTime]   = useState(0);  // elapsed clock-in→out
   const [breakTime, setBreakTime]   = useState(0);  // scheduled breaks excluded
@@ -992,6 +993,22 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [customCauseName, setCustomCauseName] = useState("");
   const [corrAction, setCorrAction] = useState("");
   const [orComments, setOrComments] = useState("");
+  // Phase 1 CAPA fields
+  const [rcaMethod, setRcaMethod] = useState("");
+  const [why1, setWhy1] = useState("");
+  const [why2, setWhy2] = useState("");
+  const [why3, setWhy3] = useState("");
+  const [why4, setWhy4] = useState("");
+  const [why5, setWhy5] = useState("");
+  const [fiveCategory, setFiveCategory] = useState("");
+  const [preventiveAction, setPreventiveAction] = useState("");
+
+  // Downtime evidence attachment
+  const [attachmentFile, setAttachmentFile]     = useState(null);   // File object
+  const [attachmentB64,  setAttachmentB64]       = useState(null);   // Base64 data-url
+  const [attachmentName, setAttachmentName]      = useState('');
+  const [attachmentMime, setAttachmentMime]      = useState('');
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
 
   // Sign-off (no designation, change 7)
   const [reviewer, setReviewer] = useState("");
@@ -1058,6 +1075,14 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     .filter(p => p && p.name && p.active !== false)
     .map(p => p.name);
   const projectNames = [...new Set([...Object.keys(projects), ...catalogProjectNames])].sort();
+
+  // Fleet VINs for the selected project, filtered to the selected bus model —
+  // shared (from the catalog, admin-managed) merged with locally-remembered ones
+  // (which carry no model tag, so they always show once a project is picked).
+  const catalogFleet = (curProj && catalog.projectVins && catalog.projectVins[curProj]) || [];
+  const catalogVinsForModel = catalogFleet.filter(v => v && v.vin && (!busModel || v.model === busModel)).map(v => v.vin);
+  const localVins = (curProj && projects[curProj] && projects[curProj].vins) || [];
+  const vinOptions = [...new Set([...catalogVinsForModel, ...localVins])];
   const revName = reviewer === "__other__" ? revOther : reviewer;
 
   function goTo(n) { setPage(n); window.scrollTo(0, 0); }
@@ -1071,10 +1096,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setActStatuses({});
     setOtherActs([]); setOtherActName("");
 
-    // Load remembered quantities for this station
+    // Load remembered quantities and custom consumables for this station
     const savedQtys = LS.get(`kmc_qty_${code}`, {});
     setResQtys(savedQtys);
     setRemovedRes([]);
+    setOtherRes(LS.get(`kmc_other_res_${code}`, []));
 
     // Load station-specific operator pool and remembered selection
     const stationOps = LS.get(`kmc_station_ops_${code}`, []);
@@ -1085,6 +1111,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   function saveQtyMemory(qtys, code) {
     if (code) LS.set(`kmc_qty_${code}`, qtys);
+  }
+
+  function saveOtherResMemory(list, code) {
+    if (code) LS.set(`kmc_other_res_${code}`, list);
   }
 
   function updateQty(r, val) {
@@ -1118,9 +1148,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setBreakTime(brkMin);
     setActualTime(actual);
     if (actual > 0 && designedTime > 0 && actual > designedTime) {
-      setHasOverrun(true); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); goTo(2); return;
+      setHasDowntime(true); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); goTo(2); return;
     }
-    setHasOverrun(false); goTo(3);
+    setHasDowntime(false); goTo(3);
   }
 
   function togM(m) {
@@ -1147,12 +1177,24 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCauseTimes(prev => { const n = { ...prev }; delete n[name]; return n; });
   }
 
+  function handleAttachmentChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachmentFile(file);
+    setAttachmentName(file.name);
+    setAttachmentMime(file.type);
+    const reader = new FileReader();
+    reader.onload = ev => setAttachmentB64(ev.target.result); // data-url including mime prefix
+    reader.readAsDataURL(file);
+  }
+
   async function submit() {
     if (!revName) { alert("Enter a reviewer name."); return; }
     if (!appStatus) { alert("Select an approval status."); return; }
 
-    // save qty memory & station staff on submit
+    // save qty memory, custom consumables & station staff on submit
     saveQtyMemory(resQtys, curCode);
+    saveOtherResMemory(otherRes, curCode);
     if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
     if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
 
@@ -1161,15 +1203,16 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: hseCount,
-      clockIn, clockOut, actualTime, designedTime, hasOverrun,
+      clockIn, clockOut, actualTime, designedTime, hasDowntime,
       grossTime, breakMinutes: breakTime,
       activityStatuses: actStatuses,
       addedActivities: otherActs,
       resourcesUsed: resQtys,
+      removedResources: removedRes,
       otherResources: otherRes,
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
-      overrun: hasOverrun ? { selMs, subCauses, causeTimes, customCauses, correctiveAction: corrAction, comments: orComments } : null,
+      downtime: hasDowntime ? { selMs, subCauses, causeTimes, customCauses, correctiveAction: corrAction, comments: orComments, rcaMethod, why1, why2, why3, why4, why5, category: fiveCategory, preventiveAction, attachmentName, attachmentMime, attachmentB64 } : null,
       reviewer: revName, approvalStatus: appStatus, reviewDate: revDate, reviewComments: revComments,
     };
     setSubmission(sub);
@@ -1225,8 +1268,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     const km = busModel, kp = curProj, kv = vin;
     setActStatuses({}); setOtherActs([]); setOtherActName(""); setResQtys({}); setRemovedRes([]); setOtherRes([]);
     setClockIn(""); setClockOut(""); setOhs(false); setOhsTxt(""); setWaste("");
-    setHasOverrun(false); setActualTime(0); setGrossTime(0); setBreakTime(0); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); setCustomCauseName("");
-    setCorrAction(""); setOrComments(""); setReviewer(""); setRevOther("");
+    setHasDowntime(false); setActualTime(0); setGrossTime(0); setBreakTime(0); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); setCustomCauseName("");
+    setAttachmentFile(null); setAttachmentB64(null); setAttachmentName(''); setAttachmentMime('');
+    setCorrAction(""); setOrComments("");
+    setRcaMethod(""); setWhy1(""); setWhy2(""); setWhy3(""); setWhy4(""); setWhy5(""); setFiveCategory(""); setPreventiveAction("");
+    setReviewer(""); setRevOther("");
     setAppStatus(""); setRevComments(""); setSubmission(null); setGsStatus("");
     setCurLine(""); setCurSt(""); setCurCode(""); setDesignedTime(0);
     setSelOps([]); setOperators([]); // operators reload when station is selected
@@ -1237,7 +1283,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   const segStyle = i => ({ ...css.seg, ...(i < page ? css.segDone : i === page ? css.segAct : {}) });
   const lblStyle = i => ({ ...css.lbl, ...(i === page ? css.lblAct : i < page ? css.lblDone : {}) });
-  const LABELS = ["Identity", "Activities", "Overrun", "Sign-off", "Done"];
+  const LABELS = ["Identity", "Activities", "Downtime", "Sign-off", "Done"];
 
   return (
     <div style={{
@@ -1336,10 +1382,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               <label style={css.lbl_}>Bus VIN</label>
               <select style={css.inp} value={vin} onChange={e => setVin(e.target.value)}>
                 <option value="">Select VIN…</option>
-                {curProj && projects[curProj] && projects[curProj].vins.map(v => <option key={v}>{v}</option>)}
+                {vinOptions.map(v => <option key={v}>{v}</option>)}
               </select>
               <AddRow placeholder="Add VIN for this project…" onAdd={n => { if (!n.trim() || !curProj) return; setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: [...(p[curProj]?.vins || []), n.trim()] } })); setVin(n.trim()); }} />
-              <div style={css.tagRow}>{curProj && projects[curProj] && projects[curProj].vins.map(v => <Tag key={v} label={v} onDel={() => setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: p[curProj].vins.filter(x => x !== v) } }))} />)}</div>
+              <div style={css.tagRow}>
+                {catalogVinsForModel.map(v => <Tag key={'c_' + v} label={v} />)}
+                {localVins.filter(v => !catalogVinsForModel.includes(v)).map(v => <Tag key={'l_' + v} label={v} onDel={() => setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: p[curProj].vins.filter(x => x !== v) } }))} />)}
+              </div>
             </div>
           </>}
         </div>
@@ -1400,6 +1449,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             </div>
           </div>}
         </>}
+
+        {/* Work Instructions — shown when a station is selected and DWI exists for it */}
+        {curCode && catalog.dwi && (
+          <div style={css.px}>
+            <WorkInstructions stationCode={curCode} dwi={catalog.dwi} model={modelKind} />
+          </div>
+        )}
 
         <div style={css.px}>
           <button style={css.btnP} onClick={p0next}>Continue to activities →</button>
@@ -1500,12 +1556,12 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             <div style={css.addRow}>
               <input style={css.addInp} value={otherResName} onChange={e => setOtherResName(e.target.value)} placeholder="Consumable or material name…" />
               <input type="number" style={{ ...css.qty, flexShrink: 0 }} value={otherResQty} onChange={e => setOtherResQty(e.target.value)} placeholder="Qty" />
-              <button style={css.addBtn} onClick={() => { if (!otherResName.trim()) return; setOtherRes(p => [...p, { name: otherResName.trim(), qty: otherResQty || 0 }]); setOtherResName(""); setOtherResQty(""); }}>+ ADD</button>
+              <button style={css.addBtn} onClick={() => { if (!otherResName.trim()) return; const next = [...otherRes, { name: otherResName.trim(), qty: otherResQty || 0 }]; setOtherRes(next); saveOtherResMemory(next, curCode); setOtherResName(""); setOtherResQty(""); }}>+ ADD</button>
             </div>
             {otherRes.map((r, i) => <div key={i} className="tc-res-row" style={{ ...css.resRow, borderBottom: "none" }}>
               <div style={css.resName}>{r.name}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.muted }}>
-                ×{r.qty} <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 14 }} onClick={() => setOtherRes(p => p.filter((_, j) => j !== i))}>×</button>
+                ×{r.qty} <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 14 }} onClick={() => { const next = otherRes.filter((_, j) => j !== i); setOtherRes(next); saveOtherResMemory(next, curCode); }}>×</button>
               </div>
             </div>)}
           </div>
@@ -1537,7 +1593,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>
       </>}
 
-      {/* ── PAGE 2: OVERRUN ── */}
+      {/* ── PAGE 2: DOWNTIME ── */}
       {page === 2 && <>
         <div style={css.banner}>
           <span style={{ fontSize: 20, color: AM, flexShrink: 0 }}>⚠</span>
@@ -1550,7 +1606,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         <div style={css.stat3}>
           <div style={css.statC}><div style={css.statV}>{designedTime}</div><div style={css.statL}>Designed (min)</div></div>
           <div style={css.statC}><div style={css.statV}>{actualTime}</div><div style={css.statL}>Actual (min)</div></div>
-          <div style={css.statC}><div style={{ ...css.statV, color: R }}>+{actualTime - designedTime}</div><div style={css.statL}>Overrun (min)</div></div>
+          <div style={css.statC}><div style={{ ...css.statV, color: R }}>+{actualTime - designedTime}</div><div style={css.statL}>Downtime (min)</div></div>
         </div>
         {breakTime > 0 && (
           <div style={{ ...css.note, textAlign: "center", margin: "-6px 20px 8px" }}>
@@ -1615,7 +1671,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             if (summed === 0) return null;
             return (
               <div style={{ ...css.note, marginTop: 6 }}>
-                Causes account for {summed} min of the {overrun} min overrun
+                Causes account for {summed} min of the {overrun} min downtime
                 {summed !== overrun ? ` (${summed > overrun ? "+" : "−"}${Math.abs(summed - overrun)} min vs total).` : "."}
               </div>
             );
@@ -1628,6 +1684,130 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.fld}>
             <label style={css.lbl_}>Additional comments</label>
             <textarea style={css.ta} value={orComments} onChange={e => setOrComments(e.target.value)} placeholder="Further context, observations or follow-up actions…" />
+          </div>
+        </div>
+
+        {/* ── CAPA Analysis (Phase 1 — KMC.DQHSE.02/26-PR0010) ── */}
+        <div style={css.card}>
+          <div style={{ ...css.cardHd, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>CAPA Analysis</span>
+            <span style={{ fontSize: 8, color: T.dimmer, fontFamily: T.mono, letterSpacing: "0.06em", textTransform: "none", fontWeight: 400 }}>KMC.DQHSE.02/26-PR0010</span>
+          </div>
+
+          {/* RCA Method */}
+          <Sel label="RCA method" value={rcaMethod} onChange={e => setRcaMethod(e.target.value)}>
+            <option value="">Select method…</option>
+            <option value="5-Why">5-Why</option>
+            <option value="8D">8D</option>
+            <option value="Fishbone">Fishbone (Ishikawa)</option>
+            <option value="DMAIC">DMAIC</option>
+          </Sel>
+
+          {/* 5M Category */}
+          <Sel label="5M category (primary driver)" value={fiveCategory} onChange={e => setFiveCategory(e.target.value)}>
+            <option value="">Select category…</option>
+            <option value="Man">Man — Operator / skill / attendance</option>
+            <option value="Machine">Machine — Equipment / tooling / fixtures</option>
+            <option value="Method">Method — Process / sequence / instructions</option>
+            <option value="Material">Material — Parts / consumables / supply</option>
+            <option value="Measurement">Measurement — Inspection / gauging / data</option>
+            <option value="Mother Nature">Mother Nature — Environment / power / temperature</option>
+          </Sel>
+
+          {/* 5-Why progressive inputs */}
+          {rcaMethod === "5-Why" && (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ ...css.subHd, marginBottom: 10 }}>5-Why drill-down</div>
+              <div style={css.fld}>
+                <label style={css.lbl_}>Why 1 — why did the downtime occur?</label>
+                <input style={css.inp} value={why1} onChange={e => setWhy1(e.target.value)} placeholder="State the immediate cause…" />
+              </div>
+              {why1.trim() && (
+                <div style={css.fld}>
+                  <label style={css.lbl_}>Why 2 — why did that happen?</label>
+                  <input style={css.inp} value={why2} onChange={e => setWhy2(e.target.value)} placeholder="Dig one level deeper…" />
+                </div>
+              )}
+              {why1.trim() && why2.trim() && (
+                <div style={css.fld}>
+                  <label style={css.lbl_}>Why 3</label>
+                  <input style={css.inp} value={why3} onChange={e => setWhy3(e.target.value)} placeholder="Continue…" />
+                </div>
+              )}
+              {why1.trim() && why2.trim() && why3.trim() && (
+                <div style={css.fld}>
+                  <label style={css.lbl_}>Why 4</label>
+                  <input style={css.inp} value={why4} onChange={e => setWhy4(e.target.value)} placeholder="Continue…" />
+                </div>
+              )}
+              {why1.trim() && why2.trim() && why3.trim() && why4.trim() && (
+                <div style={css.fld}>
+                  <label style={css.lbl_}>Why 5 — root cause</label>
+                  <input style={css.inp} value={why5} onChange={e => setWhy5(e.target.value)} placeholder="Underlying root cause…" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Preventive action */}
+          <div style={{ ...css.fld, marginTop: 4 }}>
+            <label style={css.lbl_}>Preventive action <span style={{ color: T.dimmer, fontWeight: 400 }}>(to stop recurrence)</span></label>
+            <textarea style={css.ta} value={preventiveAction} onChange={e => setPreventiveAction(e.target.value)} placeholder="What systemic change will prevent this downtime from happening again?…" />
+          </div>
+        </div>
+
+        {/* ── Evidence Attachment ── */}
+        <div style={css.card}>
+          <div style={css.cardHd}>Evidence attachment <span style={{ fontWeight: 400, textTransform: "none", opacity: .5, fontSize: 10, letterSpacing: 0 }}>(optional)</span></div>
+          <div style={css.fld}>
+            <label style={css.lbl_}>Photo or document showing cause / evidence</label>
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+              border: `1px dashed ${attachmentFile ? T.accent : T.border}`,
+              borderRadius: 6, padding: "12px 14px",
+              background: attachmentFile ? "rgba(220,38,38,0.06)" : T.inpBg,
+              transition: "border-color .2s, background .2s",
+            }}>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                style={{ display: "none" }}
+                onChange={handleAttachmentChange}
+              />
+              <span style={{ fontSize: 20 }}>{attachmentFile ? "📎" : "📁"}</span>
+              <div>
+                <div style={{ fontSize: 12, color: attachmentFile ? T.text : T.dim, fontWeight: attachmentFile ? 600 : 400 }}>
+                  {attachmentFile ? attachmentFile.name : "Tap to select file…"}
+                </div>
+                {attachmentFile && (
+                  <div style={{ fontSize: 10, color: T.dim, marginTop: 2 }}>
+                    {(attachmentFile.size / 1024).toFixed(0)} KB · {attachmentFile.type || "unknown type"}
+                  </div>
+                )}
+                {!attachmentFile && (
+                  <div style={{ fontSize: 10, color: T.dimmer, marginTop: 2 }}>Images (JPG, PNG) or PDF — max 5 MB</div>
+                )}
+              </div>
+            </label>
+            {attachmentFile && (
+              <button
+                style={{ ...css.btnS, marginTop: 8, fontSize: 10, padding: "5px 12px" }}
+                onClick={() => { setAttachmentFile(null); setAttachmentB64(null); setAttachmentName(''); setAttachmentMime(''); }}
+              >
+                ✕ Remove
+              </button>
+            )}
+            {/* Image preview */}
+            {attachmentB64 && attachmentMime.startsWith("image/") && (
+              <img
+                src={attachmentB64}
+                alt="Evidence preview"
+                style={{ marginTop: 10, maxWidth: "100%", maxHeight: 180, borderRadius: 6, objectFit: "contain", border: `1px solid ${T.border}` }}
+              />
+            )}
+          </div>
+          <div style={{ ...css.note, marginTop: 4 }}>
+            The file will be uploaded to Google Drive and the link saved alongside this downtime record.
           </div>
         </div>
 
@@ -1676,7 +1856,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>
 
         <div style={css.nav2}>
-          <button style={{ ...css.btnS, marginTop: 0, flex: .35 }} onClick={() => goTo(hasOverrun ? 2 : 1)}>← Back</button>
+          <button style={{ ...css.btnS, marginTop: 0, flex: .35 }} onClick={() => goTo(hasDowntime ? 2 : 1)}>← Back</button>
           <button style={{ ...css.btnP, marginTop: 0, flex: 1 }} onClick={submit}>Submit travel card</button>
         </div>
       </>}
@@ -1710,23 +1890,79 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           ].map(([l, v]) => <div key={l} style={css.confRow}><span style={css.confLbl}>{l}</span><span style={css.confVal}>{v || "—"}</span></div>)}
         </div>
 
-        {/* change 9: overrun details on done page */}
-        {submission.hasOverrun && <div style={{ ...css.confC, background: RA, border: `1px solid ${RB}` }}>
-          <div style={{ ...css.cardHd, color: R, borderColor: RB }}>Overrun details</div>
+        {/* Activities summary */}
+        {(() => {
+          const entries = Object.entries(submission.activityStatuses || {});
+          const added = submission.addedActivities || [];
+          if (entries.length === 0 && added.length === 0) return null;
+          const statusLabel = { complete: "✅ Complete", incomplete: "⏳ Incomplete", issue: "⚠️ Issue noted", rework: "🔁 Rework needed", na: "— N/A" };
+          return (
+            <div style={css.confC}>
+              <div style={css.cardHd}>Activities</div>
+              {entries.map(([a, s]) => (
+                <div key={a} style={css.confRow}>
+                  <span style={css.confLbl}>{a}</span>
+                  <span style={css.confVal}>{statusLabel[s] || s}</span>
+                </div>
+              ))}
+              {added.map(a => (
+                <div key={a} style={css.confRow}>
+                  <span style={css.confLbl}>{a}</span>
+                  <span style={{ ...css.confVal, color: T.dim }}>{statusLabel[submission.activityStatuses?.[a]] || "—"}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Consumables summary */}
+        {(() => {
+          const presets = Object.entries(submission.resourcesUsed || {}).filter(([, v]) => v !== "" && v !== undefined);
+          const custom = submission.otherResources || [];
+          const removed = submission.removedResources || [];
+          if (presets.length === 0 && custom.length === 0 && removed.length === 0) return null;
+          return (
+            <div style={css.confC}>
+              <div style={css.cardHd}>Consumables & Materials</div>
+              {presets.map(([r, qty]) => (
+                <div key={r} style={css.confRow}>
+                  <span style={css.confLbl}>{r}</span>
+                  <span style={css.confVal}>×{qty}</span>
+                </div>
+              ))}
+              {custom.map((r, i) => (
+                <div key={i} style={css.confRow}>
+                  <span style={css.confLbl}>{r.name}</span>
+                  <span style={css.confVal}>×{r.qty}</span>
+                </div>
+              ))}
+              {removed.map(r => (
+                <div key={r} style={css.confRow}>
+                  <span style={{ ...css.confLbl, color: T.dimmer, textDecoration: "line-through" }}>{r}</span>
+                  <span style={{ ...css.confVal, color: T.dimmer }}>Not used</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* change 9: downtime details on done page */}
+        {submission.hasDowntime && <div style={{ ...css.confC, background: RA, border: `1px solid ${RB}` }}>
+          <div style={{ ...css.cardHd, color: R, borderColor: RB }}>Downtime details</div>
           <div style={css.stat3}>
             <div style={{ ...css.statC, background: "rgba(220,38,38,0.08)" }}><div style={{ ...css.statV, color: T.text }}>{submission.designedTime}</div><div style={css.statL}>Designed (min)</div></div>
             <div style={{ ...css.statC, background: "rgba(220,38,38,0.08)" }}><div style={{ ...css.statV, color: T.text }}>{submission.actualTime}</div><div style={css.statL}>Actual (min)</div></div>
-            <div style={{ ...css.statC, background: "rgba(220,38,38,0.08)" }}><div style={{ ...css.statV, color: R }}>+{submission.actualTime - submission.designedTime}</div><div style={css.statL}>Overrun (min)</div></div>
+            <div style={{ ...css.statC, background: "rgba(220,38,38,0.08)" }}><div style={{ ...css.statV, color: R }}>+{submission.actualTime - submission.designedTime}</div><div style={css.statL}>Downtime (min)</div></div>
           </div>
-          {submission.overrun?.selMs?.length > 0 && (
+          {submission.downtime?.selMs?.length > 0 && (
             <div style={css.confRow}>
               <span style={css.confLbl}>Root causes</span>
-              <span style={{ ...css.confVal, color: AM }}>{submission.overrun.selMs.join(", ")}</span>
+              <span style={{ ...css.confVal, color: AM }}>{submission.downtime.selMs.join(", ")}</span>
             </div>
           )}
-          {submission.overrun?.selMs?.map((m) => {
-            const detail = submission.overrun.subCauses?.[m];
-            const mins = submission.overrun.causeTimes?.[m];
+          {submission.downtime?.selMs?.map((m) => {
+            const detail = submission.downtime.subCauses?.[m];
+            const mins = submission.downtime.causeTimes?.[m];
             if (!detail && (mins === undefined || mins === "")) return null;
             return (
               <div key={m} style={css.confRow}>
@@ -1735,16 +1971,64 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               </div>
             );
           })}
-          {submission.overrun?.correctiveAction && (
+          {submission.downtime?.correctiveAction && (
             <div style={css.confRow}>
               <span style={css.confLbl}>Corrective action</span>
-              <span style={css.confVal}>{submission.overrun.correctiveAction}</span>
+              <span style={css.confVal}>{submission.downtime.correctiveAction}</span>
             </div>
           )}
-          {submission.overrun?.comments && (
+          {submission.downtime?.comments && (
             <div style={css.confRow}>
               <span style={css.confLbl}>Comments</span>
-              <span style={css.confVal}>{submission.overrun.comments}</span>
+              <span style={css.confVal}>{submission.downtime.comments}</span>
+            </div>
+          )}
+          {submission.downtime?.rcaMethod && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>RCA method</span>
+              <span style={css.confVal}>{submission.downtime.rcaMethod}</span>
+            </div>
+          )}
+          {submission.downtime?.category && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>5M category</span>
+              <span style={css.confVal}>{submission.downtime.category}</span>
+            </div>
+          )}
+          {submission.downtime?.why1 && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Why 1</span>
+              <span style={css.confVal}>{submission.downtime.why1}</span>
+            </div>
+          )}
+          {submission.downtime?.why2 && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Why 2</span>
+              <span style={css.confVal}>{submission.downtime.why2}</span>
+            </div>
+          )}
+          {submission.downtime?.why3 && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Why 3</span>
+              <span style={css.confVal}>{submission.downtime.why3}</span>
+            </div>
+          )}
+          {submission.downtime?.why4 && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Why 4</span>
+              <span style={css.confVal}>{submission.downtime.why4}</span>
+            </div>
+          )}
+          {submission.downtime?.why5 && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Why 5 (root cause)</span>
+              <span style={css.confVal}>{submission.downtime.why5}</span>
+            </div>
+          )}
+          {submission.downtime?.preventiveAction && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Preventive action</span>
+              <span style={css.confVal}>{submission.downtime.preventiveAction}</span>
             </div>
           )}
         </div>}

@@ -16,7 +16,7 @@ const STATUS_OPTIONS = [
   { id: 'APPROVED', label: 'Approved' },
   { id: 'PENDING',  label: 'Pending' },
   { id: 'OHS',      label: 'OHS Issue' },
-  { id: 'OVERRUN',  label: 'Overrun' },
+  { id: 'OVERRUN',  label: 'Downtime' },
   { id: 'REWORK',   label: 'Rework' },
 ];
 

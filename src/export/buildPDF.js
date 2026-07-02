@@ -276,7 +276,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     const overrunData = metrics.overrunPareto?.length > 0 ? metrics.overrunPareto : null;
 
     if (overrunData) {
-      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Overrun by Station — Top ${overrunData.length}`);
+      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Downtime by Station — Top ${overrunData.length}`);
       const maxMin = overrunData[0].totalMin;
       const maxBarW2 = AL_W - 42;
       const rowH2 = Math.min((AH * 0.5) / overrunData.length, 10);

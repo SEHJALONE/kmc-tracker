@@ -119,5 +119,40 @@ export function useCatalog() {
     }
   }, [apply, fetchCatalog]);
 
-  return { catalog, loading, error, saving, saveCatalog, refreshCatalog: fetchCatalog };
+  // List available server-side backup snapshots (newest first). Each save
+  // auto-backs-up the previous catalog before overwriting it — see
+  // APPS_SCRIPT_CATALOG.md. Uses a readable (cors) response, unlike saveCatalog,
+  // since the UI needs the actual list rather than an optimistic guess.
+  const listCatalogBackups = useCallback(async () => {
+    try {
+      const body = new URLSearchParams({ action: 'listCatalogBackups', token: CATALOG_ADMIN_TOKEN });
+      const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
+      const json = await res.json();
+      if (json.status !== 'ok') return { ok: false, error: json.message || 'unknown-error' };
+      return { ok: true, backups: json.backups || [] };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, []);
+
+  // Restore the Catalog tab from a given backup_id, then re-fetch so the app
+  // reflects the restored data. The restore itself backs up the (bad) current
+  // state first, so it can always be undone by restoring again.
+  const restoreCatalogBackup = useCallback(async (backupId) => {
+    try {
+      const body = new URLSearchParams({ action: 'restoreCatalogBackup', token: CATALOG_ADMIN_TOKEN, backupId });
+      const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
+      const json = await res.json();
+      if (json.status !== 'ok') return { ok: false, error: json.message || 'unknown-error' };
+      await fetchCatalog();
+      return { ok: true, rows: json.rows };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, [fetchCatalog]);
+
+  return {
+    catalog, loading, error, saving, saveCatalog, refreshCatalog: fetchCatalog,
+    listCatalogBackups, restoreCatalogBackup,
+  };
 }

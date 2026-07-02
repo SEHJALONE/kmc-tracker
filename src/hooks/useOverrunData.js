@@ -44,6 +44,15 @@ function parseOverrunCSV(text) {
   const idxSubs      = col('sub_causes',   'sub causes',   'subcauses');
   const idxAction    = col('corrective_action', 'corrective action');
   const idxComments  = col('comments');
+  // Phase 1 — CAPA fields (optional; absent in older rows → null)
+  const idxRcaMethod = col('rca_method',  'rca method');
+  const idxWhy1      = col('why1');
+  const idxWhy2      = col('why2');
+  const idxWhy3      = col('why3');
+  const idxWhy4      = col('why4');
+  const idxWhy5      = col('why5');
+  const idxCategory  = col('category');
+  const idxPrevAct   = col('preventive_action', 'preventive action');
 
   function parseCells(line) {
     const cells = [];
@@ -80,6 +89,15 @@ function parseOverrunCSV(text) {
       subCauses:       idxSubs     >= 0 ? parseSubCauses(c[idxSubs]  || '') : {},
       correctiveAction: idxAction  >= 0 ? c[idxAction]?.trim()  || null : null,
       comments:        idxComments >= 0 ? c[idxComments]?.trim() || null : null,
+      // Phase 1 CAPA fields — null when column absent (older rows)
+      rcaMethod:       idxRcaMethod >= 0 ? c[idxRcaMethod]?.trim() || null : null,
+      why1:            idxWhy1      >= 0 ? c[idxWhy1]?.trim()      || null : null,
+      why2:            idxWhy2      >= 0 ? c[idxWhy2]?.trim()      || null : null,
+      why3:            idxWhy3      >= 0 ? c[idxWhy3]?.trim()      || null : null,
+      why4:            idxWhy4      >= 0 ? c[idxWhy4]?.trim()      || null : null,
+      why5:            idxWhy5      >= 0 ? c[idxWhy5]?.trim()      || null : null,
+      category:        idxCategory  >= 0 ? c[idxCategory]?.trim()  || null : null,
+      preventiveAction: idxPrevAct  >= 0 ? c[idxPrevAct]?.trim()  || null : null,
     });
   }
   return rows;
@@ -104,11 +122,11 @@ function parseSubCauses(raw) {
  * total       — { overrunMin, count } fleet-wide
  */
 export function aggregateOverruns(rows) {
-  const stationMap = {}, causeMap = {};
+  const stationMap = {}, causeMap = {}, categoryMap = {};
   let totalMin = 0, totalCount = 0;
 
   for (const row of rows) {
-    const { stationCode, overrunMin, rootCauses } = row;
+    const { stationCode, overrunMin, rootCauses, category } = row;
     if (!overrunMin || overrunMin <= 0) continue;
 
     totalMin   += overrunMin;
@@ -125,6 +143,13 @@ export function aggregateOverruns(rows) {
       causeMap[cause].totalMin += overrunMin;
       causeMap[cause].count    += 1;
     }
+
+    // Phase 1 — 5M category from structured CAPA form
+    if (category) {
+      categoryMap[category] = categoryMap[category] || { totalMin: 0, count: 0 };
+      categoryMap[category].totalMin += overrunMin;
+      categoryMap[category].count    += 1;
+    }
   }
 
   const byStation = Object.entries(stationMap)
@@ -138,27 +163,15 @@ export function aggregateOverruns(rows) {
     .map(([cause, { totalMin, count }]) => ({ cause, totalMin, count }))
     .sort((a, b) => b.totalMin - a.totalMin);
 
-  return { byStation, byRootCause, total: { overrunMin: totalMin, count: totalCount } };
+  const byCategory = Object.entries(categoryMap)
+    .map(([category, { totalMin, count }]) => ({ category, totalMin, count }))
+    .sort((a, b) => b.totalMin - a.totalMin);
+
+  return { byStation, byRootCause, byCategory, total: { overrunMin: totalMin, count: totalCount } };
 }
 
 // ─── React hook ───────────────────────────────────────────────────────────────
-/**
- * useOverrunData()
- *
- * Returns:
- *   rows        — raw parsed overrun records
- *   aggregated  — { byStation, byRootCause, total }
- *   loading     — true during first fetch
- *   error       — string | null
- *   lastFetched — Date | null
- *   refresh     — () => void  manual re-fetch
- *
- * Usage:
- *   const { aggregated, loading } = useOverrunData();
- *   aggregated.byStation[0]  // worst station by total overrun minutes
- *   aggregated.byRootCause   // 6M ranking
- */
-export function useOverrunData() {
+export function useDowntimeData() {
   const [rows,       setRows]       = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
@@ -191,3 +204,6 @@ export function useOverrunData() {
 
   return { rows, aggregated, loading, error, lastFetched, refresh: fetchData };
 }
+
+// Backward-compat alias
+export const useOverrunData = useDowntimeData;

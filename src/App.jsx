@@ -14,6 +14,17 @@ import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
 import CatalogAdmin from './components/CatalogAdmin';
 import InfoModal from './components/InfoModal';
+import NCRBoard from './components/NCRBoard';
+import NCRModal, { SEVERITY_COLOR } from './components/NCRModal';
+import IncidentRegister from './components/IncidentRegister';
+import IncidentModal from './components/IncidentModal';
+import MOCRegister from './components/MOCRegister';
+import MOCModal from './components/MOCModal';
+import { useMOCData } from './hooks/useMOCData';
+import HandoverLog from './components/HandoverLog';
+import HandoverModal from './components/HandoverModal';
+import DWIBrowser from './components/DWIBrowser';
+import { useHandoverData } from './hooks/useHandoverData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -86,8 +97,9 @@ const TABS = [
 ];
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => localStorage.getItem('kmc_auth') === 'true');
-  const [role,   setRole]   = useState(() => localStorage.getItem('kmc_role') || 'user');
+  const [authed,     setAuthed]     = useState(() => localStorage.getItem('kmc_auth') === 'true');
+  const [role,       setRole]       = useState(() => localStorage.getItem('kmc_role') || 'user');
+  const [ncrDomain,  setNcrDomain]  = useState(() => localStorage.getItem('kmc_ncr_domain') || null);
   const [mode,   setMode]   = useState('home'); // 'home' | 'travelcard' | 'tracker'
   const [view,   setView]   = useState('tracker');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -121,7 +133,7 @@ export default function App() {
 
   // Shared catalog — drives travel-card dropdowns AND the bus tracker so admin
   // edits to lines/stations/projects reflect everywhere.
-  const { catalog, saveCatalog, saving: catalogSaving } = useCatalog();
+  const { catalog, saveCatalog, saving: catalogSaving, listCatalogBackups, restoreCatalogBackup } = useCatalog();
   const [adminOpen, setAdminOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -198,13 +210,15 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
     localStorage.removeItem('kmc_role');
+    localStorage.removeItem('kmc_ncr_domain');
     setRole('user');
+    setNcrDomain(null);
     setAuthed(false);
   };
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  if (!authed) return <Login onLogin={(r) => { setRole(r || 'user'); setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
+  if (!authed) return <Login onLogin={(r, d) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
 
   if (mode === 'home') return (
     <HomeScreen
@@ -213,6 +227,11 @@ export default function App() {
       onLogout={handleLogout}
       onSelectTravelCard={() => setMode('travelcard')}
       onSelectTracker={() => setMode('tracker')}
+      onSelectNCR={() => setMode('ncr')}
+      onSelectIncident={() => setMode('incident')}
+      onSelectMOC={() => setMode('moc')}
+      onSelectHandover={() => setMode('handover')}
+      onSelectDWI={() => setMode('dwi')}
     />
   );
 
@@ -325,11 +344,58 @@ export default function App() {
           catalog={catalog}
           saveCatalog={saveCatalog}
           saving={catalogSaving}
+          listCatalogBackups={listCatalogBackups}
+          restoreCatalogBackup={restoreCatalogBackup}
           onClose={() => setAdminOpen(false)}
         />
       )}
       {infoOpen && <InfoModal mode="travelcard" onClose={() => setInfoOpen(false)} />}
     </div>
+  );
+
+  if (mode === 'ncr') return (
+    <NCRStandalone
+      role={role}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
+  );
+
+  if (mode === 'dwi') return (
+    <DWIStandalone
+      catalog={catalog}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
+  );
+
+  if (mode === 'handover') return (
+    <HandoverStandalone
+      role={role}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
+  );
+
+  if (mode === 'moc') return (
+    <MOCStandalone
+      role={role}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
+  );
+
+  if (mode === 'incident') return (
+    <IncidentStandalone
+      role={role}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
   );
 
   return (
@@ -808,6 +874,10 @@ export default function App() {
             filters={filters}
             stationTimes={stationTimes}
             theme={theme}
+            onOpenNCR={() => setMode('ncr')}
+            onOpenIncident={() => setMode('incident')}
+            onOpenMOC={() => setMode('moc')}
+            onOpenHandover={() => setMode('handover')}
           />
         )}
       </main>
@@ -816,10 +886,422 @@ export default function App() {
           catalog={catalog}
           saveCatalog={saveCatalog}
           saving={catalogSaving}
+          listCatalogBackups={listCatalogBackups}
+          restoreCatalogBackup={restoreCatalogBackup}
           onClose={() => setAdminOpen(false)}
         />
       )}
       {infoOpen && <InfoModal mode="tracker" onClose={() => setInfoOpen(false)} />}
+    </div>
+  );
+}
+
+// ── DWI Standalone page ───────────────────────────────────────────────────────
+function DWIStandalone({ catalog, theme, toggleTheme, onHome }) {
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`
+        .dwi-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex; align-items: center; height: 64px;
+          position: sticky; top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          z-index: 100; gap: clamp(8px, 2vw, 16px);
+        }
+        .dwi-btn {
+          background: transparent; border: 1px solid var(--border-subtle);
+          color: var(--text-muted); border-radius: 6px;
+          padding: 6px 12px; font-size: 11px; font-weight: 600;
+          letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex; align-items: center; gap: 6px;
+          white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
+        }
+        .dwi-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .dwi-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
+        @media (max-width: 560px) {
+          .dwi-title { display: none; }
+          .dwi-btn { padding: 6px 9px; }
+          .dwi-btn .dwi-label { display: none; }
+        }
+      `}</style>
+
+      <header className="dwi-header">
+        <button className="dwi-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          <span className="dwi-label">Home</span>
+        </button>
+        <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="dwi-title">Work Instructions</div>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC Production · Digital WI</span>
+        <button className="dwi-btn" onClick={toggleTheme}>
+          <span className="dwi-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <DWIBrowser catalog={catalog} />
+      </main>
+    </div>
+  );
+}
+
+// ── Handover Standalone page ──────────────────────────────────────────────────
+function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
+  const { handovers, loading } = useHandoverData();
+  const [modalOpen,       setModalOpen]       = useState(false);
+  const [selectedHandover, setSelectedHandover] = useState(null);
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`
+        .hov-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex; align-items: center; height: 64px;
+          position: sticky; top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          z-index: 100; gap: clamp(8px, 2vw, 16px);
+        }
+        .hov-btn {
+          background: transparent; border: 1px solid var(--border-subtle);
+          color: var(--text-muted); border-radius: 6px;
+          padding: 6px 12px; font-size: 11px; font-weight: 600;
+          letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex; align-items: center; gap: 6px;
+          white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
+        }
+        .hov-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .hov-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
+        .hov-btn.accent:hover { opacity: 0.88; }
+        .hov-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
+        @media (max-width: 560px) {
+          .hov-title { display: none; }
+          .hov-btn { padding: 6px 9px; }
+          .hov-btn .hov-label { display: none; }
+        }
+      `}</style>
+
+      <header className="hov-header">
+        <button className="hov-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          <span className="hov-label">Home</span>
+        </button>
+        <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="hov-title">Shift Handover Log</div>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC Production · Shift Handover</span>
+        <button className="hov-btn accent" onClick={() => { setSelectedHandover(null); setModalOpen(true); }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span className="hov-label">Log Handover</span>
+        </button>
+        <button className="hov-btn" onClick={toggleTheme}>
+          <span className="hov-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <HandoverLog
+          handovers={handovers}
+          loading={loading}
+          onOpen={(h) => { setSelectedHandover(h); setModalOpen(true); }}
+        />
+      </main>
+
+      {modalOpen && (
+        <HandoverModal
+          mode={selectedHandover ? 'view' : 'new'}
+          handover={selectedHandover}
+          role={role}
+          onClose={() => { setModalOpen(false); setSelectedHandover(null); }}
+          onSaved={() => { setModalOpen(false); setSelectedHandover(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── MOC Standalone page ───────────────────────────────────────────────────────
+function MOCStandalone({ role, theme, toggleTheme, onHome }) {
+  const { mocs, loading } = useMOCData();
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [selectedMoc, setSelectedMoc] = useState(null);
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`
+        .moc-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex; align-items: center; height: 64px;
+          position: sticky; top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          z-index: 100; gap: clamp(8px, 2vw, 16px);
+        }
+        .moc-btn {
+          background: transparent; border: 1px solid var(--border-subtle);
+          color: var(--text-muted); border-radius: 6px;
+          padding: 6px 12px; font-size: 11px; font-weight: 600;
+          letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex; align-items: center; gap: 6px;
+          white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
+        }
+        .moc-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .moc-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
+        .moc-btn.accent:hover { opacity: 0.88; }
+        .moc-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
+        @media (max-width: 560px) {
+          .moc-title { display: none; }
+          .moc-btn { padding: 6px 9px; }
+          .moc-btn .moc-label { display: none; }
+        }
+      `}</style>
+
+      <header className="moc-header">
+        <button className="moc-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          <span className="moc-label">Home</span>
+        </button>
+        <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="moc-title">MOC Register</div>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC.OCEO.02/26.FM001</span>
+        <button className="moc-btn accent" onClick={() => { setSelectedMoc(null); setModalOpen(true); }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span className="moc-label">New MOC</span>
+        </button>
+        <button className="moc-btn" onClick={toggleTheme}>
+          <span className="moc-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <MOCRegister
+          mocs={mocs}
+          loading={loading}
+          onOpen={(moc) => { setSelectedMoc(moc); setModalOpen(true); }}
+        />
+      </main>
+
+      {modalOpen && (
+        <MOCModal
+          mode={selectedMoc ? 'view' : 'new'}
+          moc={selectedMoc}
+          role={role}
+          onClose={() => { setModalOpen(false); setSelectedMoc(null); }}
+          onSaved={() => { setModalOpen(false); setSelectedMoc(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── NCR Standalone page — mirrors the Travel Card standalone layout ────────────
+function NCRStandalone({ role, theme, toggleTheme, onHome }) {
+  const [ncrModalOpen, setNcrModalOpen] = useState(false);
+  const [selectedNcr,  setSelectedNcr]  = useState(null);
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)',
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      <style>{`
+        .ncr-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex;
+          align-items: center;
+          height: 64px;
+          position: sticky;
+          top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          z-index: 100;
+          gap: clamp(8px, 2vw, 16px);
+        }
+        .ncr-btn {
+          background: transparent;
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: all 0.15s;
+        }
+        .ncr-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .ncr-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
+        .ncr-btn.accent:hover { opacity: 0.88; }
+        .ncr-title {
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          color: var(--text-heading);
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        @media (max-width: 560px) {
+          .ncr-title { display: none; }
+          .ncr-logo  { height: 30px !important; }
+          .ncr-btn   { padding: 6px 9px; }
+          .ncr-btn .ncr-label { display: none; }
+        }
+      `}</style>
+
+      <header className="ncr-header">
+        <button className="ncr-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          <span className="ncr-label">Home</span>
+        </button>
+
+        <img className="ncr-logo" src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="ncr-title">NCR Register</div>
+
+        <div style={{ flex: 1 }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>
+            KMC.DQHSE.02/26-PR009
+          </span>
+        </div>
+
+        <button className="ncr-btn accent" onClick={() => { setSelectedNcr(null); setNcrModalOpen(true); }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span className="ncr-label">Log NCR</span>
+        </button>
+
+        <button className="ncr-btn" onClick={toggleTheme}>
+          <span className="ncr-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <NCRBoard
+          role={role}
+          ncrDomain={ncrDomain}
+          onLogNCR={() => { setSelectedNcr(null); setNcrModalOpen(true); }}
+          onOpenNCR={(ncr) => { setSelectedNcr(ncr); setNcrModalOpen(true); }}
+        />
+      </main>
+
+      {ncrModalOpen && (
+        <NCRModal
+          mode={selectedNcr ? 'view' : 'new'}
+          ncr={selectedNcr}
+          role={role}
+          defaultDomain={ncrDomain}
+          onClose={() => { setNcrModalOpen(false); setSelectedNcr(null); }}
+          onSaved={() => { setNcrModalOpen(false); setSelectedNcr(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Incident Standalone page ───────────────────────────────────────────────────
+function IncidentStandalone({ role, theme, toggleTheme, onHome }) {
+  const [modalOpen,       setModalOpen]       = useState(false);
+  const [selectedIncident, setSelectedIncident] = useState(null);
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <style>{`
+        .inc-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex; align-items: center; height: 64px;
+          position: sticky; top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+          z-index: 100; gap: clamp(8px, 2vw, 16px);
+        }
+        .inc-btn {
+          background: transparent; border: 1px solid var(--border-subtle);
+          color: var(--text-muted); border-radius: 6px;
+          padding: 6px 12px; font-size: 11px; font-weight: 600;
+          letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex; align-items: center; gap: 6px;
+          white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
+        }
+        .inc-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .inc-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
+        .inc-btn.accent:hover { opacity: 0.88; }
+        .inc-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
+        @media (max-width: 560px) {
+          .inc-title { display: none; }
+          .inc-btn { padding: 6px 9px; }
+          .inc-btn .inc-label { display: none; }
+        }
+      `}</style>
+
+      <header className="inc-header">
+        <button className="inc-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          <span className="inc-label">Home</span>
+        </button>
+        <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="inc-title">Incident Register</div>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC.DQHSE.01/26-PR003</span>
+        <button className="inc-btn accent" onClick={() => { setSelectedIncident(null); setModalOpen(true); }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span className="inc-label">Report Incident</span>
+        </button>
+        <button className="inc-btn" onClick={toggleTheme}>
+          <span className="inc-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <IncidentRegister
+          role={role}
+          onOpen={(inc) => { setSelectedIncident(inc); setModalOpen(true); }}
+        />
+      </main>
+
+      {modalOpen && (
+        <IncidentModal
+          mode={selectedIncident ? 'view' : 'new'}
+          incident={selectedIncident}
+          role={role}
+          onClose={() => { setModalOpen(false); setSelectedIncident(null); }}
+          onSaved={() => { setModalOpen(false); setSelectedIncident(null); }}
+        />
+      )}
     </div>
   );
 }

@@ -140,7 +140,7 @@ export function buildWorkbook(buses, rows, metrics) {
       Timestamp: r.rawTimestamp || '—',
       'Approval Status': r.approvalStatus || '—',
       'OHS Issue': r.ohsIssue || '—',
-      'Overrun (min)': r.overrunMin ?? '—',
+      'Downtime (min)': r.downtimeMin ?? r.overrunMin ?? '—',
     };
     if (r.downtimeMin  !== undefined) row['Downtime (min)']  = r.downtimeMin  ?? '—';
     if (r.downtimeReason !== undefined) row['Downtime Reason'] = r.downtimeReason || '—';

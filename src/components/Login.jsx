@@ -1,9 +1,14 @@
 import { useState } from 'react';
 
-// Credential sets → role. Username match is case-insensitive; password is exact.
+// Credential sets → role + NCR domain.
+// domain controls which NCR register tab the user lands on by default (admin sees all).
 const CREDENTIALS = [
-  { username: 'kmcadmin', password: 'KMC1234!', role: 'admin' },
-  { username: 'kmc',      password: 'kmc1234!', role: 'user'  },
+  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'admin', domain: null },
+  { username: 'kmc',         password: 'kmc1234!',   role: 'user',  domain: null },
+  { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials' },
+  { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process' },
+  { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality' },
+  { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production' },
 ];
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
@@ -31,8 +36,10 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
         if (remember) {
           localStorage.setItem('kmc_auth', 'true');
           localStorage.setItem('kmc_role', match.role);
+          if (match.domain) localStorage.setItem('kmc_ncr_domain', match.domain);
+          else localStorage.removeItem('kmc_ncr_domain');
         }
-        onLogin(match.role);
+        onLogin(match.role, match.domain);
       } else {
         setError('Incorrect username or password.');
         setLoading(false);

@@ -36,6 +36,8 @@ export const EMPTY_CATALOG = {
   res: {},           // travel-card resources  { "Line Label": { CODE: [ ... ] } }
   lineModels: {},    // travel-card line model gating  { "Line Label": ["EVS"] }
   stationModels: {}, // travel-card station model gating { CODE: ["KDC"] }
+  dwi: {},           // digital work instructions  { CODE: { title, revision, reference, description, warnings[], steps[], parts[], modelUrl, variants: { KDC?: { steps, parts, warnings, modelUrl }, EVS?: {...} } } }
+  projectVins: {},   // travel-card project fleet  { "Project name": [ { vin, model } ] } — model matches the Bus model dropdown (e.g. "7m EVS")
 };
 
 // Shallow-ish merge of a backend catalog over the empty shape. Arrays/objects
@@ -52,6 +54,8 @@ export function normalizeCatalog(raw) {
     res:           raw.res && typeof raw.res === 'object' ? raw.res : {},
     lineModels:    raw.lineModels && typeof raw.lineModels === 'object' ? raw.lineModels : {},
     stationModels: raw.stationModels && typeof raw.stationModels === 'object' ? raw.stationModels : {},
+    dwi:           raw.dwi && typeof raw.dwi === 'object' ? raw.dwi : {},
+    projectVins:   raw.projectVins && typeof raw.projectVins === 'object' ? raw.projectVins : {},
   };
 }
 

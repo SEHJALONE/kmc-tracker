@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LINES, STATIONS, isMajorStation } from '../data/stations';
-import { useOverrunData } from '../hooks/useOverrunData';
+import { useDowntimeData } from '../hooks/useOverrunData';
+import { useNCRData } from '../hooks/useNCRData';
+import { useIncidentData } from '../hooks/useIncidentData';
+import { CLASS_COLOR as INC_CLASS_COLOR } from './IncidentModal';
+import { useMOCData } from '../hooks/useMOCData';
+import { TIER_COLOR as MOC_TIER_COLOR, STATUS_COLOR as MOC_STATUS_COLOR } from './MOCModal';
+import { useHandoverData } from '../hooks/useHandoverData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
@@ -295,7 +301,7 @@ const fmtMin = (m) => {
   return h > 0 ? `${h}h ${mins}m` : `${mins}m`;
 };
 
-function OverrunPanel({ title, note, children }) {
+function DowntimePanel({ title, note, children }) {
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
       <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -307,8 +313,8 @@ function OverrunPanel({ title, note, children }) {
   );
 }
 
-function OverrunInsights({ modelColor }) {
-  const { rows, aggregated, loading, error } = useOverrunData();
+function DowntimeInsights({ modelColor }) {
+  const { rows, aggregated, loading, error } = useDowntimeData();
 
   const data = useMemo(() => {
     // 6M tree: cause → { totalMin, count, subs: { subText → { totalMin, count } } }
@@ -394,8 +400,8 @@ function OverrunInsights({ modelColor }) {
     <>
       {/* ── #1 + #2: Root-Cause Pareto with sub-cause drill-down ── */}
       {data.byCause.length > 0 && (
-        <OverrunPanel
-          title="Overrun by Root Cause — 6M analysis"
+        <DowntimePanel
+          title="Downtime by Root Cause — 6M analysis"
           note={`${fmtMin(totalMin)} total · ${aggregated?.total?.count || 0} events`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -437,14 +443,14 @@ function OverrunInsights({ modelColor }) {
             })}
           </div>
           <div style={{ marginTop: 12, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
-            ● Bar = total overrun minutes attributed to each 6M category · ↳ = specific sub-cause
+            ● Bar = total downtime minutes attributed to each 6M category · ↳ = specific sub-cause
           </div>
-        </OverrunPanel>
+        </DowntimePanel>
       )}
 
       {/* ── #3: Overrun by Project ── */}
       {data.byProject.length > 0 && (
-        <OverrunPanel title="Overrun by Project" note={`${data.byProject.length} project${data.byProject.length !== 1 ? 's' : ''}`}>
+        <DowntimePanel title="Downtime by Project" note={`${data.byProject.length} project${data.byProject.length !== 1 ? 's' : ''}`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             {data.byProject.map((p, idx) => {
               const pct = Math.min((p.totalMin / maxProject) * 100, 100);
@@ -461,12 +467,12 @@ function OverrunInsights({ modelColor }) {
               );
             })}
           </div>
-        </OverrunPanel>
+        </DowntimePanel>
       )}
 
       {/* ── #4: Designed vs Actual variance by station ── */}
       {data.byStationVar.length > 0 && (
-        <OverrunPanel title="Designed vs Actual Time by Station — top overruns" note="from overruns tab">
+        <DowntimePanel title="Designed vs Actual Time by Station — top downtimes" note="from downtimes tab">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             {data.byStationVar.map((s, idx) => {
               const lc = lineColors[s.line] || '#64748b';
@@ -508,12 +514,12 @@ function OverrunInsights({ modelColor }) {
           <div style={{ marginTop: 10, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>
             % = how far actual exceeds designed time (green ≤5% · amber ≤25% · red &gt;25%)
           </div>
-        </OverrunPanel>
+        </DowntimePanel>
       )}
 
       {/* ── #5: Corrective-action log ── */}
       {data.actionLog.length > 0 && (
-        <OverrunPanel title="Corrective Actions Log — biggest overruns" note={`${data.actionLog.length} entries`}>
+        <DowntimePanel title="Corrective Actions Log — biggest downtimes" note={`${data.actionLog.length} entries`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {data.actionLog.map((r, i) => {
               const stn = STATIONS[r.stationCode];
@@ -541,14 +547,260 @@ function OverrunInsights({ modelColor }) {
               );
             })}
           </div>
-        </OverrunPanel>
+        </DowntimePanel>
       )}
+
+      <CAPAPareto aggregated={aggregated} causeColor={causeColor} fmtMin={fmtMin} />
     </>
   );
 }
 
+// ── CAPA Pareto panel (Phase 1 — KMC.DQHSE.02/26-PR0010) ──────────────────
+function CAPAPareto({ aggregated, causeColor, fmtMin }) {
+  const [view, setView] = useState('rootCause'); // 'rootCause' | 'category'
+
+  const byRootCause = aggregated?.byRootCause || [];
+  const byCategory  = aggregated?.byCategory  || [];
+
+  const items = view === 'rootCause' ? byRootCause : byCategory;
+  const maxMin = items[0]?.totalMin || 1;
+
+  if (byRootCause.length === 0 && byCategory.length === 0) return null;
+
+  const CATEGORY_COLORS = {
+    Man: '#3b82f6', Machine: '#dc2626', Method: '#f59e0b',
+    Material: '#10b981', Measurement: '#8b5cf6', 'Mother Nature': '#06b6d4',
+  };
+  const catColor = c => CATEGORY_COLORS[c] || '#94a3b8';
+  const barColor = item => view === 'rootCause' ? causeColor(item.cause) : catColor(item.category);
+  const label    = item => view === 'rootCause' ? item.cause : item.category;
+
+  return (
+    <DowntimePanel
+      title="CAPA Pareto"
+      note={<span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace' }}>KMC.DQHSE.02/26-PR0010</span>}
+    >
+      {/* Toggle */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+        {[
+          { key: 'rootCause', label: '6M Root Cause', disabled: byRootCause.length === 0 },
+          { key: 'category',  label: '5M Category',   disabled: byCategory.length === 0  },
+        ].map(opt => (
+          <button
+            key={opt.key}
+            disabled={opt.disabled}
+            onClick={() => setView(opt.key)}
+            style={{
+              fontSize: 9, padding: '3px 10px', borderRadius: 12, cursor: opt.disabled ? 'default' : 'pointer',
+              border: view === opt.key ? '1px solid var(--accent)' : '1px solid var(--border)',
+              background: view === opt.key ? 'var(--accent)' : 'transparent',
+              color: view === opt.key ? '#fff' : 'var(--text-dim)',
+              opacity: opt.disabled ? 0.4 : 1,
+              fontFamily: "'Inter', system-ui, sans-serif",
+              transition: 'all .15s',
+            }}
+          >{opt.label}</button>
+        ))}
+      </div>
+
+      {items.length === 0 ? (
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', padding: '12px 0' }}>
+          {view === 'category' ? 'No CAPA category data yet — submit a travel card with downtime + RCA method.' : 'No data.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((item, i) => {
+            const clr = barColor(item);
+            const pct = Math.round((item.totalMin / maxMin) * 100);
+            return (
+              <div key={label(item) || i}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
+                  <span style={{ fontSize: 10, color: clr, fontWeight: 600 }}>{label(item)}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace' }}>
+                    {fmtMin(item.totalMin)} · {item.count} {item.count === 1 ? 'event' : 'events'}
+                  </span>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: clr, borderRadius: 3, transition: 'width .3s' }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </DowntimePanel>
+  );
+}
+
+// ── NCR Summary card ─────────────────────────────────────
+function NCRSummaryCard({ onOpenNCR }) {
+  const { summary, loading } = useNCRData();
+
+  const SEVERITY_COLOR = { Critical: '#dc2626', Major: '#f59e0b', Minor: '#10b981' };
+  const today = new Date().toISOString().slice(0, 10);
+
+  const criticalOpen = summary.open.filter(r => r.severity === 'Critical').length;
+  const overdueCount = summary.overdue.length;
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${criticalOpen > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${criticalOpen > 0 ? '#dc2626' : overdueCount > 0 ? '#f59e0b' : '#10b981'}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          NCR Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC.DQHSE.02/26-PR009</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Open',     value: loading ? '…' : summary.open.length,     color: '#f59e0b' },
+            { label: 'Critical', value: loading ? '…' : criticalOpen,             color: '#dc2626' },
+            { label: 'Overdue',  value: loading ? '…' : overdueCount,             color: overdueCount > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Closed',   value: loading ? '…' : summary.closed.length,    color: '#10b981' },
+            { label: 'Total',    value: loading ? '…' : summary.total,            color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick-log button */}
+      {onOpenNCR && (
+        <div style={{ marginLeft: 'auto' }}>
+          <button
+            onClick={onOpenNCR}
+            style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}
+          >
+            Open NCR Register →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Incident Summary card ─────────────────────────────────
+function IncidentSummaryCard({ onOpenIncident }) {
+  const { summary, loading } = useIncidentData();
+
+  const classACount = summary.byClass.A.length;
+  const overdueInv  = summary.overdueInvestigation.length;
+  const accentColor = classACount > 0 ? '#dc2626' : overdueInv > 0 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${classACount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          Incident Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC.DQHSE.01/26-PR003</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Class A', value: loading ? '…' : classACount,                      color: INC_CLASS_COLOR['Class A — Critical'] },
+            { label: 'Class B', value: loading ? '…' : summary.byClass.B.length,          color: INC_CLASS_COLOR['Class B — Major'] },
+            { label: 'Class C', value: loading ? '…' : summary.byClass.C.length,          color: INC_CLASS_COLOR['Class C — Minor'] },
+            { label: 'Open',    value: loading ? '…' : summary.open.length,               color: '#f59e0b' },
+            { label: 'Inv. Overdue', value: loading ? '…' : overdueInv,                  color: overdueInv > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Total',   value: loading ? '…' : summary.total,                    color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {onOpenIncident && (
+        <div style={{ marginLeft: 'auto' }}>
+          <button onClick={onOpenIncident} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            Open Register →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MOCSummaryCard({ onOpenMOC }) {
+  const { summary, loading } = useMOCData();
+  const pendingCount = Array.isArray(summary.pending) ? summary.pending.length : 0;
+  const expiredCount = Array.isArray(summary.expired) ? summary.expired.length : 0;
+  const majorCount   = Array.isArray(summary.major)   ? summary.major.length   : 0;
+  const accentColor  = expiredCount > 0 ? '#dc2626' : pendingCount > 0 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${expiredCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          MOC Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC.OCEO.02/26.FM001</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Pending',  value: loading ? '…' : pendingCount, color: pendingCount > 0 ? '#f59e0b' : 'var(--text-dim)' },
+            { label: 'Major',    value: loading ? '…' : majorCount,   color: MOC_TIER_COLOR.Major },
+            { label: 'Approved', value: loading ? '…' : (Array.isArray(summary.approved) ? summary.approved.length : 0), color: '#10b981' },
+            { label: 'Expired',  value: loading ? '…' : expiredCount, color: expiredCount > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Total',    value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {onOpenMOC && (
+        <div style={{ marginLeft: 'auto' }}>
+          <button onClick={onOpenMOC} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            Open Register →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HandoverSummaryCard({ onOpenHandover }) {
+  const { summary, loading } = useHandoverData();
+  const openCount    = Array.isArray(summary.open)        ? summary.open.length        : 0;
+  const safetyCount  = Array.isArray(summary.withSafety)  ? summary.withSafety.length  : 0;
+  const qualityCount = Array.isArray(summary.withQuality) ? summary.withQuality.length : 0;
+  const todayCount   = Array.isArray(summary.todayLog)    ? summary.todayLog.length    : 0;
+  const accentColor  = safetyCount > 0 ? '#dc2626' : openCount > 0 ? '#f59e0b' : '#10b981';
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${safetyCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          Shift Handover Log <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC Production</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Today',         value: loading ? '…' : todayCount,   color: todayCount > 0 ? '#10b981' : 'var(--text-dim)' },
+            { label: 'Pending Ack.',  value: loading ? '…' : openCount,    color: openCount > 0 ? '#f59e0b' : 'var(--text-dim)' },
+            { label: 'Safety Flags',  value: loading ? '…' : safetyCount,  color: safetyCount > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Quality Flags', value: loading ? '…' : qualityCount, color: qualityCount > 0 ? '#f97316' : 'var(--text-dim)' },
+            { label: 'Total',         value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {onOpenHandover && (
+        <div style={{ marginLeft: 'auto' }}>
+          <button onClick={onOpenHandover} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            Open Log →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard export ────────────────────────────────
-export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark' }) {
+export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenNCR, onOpenIncident, onOpenMOC, onOpenHandover }) {
   // Guard against undefined during initial render before sheet data loads
   const buses   = Array.isArray(busesProp)   ? busesProp   : [];
   const allRows = Array.isArray(allRowsProp) ? allRowsProp : [];
@@ -854,6 +1106,13 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
             )}
           </div>
 
+          {/* IMS summary cards — NCR + Incident + MOC + Handover */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+            <NCRSummaryCard onOpenNCR={onOpenNCR} />
+            <IncidentSummaryCard onOpenIncident={onOpenIncident} />
+            <MOCSummaryCard onOpenMOC={onOpenMOC} />
+          </div>
+
           {/* Takt Time panel */}
           <TaktTimePanel
             taktHoursPerDay={taktHoursPerDay}
@@ -974,7 +1233,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
             </div>
           </div>
 
-          {/* ── Phase 3: Overrun Pareto chart ── */}
+          {/* ── Phase 3: Downtime Pareto chart ── */}
           {metrics.overrunPareto.length > 0 && (
             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
               <div style={{
@@ -983,7 +1242,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                 paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.04)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <span>Overrun by Station — top {metrics.overrunPareto.length} (total overrun minutes)</span>
+                <span>Downtime by Station — top {metrics.overrunPareto.length} (total downtime minutes)</span>
                 <span style={{ color: 'var(--text-dim)' }}>from travel card data</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1018,7 +1277,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                             borderRadius: 3, transition: 'width 0.5s ease',
                           }} />
                         </div>
-                        {/* Total overrun */}
+                        {/* Total downtime */}
                         <div style={{ fontSize: 11, fontWeight: 700, color: idx === 0 ? 'var(--accent-text)' : 'var(--text-secondary)', fontFamily: "'Inter', system-ui, sans-serif", textAlign: 'right' }}>
                           {label}
                         </div>
@@ -1032,13 +1291,13 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                 })()}
               </div>
               <div style={{ marginTop: 12, fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>
-                ● Bar length = total overrun minutes · count = number of travel cards with an overrun at that station
+                ● Bar length = total downtime minutes · count = number of travel cards with a downtime at that station
               </div>
             </div>
           )}
 
-          {/* ── Overrun Root-Cause Insights (6M / project / variance / actions) ── */}
-          <OverrunInsights modelColor={modelColor} />
+          {/* ── Downtime Root-Cause Insights (6M / project / variance / actions) ── */}
+          <DowntimeInsights modelColor={modelColor} />
 
           {/* ── Downtime Pareto ── */}
           {metrics.hasDowntimeData && (
