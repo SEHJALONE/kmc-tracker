@@ -5,7 +5,9 @@ This is the full, ready-to-paste Apps Script. It merges:
 - the **catalog save** branch (token-protected, chunked so large catalogs don't
   hit Google's 50,000-char single-cell limit),
 - **automatic catalog backups** — every `saveCatalog` snapshots whatever was in
-  the `Catalog` tab into `Catalog_Backups` *before* overwriting it, and
+  the `Catalog` tab into `Catalog_Backups` *before* overwriting it,
+- **NCR Register** create/update (`saveNCR`/`updateNCR`), writing to a new
+  `ncrs` tab, and
 - the **new analysis fields** (break/gross time, per-cause delay minutes, custom
   causes, added activities) written into the submission sheets.
 
@@ -16,8 +18,8 @@ This is the full, ready-to-paste Apps Script. It merges:
 3. Replace your entire Apps Script with the code below.
 4. **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy.**
    This keeps the same `/exec` URL so nothing else changes.
-5. The **`Catalog_Backups`** tab is created automatically on the first save
-   after deploying — nothing to set up by hand.
+5. The **`Catalog_Backups`** and **`ncrs`** tabs are created automatically the
+   first time each is used — nothing to set up by hand.
 
 > Reads use the public gviz CSV of the `Catalog` tab; the front-end reassembles
 > the chunked rows. Writes are token-checked here.
@@ -71,8 +73,15 @@ function doPost(e) {
       return restoreCatalogBackup_(e.parameter.backupId);
     }
 
-    // ── Travel-card submission (existing) ─────────────────────────────────────
-    const data      = JSON.parse(e.parameter.payload);
+    // Every other write (NCR, and future modules) sends its action *inside*
+    // the payload JSON rather than as a top-level form param — parse once and
+    // route on it before assuming this is a travel-card submission.
+    const data = JSON.parse(e.parameter.payload);
+
+    if (data && data.action === "saveNCR")   return saveNCR_(data);
+    if (data && data.action === "updateNCR") return updateNCR_(data);
+
+    // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.getActiveSpreadsheet();
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const id        = Utilities.getUuid();
@@ -189,6 +198,63 @@ function restoreCatalogBackup_(backupId) {
   sh.getRange("A1:B1").setValues([["key", "value"]]);
   sh.getRange(2, 1, rows.length, 2).setValues(rows);
   return response({ status: "ok", restored: backupId, rows: rows.length });
+}
+
+// ── NCR Register — create + update ────────────────────────────────────────────
+// Mirrors the shape src/hooks/useNCRData.js expects back out of the "ncrs" tab.
+function saveNCR_(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getOrCreate(ss, "ncrs", [
+    "ncr_id", "timestamp", "vin", "station_code", "ncr_type", "description",
+    "severity", "disposition", "root_cause", "rca_method", "corrective_action",
+    "preventive_action", "assigned_to", "due_date", "status", "closed_date",
+    "raised_by", "domain",
+  ]);
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, d.timestamp || new Date().toISOString(), d.vin || "", d.stationCode || "",
+    d.ncrType || "", d.description || "", d.severity || "", d.disposition || "",
+    d.rootCause || "", d.rcaMethod || "", d.correctiveAction || "",
+    d.preventiveAction || "", d.assignedTo || "", d.dueDate || "",
+    d.status || "Open", d.closedDate || "", d.raisedBy || "", d.domain || "",
+  ]);
+  return response({ status: "ok", id });
+}
+
+// Patches only the fields present on the incoming payload (e.g. closing an
+// NCR sends status/closedDate, not the whole record) — everything else on
+// the row is left untouched.
+function updateNCR_(d) {
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("ncrs");
+  if (!sh) return response({ status: "error", message: "no-ncrs-sheet" });
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("ncr_id");
+  if (idCol === -1) return response({ status: "error", message: "bad-sheet-shape" });
+
+  const fieldMap = {
+    status: "status", disposition: "disposition", rootCause: "root_cause",
+    rcaMethod: "rca_method", correctiveAction: "corrective_action",
+    preventiveAction: "preventive_action", assignedTo: "assigned_to",
+    dueDate: "due_date", closedDate: "closed_date",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.id) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, col]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(col);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", id: d.id });
+    }
+  }
+  return response({ status: "error", message: "ncr-not-found" });
 }
 
 function writeTrackerLog(trackerSs, d, id) {

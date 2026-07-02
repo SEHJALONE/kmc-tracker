@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onLogout, theme, toggleTheme }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectNCR, onSelectHandover, onLogout, theme, toggleTheme }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   function SunIcon() {
@@ -246,6 +246,17 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
           <div className="home-card-overlay">
             <div className="home-card-title">Bus Tracker</div>
             <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
+          </div>
+        </button>
+
+        <button
+          className="home-card-btn"
+          style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #dc2626 0%, #7c3aed 100%)" }}
+          onClick={onSelectNCR}
+        >
+          <div className="home-card-overlay">
+            <div className="home-card-title">NCR Register</div>
+            <div className="home-card-sub">Non-conformance · PR009</div>
           </div>
         </button>
 

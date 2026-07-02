@@ -14,6 +14,8 @@ import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
 import CatalogAdmin from './components/CatalogAdmin';
 import InfoModal from './components/InfoModal';
+import NCRBoard from './components/NCRBoard';
+import NCRModal from './components/NCRModal';
 import HandoverLog from './components/HandoverLog';
 import HandoverModal from './components/HandoverModal';
 import { useHandoverData } from './hooks/useHandoverData';
@@ -219,6 +221,7 @@ export default function App() {
       onLogout={handleLogout}
       onSelectTravelCard={() => setMode('travelcard')}
       onSelectTracker={() => setMode('tracker')}
+      onSelectNCR={() => setMode('ncr')}
       onSelectHandover={() => setMode('handover')}
     />
   );
@@ -339,6 +342,15 @@ export default function App() {
       )}
       {infoOpen && <InfoModal mode="travelcard" onClose={() => setInfoOpen(false)} />}
     </div>
+  );
+
+  if (mode === 'ncr') return (
+    <NCRStandalone
+      role={role}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      onHome={() => setMode('home')}
+    />
   );
 
   if (mode === 'handover') return (
@@ -826,6 +838,7 @@ export default function App() {
             filters={filters}
             stationTimes={stationTimes}
             theme={theme}
+            onOpenNCR={() => setMode('ncr')}
             onOpenHandover={() => setMode('handover')}
           />
         )}
@@ -918,6 +931,128 @@ function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
           role={role}
           onClose={() => { setModalOpen(false); setSelectedHandover(null); }}
           onSaved={() => { setModalOpen(false); setSelectedHandover(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── NCR Standalone page — mirrors the Travel Card standalone layout ────────────
+function NCRStandalone({ role, theme, toggleTheme, onHome }) {
+  const [ncrModalOpen, setNcrModalOpen] = useState(false);
+  const [selectedNcr,  setSelectedNcr]  = useState(null);
+  const ncrDomain = (() => { try { return localStorage.getItem('kmc_ncr_domain') || null; } catch { return null; } })();
+
+  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)',
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      <style>{`
+        .ncr-header {
+          border-bottom: 1px solid var(--header-border);
+          padding: 0 clamp(14px, 4vw, 32px);
+          display: flex;
+          align-items: center;
+          height: 64px;
+          position: sticky;
+          top: 0;
+          background: var(--header-bg);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          z-index: 100;
+          gap: clamp(8px, 2vw, 16px);
+        }
+        .ncr-btn {
+          background: transparent;
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+          font-family: 'Inter', system-ui, sans-serif;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: all 0.15s;
+        }
+        .ncr-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .ncr-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
+        .ncr-btn.accent:hover { opacity: 0.88; }
+        .ncr-title {
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          color: var(--text-heading);
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        @media (max-width: 560px) {
+          .ncr-title { display: none; }
+          .ncr-logo  { height: 30px !important; }
+          .ncr-btn   { padding: 6px 9px; }
+          .ncr-btn .ncr-label { display: none; }
+        }
+      `}</style>
+
+      <header className="ncr-header">
+        <button className="ncr-btn" onClick={onHome}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          <span className="ncr-label">Home</span>
+        </button>
+
+        <img className="ncr-logo" src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
+        <div className="ncr-title">NCR Register</div>
+
+        <div style={{ flex: 1 }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>
+            KMC.DQHSE.02/26-PR009
+          </span>
+        </div>
+
+        <button className="ncr-btn accent" onClick={() => { setSelectedNcr(null); setNcrModalOpen(true); }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span className="ncr-label">Log NCR</span>
+        </button>
+
+        <button className="ncr-btn" onClick={toggleTheme}>
+          <span className="ncr-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+        </button>
+      </header>
+
+      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+        <NCRBoard
+          role={role}
+          ncrDomain={ncrDomain}
+          onLogNCR={() => { setSelectedNcr(null); setNcrModalOpen(true); }}
+          onOpenNCR={(ncr) => { setSelectedNcr(ncr); setNcrModalOpen(true); }}
+        />
+      </main>
+
+      {ncrModalOpen && (
+        <NCRModal
+          mode={selectedNcr ? 'view' : 'new'}
+          ncr={selectedNcr}
+          role={role}
+          defaultDomain={ncrDomain}
+          onClose={() => { setNcrModalOpen(false); setSelectedNcr(null); }}
+          onSaved={() => { setNcrModalOpen(false); setSelectedNcr(null); }}
         />
       )}
     </div>
