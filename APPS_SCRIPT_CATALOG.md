@@ -5,7 +5,9 @@ This is the full, ready-to-paste Apps Script. It merges:
 - the **catalog save** branch (token-protected, chunked so large catalogs don't
   hit Google's 50,000-char single-cell limit),
 - **automatic catalog backups** — every `saveCatalog` snapshots whatever was in
-  the `Catalog` tab into `Catalog_Backups` *before* overwriting it, and
+  the `Catalog` tab into `Catalog_Backups` *before* overwriting it,
+- **MOC Register** create/update (`saveMOC`/`updateMOC`), writing to a new
+  `moc` tab, and
 - the **new analysis fields** (break/gross time, per-cause delay minutes, custom
   causes, added activities) written into the submission sheets.
 
@@ -71,8 +73,15 @@ function doPost(e) {
       return restoreCatalogBackup_(e.parameter.backupId);
     }
 
-    // ── Travel-card submission (existing) ─────────────────────────────────────
-    const data      = JSON.parse(e.parameter.payload);
+    // Every other write (MOC, and future modules) sends its action *inside*
+    // the payload JSON rather than as a top-level form param — parse once and
+    // route on it before assuming this is a travel-card submission.
+    const data = JSON.parse(e.parameter.payload);
+
+    if (data && data.action === "saveMOC")   return saveMOC_(data);
+    if (data && data.action === "updateMOC") return updateMOC_(data);
+
+    // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.getActiveSpreadsheet();
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const id        = Utilities.getUuid();
@@ -189,6 +198,69 @@ function restoreCatalogBackup_(backupId) {
   sh.getRange("A1:B1").setValues([["key", "value"]]);
   sh.getRange(2, 1, rows.length, 2).setValues(rows);
   return response({ status: "ok", restored: backupId, rows: rows.length });
+}
+
+// ── MOC Register — create + update ────────────────────────────────────────────
+// Mirrors the shape src/hooks/useMOCData.js expects back out of the "moc" tab.
+function saveMOC_(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getOrCreate(ss, "moc", [
+    "moc_id", "timestamp", "requested_by", "department", "change_title",
+    "change_type", "change_status", "expiry_date", "tier", "description",
+    "justification", "potential_hazards", "safeguards_compromised",
+    "associated_actions", "supervisor_name", "supervisor_date", "hod_name",
+    "hod_date", "exec_name", "exec_date", "training_required",
+    "procedures_update", "drawings_update", "pssr_completed", "pssr_date",
+    "closure_comments", "closure_date", "status",
+  ]);
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, d.timestamp || new Date().toISOString(), d.requestedBy || "", d.department || "",
+    d.changeTitle || "", d.changeType || "", d.changeStatus || "", d.expiryDate || "",
+    d.tier || "", d.description || "", d.justification || "", d.potentialHazards || "",
+    d.safeguardsCompromised || "", d.associatedActions || "", d.supervisorName || "",
+    d.supervisorDate || "", d.hodName || "", d.hodDate || "", d.execName || "",
+    d.execDate || "", d.trainingRequired || "", d.proceduresUpdate || "",
+    d.drawingsUpdate || "", d.pssrCompleted || "", d.pssrDate || "",
+    d.closureComments || "", d.closureDate || "", d.status || "Pending Supervisor",
+  ]);
+  return response({ status: "ok", id });
+}
+
+// Patches only the fields present on the incoming payload — e.g. each
+// approval stage sends just that stage's name/date + the new status.
+function updateMOC_(d) {
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("moc");
+  if (!sh) return response({ status: "error", message: "no-moc-sheet" });
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("moc_id");
+  if (idCol === -1) return response({ status: "error", message: "bad-sheet-shape" });
+
+  const fieldMap = {
+    status: "status", supervisorName: "supervisor_name", supervisorDate: "supervisor_date",
+    hodName: "hod_name", hodDate: "hod_date", execName: "exec_name", execDate: "exec_date",
+    trainingRequired: "training_required", proceduresUpdate: "procedures_update",
+    drawingsUpdate: "drawings_update", pssrCompleted: "pssr_completed", pssrDate: "pssr_date",
+    closureComments: "closure_comments", closureDate: "closure_date",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.id) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, col]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(col);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", id: d.id });
+    }
+  }
+  return response({ status: "error", message: "moc-not-found" });
 }
 
 function writeTrackerLog(trackerSs, d, id) {
