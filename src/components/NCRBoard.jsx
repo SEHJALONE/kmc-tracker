@@ -69,9 +69,13 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
   const [searchTerm,     setSearchTerm]     = useState('');
 
   const filtered = ncrs.filter(r => {
-    // Domain filter: admins can switch to ALL; domain users only see their domain
-    if (activeDomain && activeDomain !== 'ALL' && r.domain !== activeDomain) return false;
-    if (!isAdmin && !activeDomain && ncrDomain && r.domain !== ncrDomain) return false;
+    // Safety NCRs are cross-domain — visible to everyone regardless of active domain
+    if (r.ncrType === 'Safety') {
+      // still apply type/severity/search filters below, but skip domain filter
+    } else {
+      if (activeDomain && activeDomain !== 'ALL' && r.domain !== activeDomain) return false;
+      if (!isAdmin && !activeDomain && ncrDomain && r.domain !== ncrDomain) return false;
+    }
     if (typeFilter !== 'ALL'     && r.ncrType  !== typeFilter)     return false;
     if (severityFilter !== 'ALL' && r.severity !== severityFilter) return false;
     if (searchTerm) {

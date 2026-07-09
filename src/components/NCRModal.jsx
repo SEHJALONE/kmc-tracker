@@ -220,9 +220,9 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
 
             {/* ── Classification ── */}
             <SectionHd>Classification</SectionHd>
-            <Field label="Domain *">
+            <Field label={ncrType === 'Safety' ? 'Domain (optional — Safety NCRs are cross-domain)' : 'Domain *'}>
               <Sel value={domain} onChange={e => setDomain(e.target.value)} disabled={isView}>
-                <option value="">Select domain…</option>
+                <option value="">{ncrType === 'Safety' ? 'All domains / not applicable' : 'Select domain…'}</option>
                 {NCR_DOMAINS.map(d => <option key={d}>{d}</option>)}
               </Sel>
             </Field>
