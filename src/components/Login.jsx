@@ -11,7 +11,7 @@ const CREDENTIALS = [
   { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production' },
 ];
 
-export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
+export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -201,7 +201,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
             textTransform: 'uppercase',
             lineHeight: 1.1,
           }}>
-            Bus Production Tracker
+            {appName}
           </div>
           <div style={{
             fontFamily: "'Inter', system-ui, sans-serif",
@@ -211,7 +211,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme }) {
             marginTop: 6,
             textTransform: 'uppercase',
           }}>
-            Sign in to continue
+            {appSubtitle}
           </div>
         </div>
 
