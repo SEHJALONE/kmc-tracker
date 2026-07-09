@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   useNCRData,
   NCR_TYPES, NCR_SEVERITIES, NCR_DISPOSITIONS, NCR_STATUSES, RCA_METHODS, NCR_DOMAINS,
 } from '../hooks/useNCRData';
+import { buildNCRPDF } from '../export/buildNCRPDF.js';
 
 // ── Severity badge colours ─────────────────────────────────────────────────────
 export const SEVERITY_COLOR = {
@@ -106,9 +107,16 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
   const [status,           setStatus]           = useState(initial.status           || 'Open');
   const [closedDate,       setClosedDate]       = useState(initial.closedDate       || '');
 
-  const [busy,    setBusy]    = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [errMsg,  setErrMsg]  = useState('');
+  const [busy,      setBusy]      = useState(false);
+  const [saved,     setSaved]     = useState(false);
+  const [errMsg,    setErrMsg]    = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (!ncr) return;
+    setExporting(true);
+    try { await buildNCRPDF(ncr); } finally { setExporting(false); }
+  }, [ncr]);
 
   // ── Auto-suggest due date (10 working days) for new NCRs ──────────────────
   function defaultDue() {
@@ -182,6 +190,21 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
               <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 10, background: `${STATUS_COLOR[ncr.status]}22`, color: STATUS_COLOR[ncr.status], border: `1px solid ${STATUS_COLOR[ncr.status]}55` }}>
                 {ncr.status}
               </span>
+            )}
+            {isView && ncr && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                style={{
+                  padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+                  background: 'transparent', border: '1px solid var(--border)',
+                  color: 'var(--text-muted)', fontSize: 10,
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                  letterSpacing: '0.06em', opacity: exporting ? 0.5 : 1,
+                }}
+              >
+                {exporting ? '…' : '↓ PDF'}
+              </button>
             )}
             <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 4 }}>✕</button>
           </div>
