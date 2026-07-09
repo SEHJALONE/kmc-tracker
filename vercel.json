@@ -1,9 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/ncr.html",
-      "has": [{ "type": "host", "value": "ncr.kmcug.com" }]
-    }
-  ]
-}
