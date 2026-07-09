@@ -84,16 +84,33 @@ export default function NCRApp() {
   const domainColor = ncrDomain ? (DOMAIN_COLORS[ncrDomain] || '#dc2626') : '#dc2626';
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
+  const bgImage = theme === 'dark' ? "url('/img 1.png')" : "url('/img 2.png')";
+  const glass   = theme === 'dark'
+    ? 'rgba(7, 9, 15, 0.55)'
+    : 'rgba(255, 255, 255, 0.55)';
+  const glassBorder = theme === 'dark'
+    ? 'rgba(255,255,255,0.08)'
+    : 'rgba(0,0,0,0.10)';
+
   // ── Main app ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{
+      minHeight: '100vh',
+      fontFamily: "'Inter', system-ui, sans-serif",
+      backgroundImage: bgImage,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: 'fixed',
+      backgroundRepeat: 'no-repeat',
+    }}>
 
       {/* ── Top bar ── */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'var(--header-bg)',
-        borderBottom: '1px solid var(--header-border)',
-        backdropFilter: 'blur(12px)',
+        background: glass,
+        borderBottom: `1px solid ${glassBorder}`,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 clamp(14px, 3vw, 28px)',
         height: 54,
@@ -167,8 +184,15 @@ export default function NCRApp() {
       <main style={{ padding: 'clamp(20px, 4vw, 36px) clamp(14px, 4vw, 32px)', maxWidth: 1400, margin: '0 auto' }}>
 
         {/* Page heading */}
-        <div style={{ marginBottom: 28, paddingBottom: 18, borderBottom: '1px solid var(--border)' }}>
-          <h1 style={{ fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+        <div style={{
+          marginBottom: 28, padding: '18px 24px',
+          background: glass,
+          backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+          border: `1px solid ${glassBorder}`,
+          borderRadius: 12,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+        }}>
+          <h1 style={{ fontSize: 'clamp(16px, 3vw, 22px)', fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
             Non-Conformance Register
           </h1>
           <p style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
@@ -180,6 +204,8 @@ export default function NCRApp() {
         <NCRBoard
           role={role}
           ncrDomain={ncrDomain}
+          glass={glass}
+          glassBorder={glassBorder}
           onLogNCR={() => { setSelectedNcr(null); setModalOpen(true); }}
           onOpenNCR={(ncr) => { setSelectedNcr(ncr); setModalOpen(true); }}
         />

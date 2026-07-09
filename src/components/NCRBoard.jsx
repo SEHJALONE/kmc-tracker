@@ -56,7 +56,15 @@ const DOMAIN_COLORS = {
   'Production':        '#dc2626',
 };
 
-export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, onOpenNCR }) {
+export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glassBorder, onLogNCR, onOpenNCR }) {
+  const glassStyle = {
+    background: glass || 'var(--bg-surface)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: `1px solid ${glassBorder || 'var(--border)'}`,
+    borderRadius: 10,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.10)',
+  };
   const { ncrs, summary, loading, error, refresh } = useNCRData();
 
   // Domain tab — admin sees ALL; domain users land on their domain by default
@@ -90,7 +98,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
   return (
     <div>
       {/* ── Domain tab bar ── */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ ...glassStyle, display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {isAdmin && (
             <button
@@ -139,7 +147,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
       </div>
 
       {/* ── Summary bar ── */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
         {[
           { label: 'Total NCRs',   value: summary.total,           color: 'var(--text-heading)' },
           { label: 'Open',         value: summary.open.length,     color: STATUS_COLOR['Open'] },
@@ -147,32 +155,31 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
           { label: 'Overdue',      value: summary.overdue.length,  color: '#dc2626' },
           { label: 'Closed',       value: summary.closed.length,   color: SEVERITY_COLOR.Minor },
         ].map(s => (
-          <div key={s.label} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', minWidth: 90 }}>
+          <div key={s.label} style={{ ...glassStyle, padding: '10px 18px', minWidth: 90 }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: 'monospace' }}>{s.value}</div>
             <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
-
         <div style={{ marginLeft: 'auto' }}>
-          <button onClick={refresh} style={{ padding: '8px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif" }}>
+          <button onClick={refresh} style={{ padding: '8px 12px', background: 'transparent', border: `1px solid ${glassBorder || 'var(--border)'}`, borderRadius: 6, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif" }}>
             ↻ Refresh
           </button>
         </div>
       </div>
 
       {/* ── Filters ── */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div style={{ ...glassStyle, display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '10px 14px' }}>
         <input
-          style={{ ...inputSx, minWidth: 180 }}
+          style={{ ...inputSx, minWidth: 180, background: 'transparent' }}
           placeholder="Search NCR ID, VIN, description…"
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
         />
-        <select style={inputSx} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+        <select style={{ ...inputSx, background: 'transparent' }} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
           <option value="ALL">All types</option>
           {NCR_TYPES.map(t => <option key={t}>{t}</option>)}
         </select>
-        <select style={inputSx} value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
+        <select style={{ ...inputSx, background: 'transparent' }} value={severityFilter} onChange={e => setSeverityFilter(e.target.value)}>
           <option value="ALL">All severities</option>
           {NCR_SEVERITIES.map(s => <option key={s}>{s}</option>)}
         </select>
@@ -197,12 +204,12 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
 
       {/* ── Kanban board ── */}
       {!loading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {COLS.map(col => {
             const cards = filtered.filter(r => r.status === col.id);
             const colColor = STATUS_COLOR[col.id] || '#64748b';
             return (
-              <div key={col.id}>
+              <div key={col.id} style={{ ...glassStyle, padding: '14px 12px' }}>
                 {/* Column header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${colColor}` }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: colColor, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{col.label}</span>
@@ -212,7 +219,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, onLogNCR, on
                 {/* Cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {cards.length === 0 ? (
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0', borderRadius: 6, border: '1px dashed var(--border)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', padding: '24px 0', borderRadius: 6, border: `1px dashed ${glassBorder || 'var(--border)'}` }}>
                       No {col.label.toLowerCase()} NCRs
                     </div>
                   ) : (
