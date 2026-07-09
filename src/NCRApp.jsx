@@ -41,15 +41,16 @@ function MoonIcon() {
 }
 
 export default function NCRApp() {
-  const [authed,    setAuthed]    = useState(() => localStorage.getItem('kmc_ncr_auth') === 'true');
-  const [role,      setRole]      = useState(() => localStorage.getItem('kmc_ncr_role') || 'user');
-  const [ncrDomain, setNcrDomain] = useState(() => localStorage.getItem('kmc_ncr_domain') || null);
+  // Auth lives in memory only — refresh always returns to login screen
+  const [authed,    setAuthed]    = useState(false);
+  const [role,      setRole]      = useState('user');
+  const [ncrDomain, setNcrDomain] = useState(null);
   const [theme,     setTheme]     = useState(getInitialTheme);
 
   const [modalOpen,    setModalOpen]    = useState(false);
   const [selectedNcr,  setSelectedNcr]  = useState(null);
 
-  // Sync theme token to DOM
+  // Sync theme token to DOM (theme preference is the only thing persisted)
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('kmc_ncr_theme', theme);
@@ -61,16 +62,9 @@ export default function NCRApp() {
     setRole(r || 'user');
     setNcrDomain(d || null);
     setAuthed(true);
-    localStorage.setItem('kmc_ncr_auth', 'true');
-    localStorage.setItem('kmc_ncr_role', r || 'user');
-    if (d) localStorage.setItem('kmc_ncr_domain', d);
-    else localStorage.removeItem('kmc_ncr_domain');
   }
 
   function handleLogout() {
-    localStorage.removeItem('kmc_ncr_auth');
-    localStorage.removeItem('kmc_ncr_role');
-    localStorage.removeItem('kmc_ncr_domain');
     setAuthed(false);
     setRole('user');
     setNcrDomain(null);
