@@ -78,7 +78,7 @@ export default function NCRApp() {
 
   // ── Login screen ─────────────────────────────────────────────────────────────
   if (!authed) {
-    return <Login onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} appName="NCR Register" appSubtitle="Non-Conformance Management" />;
+    return <Login onLogin={handleLogin} theme={theme} toggleTheme={toggleTheme} appName="Non-Conformance Register" appSubtitle="KMC Quality & HSE Management" />;
   }
 
   const domainColor = ncrDomain ? (DOMAIN_COLORS[ncrDomain] || '#dc2626') : '#dc2626';
@@ -103,7 +103,7 @@ export default function NCRApp() {
           <img src={logo} alt="KMC" style={{ height: 28, width: 'auto', objectFit: 'contain' }} />
           <div>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--text-heading)', textTransform: 'uppercase', lineHeight: 1.1 }}>
-              NCR Register
+              Non-Conformance Register
             </div>
             <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
               KMC.DQHSE.02/26-PR009 · Control of Non-Conformities
