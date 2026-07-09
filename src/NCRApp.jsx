@@ -84,7 +84,7 @@ export default function NCRApp() {
   const domainColor = ncrDomain ? (DOMAIN_COLORS[ncrDomain] || '#dc2626') : '#dc2626';
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  const bgImage = theme === 'dark' ? "url('/img 1.png')" : "url('/img 2.png')";
+  const bgImage = theme === 'dark' ? "url('/img%201.png')" : "url('/img%202.png')";
   const glass   = theme === 'dark'
     ? 'rgba(7, 9, 15, 0.55)'
     : 'rgba(255, 255, 255, 0.55)';
