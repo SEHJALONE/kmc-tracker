@@ -1,0 +1,145 @@
+import { useState, useEffect, useCallback } from 'react';
+
+// DPN Scoreboard workbook (dedicated spreadsheet, separate from NI Travel Tool Data).
+// Reads the Calc tab (every KPI pre-computed by the sheet's own formulas), Targets,
+// Daily Output and the register tabs via the gviz CSV endpoint. Requires the sheet
+// to be shared "Anyone with the link can view".
+const SHEET_ID = '1Z338nnUHTxelGTUtXwbVQPdFi0czu_4us39070i3axM';
+const TAB_URL = (tab) =>
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+const REFRESH_INTERVAL = 5 * 60 * 1000;
+
+// Quote-aware CSV → array of string arrays
+function parseGrid(text) {
+  const rows = [];
+  let row = [], cell = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') inQuotes = false;
+      else cell += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row); row = []; cell = '';
+    } else cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => c.trim()));
+}
+
+// "704,000" → 704000 · "35%" → 0.35 · "0.35" → 0.35 · "" → null
+export function toNum(v) {
+  if (v == null || v === '' || v === '—' || v === '-') return null;
+  const pct = /%\s*$/.test(v);
+  const n = parseFloat(String(v).replace(/[, ]/g, '').replace('%', ''));
+  if (Number.isNaN(n)) return null;
+  return pct ? n / 100 : n;
+}
+
+// Calc + Targets are label/value tabs: col A = label, col B = period value, col C = YTD.
+function kvFromGrid(grid) {
+  const kv = {};
+  for (const r of grid) {
+    const label = r[0];
+    if (!label || label === 'Workshop') continue;
+    kv[label] = { raw: r[1] ?? '', num: toNum(r[1]), ytd: r[2] ?? '', ytdNum: toNum(r[2]) };
+  }
+  return kv;
+}
+
+function workshopsFromCalc(grid) {
+  const out = [];
+  const start = grid.findIndex(r => r[0] === 'Workshop');
+  if (start === -1) return out;
+  for (let i = start + 1; i < grid.length && out.length < 8; i++) {
+    const r = grid[i];
+    if (!r[0] || /OVERALL/i.test(r[0])) break;
+    out.push({
+      name: r[0],
+      done: toNum(r[1]) ?? 0,
+      active: toNum(r[2]) ?? 0,
+      notStarted: toNum(r[3]) ?? 0,
+      na: toNum(r[4]) ?? 0,
+      due: toNum(r[5]) ?? 0,
+      pct: toNum(r[6]) ?? 0,
+      status: r[7] || 'ON TRACK',
+      constraint: r[8] || 'None',
+    });
+  }
+  return out;
+}
+
+function dailyFromGrid(grid) {
+  // Header row: Date | Planned | Actual | Cum. Plan | Cum. Act. | Gap
+  const hi = grid.findIndex(r => r[0] === 'Date');
+  if (hi === -1) return [];
+  return grid.slice(hi + 1)
+    .filter(r => r[0] && r[0] !== '')
+    .map(r => ({
+      date: r[0],
+      planned: toNum(r[1]) ?? 0,
+      actual: toNum(r[2]),
+      cumPlan: toNum(r[3]) ?? 0,
+      cumAct: toNum(r[4]),
+      gap: toNum(r[5]),
+    }));
+}
+
+// Register tabs: header row at sheet row 3, data from row 4
+function registerFromGrid(grid, headerFirstCell) {
+  const hi = grid.findIndex(r => r[0] === headerFirstCell);
+  if (hi === -1) return [];
+  return grid.slice(hi + 1).filter(r => r.some((c, i) => i > 0 && c !== '') && (r[0] !== '' || r[1] !== ''));
+}
+
+async function fetchTab(tab) {
+  const res = await fetch(TAB_URL(tab));
+  const text = await res.text();
+  if (!res.ok || text.trimStart().startsWith('<')) {
+    throw new Error(`Tab "${tab}" is not readable — is the scoreboard sheet shared as "Anyone with the link can view"?`);
+  }
+  return parseGrid(text);
+}
+
+export function useScoreboardData() {
+  const [data, setData]     = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [calc, targets, daily, bottlenecks, kaizen, ecr, waste] = await Promise.all([
+        fetchTab('Calc'), fetchTab('Targets'), fetchTab('Daily Output'),
+        fetchTab('Bottlenecks'), fetchTab('Kaizen'), fetchTab('ECR'), fetchTab('Waste'),
+      ]);
+      setData({
+        kv: { ...kvFromGrid(targets), ...kvFromGrid(calc) },
+        workshops: workshopsFromCalc(calc),
+        daily: dailyFromGrid(daily),
+        bottlenecks: registerFromGrid(bottlenecks, 'Date Raised'),
+        kaizen: registerFromGrid(kaizen, 'Date'),
+        ecr: registerFromGrid(ecr, 'ECR No.'),
+        waste: registerFromGrid(waste, 'Date'),
+      });
+      setError(null);
+      setLastUpdated(new Date());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, REFRESH_INTERVAL);
+    return () => clearInterval(id);
+  }, [load]);
+
+  return { data, loading, error, lastUpdated, refresh: load };
+}

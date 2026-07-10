@@ -20,6 +20,7 @@ import { useMOCData } from './hooks/useMOCData';
 import HandoverLog from './components/HandoverLog';
 import HandoverModal from './components/HandoverModal';
 import { useHandoverData } from './hooks/useHandoverData';
+import Scoreboard from './components/Scoreboard';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -224,6 +225,7 @@ export default function App() {
       onSelectTracker={() => setMode('tracker')}
       onSelectMOC={() => setMode('moc')}
       onSelectHandover={() => setMode('handover')}
+      onSelectScoreboard={() => setMode('scoreboard')}
     />
   );
 
@@ -361,6 +363,10 @@ export default function App() {
       toggleTheme={toggleTheme}
       onHome={() => setMode('home')}
     />
+  );
+
+  if (mode === 'scoreboard') return (
+    <ScoreboardStandalone onHome={() => setMode('home')} />
   );
 
   return (
@@ -855,6 +861,39 @@ export default function App() {
         />
       )}
       {infoOpen && <InfoModal mode="tracker" onClose={() => setInfoOpen(false)} />}
+    </div>
+  );
+}
+
+// ── Scoreboard Standalone page ────────────────────────────────────────────────
+// The scoreboard renders in its own fixed dark palette (wall-display / export
+// consistency), so the standalone wrapper only adds a minimal Home bar.
+function ScoreboardStandalone({ onHome }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#05070a' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 16px 0', maxWidth: 1584, margin: '0 auto',
+      }}>
+        <button
+          onClick={onHome}
+          style={{
+            background: 'transparent', border: '1px solid #1c2330', color: '#8a93a3',
+            borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600,
+            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+            fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          Home
+        </button>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#eef1f6', textTransform: 'uppercase' }}>
+          DPN Scoreboard
+        </span>
+      </div>
+      <Scoreboard />
     </div>
   );
 }

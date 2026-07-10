@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectMOC, onSelectHandover, onLogout, theme, toggleTheme }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectMOC, onSelectHandover, onSelectScoreboard, onLogout, theme, toggleTheme }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   function SunIcon() {
@@ -257,6 +257,17 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
           <div className="home-card-overlay">
             <div className="home-card-title">MOC Register</div>
             <div className="home-card-sub">Management of change · FM001</div>
+          </div>
+        </button>
+
+        <button
+          className="home-card-btn"
+          style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #7a1417 0%, #101623 100%)" }}
+          onClick={onSelectScoreboard}
+        >
+          <div className="home-card-overlay">
+            <div className="home-card-title">DPN Scoreboard</div>
+            <div className="home-card-sub">IMS objectives · Live production KPIs</div>
           </div>
         </button>
 
