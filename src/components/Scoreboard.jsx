@@ -11,16 +11,23 @@ const C = {
   grey: '#8a93a3', text: '#eef1f6', rowAlt: '#0a0f16',
 };
 
+// Workshops actually shown as line-status scorecards — Machine Shop, Frame & Body
+// Parts Making and Quality Inspection & Testing are excluded per request (they sit
+// outside the main assembly line flow the floor cares about day to day).
+const LINE_WORKSHOPS = [
+  'Chassis Production Line 01', 'Frame & Body Welding', 'Paint Shop',
+  'Chassis Production Line 02', 'Trim & Final Assembly',
+];
 const WORKSHOP_IMG = {
-  'Machine Shop': '/Machine Shop.jpg',
-  'Frame & Body Parts Making': '/Frame Parts Making.jpg',
   'Chassis Production Line 01': '/Chassis Line 01.jpeg',
   'Frame & Body Welding': '/Frame & Body Welding.png',
   'Paint Shop': '/Paint Shop.png',
   'Chassis Production Line 02': '/Chassis Line 02.jpg',
   'Trim & Final Assembly': '/Trim Line & Final Assembly.jpg',
-  'Quality Inspection & Testing': '/Quality Inspection & Testing.png',
 };
+
+const DT_REASONS = ['M1 - Machine breakdown', 'M2 - Material shortage', 'M3 - Power/Energy',
+  'M4 - Tooling/jig failure', 'M5 - Operator/skill gap', 'M6 - Quality rework stoppage', 'M7 - Other'];
 
 // Sample data so the layout renders before the sheet is shared publicly.
 const SAMPLE = {
@@ -89,6 +96,12 @@ const SAMPLE = {
     { date: 'Fri 10 Jul', planned: 1, actual: 0, cumPlan: 11, cumAct: 4, gap: -7 },
   ],
   bottlenecks: [], kaizen: [], ecr: [], waste: [],
+  fpyTrend: [
+    { label: 'May 26', value: 0.68 }, { label: 'Jun 26', value: 0.71 }, { label: 'Jul 26', value: 0 },
+  ],
+  downtimeTrend: [
+    { label: 'May 26', value: 18 }, { label: 'Jun 26', value: 9 }, { label: 'Jul 26', value: 0.7 },
+  ],
 };
 
 // ── formatting helpers ──────────────────────────────────────────
@@ -117,63 +130,77 @@ function Pill({ status }) {
   );
 }
 
-function Donut({ pct, color, size = 64 }) {
+// SVG-only donut (CSS conic-gradient is silently blank in html2canvas exports —
+// this renders as plain circles/text so PNG/PDF capture keeps the ring).
+function Donut({ pct, color, size = 58 }) {
   const p = Math.max(0, Math.min(100, Math.round((pct || 0) * 100)));
+  const r = (size - 12) / 2, cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = (p / 100) * circ;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c2330" strokeWidth="7" />
+      <circle
+        cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="7"
+        strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+        transform={`rotate(-90 ${cx} ${cy})`}
+      />
+      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle"
+        fontSize={size * 0.24} fontWeight="800" fill={C.text}>{p}%</text>
+    </svg>
+  );
+}
+
+function SectionLabel({ children }) {
   return (
     <div style={{
-      width: size, height: size, borderRadius: '50%', margin: '0 auto',
-      background: `conic-gradient(${color} ${p}%, #1c2330 0)`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 10.5, fontWeight: 800, color: C.grey, textTransform: 'uppercase',
+      letterSpacing: '0.08em', borderBottom: `1px solid ${C.border}`,
+      padding: '0 0 5px', margin: '2px 0 2px',
+    }}>{children}</div>
+  );
+}
+
+// The reusable KPI tile — value first, target/status secondary. Left accent
+// bar carries the status colour so a grid of these reads like a real scorecard
+// wall rather than a form.
+function ScoreCard({ label, value, sub, status, valueColor }) {
+  const accent = status === 'ON TRACK' ? C.green : status === 'BEHIND' ? C.red : status === 'AT RISK' ? C.amber : C.border;
+  return (
+    <div style={{
+      background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${accent}`,
+      borderRadius: 7, padding: '9px 11px', display: 'flex', flexDirection: 'column', gap: 3,
+      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', minHeight: 66,
     }}>
-      <div style={{
-        width: size - 22, height: size - 22, borderRadius: '50%', background: C.panel,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 800, fontSize: 13, color: C.text,
-      }}>{p}%</div>
+      <div style={{ fontSize: 8.5, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 14 }}>
+        {sub ? <span style={{ fontSize: 8.5, color: C.grey }}>{sub}</span> : <span />}
+        <Pill status={status} />
+      </div>
     </div>
+  );
+}
+
+function CardGrid({ cols = 4, children }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 7 }}>{children}</div>
   );
 }
 
 function Panel({ title, children, style }) {
   return (
     <div style={{
-      background: C.panel, border: `1px solid ${C.border}`, borderRadius: 4,
-      overflow: 'hidden', display: 'flex', flexDirection: 'column', ...style,
+      background: C.panel, border: `1px solid ${C.border}`, borderRadius: 7,
+      overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', ...style,
     }}>
       <div style={{
-        background: C.red, color: '#fff', fontWeight: 800, fontSize: 11,
-        letterSpacing: '0.05em', textTransform: 'uppercase', padding: '5px 10px',
+        fontSize: 10, fontWeight: 800, color: C.grey, textTransform: 'uppercase',
+        letterSpacing: '0.06em', padding: '8px 11px 6px', borderBottom: `1px solid ${C.border}`,
       }}>{title}</div>
       <div style={{ padding: '8px 10px', flex: 1 }}>{children}</div>
     </div>
-  );
-}
-
-function KpiTable({ rows }) {
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5 }}>
-      <thead>
-        <tr>
-          {['KPI', 'Actual', 'Target', 'Status'].map(h => (
-            <th key={h} style={{
-              background: C.navy, color: C.grey, fontSize: 8.5, textTransform: 'uppercase',
-              padding: '4px 6px', textAlign: h === 'KPI' ? 'left' : 'center',
-              borderBottom: `1px solid ${C.border}`, letterSpacing: '0.04em',
-            }}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={r.label} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
-            <td style={{ padding: '4px 6px', color: C.grey, borderBottom: '1px solid #131a24' }}>{r.label}</td>
-            <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 800, color: C.text, borderBottom: '1px solid #131a24' }}>{r.actual}</td>
-            <td style={{ padding: '4px 6px', textAlign: 'center', color: C.grey, borderBottom: '1px solid #131a24' }}>{r.target ?? '—'}</td>
-            <td style={{ padding: '4px 6px', textAlign: 'center', borderBottom: '1px solid #131a24' }}><Pill status={r.status} /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }
 
@@ -205,8 +232,49 @@ function MiniTable({ headers, rows, empty }) {
   );
 }
 
+// Same header row pattern used by the original downtime table (section 7):
+// total available / planned / unplanned, one row per M-code, then total lost.
+function DowntimeTable({ kv }) {
+  const num = (key) => kv[key]?.num ?? null;
+  const avail = num('Available Hours') || 0;
+  const rows = [
+    ['Total Available Production Hours', fint(avail), '100%'],
+    ['Planned Downtime', f1(num('Planned Downtime (hrs)')), avail ? fpct1((num('Planned Downtime (hrs)') || 0) / avail) : '—'],
+    ['Unplanned Downtime', f1(num('Unplanned Downtime (hrs)')), avail ? fpct1((num('Unplanned Downtime (hrs)') || 0) / avail) : '—'],
+    ...DT_REASONS.map(r => [`— ${r}`, f1(num(r)), avail ? fpct1((num(r) || 0) / avail) : '—']),
+  ];
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+      <thead>
+        <tr>
+          {['Description', 'Hours', '%'].map(h => (
+            <th key={h} style={{
+              background: C.navy, color: C.grey, fontSize: 8.5, textTransform: 'uppercase',
+              padding: '4px 5px', textAlign: h === 'Description' ? 'left' : 'center', borderBottom: `1px solid ${C.border}`,
+            }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
+            <td style={{ padding: '4px 5px', color: C.text, borderBottom: '1px solid #131a24' }}>{r[0]}</td>
+            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: '1px solid #131a24' }}>{r[1]}</td>
+            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: '1px solid #131a24' }}>{r[2]}</td>
+          </tr>
+        ))}
+        <tr style={{ background: C.navy, fontWeight: 800 }}>
+          <td style={{ padding: '5px', color: '#fff' }}>Total Production Hours Lost</td>
+          <td style={{ padding: '5px', color: '#fff', textAlign: 'center' }}>{f1(num('Total Hours Lost'))}</td>
+          <td style={{ padding: '5px', color: '#fff', textAlign: 'center' }}>{fpct1(num('Downtime % of Available'))}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 function CumChart({ daily }) {
-  const w = 460, h = 170, pad = 28;
+  const w = 460, h = 160, pad = 26;
   const pts = daily.filter(d => d.cumPlan != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
   const maxV = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1) * 1.15;
@@ -250,6 +318,32 @@ function CumChart({ daily }) {
   );
 }
 
+// Generic monthly trend line — used for FPY% and Downtime hours.
+function TrendChart({ points, color, fmt }) {
+  if (!points || points.length < 2) {
+    return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
+  }
+  const w = 460, h = 150, pad = 28;
+  const vals = points.map(p => p.value);
+  const maxV = Math.max(...vals, 0.0001) * 1.2;
+  const x = i => pad + i * ((w - pad * 2) / (points.length - 1));
+  const y = v => h - pad - (v / maxV) * (h - pad * 1.7);
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke={C.border} />
+      <path d={path} fill="none" stroke={color} strokeWidth="2" />
+      {points.map((p, i) => (
+        <g key={i}>
+          <circle cx={x(i)} cy={y(p.value)} r="3" fill={color} />
+          <text x={x(i)} y={h - 8} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+          <text x={x(i)} y={y(p.value) - 8} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 // ── Email modal (posts to server.js /api/send-report) ───────────
 function ScoreboardEmailModal({ onClose, capturePages }) {
   const [to, setTo] = useState('');
@@ -281,10 +375,7 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
       }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to, subject, schedule, scheduledTime, weekday,
-          busCount: 0, attachments,
-        }),
+        body: JSON.stringify({ to, subject, schedule, scheduledTime, weekday, busCount: 0, attachments }),
       });
       if (!res.ok) throw new Error(`Server responded ${res.status}`);
       const out = await res.json();
@@ -349,6 +440,8 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
 }
 
 // ── Main component ──────────────────────────────────────────────
+const PAGE_WIDTH = 1320;
+
 export default function Scoreboard() {
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
@@ -362,7 +455,6 @@ export default function Scoreboard() {
   const g = (key) => kv[key] || {};
   const num = (key) => g(key).num ?? null;
   const raw = (key) => g(key).raw ?? '';
-  const ytd = (key) => g(key).ytdNum ?? null;
 
   async function capturePages() {
     const opts = { backgroundColor: C.bg, scale: 2, useCORS: true, logging: false };
@@ -371,17 +463,25 @@ export default function Scoreboard() {
     return [c1, c2];
   }
 
+  // One stacked PNG (both pages, one file) — separate downloads were easy to
+  // lose track of / get blocked as pop-ups, so page 2 is now just a scroll away.
   async function exportPNG() {
     setExporting(true);
     try {
       const canvases = await capturePages();
-      const stamp = new Date().toISOString().slice(0, 10);
-      canvases.forEach((cv, i) => {
-        const a = document.createElement('a');
-        a.download = `KMC_Scoreboard_p${i + 1}_${stamp}.png`;
-        a.href = cv.toDataURL('image/png');
-        a.click();
-      });
+      const gap = 28;
+      const width = Math.max(...canvases.map(c => c.width));
+      const totalHeight = canvases.reduce((s, c) => s + c.height, 0) + gap * (canvases.length - 1);
+      const combined = document.createElement('canvas');
+      combined.width = width; combined.height = totalHeight;
+      const ctx = combined.getContext('2d');
+      ctx.fillStyle = C.bg; ctx.fillRect(0, 0, width, totalHeight);
+      let yOff = 0;
+      canvases.forEach(cv => { ctx.drawImage(cv, (width - cv.width) / 2, yOff); yOff += cv.height + gap; });
+      const a = document.createElement('a');
+      a.download = `KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.png`;
+      a.href = combined.toDataURL('image/png');
+      a.click();
     } finally { setExporting(false); }
   }
 
@@ -395,83 +495,61 @@ export default function Scoreboard() {
         if (i > 0) pdf.addPage();
         const ratio = Math.min(pw / cv.width, ph / cv.height);
         const iw = cv.width * ratio, ih = cv.height * ratio;
-        pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', (pw - iw) / 2, (ph - ih) / 2, iw, ih);
+        pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - iw) / 2, (ph - ih) / 2, iw, ih);
       });
       pdf.save(`KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.pdf`);
     } finally { setExporting(false); }
   }
 
   const target = num('Program Target (vehicles)') ?? 45;
-  const o1 = [
-    { label: 'Buses per Day', actual: f1(num('Buses per Day (period)')), target: fint(num('Target: Buses per Day')), status: statusOf(num('Buses per Day (period)'), num('Target: Buses per Day'), 'gte') },
-    { label: 'On-Time Delivery', actual: fpct(num('On-Time Delivery %')), target: fpct(num('Target: On-Time Delivery')), status: statusOf(num('On-Time Delivery %'), num('Target: On-Time Delivery'), 'gte') },
-    { label: 'Avg Cycle Time (days)', actual: f1(num('Avg Cycle Time (days)')), target: `≤ ${fint(num('Target: Cycle Time (days)'))}`, status: statusOf(num('Avg Cycle Time (days)'), num('Target: Cycle Time (days)'), 'lte') },
-    { label: 'Completed Buses', actual: fint(num('Completed')), target: fint(target), status: null },
-    { label: 'In Production', actual: fint(num('In Production')), target: null, status: null },
-    { label: 'Behind Schedule', actual: fint(num('Behind Schedule (buses)')), target: '0', status: statusOf(num('Behind Schedule (buses)'), 0, 'lte') },
-    { label: 'SPI', actual: f2(num('SPI')), target: '≥ 0.95', status: statusOf(num('SPI'), 0.95, 'gte') },
-    { label: 'Forecast Completion', actual: raw('Forecast Completion') || '—', target: raw('Scoreboard Period End'), status: null },
+  const achievement = num('Achievement %') ?? 0;
+  const actualRate = num('Buses per Day (period)');
+  const targetRate = num('Target: Buses per Day');
+  const taktActual = actualRate ? 1 / actualRate : null;
+  const taktTarget = targetRate ? 1 / targetRate : null;
+
+  // ── Overall Progress scorecards (exempt from any future period filter — these
+  // reflect current tracker state, not a date-bounded slice) ──
+  const overallCards = [
+    { label: 'Production Achievement', value: fpct(achievement), sub: `${fint(num('Completed'))} of ${fint(target)} buses`, status: null },
+    { label: 'Completed', value: fint(num('Completed')), sub: `Target ${fint(target)}`, status: null },
+    { label: 'In Production', value: fint(num('In Production')), sub: `Behind: ${fint(num('Behind Schedule (buses)'))}`, status: statusOf(num('Behind Schedule (buses)'), 0, 'lte') },
+    { label: 'Rate (Takt)', value: `${f1(actualRate)}/day`, sub: taktActual ? `≈ ${f1(taktActual)} d/bus` : null, status: statusOf(actualRate, targetRate, 'gte') },
+    { label: 'Target Rate (Takt)', value: `${fint(targetRate)}/day`, sub: taktTarget ? `Takt ${f2(taktTarget)} d/bus` : null, status: null },
+    { label: 'SPI', value: f2(num('SPI')), sub: 'Target ≥ 0.95', status: statusOf(num('SPI'), 0.95, 'gte') },
+    { label: 'Forecast Completion', value: raw('Forecast Completion') || '—', sub: `Period end ${raw('Scoreboard Period End')}`, status: null },
   ];
-  const insp = num('Vehicles Inspected');
-  const o2 = [
-    { label: 'First Pass Yield', actual: fpct(num('First Pass Yield')), target: fpct(num('Target: First Pass Yield')), status: insp ? statusOf(num('First Pass Yield'), num('Target: First Pass Yield'), 'gte') : null },
-    { label: 'Rework Hrs / Unit', actual: f1(num('Rework Hours per Unit')), target: '↓ 80%', status: null },
-    { label: 'Critical Defects', actual: fint(num('Critical Defects')), target: '0', status: statusOf(num('Critical Defects'), 0, 'lte') },
-    { label: 'Vehicles Inspected', actual: fint(insp), target: null, status: null },
-    { label: 'Defects Found', actual: fint(num('Defects Found')), target: null, status: null },
-    { label: 'Defects Closed', actual: fint(num('Defects Closed')), target: null, status: null },
-    { label: 'Open Defects (YTD)', actual: fint(num('Open Defects (YTD)')), target: '0', status: statusOf(num('Open Defects (YTD)'), 0, 'lte') },
-    { label: 'Defects per Vehicle', actual: f2(num('Defects per Vehicle')), target: null, status: null },
-  ];
+
   const baseDT = num('Baseline Unplanned Downtime (hrs / period)');
-  const o3 = [
-    { label: 'OEE', actual: fpct(num('OEE')), target: fpct(num('Target: OEE')), status: statusOf(num('OEE'), num('Target: OEE'), 'gte') },
-    { label: 'Unplanned Downtime (h)', actual: f1(num('Unplanned Downtime (hrs)')), target: baseDT ? f1(baseDT * 0.8) : null, status: baseDT ? statusOf(num('Unplanned Downtime (hrs)'), baseDT * 0.8, 'lte') : null },
-    { label: 'Downtime vs Baseline', actual: fpct(num('Downtime vs Baseline')), target: '≤ −20%', status: baseDT ? statusOf(num('Downtime vs Baseline'), -0.2, 'lte') : null },
-    { label: 'MTTR (hrs)', actual: f1(num('MTTR (hrs)')), target: `≤ ${fint(num('Target: MTTR (hours)'))}`, status: num('Breakdown Events (M1)') ? statusOf(num('MTTR (hrs)'), num('Target: MTTR (hours)'), 'lte') : null },
-    { label: 'MTBF (hrs)', actual: fint(num('MTBF (hrs)')), target: '↑ +20%', status: null },
-    { label: 'Breakdown Events', actual: fint(num('Breakdown Events (M1)')), target: null, status: null },
-    { label: 'Total Hours Lost', actual: f1(num('Total Hours Lost')), target: null, status: null },
-    { label: 'Open Bottlenecks', actual: fint(num('Open Bottlenecks')), target: '0', status: statusOf(num('Open Bottlenecks'), 0, 'lte') },
+  const insp = num('Vehicles Inspected');
+  // The 8 "big rock" KPIs pulled out of objectives 2-5 — the numbers that
+  // actually move the needle, one card each, no more per-objective tables.
+  const bigRocks = [
+    { label: 'First Pass Yield', value: fpct(num('First Pass Yield')), sub: `Target ${fpct(num('Target: First Pass Yield'))}`, status: insp ? statusOf(num('First Pass Yield'), num('Target: First Pass Yield'), 'gte') : null },
+    { label: 'Critical Defects', value: fint(num('Critical Defects')), sub: 'Target 0', status: statusOf(num('Critical Defects'), 0, 'lte') },
+    { label: 'OEE', value: fpct(num('OEE')), sub: `Target ${fpct(num('Target: OEE'))}`, status: statusOf(num('OEE'), num('Target: OEE'), 'gte') },
+    { label: 'MTTR', value: `${f1(num('MTTR (hrs)'))} h`, sub: `Target ≤ ${fint(num('Target: MTTR (hours)'))} h`, status: num('Breakdown Events (M1)') ? statusOf(num('MTTR (hrs)'), num('Target: MTTR (hours)'), 'lte') : null },
+    { label: 'Days Without LTI', value: fint(num('Days Without Lost-Time Injury')), sub: 'Target: zero LTIs', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
+    { label: 'Near-Miss Response', value: fpct(num('Near-Miss Response Rate')), sub: 'Target 100%', status: statusOf(num('Near-Miss Response Rate'), 1, 'gte') },
+    { label: 'Energy vs Baseline', value: fpct1(num('Energy vs Baseline')), sub: 'Target ≤ −5%', status: baseDT ? null : null },
+    { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')), sub: 'Target ≤ −10%', status: null },
   ];
-  const o4 = [
-    { label: 'Days Without LTI', actual: fint(num('Days Without Lost-Time Injury')), target: '↑', status: null },
-    { label: 'Lost-Time Injuries', actual: fint(num('Lost-Time Injuries')), target: '0', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
-    { label: 'Near Misses Reported', actual: fint(num('Near Misses Reported')), target: null, status: null },
-    { label: 'Near-Miss Response', actual: fpct(num('Near-Miss Response Rate')), target: '100%', status: statusOf(num('Near-Miss Response Rate'), 1, 'gte') },
-    { label: 'PPE Misuse', actual: fint(num('PPE Misuse Incidents')), target: '0', status: statusOf(num('PPE Misuse Incidents'), 0, 'lte') },
-    { label: 'Unsafe Conditions', actual: fint(num('Unsafe Conditions')), target: null, status: null },
-    { label: 'Corrective Actions Closed', actual: fint(num('Corrective Actions Closed')), target: null, status: null },
-    { label: 'Inspection Compliance', actual: fpct(num('Safety Inspection Compliance')), target: '100%', status: statusOf(num('Safety Inspection Compliance'), 0.95, 'gte') },
+
+  const costCards = [
+    { label: "Budget (UGX '000)", value: fint(num('Budget Total')), sub: null, status: null },
+    { label: "Actual (UGX '000)", value: fint(num('Actual Total')), sub: null, status: null },
+    { label: 'Variance', value: fint(num('Variance')), sub: 'Target ≤ 0', status: statusOf(num('Variance'), 0, 'lte') },
+    { label: 'Variance %', value: fpct1(num('Variance %')), sub: 'Target ≤ 5%', status: num('Actual Total') ? statusOf(num('Variance %'), 0.05, 'lte') : null },
   ];
-  const o5 = [
-    { label: 'Energy / Unit (kWh)', actual: f1(num('Energy per Unit (latest month, kWh)')), target: '↓ 5%', status: null },
-    { label: 'Energy vs Baseline', actual: fpct(num('Energy vs Baseline')), target: '≤ −5%', status: null },
-    { label: 'Waste / Unit (kg)', actual: f1(num('Waste per Unit (period, kg)')), target: '↓ 10%', status: null },
-    { label: 'Waste vs Baseline', actual: fpct(num('Waste vs Baseline')), target: '≤ −10%', status: null },
-    { label: 'Paper (reams / month)', actual: fint(num('Paper Used (latest month, reams)')), target: '↓ 50%', status: null },
-    { label: 'Paper vs Baseline', actual: fpct(num('Paper vs Baseline')), target: '≤ −50%', status: null },
-    { label: "Waste Cost (UGX '000)", actual: fint(num("Waste Cost (period, UGX '000)")), target: null, status: null },
-    { label: 'Waste Items (period)', actual: fint(num('Waste Items (period)')), target: null, status: null },
+  const schedCards = [
+    { label: 'Activities On Time', value: fpct(num('On-Time %')), sub: 'Target ≥ 95%', status: statusOf(num('On-Time %'), 0.95, 'gte') },
+    { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')), sub: 'Target 0', status: statusOf(num('Avg Schedule Delay (days)'), 0, 'lte') },
+    { label: 'Critical Activity', value: raw('Critical Activity') || '—', sub: null, status: null },
+    { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')), sub: null, status: null },
   ];
-  const cost = [
-    { label: "Budget (UGX '000)", actual: fint(num('Budget Total')), target: null, status: null },
-    { label: "Actual (UGX '000)", actual: fint(num('Actual Total')), target: null, status: null },
-    { label: 'Variance', actual: fint(num('Variance')), target: '≤ 0', status: statusOf(num('Variance'), 0, 'lte') },
-    { label: 'Variance %', actual: fpct1(num('Variance %')), target: '≤ 5%', status: num('Actual Total') ? statusOf(num('Variance %'), 0.05, 'lte') : null },
-  ];
-  const sched = [
-    { label: 'Activities On Time', actual: fpct(num('On-Time %')), target: '≥ 95%', status: statusOf(num('On-Time %'), 0.95, 'gte') },
-    { label: 'Avg Delay (days)', actual: f1(num('Avg Schedule Delay (days)')), target: '0', status: statusOf(num('Avg Schedule Delay (days)'), 0, 'lte') },
-    { label: 'Critical Activity', actual: raw('Critical Activity') || '—', target: null, status: null },
-    { label: 'Downtime % of Hours', actual: fpct1(num('Downtime % of Available')), target: null, status: null },
-  ];
-  const dtBreakdown = ['M1 - Machine breakdown', 'M2 - Material shortage', 'M3 - Power/Energy',
-    'M4 - Tooling/jig failure', 'M5 - Operator/skill gap', 'M6 - Quality rework stoppage', 'M7 - Other']
-    .map(k => [k, `${f1(num(k))} h`]);
 
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
-  const achievement = num('Achievement %') ?? 0;
+  const lineWorkshops = d.workshops.filter(w => LINE_WORKSHOPS.includes(w.name));
   const dailyRecent = d.daily.slice(-8);
 
   const btn = {
@@ -482,19 +560,19 @@ export default function Scoreboard() {
   };
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', padding: 12, fontFamily: "'Inter', Arial, sans-serif", color: C.text }}>
+    <div style={{
+      minHeight: '100vh', padding: '12px 12px 40px', fontFamily: "'Inter', Arial, sans-serif", color: C.text,
+      backgroundColor: C.bg,
+      backgroundImage: `linear-gradient(rgba(5,7,10,0.90), rgba(5,7,10,0.96)), url('/Bus background 3.png')`,
+      backgroundSize: 'cover', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
+    }}>
       {/* toolbar (not captured in exports) */}
-      <div style={{ maxWidth: 1560, margin: '0 auto 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        {!live && (
-          <span style={{ background: C.amber, color: '#3a2600', fontSize: 9, fontWeight: 800, padding: '3px 10px', borderRadius: 3, letterSpacing: '0.05em' }}>
-            SAMPLE DATA — {error || 'sheet not reachable'}
-          </span>
-        )}
-        {live && lastUpdated && (
-          <span style={{ fontSize: 10, color: C.grey }}>
-            Live · updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        )}
+      <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, color: C.grey }}>
+          {live
+            ? `Live · updated ${lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : `Showing sample data${error ? ` — ${error}` : ''}`}
+        </span>
         <div style={{ flex: 1 }} />
         <button style={btn} onClick={refresh} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
         <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
@@ -502,150 +580,201 @@ export default function Scoreboard() {
         <button style={{ ...btn, borderColor: C.red, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        {/* ═══════════ PAGE 1 ═══════════ */}
-        <div ref={page1Ref} style={{ width: 1560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 4 }}>
-          {/* header */}
-          <div style={{ display: 'flex', alignItems: 'stretch', background: '#000', border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 18px', minWidth: 210 }}>
-              <img src="/kmc logo 2.png" alt="KMC" style={{ height: 40, objectFit: 'contain' }} crossOrigin="anonymous" />
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 13, letterSpacing: '0.05em' }}>KMC</div>
-                <div style={{ fontSize: 8, color: C.grey, letterSpacing: '0.18em' }}>KIIRA MOTORS CORPORATION</div>
-              </div>
+      {/* ═══════════ PAGE 1 ═══════════ */}
+      <div ref={page1Ref} style={{
+        width: PAGE_WIDTH, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 9, padding: 12,
+        background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+      }}>
+        {/* header */}
+        <div style={{ display: 'flex', alignItems: 'stretch', background: '#000', border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 100 }}>
+            <img src="/kmc logo 3.png" alt="KMC" style={{ height: 44, objectFit: 'contain' }} crossOrigin="anonymous" />
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              Department of Production — Scoreboard
             </div>
-            <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px' }}>
-              <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                Department of Production — Scoreboard
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                {raw('Program / Project Name') || '45-BUS PRODUCTION PROJECT'} · IMS OBJECTIVES
-              </div>
-            </div>
-            <div style={{ minWidth: 230, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 11, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>UPDATED</span><b>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</b></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 9 }}>KMC.DQHSE12/25-REG003</b></div>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              {raw('Program / Project Name') || '45-BUS PRODUCTION PROJECT'} · IMS OBJECTIVES
             </div>
           </div>
-
-          {/* objectives 1-3 */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <Panel title="Objective 1 — Throughput & On-Time Delivery"><KpiTable rows={o1} /></Panel>
-            <Panel title="Objective 2 — Defect-Free Production"><KpiTable rows={o2} /></Panel>
-            <Panel title="Objective 3 — Downtime / Equipment"><KpiTable rows={o3} /></Panel>
+          <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DQHSE12/25-REG003</b></div>
           </div>
+        </div>
 
-          {/* line status */}
-          <Panel title="Production Line Status" style={{ padding: 0 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', margin: '-8px -10px' }}>
-              {d.workshops.map((w, i) => (
-                <div key={w.name} style={{ borderRight: i < 7 ? `1px solid ${C.border}` : 'none', padding: '8px 6px', textAlign: 'center' }}>
-                  <div style={{ height: 44, borderRadius: 4, overflow: 'hidden', marginBottom: 5, background: C.navy }}>
-                    {WORKSHOP_IMG[w.name] && (
-                      <img src={WORKSHOP_IMG[w.name]} alt="" crossOrigin="anonymous"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} />
-                    )}
-                  </div>
-                  <div style={{ fontSize: 8.5, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.name}</div>
-                  <div style={{ fontSize: 10, color: C.grey, margin: '2px 0 5px' }}>{w.done} / {45 - (w.na || 0)}</div>
-                  <Donut pct={w.pct} color={wsColor(w.status)} size={58} />
-                  <div style={{ marginTop: 5 }}><Pill status={w.status} /></div>
-                  <div style={{ fontSize: 7, color: C.grey, textTransform: 'uppercase', marginTop: 4 }}>Constraint</div>
-                  <div style={{ fontSize: 9, fontWeight: 700, minHeight: 12 }}>{w.constraint}</div>
-                </div>
-              ))}
+        {/* Overall Progress — first, and exempt from any period slicing */}
+        <SectionLabel>Overall Progress</SectionLabel>
+        <CardGrid cols={7}>
+          {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
+        </CardGrid>
+        <div>
+          <div style={{ background: '#1c2330', borderRadius: 7, height: 18, overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.round(achievement * 100)}%`, height: '100%',
+              background: `linear-gradient(90deg, #1e8449, ${C.green})`,
+              fontSize: 9.5, fontWeight: 800, color: '#04210f', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', minWidth: 34,
+            }}>{fpct(achievement)}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: C.grey, marginTop: 2 }}>
+            <span>0</span><span>{fint(target)} buses</span>
+          </div>
+        </div>
+
+        {/* Production Line Status — 5 core assembly-line workshops as scorecards */}
+        <SectionLabel>Production Line Status</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+          {lineWorkshops.map(w => (
+            <div key={w.name} style={{
+              background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${wsColor(w.status)}`,
+              borderRadius: 8, padding: 8, textAlign: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+            }}>
+              <div style={{ height: 52, borderRadius: 5, overflow: 'hidden', marginBottom: 6, background: C.navy }}>
+                {WORKSHOP_IMG[w.name] && (
+                  <img src={WORKSHOP_IMG[w.name]} alt="" crossOrigin="anonymous"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+                )}
+              </div>
+              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.name}</div>
+              <div style={{ fontSize: 10.5, color: C.grey, margin: '2px 0 6px' }}>{w.done} / {45 - (w.na || 0)}</div>
+              <Donut pct={w.pct} color={wsColor(w.status)} size={60} />
+              <div style={{ marginTop: 6 }}><Pill status={w.status} /></div>
+              <div style={{ fontSize: 7.5, color: C.grey, textTransform: 'uppercase', marginTop: 5 }}>Constraint</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, minHeight: 13 }}>{w.constraint}</div>
             </div>
+          ))}
+        </div>
+
+        {/* Key Objectives — the 8 big rocks */}
+        <SectionLabel>Key Objectives</SectionLabel>
+        <CardGrid cols={4}>
+          {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
+        </CardGrid>
+
+        {/* Trends */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="First Pass Yield — by Month">
+            <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} />
           </Panel>
+          <Panel title="Downtime — by Month (hours)">
+            <TrendChart points={d.downtimeTrend} color={C.red} fmt={v => `${f1(v)}h`} />
+          </Panel>
+        </div>
 
-          {/* daily output + chart + cost/schedule */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.5fr 1fr 1fr', gap: 8 }}>
-            <Panel title="Daily Production Output">
-              <MiniTable
-                headers={['Date', 'Plan', 'Act', 'Cum P', 'Cum A']}
-                rows={dailyRecent.map(r => [r.date, r.planned, r.actual ?? '-', r.cumPlan, r.cumAct ?? '-'])}
-                empty="No output rows for this period."
-              />
+        {/* Daily output / cumulative chart / cost / schedule */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.4fr 0.9fr', gap: 8 }}>
+          <Panel title="Daily Production Output">
+            <MiniTable
+              headers={['Date', 'Plan', 'Act', 'Cum P', 'Cum A']}
+              rows={dailyRecent.map(r => [r.date, r.planned, r.actual ?? '-', r.cumPlan, r.cumAct ?? '-'])}
+              empty="No output rows for this period."
+            />
+          </Panel>
+          <Panel title="Planned vs Actual (Cumulative)">
+            <CumChart daily={d.daily} />
+          </Panel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Panel title="Production Cost">
+              <CardGrid cols={2}>{costCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
             </Panel>
-            <Panel title="Planned vs Actual (Cumulative)">
-              <CumChart daily={d.daily} />
-              <div style={{ marginTop: 6 }}>
-                <div style={{ fontSize: 8.5, color: C.grey, textTransform: 'uppercase', marginBottom: 3 }}>
-                  Overall Progress — {fpct(achievement)} of {fint(target)} buses
-                </div>
-                <div style={{ background: '#1c2330', borderRadius: 6, height: 14, overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${Math.round(achievement * 100)}%`, height: '100%',
-                    background: `linear-gradient(90deg, #1e8449, ${C.green})`,
-                    fontSize: 9, fontWeight: 800, color: '#04210f', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', minWidth: 30,
-                  }}>{fpct(achievement)}</div>
-                </div>
-              </div>
+            <Panel title="Schedule">
+              <CardGrid cols={2}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
             </Panel>
-            <Panel title="Production Cost (Period)"><KpiTable rows={cost} /></Panel>
-            <Panel title="Schedule Performance"><KpiTable rows={sched} /></Panel>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════ PAGE 2 ═══════════ */}
+      <div ref={page2Ref} style={{
+        width: PAGE_WIDTH, margin: '10px auto 0', display: 'flex', flexDirection: 'column', gap: 8, padding: 12,
+        background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Production Downtime — Full Breakdown (Period)">
+            <DowntimeTable kv={kv} />
+          </Panel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Panel title="Safety">
+              <CardGrid cols={2}>
+                {[
+                  { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')), sub: 'Target 0', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
+                  { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')), sub: 'Target 0', status: statusOf(num('PPE Misuse Incidents'), 0, 'lte') },
+                  { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')), sub: null, status: null },
+                  { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')), sub: 'Target 100%', status: statusOf(num('Safety Inspection Compliance'), 0.95, 'gte') },
+                ].map(c => <ScoreCard key={c.label} {...c} />)}
+              </CardGrid>
+            </Panel>
+            <Panel title="Environment">
+              <CardGrid cols={2}>
+                {[
+                  { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')), sub: null, status: null },
+                  { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')), sub: null, status: null },
+                  { label: 'Paper (reams/mo)', value: fint(num('Paper Used (latest month, reams)')), sub: null, status: null },
+                  { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")), sub: null, status: null },
+                ].map(c => <ScoreCard key={c.label} {...c} />)}
+              </CardGrid>
+            </Panel>
           </div>
         </div>
 
-        {/* ═══════════ PAGE 2 ═══════════ */}
-        <div ref={page2Ref} style={{ width: 1560, margin: '8px auto 0', display: 'flex', flexDirection: 'column', gap: 8, padding: 4 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-            <Panel title="Objective 4 — Safety (Zero LTI)"><KpiTable rows={o4} /></Panel>
-            <Panel title="Objective 5 — Environment"><KpiTable rows={o5} /></Panel>
-            <Panel title="Downtime Breakdown (Period)">
-              <MiniTable headers={['Reason', 'Hours']} rows={dtBreakdown} empty="" />
-            </Panel>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Open Bottlenecks">
+            <MiniTable
+              headers={['Raised', 'Bottleneck', 'Workshop', 'Impact', 'Owner', 'Recovery']}
+              rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').slice(0, 6).map(r => r.slice(0, 6))}
+              empty="No open bottlenecks."
+            />
+          </Panel>
+          <Panel title="Engineering Change Control (ECR)">
+            <MiniTable
+              headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
+              rows={d.ecr.slice(-6).map(r => [r[0], r[1], r[2], r[4], r[5]])}
+              empty="No ECRs logged."
+            />
+          </Panel>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Kaizen / Improvement Ideas">
+            <MiniTable
+              headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
+              rows={d.kaizen.slice(-6).map(r => [r[1], r[2], r[3], r[4], r[5]])}
+              empty="No kaizen ideas yet."
+            />
+          </Panel>
+          <Panel title="Production Waste (Period)">
+            <MiniTable
+              headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
+              rows={d.waste.slice(-6).map(r => r.slice(0, 6))}
+              empty="No waste entries this period."
+            />
+          </Panel>
+        </div>
+
+        {/* footer legend */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: C.panel, border: `1px solid ${C.border}`, borderRadius: 4,
+          padding: '7px 14px', fontSize: 10,
+        }}>
+          <div style={{ display: 'flex', gap: 18, alignItems: 'center', color: C.grey }}>
+            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.green, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />ON TRACK — on plan</span>
+            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.amber, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />AT RISK — requires attention</span>
+            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.red, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />DELAYED / BEHIND — immediate action</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Panel title="Open Bottlenecks">
-              <MiniTable
-                headers={['Raised', 'Bottleneck', 'Workshop', 'Impact', 'Owner', 'Recovery']}
-                rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').slice(0, 6).map(r => r.slice(0, 6))}
-                empty="No open bottlenecks."
-              />
-            </Panel>
-            <Panel title="Engineering Change Control (ECR)">
-              <MiniTable
-                headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
-                rows={d.ecr.slice(-6).map(r => [r[0], r[1], r[2], r[4], r[5]])}
-                empty="No ECRs logged."
-              />
-            </Panel>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <Panel title="Kaizen / Improvement Ideas">
-              <MiniTable
-                headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
-                rows={d.kaizen.slice(-6).map(r => [r[1], r[2], r[3], r[4], r[5]])}
-                empty="No kaizen ideas yet."
-              />
-            </Panel>
-            <Panel title="Production Waste (Period)">
-              <MiniTable
-                headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
-                rows={d.waste.slice(-6).map(r => r.slice(0, 6))}
-                empty="No waste entries this period."
-              />
-            </Panel>
-          </div>
-          {/* footer legend */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            background: C.panel, border: `1px solid ${C.border}`, borderRadius: 4,
-            padding: '7px 14px', fontSize: 10,
-          }}>
-            <div style={{ display: 'flex', gap: 18, alignItems: 'center', color: C.grey }}>
-              <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.green, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />ON TRACK — on plan</span>
-              <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.amber, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />AT RISK — requires attention</span>
-              <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.red, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />DELAYED / BEHIND — immediate action</span>
-            </div>
-            <div style={{ fontWeight: 800, letterSpacing: '0.25em', color: C.red, fontSize: 10 }}>
-              FOCUS · PLAN · EXECUTE · DELIVER
-            </div>
+          <div style={{ fontWeight: 800, letterSpacing: '0.25em', color: C.red, fontSize: 10 }}>
+            FOCUS · PLAN · EXECUTE · DELIVER
           </div>
         </div>
+      </div>
+
+      {/* Note: the reporting period (Start/End) and project name are set in the
+          sheet's Targets tab and already drive every period-scoped figure here —
+          no separate on-page control, to avoid a second source of truth. */}
+      <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
+        Reporting period and project name are set in the sheet — <b>Targets</b> tab, <b>Start/End</b> and <b>Program / Project Name</b> cells.
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}

@@ -95,6 +95,62 @@ function registerFromGrid(grid, headerFirstCell) {
   return grid.slice(hi + 1).filter(r => r.some((c, i) => i > 0 && c !== '') && (r[0] !== '' || r[1] !== ''));
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Accepts "01-Jul-2026", ISO "2026-07-01", or anything Date can parse.
+function parseAnyDate(v) {
+  if (!v) return null;
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(v.trim());
+  if (m) {
+    const mi = MONTHS.findIndex(x => x.toLowerCase() === m[2].toLowerCase());
+    if (mi !== -1) return new Date(Number(m[3]), mi, Number(m[1]));
+  }
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function monthKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function monthLabel(d) { return `${MONTHS[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`; }
+
+// Quality register: Date | Unit | Result (Pass/Rework) | Defects | Critical | Closed | Rework Hrs | Inspector | Notes
+function fpyTrendFromGrid(grid) {
+  const hi = grid.findIndex(r => r[0] === 'Date');
+  if (hi === -1) return [];
+  const buckets = new Map(); // key -> { d, pass, total }
+  for (const r of grid.slice(hi + 1)) {
+    const d = parseAnyDate(r[0]);
+    const result = (r[2] || '').trim();
+    if (!d || !result) continue;
+    const key = monthKey(d);
+    const b = buckets.get(key) || { d: new Date(d.getFullYear(), d.getMonth(), 1), pass: 0, total: 0 };
+    b.total += 1;
+    if (/^pass$/i.test(result)) b.pass += 1;
+    buckets.set(key, b);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
+    .map(([, b]) => ({ label: monthLabel(b.d), value: b.total ? b.pass / b.total : 0 }))
+    .slice(-12);
+}
+
+// Downtime register: Date | Workshop | Equipment | Reason Code | Downtime (min) | Description | Reported By
+function downtimeTrendFromGrid(grid) {
+  const hi = grid.findIndex(r => r[0] === 'Date');
+  if (hi === -1) return [];
+  const buckets = new Map(); // key -> { d, minutes }
+  for (const r of grid.slice(hi + 1)) {
+    const d = parseAnyDate(r[0]);
+    const mins = toNum(r[4]);
+    if (!d || mins == null) continue;
+    const key = monthKey(d);
+    const b = buckets.get(key) || { d: new Date(d.getFullYear(), d.getMonth(), 1), minutes: 0 };
+    b.minutes += mins;
+    buckets.set(key, b);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))
+    .map(([, b]) => ({ label: monthLabel(b.d), value: b.minutes / 60 }))
+    .slice(-12);
+}
+
 async function fetchTab(tab) {
   const res = await fetch(TAB_URL(tab));
   const text = await res.text();
@@ -113,9 +169,10 @@ export function useScoreboardData() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [calc, targets, daily, bottlenecks, kaizen, ecr, waste] = await Promise.all([
+      const [calc, targets, daily, bottlenecks, kaizen, ecr, waste, quality, downtime] = await Promise.all([
         fetchTab('Calc'), fetchTab('Targets'), fetchTab('Daily Output'),
         fetchTab('Bottlenecks'), fetchTab('Kaizen'), fetchTab('ECR'), fetchTab('Waste'),
+        fetchTab('Quality'), fetchTab('Downtime'),
       ]);
       setData({
         kv: { ...kvFromGrid(targets), ...kvFromGrid(calc) },
@@ -125,6 +182,8 @@ export function useScoreboardData() {
         kaizen: registerFromGrid(kaizen, 'Date'),
         ecr: registerFromGrid(ecr, 'ECR No.'),
         waste: registerFromGrid(waste, 'Date'),
+        fpyTrend: fpyTrendFromGrid(quality),
+        downtimeTrend: downtimeTrendFromGrid(downtime),
       });
       setError(null);
       setLastUpdated(new Date());

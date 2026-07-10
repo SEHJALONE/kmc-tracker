@@ -1,14 +1,16 @@
 import { useState } from 'react';
 
-// Credential sets → role + NCR domain.
+// Credential sets → role + NCR domain + optional landing module.
 // domain controls which NCR register tab the user lands on by default (admin sees all).
+// landing sends the user straight into a module on login, skipping the HomeScreen menu.
 const CREDENTIALS = [
-  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'admin', domain: null },
-  { username: 'kmc',         password: 'kmc1234!',   role: 'user',  domain: null },
-  { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials' },
-  { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process' },
-  { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality' },
-  { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production' },
+  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'admin', domain: null, landing: null },
+  { username: 'kmc',         password: 'kmc1234!',   role: 'user',  domain: null, landing: null },
+  { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials', landing: null },
+  { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },
+  { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality', landing: null },
+  { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production', landing: null },
+  { username: 'kmc.scoreboard', password: 'Board1234!', role: 'user', domain: null, landing: 'scoreboard' },
 ];
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
@@ -38,8 +40,10 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           localStorage.setItem('kmc_role', match.role);
           if (match.domain) localStorage.setItem('kmc_ncr_domain', match.domain);
           else localStorage.removeItem('kmc_ncr_domain');
+          if (match.landing) localStorage.setItem('kmc_landing', match.landing);
+          else localStorage.removeItem('kmc_landing');
         }
-        onLogin(match.role, match.domain);
+        onLogin(match.role, match.domain, match.landing);
       } else {
         setError('Incorrect username or password.');
         setLoading(false);

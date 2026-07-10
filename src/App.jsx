@@ -96,7 +96,7 @@ export default function App() {
   const [authed,     setAuthed]     = useState(() => localStorage.getItem('kmc_auth') === 'true');
   const [role,       setRole]       = useState(() => localStorage.getItem('kmc_role') || 'user');
   const [ncrDomain,  setNcrDomain]  = useState(() => localStorage.getItem('kmc_ncr_domain') || null);
-  const [mode,   setMode]   = useState('home'); // 'home' | 'travelcard' | 'tracker'
+  const [mode,   setMode]   = useState(() => localStorage.getItem('kmc_landing') || 'home'); // 'home' | 'travelcard' | 'tracker' | 'scoreboard'
   const [view,   setView]   = useState('tracker');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [theme,  setTheme]  = useState(getInitialTheme);
@@ -207,14 +207,16 @@ export default function App() {
     localStorage.removeItem('kmc_auth');
     localStorage.removeItem('kmc_role');
     localStorage.removeItem('kmc_ncr_domain');
+    localStorage.removeItem('kmc_landing');
     setRole('user');
     setNcrDomain(null);
     setAuthed(false);
+    setMode('home');
   };
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  if (!authed) return <Login onLogin={(r, d) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode('home'); }} theme={theme} toggleTheme={toggleTheme} />;
+  if (!authed) return <Login onLogin={(r, d, landing) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode(landing || 'home'); }} theme={theme} toggleTheme={toggleTheme} />;
 
   if (mode === 'home') return (
     <HomeScreen
