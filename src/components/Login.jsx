@@ -10,7 +10,7 @@ const CREDENTIALS = [
   { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },
   { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality', landing: null },
   { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production', landing: null },
-  { username: 'kmc.scoreboard', password: 'Board1234!', role: 'user', domain: null, landing: 'scoreboard' },
+  { username: 'dpn.kmc', password: 'dpn1234!', role: 'user', domain: null, landing: 'scoreboard' },
 ];
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {

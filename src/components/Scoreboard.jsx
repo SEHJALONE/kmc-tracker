@@ -151,31 +151,33 @@ function Donut({ pct, color, size = 58 }) {
   );
 }
 
+// Red accent banner — used for section dividers and panel titles alike, so
+// the page reads as a wall of clearly-bordered sections like the original.
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 10.5, fontWeight: 800, color: C.grey, textTransform: 'uppercase',
-      letterSpacing: '0.08em', borderBottom: `1px solid ${C.border}`,
-      padding: '0 0 5px', margin: '2px 0 2px',
+      background: C.red, color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'center',
+      textTransform: 'uppercase', letterSpacing: '0.07em', padding: '7px 10px', borderRadius: 5,
     }}>{children}</div>
   );
 }
 
-// The reusable KPI tile — value first, target/status secondary. Left accent
+// The reusable KPI tile — value first, target/status secondary. Top accent
 // bar carries the status colour so a grid of these reads like a real scorecard
-// wall rather than a form.
+// wall rather than a form. Title is white + centred to match the red banners.
 function ScoreCard({ label, value, sub, status, valueColor }) {
   const accent = status === 'ON TRACK' ? C.green : status === 'BEHIND' ? C.red : status === 'AT RISK' ? C.amber : C.border;
   return (
     <div style={{
-      background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${accent}`,
-      borderRadius: 7, padding: '9px 11px', display: 'flex', flexDirection: 'column', gap: 3,
-      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', minHeight: 66,
+      background: C.panel, border: `1px solid ${C.border}`, borderTop: `4px solid ${accent}`,
+      borderRadius: 7, padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 4,
+      alignItems: 'center', textAlign: 'center',
+      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', minHeight: 72,
     }}>
-      <div style={{ fontSize: 8.5, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: 9, color: '#fff', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 14 }}>
-        {sub ? <span style={{ fontSize: 8.5, color: C.grey }}>{sub}</span> : <span />}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 14 }}>
+        {sub && <span style={{ fontSize: 8.5, color: C.grey }}>{sub}</span>}
         <Pill status={status} />
       </div>
     </div>
@@ -196,8 +198,8 @@ function Panel({ title, children, style }) {
       boxShadow: '0 2px 6px rgba(0,0,0,0.3)', ...style,
     }}>
       <div style={{
-        fontSize: 10, fontWeight: 800, color: C.grey, textTransform: 'uppercase',
-        letterSpacing: '0.06em', padding: '8px 11px 6px', borderBottom: `1px solid ${C.border}`,
+        background: C.red, color: '#fff', fontSize: 10.5, fontWeight: 800, textAlign: 'center',
+        textTransform: 'uppercase', letterSpacing: '0.05em', padding: '7px 11px',
       }}>{title}</div>
       <div style={{ padding: '8px 10px', flex: 1 }}>{children}</div>
     </div>
@@ -273,13 +275,36 @@ function DowntimeTable({ kv }) {
   );
 }
 
+// Shared vertical-axis gridlines + tick labels + rotated axis title, so every
+// custom SVG chart on the board reads its scale instead of just trend shape.
+function YAxis({ maxV, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v), ticks = 4 }) {
+  const step = maxV / ticks;
+  const yFor = v => h - padB - (v / maxV) * (h - padB - padT);
+  return (
+    <>
+      {Array.from({ length: ticks + 1 }).map((_, i) => {
+        const val = step * i, yy = yFor(val);
+        return (
+          <g key={i}>
+            <line x1={padL} y1={yy} x2={w - 12} y2={yy} stroke={C.border} strokeDasharray="2,3" />
+            <text x={padL - 6} y={yy + 3} fontSize="7.5" fill={C.grey} textAnchor="end">{fmt(val)}</text>
+          </g>
+        );
+      })}
+      <line x1={padL} y1={padT - 4} x2={padL} y2={h - padB} stroke={C.border} />
+      <text x={10} y={(h - padB + padT) / 2} fontSize="8" fill={C.grey} textAnchor="middle"
+        transform={`rotate(-90 10 ${(h - padB + padT) / 2})`}>{title}</text>
+    </>
+  );
+}
+
 function CumChart({ daily }) {
-  const w = 460, h = 160, pad = 26;
+  const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumPlan != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
   const maxV = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1) * 1.15;
-  const x = i => pad + i * ((w - pad * 2) / (pts.length - 1));
-  const y = v => h - pad - (v / maxV) * (h - pad * 1.6);
+  const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
+  const y = v => h - padB - (v / maxV) * (h - padB - padT);
   const path = (key) => pts.map((d, i) => (d[key] == null ? null : `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`)).filter(Boolean).join(' ');
   const actPts = pts.filter(d => d.cumAct != null);
   const gap = actPts.length ? (actPts[actPts.length - 1].cumPlan ?? 0) - (actPts[actPts.length - 1].cumAct ?? 0) : 0;
@@ -290,7 +315,7 @@ function CumChart({ daily }) {
         <span><span style={{ display: 'inline-block', width: 10, height: 3, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke={C.border} />
+        <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
         <path d={path('cumPlan')} fill="none" stroke={C.blue} strokeWidth="2" />
         <path d={path('cumAct')} fill="none" stroke={C.green} strokeWidth="2" />
         {pts.map((d, i) => (
@@ -307,7 +332,7 @@ function CumChart({ daily }) {
       </svg>
       {gap > 0 && (
         <div style={{
-          position: 'absolute', right: 6, top: '38%', background: C.panel,
+          position: 'absolute', right: 6, top: '30%', background: C.panel,
           border: `1px solid ${C.red}`, borderRadius: 4, padding: '4px 10px',
           textAlign: 'center', fontSize: 8.5, color: C.grey,
         }}>
@@ -318,25 +343,59 @@ function CumChart({ daily }) {
   );
 }
 
+// Non-cumulative daily planned-vs-actual bars — complements the cumulative
+// line chart above it by showing the day-to-day delta, not just the running gap.
+function DailyBarChart({ daily }) {
+  const pts = daily.filter(d => d.planned != null).slice(-10);
+  if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: '14px 0' }}>No daily data yet.</div>;
+  const w = 460, h = 150, padL = 30, padR = 10, padT = 10, padB = 22;
+  const maxV = Math.max(...pts.map(d => d.planned), ...pts.map(d => d.actual ?? 0), 1) * 1.2;
+  const bw = (w - padL - padR) / pts.length;
+  const yFor = v => h - padB - (v / maxV) * (h - padB - padT);
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned</span>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses / Day" ticks={3} />
+        {pts.map((d, i) => {
+          const x0 = padL + i * bw, pw = bw * 0.32;
+          return (
+            <g key={i}>
+              <rect x={x0 + bw * 0.1} y={yFor(d.planned)} width={pw} height={Math.max(0, yFor(0) - yFor(d.planned))} fill={C.blue} />
+              {d.actual != null && <rect x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, yFor(0) - yFor(d.actual))} fill={C.green} />}
+              <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">
+                {String(d.date).split(' ').slice(-2).join(' ')}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // Generic monthly trend line — used for FPY% and Downtime hours.
-function TrendChart({ points, color, fmt }) {
+function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   if (!points || points.length < 2) {
     return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
   }
-  const w = 460, h = 150, pad = 28;
+  const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const vals = points.map(p => p.value);
-  const maxV = Math.max(...vals, 0.0001) * 1.2;
-  const x = i => pad + i * ((w - pad * 2) / (points.length - 1));
-  const y = v => h - pad - (v / maxV) * (h - pad * 1.7);
+  const maxV = Math.max(...vals, 0.0001) * 1.25;
+  const x = i => padL + i * ((w - padL - padR) / (points.length - 1));
+  const y = v => h - padB - (v / maxV) * (h - padB - padT);
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke={C.border} />
+      <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
       <path d={path} fill="none" stroke={color} strokeWidth="2" />
       {points.map((p, i) => (
         <g key={i}>
           <circle cx={x(i)} cy={y(p.value)} r="3" fill={color} />
-          <text x={x(i)} y={h - 8} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+          <text x={x(i)} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
           <text x={x(i)} y={y(p.value) - 8} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
         </g>
       ))}
@@ -587,15 +646,15 @@ export default function Scoreboard() {
       }}>
         {/* header */}
         <div style={{ display: 'flex', alignItems: 'stretch', background: '#000', border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 100 }}>
-            <img src="/kmc logo 3.png" alt="KMC" style={{ height: 44, objectFit: 'contain' }} crossOrigin="anonymous" />
+          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260 }}>
+            <img src="/kmc logo 2.png" alt="KMC" style={{ height: 60, objectFit: 'contain' }} crossOrigin="anonymous" />
           </div>
           <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px' }}>
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              Department of Production — Scoreboard
+              Department of Production Scoreboard
             </div>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              {raw('Program / Project Name') || '45-BUS PRODUCTION PROJECT'} · IMS OBJECTIVES
+              {raw('Program / Project Name') || '45-BUS PRODUCTION PROJECT'}
             </div>
           </div>
           <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
@@ -657,10 +716,10 @@ export default function Scoreboard() {
         {/* Trends */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Panel title="First Pass Yield — by Month">
-            <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} />
+            <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
           </Panel>
           <Panel title="Downtime — by Month (hours)">
-            <TrendChart points={d.downtimeTrend} color={C.red} fmt={v => `${f1(v)}h`} />
+            <TrendChart points={d.downtimeTrend} color={C.red} fmt={v => `${f1(v)}h`} axisTitle="Hours" axisFmt={v => f1(v)} />
           </Panel>
         </div>
 
@@ -675,6 +734,12 @@ export default function Scoreboard() {
           </Panel>
           <Panel title="Planned vs Actual (Cumulative)">
             <CumChart daily={d.daily} />
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                Daily Output (Non-Cumulative)
+              </div>
+              <DailyBarChart daily={d.daily} />
+            </div>
           </Panel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Panel title="Production Cost">
