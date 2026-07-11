@@ -97,6 +97,10 @@ export default function App() {
   const [role,       setRole]       = useState(() => localStorage.getItem('kmc_role') || 'user');
   const [ncrDomain,  setNcrDomain]  = useState(() => localStorage.getItem('kmc_ncr_domain') || null);
   const [mode,   setMode]   = useState(() => localStorage.getItem('kmc_landing') || 'home'); // 'home' | 'travelcard' | 'tracker' | 'scoreboard'
+  // True only for dedicated single-module logins (e.g. dpn.kmc) that skip HomeScreen —
+  // distinct from `mode` because an admin/general user can also navigate into the
+  // scoreboard from HomeScreen and should keep their way back.
+  const [landingOnly, setLandingOnly] = useState(() => !!localStorage.getItem('kmc_landing'));
   const [view,   setView]   = useState('tracker');
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [theme,  setTheme]  = useState(getInitialTheme);
@@ -212,11 +216,12 @@ export default function App() {
     setNcrDomain(null);
     setAuthed(false);
     setMode('home');
+    setLandingOnly(false);
   };
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  if (!authed) return <Login onLogin={(r, d, landing) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode(landing || 'home'); }} theme={theme} toggleTheme={toggleTheme} />;
+  if (!authed) return <Login onLogin={(r, d, landing) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode(landing || 'home'); setLandingOnly(!!landing); }} theme={theme} toggleTheme={toggleTheme} />;
 
   if (mode === 'home') return (
     <HomeScreen
@@ -368,7 +373,11 @@ export default function App() {
   );
 
   if (mode === 'scoreboard') return (
-    <ScoreboardStandalone onHome={() => setMode('home')} />
+    <ScoreboardStandalone
+      onHome={() => setMode('home')}
+      onLogout={handleLogout}
+      hideHome={landingOnly}
+    />
   );
 
   return (
@@ -870,30 +879,37 @@ export default function App() {
 // ── Scoreboard Standalone page ────────────────────────────────────────────────
 // The scoreboard renders in its own fixed dark palette (wall-display / export
 // consistency), so the standalone wrapper only adds a minimal Home bar.
-function ScoreboardStandalone({ onHome }) {
+function ScoreboardStandalone({ onHome, onLogout, hideHome }) {
+  const barBtn = {
+    background: 'transparent', border: '1px solid #1c2330', color: '#8a93a3',
+    borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600,
+    letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+    fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 6,
+  };
   return (
     <div style={{ minHeight: '100vh', background: '#05070a' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12,
         padding: '10px 16px 0', maxWidth: 1584, margin: '0 auto',
       }}>
-        <button
-          onClick={onHome}
-          style={{
-            background: 'transparent', border: '1px solid #1c2330', color: '#8a93a3',
-            borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600,
-            letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
-            fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
-          </svg>
-          Home
-        </button>
+        {!hideHome && (
+          <button onClick={onHome} style={barBtn}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 5l-7 7 7 7"/>
+            </svg>
+            Home
+          </button>
+        )}
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#eef1f6', textTransform: 'uppercase' }}>
           DPN Scoreboard
         </span>
+        <div style={{ flex: 1 }} />
+        <button onClick={onLogout} style={{ ...barBtn, borderColor: '#7a1417' }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+          </svg>
+          Sign Out
+        </button>
       </div>
       <Scoreboard />
     </div>

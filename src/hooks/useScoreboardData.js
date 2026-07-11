@@ -30,13 +30,25 @@ function parseGrid(text) {
   return rows.map(r => r.map(c => c.trim()));
 }
 
-// "704,000" → 704000 · "35%" → 0.35 · "0.35" → 0.35 · "" → null
+// "704,000" → 704000 · "35%" → 0.35 · "0.35" → 0.35 · "(704,000)" → -704000 (accounting
+// negative format, used by the Cost/Variance number formats) · "" → null
 export function toNum(v) {
   if (v == null || v === '' || v === '—' || v === '-') return null;
-  const pct = /%\s*$/.test(v);
-  const n = parseFloat(String(v).replace(/[, ]/g, '').replace('%', ''));
+  const s = String(v).trim();
+  const negative = /^\(.*\)$/.test(s);
+  const pct = /%\s*$/.test(s);
+  const n = parseFloat(s.replace(/^\(|\)$/g, '').replace(/[, ]/g, '').replace('%', ''));
   if (Number.isNaN(n)) return null;
-  return pct ? n / 100 : n;
+  const signed = negative ? -Math.abs(n) : n;
+  return pct ? signed / 100 : signed;
+}
+
+// Google's gviz CSV export occasionally bleeds a merged title-bar cell's text
+// into the header row directly below it when the rows between are otherwise
+// blank (col A becomes "...Do not edit. Workshop" instead of just "Workshop").
+// Match on suffix, not equality, so header-row lookups survive that.
+function endsWithLabel(cell, expected) {
+  return !!cell && cell.trim().endsWith(expected);
 }
 
 // Calc + Targets are label/value tabs: col A = label, col B = period value, col C = YTD.
@@ -44,7 +56,7 @@ function kvFromGrid(grid) {
   const kv = {};
   for (const r of grid) {
     const label = r[0];
-    if (!label || label === 'Workshop') continue;
+    if (!label || endsWithLabel(label, 'Workshop')) continue;
     kv[label] = { raw: r[1] ?? '', num: toNum(r[1]), ytd: r[2] ?? '', ytdNum: toNum(r[2]) };
   }
   return kv;
@@ -52,7 +64,7 @@ function kvFromGrid(grid) {
 
 function workshopsFromCalc(grid) {
   const out = [];
-  const start = grid.findIndex(r => r[0] === 'Workshop');
+  const start = grid.findIndex(r => endsWithLabel(r[0], 'Workshop'));
   if (start === -1) return out;
   for (let i = start + 1; i < grid.length && out.length < 8; i++) {
     const r = grid[i];
@@ -74,7 +86,7 @@ function workshopsFromCalc(grid) {
 
 function dailyFromGrid(grid) {
   // Header row: Date | Planned | Actual | Cum. Plan | Cum. Act. | Gap
-  const hi = grid.findIndex(r => r[0] === 'Date');
+  const hi = grid.findIndex(r => endsWithLabel(r[0], 'Date'));
   if (hi === -1) return [];
   return grid.slice(hi + 1)
     .filter(r => r[0] && r[0] !== '')
@@ -90,7 +102,7 @@ function dailyFromGrid(grid) {
 
 // Register tabs: header row at sheet row 3, data from row 4
 function registerFromGrid(grid, headerFirstCell) {
-  const hi = grid.findIndex(r => r[0] === headerFirstCell);
+  const hi = grid.findIndex(r => endsWithLabel(r[0], headerFirstCell));
   if (hi === -1) return [];
   return grid.slice(hi + 1).filter(r => r.some((c, i) => i > 0 && c !== '') && (r[0] !== '' || r[1] !== ''));
 }
@@ -114,7 +126,7 @@ function monthLabel(d) { return `${MONTHS[d.getMonth()]} ${String(d.getFullYear(
 
 // Quality register: Date | Unit | Result (Pass/Rework) | Defects | Critical | Closed | Rework Hrs | Inspector | Notes
 function fpyTrendFromGrid(grid) {
-  const hi = grid.findIndex(r => r[0] === 'Date');
+  const hi = grid.findIndex(r => endsWithLabel(r[0], 'Date'));
   if (hi === -1) return [];
   const buckets = new Map(); // key -> { d, pass, total }
   for (const r of grid.slice(hi + 1)) {
@@ -134,7 +146,7 @@ function fpyTrendFromGrid(grid) {
 
 // Downtime register: Date | Workshop | Equipment | Reason Code | Downtime (min) | Description | Reported By
 function downtimeTrendFromGrid(grid) {
-  const hi = grid.findIndex(r => r[0] === 'Date');
+  const hi = grid.findIndex(r => endsWithLabel(r[0], 'Date'));
   if (hi === -1) return [];
   const buckets = new Map(); // key -> { d, minutes }
   for (const r of grid.slice(hi + 1)) {
