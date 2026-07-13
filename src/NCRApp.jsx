@@ -136,7 +136,7 @@ export default function NCRApp() {
             </span>
           ) : (
             <span style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.06em' }}>
-              {role === 'admin' ? 'ADMIN · ALL DOMAINS' : 'ALL DOMAINS'}
+              {(role === 'systemadmin' || role === 'useradmin') ? 'ADMIN · ALL DOMAINS' : 'ALL DOMAINS'}
             </span>
           )}
 

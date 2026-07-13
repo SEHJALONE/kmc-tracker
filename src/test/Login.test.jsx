@@ -41,13 +41,22 @@ describe('Login', () => {
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith('user'), { timeout: 2000 })
   })
 
-  it('calls onLogin with "admin" role for valid admin credentials', async () => {
+  it('calls onLogin with "useradmin" role for valid useradmin credentials', async () => {
     const onLogin = vi.fn()
     render(<Login {...defaultProps} onLogin={onLogin} />)
     fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'kmcadmin' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'KMC1234!' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('admin'), { timeout: 2000 })
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('useradmin'), { timeout: 2000 })
+  })
+
+  it('calls onLogin with "systemadmin" role for valid systemadmin credentials', async () => {
+    const onLogin = vi.fn()
+    render(<Login {...defaultProps} onLogin={onLogin} />)
+    fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'systemadmin' } })
+    fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'admin1234!' } })
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('systemadmin'), { timeout: 2000 })
   })
 
   it('login is case-insensitive for username', async () => {

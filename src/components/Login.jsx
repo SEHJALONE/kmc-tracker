@@ -4,7 +4,8 @@ import { useState } from 'react';
 // domain controls which NCR register tab the user lands on by default (admin sees all).
 // landing sends the user straight into a module on login, skipping the HomeScreen menu.
 const CREDENTIALS = [
-  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'admin', domain: null, landing: null },
+  { username: 'systemadmin', password: 'admin1234!', role: 'systemadmin', domain: null, landing: null },
+  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'useradmin', domain: null, landing: null },
   { username: 'kmc',         password: 'kmc1234!',   role: 'user',  domain: null, landing: null },
   { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials', landing: null },
   { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },

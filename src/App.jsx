@@ -14,9 +14,6 @@ import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
 import CatalogAdmin from './components/CatalogAdmin';
 import InfoModal from './components/InfoModal';
-import MOCRegister from './components/MOCRegister';
-import MOCModal from './components/MOCModal';
-import { useMOCData } from './hooks/useMOCData';
 import HandoverLog from './components/HandoverLog';
 import HandoverModal from './components/HandoverModal';
 import { useHandoverData } from './hooks/useHandoverData';
@@ -107,6 +104,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const { isMobile, isTablet } = useBreakpoint();
+
+  // systemadmin sees every feature (developed + in-development); useradmin
+  // keeps the same catalog-editing rights the old single "admin" role had,
+  // but only sees developed modules on the home screen for now.
+  const canEditCatalog = role === 'systemadmin' || role === 'useradmin';
 
   const [tcPrefill, setTcPrefill] = useState(null);
 
@@ -230,9 +232,9 @@ export default function App() {
       onLogout={handleLogout}
       onSelectTravelCard={() => setMode('travelcard')}
       onSelectTracker={() => setMode('tracker')}
-      onSelectMOC={() => setMode('moc')}
       onSelectHandover={() => setMode('handover')}
       onSelectScoreboard={() => setMode('scoreboard')}
+      role={role}
     />
   );
 
@@ -302,7 +304,7 @@ export default function App() {
         <img className="tc-logo" src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         <div className="tc-title">Travel Card</div>
         <div style={{ flex: 1 }} />
-        {role === 'admin' && (
+        {canEditCatalog && (
           <button className="tc-btn accent" onClick={() => setAdminOpen(true)}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15l-4.9 2.5L8 11.9 4 8l5.6-1.2z"/>
@@ -340,7 +342,7 @@ export default function App() {
           catalog={catalog}
         />
       </main>
-      {adminOpen && role === 'admin' && (
+      {adminOpen && canEditCatalog && (
         <CatalogAdmin
           catalog={catalog}
           saveCatalog={saveCatalog}
@@ -352,15 +354,6 @@ export default function App() {
       )}
       {infoOpen && <InfoModal mode="travelcard" onClose={() => setInfoOpen(false)} />}
     </div>
-  );
-
-  if (mode === 'moc') return (
-    <MOCStandalone
-      role={role}
-      theme={theme}
-      toggleTheme={toggleTheme}
-      onHome={() => setMode('home')}
-    />
   );
 
   if (mode === 'handover') return (
@@ -702,7 +695,7 @@ export default function App() {
             </div>
           ) : null}
 
-          {role === 'admin' && (
+          {canEditCatalog && (
             <button className="icon-btn" onClick={() => setAdminOpen(true)} style={{ borderColor: 'var(--accent-border)' }} title="Edit catalog">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M12 2l2.4 4.8L20 8l-4 3.9.9 5.6L12 15l-4.9 2.5L8 11.9 4 8l5.6-1.2z"/>
@@ -856,12 +849,11 @@ export default function App() {
             filters={filters}
             stationTimes={stationTimes}
             theme={theme}
-            onOpenMOC={() => setMode('moc')}
             onOpenHandover={() => setMode('handover')}
           />
         )}
       </main>
-      {adminOpen && role === 'admin' && (
+      {adminOpen && canEditCatalog && (
         <CatalogAdmin
           catalog={catalog}
           saveCatalog={saveCatalog}
@@ -989,85 +981,6 @@ function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
           role={role}
           onClose={() => { setModalOpen(false); setSelectedHandover(null); }}
           onSaved={() => { setModalOpen(false); setSelectedHandover(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── MOC Standalone page ───────────────────────────────────────────────────────
-function MOCStandalone({ role, theme, toggleTheme, onHome }) {
-  const { mocs, loading } = useMOCData();
-  const [modalOpen,   setModalOpen]   = useState(false);
-  const [selectedMoc, setSelectedMoc] = useState(null);
-
-  const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
-
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <style>{`
-        .moc-header {
-          border-bottom: 1px solid var(--header-border);
-          padding: 0 clamp(14px, 4vw, 32px);
-          display: flex; align-items: center; height: 64px;
-          position: sticky; top: 0;
-          background: var(--header-bg);
-          backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-          z-index: 100; gap: clamp(8px, 2vw, 16px);
-        }
-        .moc-btn {
-          background: transparent; border: 1px solid var(--border-subtle);
-          color: var(--text-muted); border-radius: 6px;
-          padding: 6px 12px; font-size: 11px; font-weight: 600;
-          letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
-          font-family: 'Inter', system-ui, sans-serif;
-          display: flex; align-items: center; gap: 6px;
-          white-space: nowrap; flex-shrink: 0; transition: all 0.15s;
-        }
-        .moc-btn:hover { border-color: var(--accent-border); color: var(--accent); }
-        .moc-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
-        .moc-btn.accent:hover { opacity: 0.88; }
-        .moc-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
-        @media (max-width: 560px) {
-          .moc-title { display: none; }
-          .moc-btn { padding: 6px 9px; }
-          .moc-btn .moc-label { display: none; }
-        }
-      `}</style>
-
-      <header className="moc-header">
-        <button className="moc-btn" onClick={onHome}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-          <span className="moc-label">Home</span>
-        </button>
-        <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
-        <div className="moc-title">MOC Register</div>
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC.OCEO.02/26.FM001</span>
-        <button className="moc-btn accent" onClick={() => { setSelectedMoc(null); setModalOpen(true); }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span className="moc-label">New MOC</span>
-        </button>
-        <button className="moc-btn" onClick={toggleTheme}>
-          <span className="moc-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
-        </button>
-      </header>
-
-      <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
-        <MOCRegister
-          mocs={mocs}
-          loading={loading}
-          onOpen={(moc) => { setSelectedMoc(moc); setModalOpen(true); }}
-        />
-      </main>
-
-      {modalOpen && (
-        <MOCModal
-          mode={selectedMoc ? 'view' : 'new'}
-          moc={selectedMoc}
-          role={role}
-          onClose={() => { setModalOpen(false); setSelectedMoc(null); }}
-          onSaved={() => { setModalOpen(false); setSelectedMoc(null); }}
         />
       )}
     </div>

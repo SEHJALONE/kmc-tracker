@@ -84,7 +84,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
   };
 
   const { ncrs, summary, loading, error, refresh } = useNCRData();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'systemadmin' || role === 'useradmin';
 
   const [activeDomain,   setActiveDomain]   = useState(ncrDomain || (isAdmin ? 'ALL' : null));
   const [typeFilter,     setTypeFilter]     = useState('ALL');

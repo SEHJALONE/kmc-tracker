@@ -905,7 +905,7 @@ function AddRow({ placeholder, onAdd }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
-  const isAdmin = role === "admin";
+  const isAdmin = role === "systemadmin" || role === "useradmin";
   // Recompute theme tokens on every render so styles react to theme changes
   T = makeTheme(theme === 'dark');
   INP_BG  = T.inpBg;

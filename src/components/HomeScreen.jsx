@@ -1,5 +1,6 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectMOC, onSelectHandover, onSelectScoreboard, onLogout, theme, toggleTheme }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onLogout, theme, toggleTheme, role }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
+  const isSystemAdmin = role === 'systemadmin';
 
   function SunIcon() {
     return (
@@ -181,6 +182,44 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             max-width: 360px;
           }
         }
+        .home-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 20px;
+          width: 100%;
+        }
+        .home-section-heading {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .home-section-heading::before,
+        .home-section-heading::after {
+          content: '';
+          height: 1px;
+          width: 40px;
+          background: var(--border-subtle);
+        }
+        .home-card-badge {
+          position: absolute;
+          top: 14px; right: 14px;
+          background: rgba(0,0,0,0.55);
+          border: 1px solid rgba(255,255,255,0.25);
+          color: #fff;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          padding: 4px 9px;
+          border-radius: 20px;
+          z-index: 3;
+        }
       `}</style>
 
       <div className="home-top-controls">
@@ -224,54 +263,68 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
         </div>
       </div>
 
-      {/* Two large buttons */}
-      <div className="home-cards-row">
+      {/* Developed — visible to everyone */}
+      <div className="home-section">
+        <div className="home-cards-row">
 
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background.png'), linear-gradient(135deg, #d6177a 0%, #6b1fb0 100%)" }}
-          onClick={onSelectTravelCard}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">Travel Card</div>
-            <div className="home-card-sub">Submit bus travel entries</div>
-          </div>
-        </button>
+          <button
+            className="home-card-btn"
+            style={{ backgroundImage: "url('/Bus background.png'), linear-gradient(135deg, #d6177a 0%, #6b1fb0 100%)" }}
+            onClick={onSelectTravelCard}
+          >
+            <div className="home-card-overlay">
+              <div className="home-card-title">Travel Card</div>
+              <div className="home-card-sub">Submit bus travel entries</div>
+            </div>
+          </button>
 
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #6b1fb0 0%, #d6177a 100%)" }}
-          onClick={onSelectTracker}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">Bus Tracker</div>
-            <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
-          </div>
-        </button>
+          <button
+            className="home-card-btn"
+            style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #6b1fb0 0%, #d6177a 100%)" }}
+            onClick={onSelectTracker}
+          >
+            <div className="home-card-overlay">
+              <div className="home-card-title">Bus Tracker</div>
+              <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
+            </div>
+          </button>
 
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #0f766e 0%, #1e40af 100%)" }}
-          onClick={onSelectMOC}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">MOC Register</div>
-            <div className="home-card-sub">Management of change · FM001</div>
-          </div>
-        </button>
-
-        <button
-          className="home-card-btn"
-          style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #7a1417 0%, #101623 100%)" }}
-          onClick={onSelectScoreboard}
-        >
-          <div className="home-card-overlay">
-            <div className="home-card-title">DPN Scoreboard</div>
-            <div className="home-card-sub">IMS objectives · Live production KPIs</div>
-          </div>
-        </button>
-
+        </div>
       </div>
+
+      {/* In Development — system admin only, expands to useradmin as each ships */}
+      {isSystemAdmin && (
+        <div className="home-section">
+          <div className="home-section-heading">In Development · System Admin</div>
+          <div className="home-cards-row">
+
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #7a1417 0%, #101623 100%)" }}
+              onClick={onSelectScoreboard}
+            >
+              <span className="home-card-badge">In Dev</span>
+              <div className="home-card-overlay">
+                <div className="home-card-title">DPN Scoreboard</div>
+                <div className="home-card-sub">IMS objectives · Live production KPIs</div>
+              </div>
+            </button>
+
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: "url('/Bus background 4.png'), linear-gradient(135deg, #b8860b 0%, #101623 100%)" }}
+              onClick={onSelectHandover}
+            >
+              <span className="home-card-badge">In Dev</span>
+              <div className="home-card-overlay">
+                <div className="home-card-title">Shift Handover</div>
+                <div className="home-card-sub">Log · Acknowledge · Safety &amp; quality flags</div>
+              </div>
+            </button>
+
+          </div>
+        </div>
+      )}
 
       <div style={{
         fontSize: 10,

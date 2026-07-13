@@ -172,7 +172,7 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
 
   const isSafety  = ncrType === 'Safety';
   const isVehicle = VEHICLE_TYPES.has(ncrType);
-  const isAdmin   = role === 'admin';
+  const isAdmin   = role === 'systemadmin' || role === 'useradmin';
   const isView    = mode === 'view';
 
   function defaultDue() {
