@@ -35,3 +35,8 @@ dist-ssr
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# CAD pipeline (generated output + FreeCAD's Python cache)
+cad-pipeline/output/*
+!cad-pipeline/output/.gitkeep
+cad-pipeline/__pycache__/
