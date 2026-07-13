@@ -322,13 +322,38 @@ function DowntimeTable({ kv }) {
 
 // Shared vertical-axis gridlines + tick labels + rotated axis title, so every
 // custom SVG chart on the board reads its scale instead of just trend shape.
-function YAxis({ maxV, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v), ticks = 4 }) {
+// Rounds a step up to a "nice" 1/2/5 × 10^n value so axis ticks land on
+// clean numbers instead of arbitrary fractions.
+function niceStep(rough) {
+  if (!(rough > 0)) return 1;
+  const exp = Math.floor(Math.log10(rough));
+  const base = Math.pow(10, exp);
+  const frac = rough / base;
+  const niceFrac = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
+  return niceFrac * base;
+}
+
+// Computes a clean axis ceiling + step so ticks never round to duplicate
+// labels — e.g. a 0-1 data range split into fixed fractional ticks used to
+// round to "1, 1, 0, 0". integer=true rounds the step up to whole numbers,
+// for count-based charts (buses, vehicles); false allows decimal steps
+// (percentages, hours). Also the single source of scale for both the axis
+// and the chart's own data points, so gridlines and marks always agree.
+function niceAxis(dataMax, targetTicks = 4, integer = false) {
+  const bumped = Math.max(dataMax, integer ? 1 : 0.0001) * 1.06;
+  let step = niceStep(bumped / targetTicks);
+  if (integer) step = Math.max(1, Math.round(step));
+  const niceMax = Math.ceil(bumped / step) * step;
+  const tickCount = Math.max(1, Math.round(niceMax / step));
+  return { niceMax, step, tickCount };
+}
+
+function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v) }) {
   const C = useC();
-  const step = maxV / ticks;
-  const yFor = v => h - padB - (v / maxV) * (h - padB - padT);
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
   return (
     <>
-      {Array.from({ length: ticks + 1 }).map((_, i) => {
+      {Array.from({ length: tickCount + 1 }).map((_, i) => {
         const val = step * i, yy = yFor(val);
         return (
           <g key={i}>
@@ -349,9 +374,10 @@ function CumChart({ daily }) {
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumPlan != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
-  const maxV = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1) * 1.15;
+  const dataMax = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
   const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
-  const y = v => h - padB - (v / maxV) * (h - padB - padT);
+  const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = (key) => pts.map((d, i) => (d[key] == null ? null : `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`)).filter(Boolean).join(' ');
   const actPts = pts.filter(d => d.cumAct != null);
   const gap = actPts.length ? (actPts[actPts.length - 1].cumPlan ?? 0) - (actPts[actPts.length - 1].cumAct ?? 0) : 0;
@@ -362,7 +388,7 @@ function CumChart({ daily }) {
         <span><span style={{ display: 'inline-block', width: 10, height: 3, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-        <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
+        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
         <path d={path('cumPlan')} fill="none" stroke={C.blue} strokeWidth="2" />
         <path d={path('cumAct')} fill="none" stroke={C.green} strokeWidth="2" />
         {pts.map((d, i) => (
@@ -397,9 +423,10 @@ function DailyBarChart({ daily }) {
   const pts = daily.filter(d => d.planned != null).slice(-10);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: '14px 0' }}>No daily data yet.</div>;
   const w = 460, h = 150, padL = 30, padR = 10, padT = 10, padB = 22;
-  const maxV = Math.max(...pts.map(d => d.planned), ...pts.map(d => d.actual ?? 0), 1) * 1.2;
+  const dataMax = Math.max(...pts.map(d => d.planned), ...pts.map(d => d.actual ?? 0), 1);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 3, true);
   const bw = (w - padL - padR) / pts.length;
-  const yFor = v => h - padB - (v / maxV) * (h - padB - padT);
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
   return (
     <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
@@ -407,7 +434,7 @@ function DailyBarChart({ daily }) {
         <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-        <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses / Day" ticks={3} />
+        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses / Day" />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
           return (
@@ -433,13 +460,14 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   }
   const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const vals = points.map(p => p.value);
-  const maxV = Math.max(...vals, 0.0001) * 1.25;
+  const dataMax = Math.max(...vals, 0.0001);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 4, false);
   const x = i => padL + i * ((w - padL - padR) / (points.length - 1));
-  const y = v => h - padB - (v / maxV) * (h - padB - padT);
+  const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-      <YAxis maxV={maxV} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
+      <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
       <path d={path} fill="none" stroke={color} strokeWidth="2" />
       {points.map((p, i) => (
         <g key={i}>
