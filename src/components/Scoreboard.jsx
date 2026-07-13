@@ -1,15 +1,53 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData } from '../hooks/useScoreboardData';
 
-// ── Fixed scoreboard palette (independent of app theme so exports are consistent) ──
-const C = {
-  bg: '#05070a', panel: '#0d1117', border: '#1c2330', red: '#e0292b',
-  navy: '#101623', green: '#2ecc71', amber: '#f2a900', blue: '#3498db',
-  grey: '#8a93a3', text: '#eef1f6', rowAlt: '#0a0f16',
+// ── Theme-aware palettes ──────────────────────────────────────────────────
+// Scoreboard keeps its own theme state (separate from the rest of the app —
+// this is a standalone wall-display/export module) but follows the same
+// toggle pattern as App.jsx: persisted choice, defaulting to dark.
+const PALETTES = {
+  dark: {
+    bg: '#05070a', panel: '#0d1117', border: '#1c2330', red: '#e0292b',
+    navy: '#101623', green: '#2ecc71', amber: '#f2a900', blue: '#3498db',
+    grey: '#8a93a3', text: '#eef1f6', rowAlt: '#0a0f16',
+    header: '#000000', track: '#1c2330', rowBorder: '#131a24',
+    overlay: 'linear-gradient(rgba(5,7,10,0.90), rgba(5,7,10,0.96))',
+    shadow: '0 2px 6px rgba(0,0,0,0.3)', shadowLg: '0 20px 60px rgba(0,0,0,0.5)',
+  },
+  light: {
+    bg: '#eef0f3', panel: '#ffffff', border: '#d8dce2', red: '#c81e20',
+    navy: '#eef1f5', green: '#1e8449', amber: '#b8790a', blue: '#2563a8',
+    grey: '#5c6572', text: '#12161c', rowAlt: '#f6f7f9',
+    header: '#14181f', track: '#dfe3e8', rowBorder: '#e6e9ee',
+    overlay: 'linear-gradient(rgba(238,240,243,0.90), rgba(238,240,243,0.96))',
+    shadow: '0 2px 6px rgba(0,0,0,0.08)', shadowLg: '0 16px 40px rgba(0,0,0,0.12)',
+  },
 };
+
+const ThemeCtx = createContext(PALETTES.dark);
+const useC = () => useContext(ThemeCtx);
+
+function SunIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+    </svg>
+  );
+}
 
 // Workshops actually shown as line-status scorecards — Machine Shop, Frame & Body
 // Parts Making and Quality Inspection & Testing are excluded per request (they sit
@@ -119,6 +157,7 @@ function statusOf(actual, target, dir) {
 }
 
 function Pill({ status }) {
+  const C = useC();
   if (!status) return <span style={{ color: C.grey, fontSize: 9 }}>—</span>;
   const bg = status === 'ON TRACK' ? C.green : status === 'AT RISK' ? C.amber : C.red;
   const fg = status === 'ON TRACK' || status === 'AT RISK' ? '#04210f' : '#fff';
@@ -133,13 +172,14 @@ function Pill({ status }) {
 // SVG-only donut (CSS conic-gradient is silently blank in html2canvas exports —
 // this renders as plain circles/text so PNG/PDF capture keeps the ring).
 function Donut({ pct, color, size = 58 }) {
+  const C = useC();
   const p = Math.max(0, Math.min(100, Math.round((pct || 0) * 100)));
   const r = (size - 12) / 2, cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * r;
   const dash = (p / 100) * circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c2330" strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.track} strokeWidth="7" />
       <circle
         cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="7"
         strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
@@ -154,6 +194,7 @@ function Donut({ pct, color, size = 58 }) {
 // Red accent banner — used for section dividers and panel titles alike, so
 // the page reads as a wall of clearly-bordered sections like the original.
 function SectionLabel({ children }) {
+  const C = useC();
   return (
     <div style={{
       background: C.red, color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'center',
@@ -166,15 +207,16 @@ function SectionLabel({ children }) {
 // bar carries the status colour so a grid of these reads like a real scorecard
 // wall rather than a form. Title is white + centred to match the red banners.
 function ScoreCard({ label, value, sub, status, valueColor }) {
+  const C = useC();
   const accent = status === 'ON TRACK' ? C.green : status === 'BEHIND' ? C.red : status === 'AT RISK' ? C.amber : C.border;
   return (
     <div style={{
       background: C.panel, border: `1px solid ${C.border}`, borderTop: `4px solid ${accent}`,
       borderRadius: 7, padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 4,
       alignItems: 'center', textAlign: 'center',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', minHeight: 72,
+      boxShadow: C.shadow, minHeight: 72,
     }}>
-      <div style={{ fontSize: 9, color: '#fff', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: 9, color: C.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 14 }}>
         {sub && <span style={{ fontSize: 8.5, color: C.grey }}>{sub}</span>}
@@ -191,11 +233,12 @@ function CardGrid({ cols = 4, children }) {
 }
 
 function Panel({ title, children, style }) {
+  const C = useC();
   return (
     <div style={{
       background: C.panel, border: `1px solid ${C.border}`, borderRadius: 7,
       overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.3)', ...style,
+      boxShadow: C.shadow, ...style,
     }}>
       <div style={{
         background: C.red, color: '#fff', fontSize: 10.5, fontWeight: 800, textAlign: 'center',
@@ -207,6 +250,7 @@ function Panel({ title, children, style }) {
 }
 
 function MiniTable({ headers, rows, empty }) {
+  const C = useC();
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
       <thead>
@@ -225,7 +269,7 @@ function MiniTable({ headers, rows, empty }) {
         ) : rows.map((r, i) => (
           <tr key={i} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
             {r.map((c, j) => (
-              <td key={j} style={{ padding: '4px 5px', color: j === 0 ? C.text : C.grey, borderBottom: '1px solid #131a24' }}>{c}</td>
+              <td key={j} style={{ padding: '4px 5px', color: j === 0 ? C.text : C.grey, borderBottom: `1px solid ${C.rowBorder}` }}>{c}</td>
             ))}
           </tr>
         ))}
@@ -237,6 +281,7 @@ function MiniTable({ headers, rows, empty }) {
 // Same header row pattern used by the original downtime table (section 7):
 // total available / planned / unplanned, one row per M-code, then total lost.
 function DowntimeTable({ kv }) {
+  const C = useC();
   const num = (key) => kv[key]?.num ?? null;
   const avail = num('Available Hours') || 0;
   const rows = [
@@ -260,15 +305,15 @@ function DowntimeTable({ kv }) {
       <tbody>
         {rows.map((r, i) => (
           <tr key={i} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
-            <td style={{ padding: '4px 5px', color: C.text, borderBottom: '1px solid #131a24' }}>{r[0]}</td>
-            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: '1px solid #131a24' }}>{r[1]}</td>
-            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: '1px solid #131a24' }}>{r[2]}</td>
+            <td style={{ padding: '4px 5px', color: C.text, borderBottom: `1px solid ${C.rowBorder}` }}>{r[0]}</td>
+            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: `1px solid ${C.rowBorder}` }}>{r[1]}</td>
+            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: `1px solid ${C.rowBorder}` }}>{r[2]}</td>
           </tr>
         ))}
         <tr style={{ background: C.navy, fontWeight: 800 }}>
-          <td style={{ padding: '5px', color: '#fff' }}>Total Production Hours Lost</td>
-          <td style={{ padding: '5px', color: '#fff', textAlign: 'center' }}>{f1(num('Total Hours Lost'))}</td>
-          <td style={{ padding: '5px', color: '#fff', textAlign: 'center' }}>{fpct1(num('Downtime % of Available'))}</td>
+          <td style={{ padding: '5px', color: C.text }}>Total Production Hours Lost</td>
+          <td style={{ padding: '5px', color: C.text, textAlign: 'center' }}>{f1(num('Total Hours Lost'))}</td>
+          <td style={{ padding: '5px', color: C.text, textAlign: 'center' }}>{fpct1(num('Downtime % of Available'))}</td>
         </tr>
       </tbody>
     </table>
@@ -278,6 +323,7 @@ function DowntimeTable({ kv }) {
 // Shared vertical-axis gridlines + tick labels + rotated axis title, so every
 // custom SVG chart on the board reads its scale instead of just trend shape.
 function YAxis({ maxV, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v), ticks = 4 }) {
+  const C = useC();
   const step = maxV / ticks;
   const yFor = v => h - padB - (v / maxV) * (h - padB - padT);
   return (
@@ -299,6 +345,7 @@ function YAxis({ maxV, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v)
 }
 
 function CumChart({ daily }) {
+  const C = useC();
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumPlan != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
@@ -346,6 +393,7 @@ function CumChart({ daily }) {
 // Non-cumulative daily planned-vs-actual bars — complements the cumulative
 // line chart above it by showing the day-to-day delta, not just the running gap.
 function DailyBarChart({ daily }) {
+  const C = useC();
   const pts = daily.filter(d => d.planned != null).slice(-10);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: '14px 0' }}>No daily data yet.</div>;
   const w = 460, h = 150, padL = 30, padR = 10, padT = 10, padB = 22;
@@ -379,6 +427,7 @@ function DailyBarChart({ daily }) {
 
 // Generic monthly trend line — used for FPY% and Downtime hours.
 function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
+  const C = useC();
   if (!points || points.length < 2) {
     return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
   }
@@ -405,6 +454,7 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
 
 // ── Email modal (posts to server.js /api/send-report) ───────────
 function ScoreboardEmailModal({ onClose, capturePages }) {
+  const C = useC();
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('KMC DPN Scoreboard');
   const [schedule, setSchedule] = useState('now');
@@ -498,15 +548,47 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
   );
 }
 
+// ── Header (shared by all pages) ─────────────────────────────────
+function BoardHeader({ raw }) {
+  const C = useC();
+  return (
+    <div style={{ display: 'flex', alignItems: 'stretch', background: C.header, border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260 }}>
+        <img src="/kmc logo 2.png" alt="KMC" style={{ height: 60, objectFit: 'contain' }} crossOrigin="anonymous" />
+      </div>
+      <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff' }}>
+          Department of Production Scoreboard
+        </div>
+      </div>
+      <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, color: '#fff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DQHSE12/25-REG003</b></div>
+      </div>
+    </div>
+  );
+}
+
+function Page({ innerRef, children }) {
+  const C = useC();
+  return (
+    <div ref={innerRef} style={{
+      width: PAGE_WIDTH, margin: '10px auto 0', display: 'flex', flexDirection: 'column', gap: 9, padding: 12,
+      background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: C.shadowLg,
+    }}>{children}</div>
+  );
+}
+
 // ── Main component ──────────────────────────────────────────────
 const PAGE_WIDTH = 1320;
 
-export default function Scoreboard() {
+function ScoreboardInner() {
+  const C = useC();
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const page1Ref = useRef(null);
-  const page2Ref = useRef(null);
+  const pageRefs = [useRef(null), useRef(null), useRef(null)];
 
   const live = !!data;
   const d = data || SAMPLE;
@@ -515,15 +597,17 @@ export default function Scoreboard() {
   const num = (key) => g(key).num ?? null;
   const raw = (key) => g(key).raw ?? '';
 
-  async function capturePages() {
+  const capturePages = useCallback(async () => {
     const opts = { backgroundColor: C.bg, scale: 2, useCORS: true, logging: false };
-    const c1 = await html2canvas(page1Ref.current, opts);
-    const c2 = await html2canvas(page2Ref.current, opts);
-    return [c1, c2];
-  }
+    const canvases = [];
+    for (const ref of pageRefs) {
+      if (ref.current) canvases.push(await html2canvas(ref.current, opts));
+    }
+    return canvases;
+  }, [C.bg]);
 
-  // One stacked PNG (both pages, one file) — separate downloads were easy to
-  // lose track of / get blocked as pop-ups, so page 2 is now just a scroll away.
+  // One stacked PNG (all pages, one file) — separate downloads were easy to
+  // lose track of / get blocked as pop-ups, so later pages are just a scroll away.
   async function exportPNG() {
     setExporting(true);
     try {
@@ -622,47 +706,19 @@ export default function Scoreboard() {
     <div style={{
       minHeight: '100vh', padding: '12px 12px 40px', fontFamily: "'Inter', Arial, sans-serif", color: C.text,
       backgroundColor: C.bg,
-      backgroundImage: `linear-gradient(rgba(5,7,10,0.90), rgba(5,7,10,0.96)), url('/Bus background 3.png')`,
+      backgroundImage: `${C.overlay}, url('/Bus background 3.png')`,
       backgroundSize: 'cover', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
     }}>
       {/* toolbar (not captured in exports) */}
-      <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, color: C.grey }}>
-          {live
-            ? `Live · updated ${lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : `Showing sample data${error ? ` — ${error}` : ''}`}
-        </span>
-        <div style={{ flex: 1 }} />
-        <button style={btn} onClick={refresh} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
-        <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
-        <button style={btn} onClick={exportPDF} disabled={exporting}>Export PDF</button>
-        <button style={{ ...btn, borderColor: C.red, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
-      </div>
+      <ScoreboardToolbar
+        live={live} loading={loading} error={error} lastUpdated={lastUpdated}
+        refresh={refresh} exportPNG={exportPNG} exportPDF={exportPDF}
+        exporting={exporting} setEmailOpen={setEmailOpen} btn={btn}
+      />
 
-      {/* ═══════════ PAGE 1 ═══════════ */}
-      <div ref={page1Ref} style={{
-        width: PAGE_WIDTH, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 9, padding: 12,
-        background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-      }}>
-        {/* header */}
-        <div style={{ display: 'flex', alignItems: 'stretch', background: '#000', border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260 }}>
-            <img src="/kmc logo 2.png" alt="KMC" style={{ height: 60, objectFit: 'contain' }} crossOrigin="anonymous" />
-          </div>
-          <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              Department of Production Scoreboard
-            </div>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: C.red, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              {raw('Program / Project Name') || '45-BUS PRODUCTION PROJECT'}
-            </div>
-          </div>
-          <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DQHSE12/25-REG003</b></div>
-          </div>
-        </div>
+      {/* ═══════════ PAGE 1 — Overview ═══════════ */}
+      <Page innerRef={pageRefs[0]}>
+        <BoardHeader raw={raw} />
 
         {/* Overall Progress — first, and exempt from any period slicing */}
         <SectionLabel>Overall Progress</SectionLabel>
@@ -670,7 +726,7 @@ export default function Scoreboard() {
           {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
         <div>
-          <div style={{ background: '#1c2330', borderRadius: 7, height: 18, overflow: 'hidden' }}>
+          <div style={{ background: C.track, borderRadius: 7, height: 18, overflow: 'hidden' }}>
             <div style={{
               width: `${Math.round(achievement * 100)}%`, height: '100%',
               background: `linear-gradient(90deg, #1e8449, ${C.green})`,
@@ -689,7 +745,7 @@ export default function Scoreboard() {
           {lineWorkshops.map(w => (
             <div key={w.name} style={{
               background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${wsColor(w.status)}`,
-              borderRadius: 8, padding: 8, textAlign: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              borderRadius: 8, padding: 8, textAlign: 'center', boxShadow: C.shadow,
             }}>
               <div style={{ height: 52, borderRadius: 5, overflow: 'hidden', marginBottom: 6, background: C.navy }}>
                 {WORKSHOP_IMG[w.name] && (
@@ -712,8 +768,10 @@ export default function Scoreboard() {
         <CardGrid cols={4}>
           {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
+      </Page>
 
-        {/* Trends */}
+      {/* ═══════════ PAGE 2 — Performance ═══════════ */}
+      <Page innerRef={pageRefs[1]}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Panel title="First Pass Yield — by Month">
             <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
@@ -723,8 +781,7 @@ export default function Scoreboard() {
           </Panel>
         </div>
 
-        {/* Daily output / cumulative chart / cost / schedule */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.4fr 0.9fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr', gap: 8 }}>
           <Panel title="Daily Production Output">
             <MiniTable
               headers={['Date', 'Plan', 'Act', 'Cum P', 'Cum A']}
@@ -741,48 +798,44 @@ export default function Scoreboard() {
               <DailyBarChart daily={d.daily} />
             </div>
           </Panel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Panel title="Production Cost">
-              <CardGrid cols={2}>{costCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-            </Panel>
-            <Panel title="Schedule">
-              <CardGrid cols={2}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-            </Panel>
-          </div>
         </div>
-      </div>
+      </Page>
 
-      {/* ═══════════ PAGE 2 ═══════════ */}
-      <div ref={page2Ref} style={{
-        width: PAGE_WIDTH, margin: '10px auto 0', display: 'flex', flexDirection: 'column', gap: 8, padding: 12,
-        background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-      }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
+      <Page innerRef={pageRefs[2]}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 8 }}>
           <Panel title="Production Downtime — Full Breakdown (Period)">
             <DowntimeTable kv={kv} />
           </Panel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Panel title="Safety">
-              <CardGrid cols={2}>
-                {[
-                  { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')), sub: 'Target 0', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
-                  { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')), sub: 'Target 0', status: statusOf(num('PPE Misuse Incidents'), 0, 'lte') },
-                  { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')), sub: null, status: null },
-                  { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')), sub: 'Target 100%', status: statusOf(num('Safety Inspection Compliance'), 0.95, 'gte') },
-                ].map(c => <ScoreCard key={c.label} {...c} />)}
-              </CardGrid>
-            </Panel>
-            <Panel title="Environment">
-              <CardGrid cols={2}>
-                {[
-                  { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')), sub: null, status: null },
-                  { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')), sub: null, status: null },
-                  { label: 'Paper (reams/mo)', value: fint(num('Paper Used (latest month, reams)')), sub: null, status: null },
-                  { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")), sub: null, status: null },
-                ].map(c => <ScoreCard key={c.label} {...c} />)}
-              </CardGrid>
-            </Panel>
-          </div>
+          <Panel title="Safety">
+            <CardGrid cols={2}>
+              {[
+                { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')), sub: 'Target 0', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
+                { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')), sub: 'Target 0', status: statusOf(num('PPE Misuse Incidents'), 0, 'lte') },
+                { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')), sub: null, status: null },
+                { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')), sub: 'Target 100%', status: statusOf(num('Safety Inspection Compliance'), 0.95, 'gte') },
+              ].map(c => <ScoreCard key={c.label} {...c} />)}
+            </CardGrid>
+          </Panel>
+          <Panel title="Environment">
+            <CardGrid cols={2}>
+              {[
+                { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')), sub: null, status: null },
+                { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')), sub: null, status: null },
+                { label: 'Paper (reams/mo)', value: fint(num('Paper Used (latest month, reams)')), sub: null, status: null },
+                { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")), sub: null, status: null },
+              ].map(c => <ScoreCard key={c.label} {...c} />)}
+            </CardGrid>
+          </Panel>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Production Cost">
+            <CardGrid cols={4}>{costCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
+          <Panel title="Schedule">
+            <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -833,7 +886,7 @@ export default function Scoreboard() {
             FOCUS · PLAN · EXECUTE · DELIVER
           </div>
         </div>
-      </div>
+      </Page>
 
       {/* Note: the reporting period (Start/End) and project name are set in the
           sheet's Targets tab and already drive every period-scoped figure here —
@@ -844,5 +897,49 @@ export default function Scoreboard() {
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
     </div>
+  );
+}
+
+function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, btn }) {
+  const C = useC();
+  const { theme, toggleTheme } = useContext(ThemeToggleCtx);
+  return (
+    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 10, color: C.grey }}>
+        {live
+          ? `Live · updated ${lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          : `Showing sample data${error ? ` — ${error}` : ''}`}
+      </span>
+      <div style={{ flex: 1 }} />
+      <button style={btn} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        <span style={{ marginLeft: 6 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+      </button>
+      <button style={btn} onClick={refresh} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
+      <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
+      <button style={btn} onClick={exportPDF} disabled={exporting}>Export PDF</button>
+      <button style={{ ...btn, borderColor: C.red, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
+    </div>
+  );
+}
+
+// ── Theme provider wrapper ────────────────────────────────────────
+const ThemeToggleCtx = createContext({ theme: 'dark', toggleTheme: () => {} });
+
+export default function Scoreboard() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('kmc_scoreboard_theme') || 'dark');
+
+  useEffect(() => {
+    localStorage.setItem('kmc_scoreboard_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => setTheme(t => (t === 'dark' ? 'light' : 'dark')), []);
+
+  return (
+    <ThemeToggleCtx.Provider value={{ theme, toggleTheme }}>
+      <ThemeCtx.Provider value={PALETTES[theme]}>
+        <ScoreboardInner />
+      </ThemeCtx.Provider>
+    </ThemeToggleCtx.Provider>
   );
 }
