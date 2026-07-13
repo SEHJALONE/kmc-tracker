@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { LINES, STATIONS, isMajorStation } from '../data/stations';
 import { useDowntimeData } from '../hooks/useOverrunData';
-import { useMOCData } from '../hooks/useMOCData';
-import { TIER_COLOR as MOC_TIER_COLOR } from './MOCModal';
 import { useHandoverData } from '../hooks/useHandoverData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
@@ -629,45 +627,6 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
   );
 }
 
-function MOCSummaryCard({ onOpenMOC }) {
-  const { summary, loading } = useMOCData();
-  const pendingCount = Array.isArray(summary.pending) ? summary.pending.length : 0;
-  const expiredCount = Array.isArray(summary.expired) ? summary.expired.length : 0;
-  const majorCount   = Array.isArray(summary.major)   ? summary.major.length   : 0;
-  const accentColor  = expiredCount > 0 ? '#dc2626' : pendingCount > 0 ? '#f59e0b' : '#10b981';
-
-  return (
-    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${expiredCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
-          MOC Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC.OCEO.02/26.FM001</span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
-          {[
-            { label: 'Pending',  value: loading ? '…' : pendingCount, color: pendingCount > 0 ? '#f59e0b' : 'var(--text-dim)' },
-            { label: 'Major',    value: loading ? '…' : majorCount,   color: MOC_TIER_COLOR.Major },
-            { label: 'Approved', value: loading ? '…' : (Array.isArray(summary.approved) ? summary.approved.length : 0), color: '#10b981' },
-            { label: 'Expired',  value: loading ? '…' : expiredCount, color: expiredCount > 0 ? '#dc2626' : 'var(--text-dim)' },
-            { label: 'Total',    value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
-          ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      {onOpenMOC && (
-        <div style={{ marginLeft: 'auto' }}>
-          <button onClick={onOpenMOC} style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
-            Open Register →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function HandoverSummaryCard({ onOpenHandover }) {
   const { summary, loading } = useHandoverData();
   const openCount    = Array.isArray(summary.open)        ? summary.open.length        : 0;
@@ -709,7 +668,7 @@ function HandoverSummaryCard({ onOpenHandover }) {
 }
 
 // ── Main Dashboard export ────────────────────────────────
-export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenMOC, onOpenHandover }) {
+export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenHandover }) {
   // Guard against undefined during initial render before sheet data loads
   const buses   = Array.isArray(busesProp)   ? busesProp   : [];
   const allRows = Array.isArray(allRowsProp) ? allRowsProp : [];
@@ -1013,11 +972,6 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                 accent={metrics.firstPassYield >= 90 ? '#10b981' : metrics.firstPassYield >= 75 ? '#f59e0b' : '#dc2626'}
               />
             )}
-          </div>
-
-          {/* IMS summary cards — MOC (NCR, Incident, Handover join as they ship) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
-            <MOCSummaryCard onOpenMOC={onOpenMOC} />
           </div>
 
           {/* Takt Time panel */}
