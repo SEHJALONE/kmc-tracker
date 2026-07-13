@@ -696,7 +696,7 @@ function ScoreboardInner() {
   const dailyRecent = d.daily.slice(-8);
 
   const btn = {
-    background: 'transparent', border: `1px solid ${C.border}`, color: C.grey,
+    background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey,
     borderRadius: 5, padding: '6px 12px', fontSize: 10, fontWeight: 700,
     letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
     fontFamily: 'inherit', whiteSpace: 'nowrap',
