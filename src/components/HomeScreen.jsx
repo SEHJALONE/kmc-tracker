@@ -1,6 +1,7 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onLogout, theme, toggleTheme, role }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onLogout, theme, toggleTheme, role }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
+  const isSupervisor  = role === 'supervisor';
 
   function SunIcon() {
     return (
@@ -291,6 +292,25 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
 
         </div>
       </div>
+
+      {/* Supervisor pending reviews */}
+      {(isSupervisor || isSystemAdmin) && onSelectPendingReviews && (
+        <div className="home-section">
+          <div className="home-section-heading">Supervisor</div>
+          <div className="home-cards-row">
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: "linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
+              onClick={onSelectPendingReviews}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">Pending Reviews</div>
+                <div className="home-card-sub">Review submitted travel cards</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* In Development — system admin only, expands to useradmin as each ships */}
       {isSystemAdmin && (

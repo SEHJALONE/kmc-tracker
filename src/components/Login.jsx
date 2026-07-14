@@ -6,7 +6,8 @@ import { useState } from 'react';
 const CREDENTIALS = [
   { username: 'systemadmin', password: 'admin1234!', role: 'systemadmin', domain: null, landing: null },
   { username: 'kmcadmin',    password: 'KMC1234!',   role: 'useradmin', domain: null, landing: null },
-  { username: 'kmc',         password: 'kmc1234!',   role: 'user',  domain: null, landing: null },
+  { username: 'kmc',         password: 'kmc1234!',   role: 'user',       domain: null, landing: null },
+  { username: 'kmc.super',  password: 'Super1234!', role: 'supervisor', domain: null, landing: null },
   { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials', landing: null },
   { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },
   { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality', landing: null },

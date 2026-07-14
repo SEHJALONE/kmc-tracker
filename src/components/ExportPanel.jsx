@@ -10,11 +10,17 @@ import EmailModal from './export/EmailModal';
 
 export default function ExportPanel({ buses, rows, allRows, metrics, filters = {}, dashboardRef, slideRef, onPresent, stationTimes = {}, theme = 'dark' }) {
   rows = rows ?? allRows ?? [];
-  const [busy,      setBusy]      = useState({});
-  const [toast,     setToast]     = useState(null);
-  const [emailOpen, setEmailOpen] = useState(false);
+  const [busy,           setBusy]           = useState({});
+  const [toast,          setToast]          = useState(null);
+  const [emailOpen,      setEmailOpen]      = useState(false);
+  const [reportSelector, setReportSelector] = useState(false);
+  const [selectedVin,    setSelectedVin]    = useState('');
+  const [selectedStation,setSelectedStation]= useState('');
   const coverRef = useRef(null);
   const date = new Date().toISOString().slice(0, 10);
+
+  const allVins = [...new Set((rows ?? []).map(r => r.vin).filter(Boolean))].sort();
+  const allStations = [...new Set((rows ?? []).map(r => r.station).filter(Boolean))].sort();
 
   function showToast(msg, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); }
   function setLoading(key, val) { setBusy(b => ({ ...b, [key]: val })); }
@@ -26,13 +32,31 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
     finally { setLoading('excel', false); }
   }
 
-  async function handlePDF() {
+  async function handlePDF() { setReportSelector(true); }
+
+  async function generateReport(type) {
+    setReportSelector(false);
     setLoading('pdf', true);
     try {
       const logo = await fetchLogoBase64('/kmc logo.png');
-      const doc  = await buildPDF(buses, rows, metrics, logo);
-      doc.save(`KMC_Dashboard_${date}.pdf`);
-      showToast('PDF downloaded ✓');
+      if (type === 'overall') {
+        const doc = await buildPDF(buses, rows, metrics, logo);
+        doc.save(`KMC_Dashboard_${date}.pdf`);
+        showToast('Overall report downloaded ✓');
+      } else if (type === 'vin') {
+        if (!selectedVin) { showToast('Select a VIN first', false); return; }
+        const vinRows = rows.filter(r => r.vin === selectedVin);
+        const vinBuses = buses.filter(b => b.vin === selectedVin);
+        const doc = await buildPDF(vinBuses.length ? vinBuses : buses, vinRows, metrics, logo);
+        doc.save(`KMC_VIN_${selectedVin}_${date}.pdf`);
+        showToast(`VIN report for ${selectedVin} downloaded ✓`);
+      } else if (type === 'station') {
+        if (!selectedStation) { showToast('Select a station first', false); return; }
+        const stRows = rows.filter(r => r.station === selectedStation);
+        const doc = await buildPDF(buses, stRows, metrics, logo);
+        doc.save(`KMC_Station_${selectedStation.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`);
+        showToast(`Station report downloaded ✓`);
+      }
     } catch (e) { console.error(e); showToast('PDF export failed', false); }
     finally { setLoading('pdf', false); }
   }
@@ -116,6 +140,47 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
         metrics={metrics}
         stationTimes={stationTimes}
       />
+
+      {reportSelector && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setReportSelector(false)}>
+          <div style={{ background: theme === 'dark' ? '#0d1526' : '#fff', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '28px 32px', maxWidth: 460, width: '100%', fontFamily: "'Inter', system-ui, sans-serif" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-heading)', marginBottom: 6 }}>Select Report Type</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 24 }}>Choose the scope of the PDF report to generate</div>
+
+            {/* Overall Report */}
+            <button onClick={() => generateReport('overall')} style={{ display: 'flex', flexDirection: 'column', width: '100%', padding: '14px 18px', marginBottom: 10, border: '1px solid rgba(220,38,38,0.35)', borderRadius: 8, background: 'rgba(220,38,38,0.06)', cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>Overall Dashboard Report</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>All buses · Full metrics · All stations in current filters</div>
+            </button>
+
+            {/* VIN Report */}
+            <div style={{ padding: '14px 18px', marginBottom: 10, border: '1px solid var(--border-subtle)', borderRadius: 8, background: 'var(--bg-surface)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Single Bus / VIN Report</div>
+              <select value={selectedVin} onChange={e => setSelectedVin(e.target.value)} style={{ width: '100%', fontSize: 12, padding: '7px 10px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--input-bg)', color: 'var(--text-primary)', marginBottom: 8, fontFamily: "'Inter', system-ui, sans-serif" }}>
+                <option value="">Select VIN…</option>
+                {allVins.map(v => <option key={v}>{v}</option>)}
+              </select>
+              <button onClick={() => { if (!selectedVin) return; generateReport('vin'); }} disabled={!selectedVin} style={{ fontSize: 11, padding: '7px 16px', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 4, background: 'rgba(99,102,241,0.1)', color: '#a5b4fc', cursor: selectedVin ? 'pointer' : 'not-allowed', opacity: selectedVin ? 1 : 0.5, fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Generate VIN Report
+              </button>
+            </div>
+
+            {/* Station Report */}
+            <div style={{ padding: '14px 18px', border: '1px solid var(--border-subtle)', borderRadius: 8, background: 'var(--bg-surface)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>Station Report</div>
+              <select value={selectedStation} onChange={e => setSelectedStation(e.target.value)} style={{ width: '100%', fontSize: 12, padding: '7px 10px', border: '1px solid var(--border-subtle)', borderRadius: 4, background: 'var(--input-bg)', color: 'var(--text-primary)', marginBottom: 8, fontFamily: "'Inter', system-ui, sans-serif" }}>
+                <option value="">Select station…</option>
+                {allStations.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <button onClick={() => { if (!selectedStation) return; generateReport('station'); }} disabled={!selectedStation} style={{ fontSize: 11, padding: '7px 16px', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 4, background: 'rgba(16,185,129,0.1)', color: '#10b981', cursor: selectedStation ? 'pointer' : 'not-allowed', opacity: selectedStation ? 1 : 0.5, fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Generate Station Report
+              </button>
+            </div>
+
+            <button onClick={() => setReportSelector(false)} style={{ marginTop: 18, fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {emailOpen && (
         <EmailModal

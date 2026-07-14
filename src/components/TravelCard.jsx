@@ -906,6 +906,8 @@ function AddRow({ placeholder, onAdd }) {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
   const isAdmin = role === "systemadmin" || role === "useradmin";
+  const isSupervisor = role === "supervisor";
+  const isUser = role === "user"; // plain user — 2 tabs only, no downtime/sign-off
   // Recompute theme tokens on every render so styles react to theme changes
   T = makeTheme(theme === 'dark');
   INP_BG  = T.inpBg;
@@ -1135,20 +1137,62 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   function p1next() {
     if (!clockIn) { alert("Enter a clock-in time."); return; }
-    // clockIn is from datetime-local (local time, no Z); clockOut is ISO (UTC).
-    // Parse both as local time by treating them uniformly via Date.
-    // datetime-local values have no timezone suffix so Date parses them as local.
-    // clockOut (ISO with Z) is UTC — convert to local equivalent string for comparison.
-    // Net productive time = elapsed clock-in→clock-out minus scheduled breaks
-    // (tea break + lunch). Breaks that fall within the worked span are excluded.
     const { gross, breaks: brkMin, net: actual } = productiveMinutes(clockIn, clockOut);
     setGrossTime(gross);
     setBreakTime(brkMin);
     setActualTime(actual);
+    // Plain users submit directly — no downtime or sign-off tabs
+    if (isUser) { submitUserCard(gross, brkMin, actual); return; }
     if (actual > 0 && designedTime > 0 && actual > designedTime) {
       setHasDowntime(true); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); goTo(2); return;
     }
     setHasDowntime(false); goTo(3);
+  }
+
+  async function submitUserCard(gross, brkMin, actual) {
+    saveQtyMemory(resQtys, curCode);
+    saveOtherResMemory(otherRes, curCode);
+    if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
+    if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
+
+    const sub = {
+      timestamp: new Date().toISOString(),
+      busModel, project: curProj, vin,
+      line: curLine, station: curSt, stationCode: curCode,
+      operators: selOps, hseResources: hseCount,
+      clockIn, clockOut, actualTime: actual, designedTime,
+      hasDowntime: false,
+      grossTime: gross, breakMinutes: brkMin,
+      activityStatuses: actStatuses,
+      addedActivities: otherActs,
+      resourcesUsed: resQtys,
+      removedResources: removedRes,
+      otherResources: otherRes,
+      ohsIssue: ohs ? ohsTxt : null,
+      wasteGenerated: waste,
+      downtime: null,
+      reviewer: null,
+      approvalStatus: "pending_review",
+      reviewDate: null, reviewComments: null,
+    };
+    setSubmission(sub);
+    goTo(4);
+
+    const logKey = `kmc_bus_log_${vin}`;
+    LS.set(logKey, [...LS.get(logKey, []), sub]);
+
+    const pending = LS.get("kmc_pending_reviews", []);
+    LS.set("kmc_pending_reviews", [...pending, { ...sub, id: Date.now().toString() }]);
+
+    setGsStatus("Saving to production records…");
+    try {
+      const body = new URLSearchParams({ payload: JSON.stringify(sub) });
+      await fetch(SHEETS_URL, { method: "POST", mode: "no-cors", body });
+      setGsStatus("✅ Submitted. Awaiting supervisor review.");
+      if (onSubmitSuccess) onSubmitSuccess();
+    } catch {
+      setGsStatus("⚠️ Could not reach Google Sheets. Download your record below.");
+    }
   }
 
   function togM(m) {
@@ -1279,9 +1323,14 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     goTo(0);
   }
 
-  const segStyle = i => ({ ...css.seg, ...(i < page ? css.segDone : i === page ? css.segAct : {}) });
-  const lblStyle = i => ({ ...css.lbl, ...(i === page ? css.lblAct : i < page ? css.lblDone : {}) });
-  const LABELS = ["Identity", "Activities", "Downtime", "Sign-off", "Done"];
+  const LABELS = isUser
+    ? ["Identity", "Activities", "Done"]
+    : ["Identity", "Activities", "Downtime", "Sign-off", "Done"];
+  // Map real page index to visual segment index for user role
+  const userPageToSeg = { 0: 0, 1: 1, 4: 2 };
+  const visSeg = isUser ? (userPageToSeg[page] ?? 1) : page;
+  const segStyle = i => ({ ...css.seg, ...(i < visSeg ? css.segDone : i === visSeg ? css.segAct : {}) });
+  const lblStyle = i => ({ ...css.lbl, ...(i === visSeg ? css.lblAct : i < visSeg ? css.lblDone : {}) });
 
   return (
     <div style={{
@@ -1412,17 +1461,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 <span style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>min</span>
               </div>
             )}
-            {!isAdmin && timesLoading && curCode && <div style={{ ...css.pill, opacity: .6, marginTop: 6 }}>⏱ Loading cycle time…</div>}
-            {!isAdmin && !timesLoading && timesError && curCode && (
+            {!isAdmin && !isUser && timesLoading && curCode && <div style={{ ...css.pill, opacity: .6, marginTop: 6 }}>⏱ Loading cycle time…</div>}
+            {!isAdmin && !isUser && !timesLoading && timesError && curCode && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                 <span style={{ fontSize: 11, color: AM, fontFamily: T.mono }}>⚠ Sheet unavailable — enter manually:</span>
                 <input type="number" style={{ ...css.inp, maxWidth: 90, fontSize: 12 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />
               </div>
             )}
-            {!isAdmin && !timesLoading && !timesError && curCode && designedTime > 0 && (
+            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime > 0 && (
               <div style={{ ...css.pill, marginTop: 8 }}>⏱ Designed time: <strong style={{ marginLeft: 4 }}>{designedTime} min</strong></div>
             )}
-            {!isAdmin && !timesLoading && !timesError && curCode && designedTime === 0 && (
+            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime === 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: T.dim, fontFamily: T.mono }}>
                 No cycle time set — enter manually:&nbsp;
                 <input type="number" style={{ ...css.inp, maxWidth: 80, fontSize: 12, display: "inline", width: 80 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />
@@ -1580,7 +1629,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
         <div style={css.nav2}>
           <button style={{ ...css.btnS, marginTop: 0, flex: .35 }} onClick={() => goTo(0)}>← Back</button>
-          <button style={{ ...css.btnP, marginTop: 0, flex: 1 }} onClick={p1next}>Continue →</button>
+          <button style={{ ...css.btnP, marginTop: 0, flex: 1 }} onClick={p1next}>
+            {isUser ? "Submit for Review →" : "Continue →"}
+          </button>
         </div>
       </>}
 
@@ -1856,8 +1907,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       {page === 4 && submission && <>
         <div style={css.card}>
           <div style={{ textAlign: "center", padding: "12px 0 6px" }}>
-            <div style={{ fontSize: 42, color: GR }}>✓</div>
-            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "0.1em", marginTop: 8, textTransform: "uppercase" }}>Travel card submitted</div>
+            <div style={{ fontSize: 42, color: submission.approvalStatus === "pending_review" ? AM : GR }}>
+              {submission.approvalStatus === "pending_review" ? "⏳" : "✓"}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "0.1em", marginTop: 8, textTransform: "uppercase" }}>
+              {submission.approvalStatus === "pending_review" ? "Submitted — Pending Review" : "Travel card submitted"}
+            </div>
+            {submission.approvalStatus === "pending_review" && (
+              <div style={{ fontSize: 12, color: AM, marginTop: 6, fontFamily: T.mono }}>
+                Your supervisor will review this submission.
+              </div>
+            )}
             <div style={{ fontSize: 10, color: T.dimmer, fontFamily: T.mono, marginTop: 5 }}>{new Date(submission.timestamp).toLocaleString()}</div>
           </div>
         </div>
@@ -1875,9 +1935,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             ["Clock out", submission.clockOut ? new Date(submission.clockOut).toLocaleTimeString() : "—"],
             ["Actual time", `${submission.actualTime} min`],
             ...(submission.breakMinutes > 0 ? [["Breaks excluded", `${submission.breakMinutes} min (gross ${submission.grossTime} min)`]] : []),
-            ["Designed time", `${submission.designedTime} min`],
-            ["Approval", submission.approvalStatus],
-            ["Reviewer", submission.reviewer],
+            ...(!isUser ? [["Designed time", `${submission.designedTime} min`]] : []),
+            ...(!isUser ? [["Approval", submission.approvalStatus], ["Reviewer", submission.reviewer]] : []),
           ].map(([l, v]) => <div key={l} style={css.confRow}><span style={css.confLbl}>{l}</span><span style={css.confVal}>{v || "—"}</span></div>)}
         </div>
 

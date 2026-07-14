@@ -18,6 +18,7 @@ import HandoverLog from './components/HandoverLog';
 import HandoverModal from './components/HandoverModal';
 import { useHandoverData } from './hooks/useHandoverData';
 import Scoreboard from './components/Scoreboard';
+import PendingReviews from './components/PendingReviews';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -234,7 +235,16 @@ export default function App() {
       onSelectTracker={() => setMode('tracker')}
       onSelectHandover={() => setMode('handover')}
       onSelectScoreboard={() => setMode('scoreboard')}
+      onSelectPendingReviews={() => setMode('pending-reviews')}
       role={role}
+    />
+  );
+
+  if (mode === 'pending-reviews') return (
+    <PendingReviews
+      theme={theme}
+      role={role}
+      onBack={() => setMode('home')}
     />
   );
 

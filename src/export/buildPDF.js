@@ -216,10 +216,10 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   drawBarChart(doc, COL2_X, SEC_Y, COL2_W, SEC_H, lineDistData, maxLine2, 'Buses by Line');
 
   const perfItems2 = [
-    { label: '↑ Best Station',    item: metrics.bestStation,  good: true },
-    { label: '↓ Slowest Station', item: metrics.worstStation, good: false },
-    { label: '↑ Best Line',       item: metrics.bestLine,     good: true },
-    { label: '↓ Slowest Line',    item: metrics.worstLine,    good: false },
+    { label: 'BEST STATION',    item: metrics.bestStation,  good: true },
+    { label: 'SLOWEST STATION', item: metrics.worstStation, good: false },
+    { label: 'BEST LINE',       item: metrics.bestLine,     good: true },
+    { label: 'SLOWEST LINE',    item: metrics.worstLine,    good: false },
   ];
   const perfH2 = (SEC_H - COL_GAP * 3) / 4;
   perfItems2.forEach(({ label, item, good }, i) => drawPerfCard(doc, COL3_X, SEC_Y + i * (perfH2 + COL_GAP), COL3_W, perfH2, label, item, good));
