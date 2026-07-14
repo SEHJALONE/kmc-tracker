@@ -77,42 +77,44 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   }
 
   function drawHeader(doc, pageNum) {
+    // Full navy header band
+    doc.setFillColor(...[15, 23, 42]);
+    doc.rect(0, 0, W, HDR_H, 'F');
+    // Red bottom accent
     doc.setFillColor(...RED);
-    doc.rect(0, 0, W, STRIP_H, 'F');
-    doc.setFillColor(248, 250, 252);
-    doc.rect(0, STRIP_H, W, HDR_H - STRIP_H, 'F');
-    const logoW = 28, logoX = M, logoY = STRIP_H + 1.5;
-    if (logoBase64) { try { doc.addImage(logoBase64, 'PNG', logoX, logoY, logoW, 0); } catch {} }
-    const titleX = M + (logoBase64 ? 31 : 0);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...BLACK);
-    doc.text('KMC BUS PRODUCTION REPORT', titleX, STRIP_H + 9);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...BLACK);
-    doc.text(`${stamp}  ·  KIIRA MOTORS CORPORATION — CONFIDENTIAL`, titleX, STRIP_H + 14.5);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(...BLACK);
-    doc.text(`PAGE ${pageNum} / ${totalPages}`, W - M, STRIP_H + 10, { align: 'right' });
-    doc.setDrawColor(...LIGHTGRAY); doc.setLineWidth(0.25);
-    doc.line(M, HDR_H, W - M, HDR_H);
+    doc.rect(0, HDR_H, W, 1.5, 'F');
+
+    // Logo — left in navy band
+    if (logoBase64) { try { doc.addImage(logoBase64, 'PNG', M, 3, 28, 0); } catch {} }
+
+    // Title — centred
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(255, 255, 255);
+    doc.text('KMC BUS PRODUCTION TRACKER', W / 2, 9, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(180, 190, 210);
+    doc.text(`Kiira Motors Corporation  ·  Confidential  ·  ${stamp}`, W / 2, 14.5, { align: 'center' });
+
+    // Page number — right
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(180, 190, 210);
+    doc.text(`Page ${pageNum} / ${totalPages}`, W - M, 9, { align: 'right' });
   }
 
   function drawFooter(doc) {
-    doc.setFillColor(...XLIGHT);
-    doc.rect(0, FTR_Y, W, FTR_H, 'F');
     doc.setDrawColor(...LIGHTGRAY); doc.setLineWidth(0.2);
-    doc.line(0, FTR_Y, W, FTR_Y);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...BLACK);
-    doc.text('KIIRA MOTORS CORPORATION', M, FTR_Y + 3.5);
+    doc.line(M, FTR_Y, W - M, FTR_Y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(...[148, 163, 184]);
+    doc.text('KIIRA MOTORS CORPORATION · KMC BUS PRODUCTION TRACKER', M, FTR_Y + 4);
     const legends = [
       { dot: GREEN, label: 'ON TRACK' }, { dot: AMBER, label: 'SLOW (>24h)' },
       { dot: RED, label: 'DELAYED (>48h)' }, { dot: KDC_C, label: 'KDC' }, { dot: EVS_C, label: 'EVS' },
     ];
-    let lx = W / 2 - 40;
+    let lx = W / 2 - 45;
     legends.forEach(({ dot, label }) => {
       doc.setFillColor(...dot); doc.circle(lx, FTR_Y + 3, 1, 'F');
-      doc.setTextColor(...BLACK); doc.text(label, lx + 2.5, FTR_Y + 3.8);
+      doc.setTextColor(...[100, 116, 139]); doc.text(label, lx + 2.5, FTR_Y + 3.8);
       lx += doc.getTextWidth(label) + 7;
     });
-    doc.setTextColor(...BLACK);
-    doc.text(stamp, W - M, FTR_Y + 3.5, { align: 'right' });
+    doc.setTextColor(...[148, 163, 184]);
+    doc.text(stamp, W - M, FTR_Y + 4, { align: 'right' });
   }
 
   function card(doc, x, y, w, h, accentColor) {
@@ -237,10 +239,10 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
 
     let leftY = AY, rightY = AY;
     const sectionTitle = (doc, x, y, w, title) => {
-      doc.setFillColor(248, 250, 252); doc.rect(x, y, w, 7, 'F');
-      doc.setDrawColor(...LIGHTGRAY); doc.setLineWidth(0.2); doc.line(x, y + 7, x + w, y + 7);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...BLACK);
-      doc.text(title.toUpperCase(), x + 3, y + 5);
+      doc.setFillColor(...[30, 41, 59]); doc.rect(x, y, w, 7, 'F');
+      doc.setFillColor(...RED); doc.rect(x, y, 3, 7, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
+      doc.text(title.toUpperCase(), x + 6, y + 5);
       return y + 9;
     };
 
@@ -397,10 +399,9 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     doc.text(`ROWS ${r02}–${r12}  ·  SORTED MOST RECENT FIRST`, W - M, stripY + 5, { align: 'right' });
 
     const thY2 = stripY + TABLE_STRIP_H;
-    doc.setFillColor(254, 242, 242); doc.rect(M, thY2, CW, TH_H, 'F');
-    doc.setDrawColor(...RED); doc.setLineWidth(0.4);
-    doc.line(M, thY2 + TH_H, M + CW, thY2 + TH_H);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...BLACK);
+    doc.setFillColor(...[15, 23, 42]); doc.rect(M, thY2, CW, TH_H, 'F');
+    doc.setDrawColor(...[15, 23, 42]); doc.setLineWidth(0.1);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
     TABLE_COLS_PDF.forEach((col, i) => doc.text(col.label.toUpperCase(), colXs2[i], thY2 + 5));
 
     let rowY2 = thY2 + TH_H;
