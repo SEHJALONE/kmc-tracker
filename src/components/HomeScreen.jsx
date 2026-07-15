@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onLogout, theme, toggleTheme, role }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onLogout, theme, toggleTheme, role }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
   const isSupervisor  = role === 'supervisor';
@@ -300,12 +300,31 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
           <div className="home-cards-row">
             <button
               className="home-card-btn"
-              style={{ backgroundImage: "linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
+              style={{ backgroundImage: "url('/Quality Inspection & Testing.png'), linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
               onClick={onSelectPendingReviews}
             >
               <div className="home-card-overlay">
                 <div className="home-card-title">Pending Reviews</div>
                 <div className="home-card-sub">Review submitted travel cards</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* System admin — access requests */}
+      {isSystemAdmin && onSelectAccessRequests && (
+        <div className="home-section">
+          <div className="home-section-heading">Administration</div>
+          <div className="home-cards-row">
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: "url('/img 1.png'), linear-gradient(135deg, #1e3a5f 0%, #101623 100%)" }}
+              onClick={onSelectAccessRequests}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">Access Requests</div>
+                <div className="home-card-sub">Grant system access to users</div>
               </div>
             </button>
           </div>

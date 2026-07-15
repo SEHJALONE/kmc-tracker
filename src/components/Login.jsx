@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SignUpModal from './SignUpModal';
 
 // Credential sets → role + NCR domain + optional landing module.
 // domain controls which NCR register tab the user lands on by default (admin sees all).
@@ -15,6 +16,10 @@ const CREDENTIALS = [
   { username: 'dpn.kmc', password: 'dpn1234!', role: 'user', domain: null, landing: 'scoreboard' },
 ];
 
+function loadDynamicUsers() {
+  try { return JSON.parse(localStorage.getItem('kmc_dynamic_users') || '[]'); } catch { return []; }
+}
+
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +27,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
   const [remember, setRemember] = useState(false);
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
@@ -33,9 +39,14 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
     }
     setLoading(true);
     setTimeout(() => {
-      const match = CREDENTIALS.find(
+      const dynamic = loadDynamicUsers();
+      const dynMatch = dynamic.find(
+        c => c.username === username.trim().toLowerCase() && c.password === password
+      );
+      const staticMatch = CREDENTIALS.find(
         c => c.username.toLowerCase() === username.trim().toLowerCase() && c.password === password
       );
+      const match = staticMatch || (dynMatch ? { ...dynMatch, domain: null, landing: null } : null);
       if (match) {
         if (remember) {
           localStorage.setItem('kmc_auth', 'true');
@@ -57,7 +68,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
     if (e.key === 'Enter') handleSubmit();
   };
 
-  return (
+  return (<>
     <div style={{
       minHeight: '100vh',
       background: 'var(--bg-base)',
@@ -325,6 +336,30 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           }
         </button>
 
+        {/* Sign Up */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em' }}>OR</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+        </div>
+        <button
+          onClick={() => setShowSignUp(true)}
+          style={{
+            width: '100%', marginTop: 2,
+            background: 'transparent',
+            border: '1px solid var(--border-medium)',
+            borderRadius: 6, padding: '12px',
+            color: 'var(--text-secondary)', fontSize: 14,
+            fontWeight: 600, letterSpacing: '0.06em',
+            fontFamily: "'Inter', system-ui, sans-serif",
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent-text)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-medium)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          Request Access
+        </button>
+
         {/* Footer */}
         <div style={{
           marginTop: 28, textAlign: 'center',
@@ -336,5 +371,8 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
         </div>
       </div>
     </div>
+
+    {showSignUp && <SignUpModal theme={theme} onClose={() => setShowSignUp(false)} />}
+  </>
   );
 }

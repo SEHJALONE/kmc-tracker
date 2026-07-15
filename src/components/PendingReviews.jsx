@@ -65,17 +65,25 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
     <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
       <style>{`@keyframes prSpin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '7px 14px', fontSize: 11, cursor: 'pointer', fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          ← Back
-        </button>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: text }}>Pending Reviews</div>
-          <div style={{ fontSize: 10, color: dim, letterSpacing: '0.08em', marginTop: 2 }}>Travel cards submitted by users — awaiting your review</div>
-        </div>
-        <div style={{ marginLeft: 'auto', background: `${AM}22`, color: AM, border: `1px solid ${AM}55`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700 }}>
-          {pending.length} pending
+      {/* Banner image */}
+      <div style={{
+        width: '100%', maxWidth: 860, height: 130, borderRadius: 10, overflow: 'hidden',
+        marginBottom: 28, position: 'relative',
+        backgroundImage: "url('/Trim Line & Final Assembly.jpg')",
+        backgroundSize: 'cover', backgroundPosition: 'center 40%',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.82) 0%, rgba(7,9,15,0.35) 60%, transparent 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14 }}>
+          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 14px', fontSize: 11, cursor: 'pointer', fontFamily: mono, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>
+            ← Back
+          </button>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>Pending Reviews</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Travel cards submitted by users — awaiting your review</div>
+          </div>
+          <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
+            {pending.length} pending
+          </div>
         </div>
       </div>
 

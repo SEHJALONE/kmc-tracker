@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
-import { fetchLogoBase64 } from '../../export/exportHelpers';
+import { LOGO_WHITE, LOGO_DARK } from '../../data/logoData.js';
 import { buildSlidePDF } from '../../export/buildSlidePDF';
 import { buildPDF } from '../../export/buildPDF';
 import { summarizeFilters, summarizeFiltersText } from '../../utils/filterSummary';
@@ -148,8 +148,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
       }
 
       try {
-        const logo2 = await fetchLogoBase64('/kmc logo 2.png');
-        const slideDoc = await buildSlidePDF(buses, filteredRows, metrics, logo2);
+        const slideDoc = await buildSlidePDF(buses, filteredRows, metrics, LOGO_DARK);
         attachments.push({
           filename: `KMC_Presentation_${date}.pdf`,
           dataUrl: slideDoc.output('datauristring'),
@@ -158,8 +157,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
       } catch (e) { console.warn('Slide PDF build failed', e); }
 
       try {
-        const logo1 = await fetchLogoBase64('/kmc logo.png');
-        const reportDoc = await buildPDF(buses, filteredRows, metrics, logo1);
+        const reportDoc = await buildPDF(buses, filteredRows, metrics, LOGO_WHITE);
         attachments.push({
           filename: `KMC_Dashboard_${date}.pdf`,
           dataUrl: reportDoc.output('datauristring'),
@@ -406,6 +404,26 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
             )}
           </div>
         )}
+
+        {/* Server-side cron info */}
+        <div style={{
+          background: 'rgba(6,182,212,0.05)',
+          border: '1px solid rgba(6,182,212,0.2)',
+          borderLeft: '3px solid rgba(6,182,212,0.5)',
+          borderRadius: '0 6px 6px 0',
+          padding: '10px 14px',
+          display: 'flex', flexDirection: 'column', gap: 4,
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(6,182,212,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+            ⚙ Server-Side Scheduled Send (Vercel)
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5 }}>
+            A Vercel Cron Job runs at <strong style={{ color: 'var(--text-primary)' }}>07:00 UTC daily</strong> and automatically generates fresh PDFs + Excel from live Google Sheets data, then emails them to the addresses set in the <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>SCHEDULED_EMAIL_TO</code> Vercel environment variable. No browser session needed.
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em' }}>
+            Use <strong>Send Now</strong> below for an immediate on-demand send (includes the cover PNG from your browser). The Vercel send runs independently in the cloud and includes 3 attachments: Slide PDF, Dashboard PDF, Excel.
+          </div>
+        </div>
 
         {/* Status message */}
         {status && (

@@ -5,6 +5,12 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
+  "crons": [
+    {
+      "path": "/api/run-scheduled",
+      "schedule": "0 7 * * *"
+    }
+  ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist"
 }
