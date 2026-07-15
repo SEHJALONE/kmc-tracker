@@ -60,11 +60,12 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   // Grant form state
   const [form, setForm] = useState({
-    username: '', password: '', role: 'user',
+    username: '', role: 'user',
     assignedStation: '',     // user: one station code
     assignedLine: '',        // manager: one line id
     assignedStations: {},    // supervisor: { [code]: true }
-    stationLine: '',         // user: line selected first, then station
+    stationLine: '',         // user/supervisor: line filter for station picker
+    supervisorLineFilter: '', // supervisor: which line to show in picker
   });
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -77,8 +78,9 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
   function openRequest(req) {
     setSelected(req);
     setForm({
-      username: req.username || '', password: '', role: 'user',
-      assignedStation: '', assignedLine: '', assignedStations: {}, stationLine: '',
+      username: req.username || '', role: 'user',
+      assignedStation: '', assignedLine: '', assignedStations: {},
+      stationLine: '', supervisorLineFilter: '',
     });
   }
 
@@ -91,7 +93,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   function handleApprove() {
     if (!form.username.trim()) return alert('Username is required.');
-    if (!form.password.trim() || form.password.length < 6) return alert('Password must be at least 6 characters.');
+    if (!selected.password) return alert('This request has no password set. Ask the applicant to resubmit.');
     if (form.role === 'supervisor') {
       const picked = Object.keys(form.assignedStations).filter(k => form.assignedStations[k]);
       if (!picked.length) return alert('Assign at least one station to this supervisor.');
@@ -106,7 +108,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
     const newUser = {
       username:         form.username.trim().toLowerCase(),
-      password:         form.password,
+      password:         selected.password,
       role:             form.role,
       domain:           null,
       landing:          null,
@@ -306,16 +308,11 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
           <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '18px 20px', background: card, marginBottom: 10 }}>
             <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: fm, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)` }}>Grant Access</div>
 
-            {/* Username + Password */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div>
-                <label style={lbl}>Username</label>
-                <input style={inp} value={form.username} onChange={e => setF('username', e.target.value.replace(/\s/g, '').toLowerCase())} placeholder="username" />
-              </div>
-              <div>
-                <label style={lbl}>Initial Password</label>
-                <input style={inp} type="text" value={form.password} onChange={e => setF('password', e.target.value)} placeholder="min 6 characters" />
-              </div>
+            {/* Username */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Assign Username</label>
+              <input style={inp} value={form.username} onChange={e => setF('username', e.target.value.replace(/\s/g, '').toLowerCase())} placeholder="username" />
+              <div style={{ fontSize: 10, color: dim, marginTop: 4, fontFamily: fm }}>Password was set by the applicant during sign-up.</div>
             </div>
 
             {/* Role selector — cards */}
@@ -364,12 +361,19 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* SUPERVISOR: pick stations (multi-select, grouped by line) */}
+            {/* SUPERVISOR: pick stations (multi-select, filtered by line) */}
             {form.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 260, overflowY: 'auto', background: inpBg }}>
-                  {SEED_LINES.map(line => {
+                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more — across any line)</span></label>
+
+                {/* Line filter */}
+                <select style={{ ...inp, marginBottom: 8 }} value={form.supervisorLineFilter} onChange={e => setF('supervisorLineFilter', e.target.value)}>
+                  <option value="">Show all lines</option>
+                  {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+                </select>
+
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
+                  {SEED_LINES.filter(l => !form.supervisorLineFilter || l.id === form.supervisorLineFilter).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => form.assignedStations[s.code]);

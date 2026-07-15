@@ -20,6 +20,7 @@ import { useHandoverData } from './hooks/useHandoverData';
 import Scoreboard from './components/Scoreboard';
 import PendingReviews from './components/PendingReviews';
 import AccessRequests from './components/AccessRequests';
+import UserManagement from './components/UserManagement';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -246,12 +247,17 @@ export default function App() {
       onSelectScoreboard={() => setMode('scoreboard')}
       onSelectPendingReviews={() => setMode('pending-reviews')}
       onSelectAccessRequests={() => setMode('access-requests')}
+      onSelectUserManagement={() => setMode('user-management')}
       role={role}
     />
   );
 
   if (mode === 'access-requests') return (
     <AccessRequests theme={theme} role={role} onBack={() => setMode('home')} />
+  );
+
+  if (mode === 'user-management') return (
+    <UserManagement theme={theme} onBack={() => setMode('home')} />
   );
 
   if (mode === 'pending-reviews') return (

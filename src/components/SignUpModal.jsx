@@ -43,8 +43,10 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
 
   const [form, setForm] = useState({
     fullName: '', email: '', username: '',
-    department: '', productionLine: '', position: '', reason: '',
+    department: '', productionLine: '', position: '',
+    password: '', confirmPassword: '', reason: '',
   });
+  const [showPass, setShowPass] = useState(false);
 
   function set(k, v) {
     setForm(f => {
@@ -68,6 +70,8 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     if (!form.department)         return setError('Select your department.');
     if (!form.productionLine)     return setError('Select your production line.');
     if (!form.position.trim())    return setError('Enter your job title / position.');
+    if (!form.password || form.password.length < 8) return setError('Password must be at least 8 characters.');
+    if (form.password !== form.confirmPassword)      return setError('Passwords do not match.');
 
     setBusy(true);
     const request = {
@@ -78,6 +82,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       department:     form.department,
       productionLine: form.productionLine,
       position:       form.position.trim(),
+      password:       form.password,
       reason:         form.reason.trim(),
       status:         'pending',
       submittedAt:    new Date().toISOString(),
@@ -229,6 +234,35 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                 </select>
               </div>
             )}
+
+            {/* Password + Confirm */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={lbl}>Password <span style={{ color: R }}>*</span></label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    style={{ ...inp, paddingRight: 60 }}
+                    type={showPass ? 'text' : 'password'}
+                    placeholder="Min. 8 characters"
+                    value={form.password}
+                    onChange={e => set('password', e.target.value)}
+                  />
+                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 10, fontFamily: fm, letterSpacing: '0.06em' }}>
+                    {showPass ? 'HIDE' : 'SHOW'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Confirm Password <span style={{ color: R }}>*</span></label>
+                <input
+                  style={{ ...inp, borderColor: form.confirmPassword && form.confirmPassword !== form.password ? '#dc2626' : inpBor }}
+                  type={showPass ? 'text' : 'password'}
+                  placeholder="Repeat password"
+                  value={form.confirmPassword}
+                  onChange={e => set('confirmPassword', e.target.value)}
+                />
+              </div>
+            </div>
 
             {/* Reason */}
             <div>

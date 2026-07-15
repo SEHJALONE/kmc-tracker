@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { SEED_STATIONS } from '../data/stations';
 
+const LINE_IMAGE = {
+  MACHINE:  '/Machine Shop.jpg',
+  BODY:     '/Frame Parts Making.jpg',
+  ELECTRO:  '/Electrophoresis.png',
+  FRAME:    '/Frame & Body Welding.png',
+  CHASSIS1: '/Chassis Line 02.jpg',
+  CHASSIS2: '/Chassis Line 02.jpg',
+  PAINT:    '/Paint Shop.png',
+  TRIM:     '/Trim Line & Final Assembly.jpg',
+  QA:       '/Quality Inspection & Testing.png',
+};
+
 const LS = {
   get: (k, fallback = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -111,17 +123,31 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
       {/* List */}
       {!selected && pending.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 800 }}>
-          {pending.map(item => (
-            <div key={item.id} style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '14px 18px', background: card, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }} onClick={() => openReview(item)}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: AM, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{item.vin} — {item.stationCode}</div>
-                <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>{item.project} · {item.line}</div>
-                <div style={{ fontSize: 10, color: dim, fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '—'}</div>
+          {pending.map(item => {
+            const lineId = SEED_STATIONS[item.stationCode]?.line;
+            const img = lineId ? LINE_IMAGE[lineId] : null;
+            return (
+              <div key={item.id} onClick={() => openReview(item)} style={{
+                borderRadius: 10, overflow: 'hidden', cursor: 'pointer', position: 'relative',
+                border: `1px solid ${border}`,
+                backgroundImage: img ? `url('${img}')` : 'none',
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                minHeight: 88,
+              }}>
+                {/* dark scrim */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.88) 0%, rgba(7,9,15,0.55) 60%, rgba(7,9,15,0.30) 100%)' }} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: AM, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} — {item.stationCode}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>{item.project} · {item.line}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '—'}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: AM, fontFamily: mono, letterSpacing: '0.06em', flexShrink: 0, fontWeight: 700 }}>Review →</div>
+                </div>
               </div>
-              <div style={{ fontSize: 11, color: AM, fontFamily: mono, letterSpacing: '0.06em', flexShrink: 0 }}>Review →</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
