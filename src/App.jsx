@@ -211,11 +211,19 @@ export default function App() {
     return result;
   }, [filteredRows, filters.line, filters.station, filters.status]);
 
+  // Role-specific access assignments (set by Login from dynamic user record)
+  const assignedStation  = localStorage.getItem('kmc_assigned_station') || null;
+  const assignedStations = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_stations') || 'null'); } catch { return null; } })();
+  const assignedLine     = localStorage.getItem('kmc_assigned_line') || null;
+
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
     localStorage.removeItem('kmc_role');
     localStorage.removeItem('kmc_ncr_domain');
     localStorage.removeItem('kmc_landing');
+    localStorage.removeItem('kmc_assigned_station');
+    localStorage.removeItem('kmc_assigned_stations');
+    localStorage.removeItem('kmc_assigned_line');
     setRole('user');
     setNcrDomain(null);
     setAuthed(false);
@@ -251,6 +259,8 @@ export default function App() {
       theme={theme}
       role={role}
       onBack={() => setMode('home')}
+      assignedStations={assignedStations}
+      assignedLine={assignedLine}
     />
   );
 
@@ -351,6 +361,7 @@ export default function App() {
           prefillVin={tcPrefill?.vin ?? ''}
           prefillModel={tcPrefill?.model ?? ''}
           prefillStation={tcPrefill?.stationCode ?? ''}
+          lockedStation={assignedStation}
           onReset={() => setTcPrefill(null)}
           onSubmitSuccess={refresh}
           theme={theme}

@@ -1,16 +1,26 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
-const DEPARTMENTS = [
-  'Machine Shop', 'Frame & Body Welding', 'Chassis Line',
-  'Electrophoresis', 'Paint Shop', 'Trim Line & Final Assembly',
-  'Quality Inspection & Testing', 'Administration', 'ICT', 'Other',
+const DEPARTMENTS = ['Production', 'Product Development'];
+
+const PRODUCTION_LINES = [
+  'Machine Shop',
+  'Frame Parts Making',
+  'Electrophoresis',
+  'Frame & Body Welding',
+  'Chassis Line 01',
+  'Chassis Line 02',
+  'Paint Shop',
+  'Trim Line & Final Assembly',
+  'Quality Inspection & Testing',
 ];
 
-const ACCESS_LEVELS = [
-  { value: 'user',       label: 'General User',  desc: 'View tracker, submit travel cards' },
-  { value: 'supervisor', label: 'Supervisor',     desc: 'Review and approve travel cards' },
-  { value: 'admin',      label: 'Admin',          desc: 'Full system access, manage users' },
+const PRODUCT_DEV_LINES = [
+  'Design Engineering',
+  'Systems Engineering',
+  'Vehicle Testing & Validation',
+  'Research & Development',
+  'Other',
 ];
 
 const LS_KEY = 'kmc_access_requests';
@@ -27,17 +37,28 @@ function saveRequest(req) {
 export default function SignUpModal({ onClose, theme = 'dark' }) {
   const isDark = theme === 'dark';
 
-  const [step, setStep]     = useState(1); // 1 = form, 2 = success
-  const [busy, setBusy]     = useState(false);
-  const [error, setError]   = useState('');
+  const [step, setStep]   = useState(1);
+  const [busy, setBusy]   = useState(false);
+  const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     fullName: '', email: '', username: '',
-    department: '', position: '',
-    accessLevel: 'user', reason: '',
+    department: '', productionLine: '', position: '', reason: '',
   });
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function set(k, v) {
+    setForm(f => {
+      const next = { ...f, [k]: v };
+      if (k === 'department') next.productionLine = '';
+      return next;
+    });
+  }
+
+  const lineOptions = form.department === 'Production'
+    ? PRODUCTION_LINES
+    : form.department === 'Product Development'
+      ? PRODUCT_DEV_LINES
+      : [];
 
   async function handleSubmit() {
     setError('');
@@ -45,25 +66,25 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     if (!form.email.trim() || !form.email.includes('@')) return setError('A valid email is required.');
     if (!form.username.trim())    return setError('Please choose a username.');
     if (!form.department)         return setError('Select your department.');
-    if (!form.position.trim())    return setError('Enter your job position.');
+    if (!form.productionLine)     return setError('Select your production line.');
+    if (!form.position.trim())    return setError('Enter your job title / position.');
 
     setBusy(true);
     const request = {
-      id:          Date.now().toString(),
-      ...form,
-      fullName:    form.fullName.trim(),
-      email:       form.email.trim().toLowerCase(),
-      username:    form.username.trim().toLowerCase(),
-      position:    form.position.trim(),
-      reason:      form.reason.trim(),
-      status:      'pending',
-      submittedAt: new Date().toISOString(),
+      id:             Date.now().toString(),
+      fullName:       form.fullName.trim(),
+      email:          form.email.trim().toLowerCase(),
+      username:       form.username.trim().toLowerCase(),
+      department:     form.department,
+      productionLine: form.productionLine,
+      position:       form.position.trim(),
+      reason:         form.reason.trim(),
+      status:         'pending',
+      submittedAt:    new Date().toISOString(),
     };
 
-    // Save to localStorage so sysadmin sees it on next login
     saveRequest(request);
 
-    // Fire-and-forget email notification to admin
     try {
       const endpoint = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAIL_ENDPOINT)
         ? import.meta.env.VITE_EMAIL_ENDPOINT.replace('/send-report', '/notify-admin')
@@ -79,16 +100,15 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     setStep(2);
   }
 
-  const bg      = isDark ? 'rgba(7,9,15,0.97)'     : 'rgba(255,255,255,0.99)';
-  const card    = isDark ? 'rgba(13,21,38,0.90)'    : '#f8fafc';
-  const text    = isDark ? '#e2e8f0'                : '#1e293b';
-  const muted   = isDark ? '#94a3b8'                : '#475569';
-  const dim     = isDark ? '#64748b'                : '#94a3b8';
-  const border  = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)';
-  const inpBg   = isDark ? '#0d1526'                : '#ffffff';
-  const inpBor  = isDark ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.14)';
-  const R       = '#dc2626';
-  const fm      = "'Inter', system-ui, sans-serif";
+  const bg     = isDark ? 'rgba(7,9,15,0.97)'     : 'rgba(255,255,255,0.99)';
+  const text   = isDark ? '#e2e8f0'                : '#1e293b';
+  const muted  = isDark ? '#94a3b8'                : '#475569';
+  const dim    = isDark ? '#64748b'                : '#94a3b8';
+  const border = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.09)';
+  const inpBg  = isDark ? '#0d1526'                : '#ffffff';
+  const inpBor = isDark ? 'rgba(255,255,255,0.11)' : 'rgba(0,0,0,0.14)';
+  const R      = '#dc2626';
+  const fm     = "'Inter', system-ui, sans-serif";
 
   const inp = {
     width: '100%', fontSize: 13, padding: '10px 12px',
@@ -98,7 +118,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     colorScheme: isDark ? 'dark' : 'light',
     transition: 'border-color 0.15s',
   };
-  const label = {
+  const lbl = {
     display: 'block', fontSize: 10, fontWeight: 700,
     color: muted, letterSpacing: '0.12em',
     textTransform: 'uppercase', fontFamily: fm, marginBottom: 6,
@@ -138,7 +158,6 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
         </div>
 
         {step === 2 ? (
-          /* ── Success state ── */
           <div style={{ textAlign: 'center', padding: '24px 0 12px' }}>
             <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '2px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', fontSize: 24 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981', marginBottom: 8 }}>Request Submitted</div>
@@ -155,7 +174,6 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             </button>
           </div>
         ) : (
-          /* ── Form ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {error && (
@@ -168,70 +186,53 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
               </div>
             )}
 
-            {/* Row: Full Name + Email */}
+            {/* Full Name + Email */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={label}>Full Name <span style={{ color: R }}>*</span></label>
+                <label style={lbl}>Full Name <span style={{ color: R }}>*</span></label>
                 <input style={inp} placeholder="John Doe" value={form.fullName} onChange={e => set('fullName', e.target.value)} />
               </div>
               <div>
-                <label style={label}>Email Address <span style={{ color: R }}>*</span></label>
+                <label style={lbl}>Email Address <span style={{ color: R }}>*</span></label>
                 <input style={inp} type="email" placeholder="you@kmc.go.ug" value={form.email} onChange={e => set('email', e.target.value)} />
               </div>
             </div>
 
-            {/* Row: Username + Position */}
+            {/* Username + Position */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={label}>Preferred Username <span style={{ color: R }}>*</span></label>
+                <label style={lbl}>Preferred Username <span style={{ color: R }}>*</span></label>
                 <input style={inp} placeholder="john.doe" value={form.username} onChange={e => set('username', e.target.value.replace(/\s/g, '').toLowerCase())} />
               </div>
               <div>
-                <label style={label}>Job Title / Position <span style={{ color: R }}>*</span></label>
+                <label style={lbl}>Job Title / Position <span style={{ color: R }}>*</span></label>
                 <input style={inp} placeholder="Production Engineer" value={form.position} onChange={e => set('position', e.target.value)} />
               </div>
             </div>
 
             {/* Department */}
             <div>
-              <label style={label}>Department <span style={{ color: R }}>*</span></label>
-              <select style={{ ...inp }} value={form.department} onChange={e => set('department', e.target.value)}>
+              <label style={lbl}>Department <span style={{ color: R }}>*</span></label>
+              <select style={inp} value={form.department} onChange={e => set('department', e.target.value)}>
                 <option value="">Select department…</option>
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
 
-            {/* Access Level */}
-            <div>
-              <label style={label}>Requested Access Level</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {ACCESS_LEVELS.map(al => (
-                  <button key={al.value} onClick={() => set('accessLevel', al.value)} style={{
-                    flex: 1, padding: '10px 8px', borderRadius: 7, cursor: 'pointer',
-                    background: form.accessLevel === al.value
-                      ? (al.value === 'admin' ? 'rgba(220,38,38,0.10)' : al.value === 'supervisor' ? 'rgba(245,158,11,0.10)' : 'rgba(16,185,129,0.10)')
-                      : (isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9'),
-                    border: `1px solid ${form.accessLevel === al.value
-                      ? (al.value === 'admin' ? 'rgba(220,38,38,0.4)' : al.value === 'supervisor' ? 'rgba(245,158,11,0.4)' : 'rgba(16,185,129,0.4)')
-                      : border}`,
-                    textAlign: 'center',
-                  }}>
-                    <div style={{
-                      fontSize: 11, fontWeight: 700, fontFamily: fm, letterSpacing: '0.04em',
-                      color: form.accessLevel === al.value
-                        ? (al.value === 'admin' ? '#f87171' : al.value === 'supervisor' ? '#fbbf24' : '#34d399')
-                        : muted,
-                      marginBottom: 3,
-                    }}>{al.label}</div>
-                    <div style={{ fontSize: 9, color: dim, fontFamily: fm, lineHeight: 1.4 }}>{al.desc}</div>
-                  </button>
-                ))}
+            {/* Production Line — shows once department is picked */}
+            {form.department && (
+              <div>
+                <label style={lbl}>Production Line <span style={{ color: R }}>*</span></label>
+                <select style={inp} value={form.productionLine} onChange={e => set('productionLine', e.target.value)}>
+                  <option value="">Select line…</option>
+                  {lineOptions.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
               </div>
-            </div>
+            )}
 
             {/* Reason */}
             <div>
-              <label style={label}>Reason for Access <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <label style={lbl}>Reason for Access <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
               <textarea
                 style={{ ...inp, resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
                 placeholder="Briefly describe why you need access to this system…"
@@ -265,7 +266,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             </div>
 
             <div style={{ fontSize: 10, color: dim, textAlign: 'center', letterSpacing: '0.04em', lineHeight: 1.5 }}>
-              The system administrator will review your request and contact you with your login credentials.
+              The system administrator will review your request and assign your role and access level.
             </div>
           </div>
         )}

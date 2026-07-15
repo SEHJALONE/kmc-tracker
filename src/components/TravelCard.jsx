@@ -904,7 +904,7 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
   const isAdmin = role === "systemadmin" || role === "useradmin";
   const isSupervisor = role === "supervisor";
   const isUser = role === "user"; // plain user — 2 tabs only, no downtime/sign-off
@@ -1035,6 +1035,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Persist projects & reviewers to localStorage
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
+
+  // Auto-select locked station on mount (station-assigned users)
+  useEffect(() => {
+    if (!lockedStation) return;
+    const LINES_L = { ...TC_LINES, ...(catalog.tcLines || {}) };
+    for (const [lineId, stns] of Object.entries(LINES_L)) {
+      const match = stns.find(s => s.split(":")[0].trim() === lockedStation);
+      if (match) { setCurLine(lineId); setCurSt(match); setCurCode(lockedStation); break; }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedStation]);
 
   // KEC templates are not yet available (documents cover EVS and KDC only).
   const isKEC = busModel.includes("KEC");
@@ -1444,11 +1455,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.card}>
             <div style={css.cardHd}>Station</div>
             <div className="tc-grid-2" style={css.g2}>
-              <Sel label="Production line" value={curLine} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
+              <Sel label="Production line" value={curLine} disabled={!!lockedStation} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
                 <option value="">Select line…</option>
                 {visibleLines.map(l => <option key={l}>{l}</option>)}
               </Sel>
-              <Sel label="Station" value={curSt} onChange={e => onStation(e.target.value)}>
+              <Sel label={lockedStation ? "Station (assigned — locked)" : "Station"} value={curSt} disabled={!!lockedStation} onChange={e => onStation(e.target.value)}>
                 <option value="">Select station…</option>
                 {stations.map(s => <option key={s}>{s}</option>)}
               </Sel>

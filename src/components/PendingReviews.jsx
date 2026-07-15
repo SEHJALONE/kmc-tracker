@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { SEED_STATIONS } from '../data/stations';
 
 const LS = {
   get: (k, fallback = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
-export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor' }) {
+export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLine = null }) {
   const isDark = theme === 'dark';
   const bg      = isDark ? 'rgba(7,9,15,0.92)'     : 'rgba(255,255,255,0.97)';
   const card    = isDark ? 'rgba(13,21,38,0.90)'    : '#fff';
@@ -21,7 +22,19 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
   const fm      = "'Inter', system-ui, sans-serif";
   const mono    = "'Inter', system-ui, sans-serif";
 
-  const [pending, setPending] = useState(() => LS.get('kmc_pending_reviews', []));
+  const allPending = LS.get('kmc_pending_reviews', []);
+
+  // Filter by role scope: supervisor sees only their assigned stations,
+  // manager sees only their assigned line, director/admin sees everything.
+  const [pending, setPending] = useState(() => {
+    if (role === 'supervisor' && assignedStations?.length) {
+      return allPending.filter(r => assignedStations.includes(r.stationCode));
+    }
+    if (role === 'manager' && assignedLine) {
+      return allPending.filter(r => SEED_STATIONS[r.stationCode]?.line === assignedLine);
+    }
+    return allPending;
+  });
   const [selected, setSelected] = useState(null);
   const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: '' });
   const [saving, setSaving] = useState(false);

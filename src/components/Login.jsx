@@ -48,6 +48,26 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
       );
       const match = staticMatch || (dynMatch ? { ...dynMatch, domain: null, landing: null } : null);
       if (match) {
+        // Store role-specific access assignments for dynamic users
+        if (dynMatch) {
+          if (dynMatch.assignedStation)
+            localStorage.setItem('kmc_assigned_station', dynMatch.assignedStation);
+          else localStorage.removeItem('kmc_assigned_station');
+
+          if (dynMatch.assignedStations?.length)
+            localStorage.setItem('kmc_assigned_stations', JSON.stringify(dynMatch.assignedStations));
+          else localStorage.removeItem('kmc_assigned_stations');
+
+          if (dynMatch.assignedLine)
+            localStorage.setItem('kmc_assigned_line', dynMatch.assignedLine);
+          else localStorage.removeItem('kmc_assigned_line');
+        } else {
+          // Static credential — clear any leftover assignments
+          localStorage.removeItem('kmc_assigned_station');
+          localStorage.removeItem('kmc_assigned_stations');
+          localStorage.removeItem('kmc_assigned_line');
+        }
+
         if (remember) {
           localStorage.setItem('kmc_auth', 'true');
           localStorage.setItem('kmc_role', match.role);
