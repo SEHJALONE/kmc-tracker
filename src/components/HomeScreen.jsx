@@ -300,7 +300,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
           <div className="home-cards-row">
             <button
               className="home-card-btn"
-              style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
+              style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 2.png' : '/Bus background.png'}'), linear-gradient(135deg, #92400e 0%, #101623 100%)` }}
               onClick={onSelectPendingReviews}
             >
               <div className="home-card-overlay">
@@ -320,7 +320,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             {onSelectAccessRequests && (
               <button
                 className="home-card-btn"
-                style={{ backgroundImage: "url('/Bus background 3.png'), linear-gradient(135deg, #1e3a5f 0%, #101623 100%)" }}
+                style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 3.png' : '/Bus background 4.png'}'), linear-gradient(135deg, #1e3a5f 0%, #101623 100%)` }}
                 onClick={onSelectAccessRequests}
               >
                 <div className="home-card-overlay">
@@ -332,7 +332,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             {onSelectUserManagement && (
               <button
                 className="home-card-btn"
-                style={{ backgroundImage: "url('/Bus background 4.png'), linear-gradient(135deg, #7c3aed 0%, #101623 100%)" }}
+                style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 4.png' : '/Bus background 3.png'}'), linear-gradient(135deg, #7c3aed 0%, #101623 100%)` }}
                 onClick={onSelectUserManagement}
               >
                 <div className="home-card-overlay">

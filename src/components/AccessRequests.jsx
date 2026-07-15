@@ -181,7 +181,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       <div style={{
         width: '100%', maxWidth: 900, height: 140, borderRadius: 10, overflow: 'hidden',
         marginBottom: 28, position: 'relative',
-        backgroundImage: "url('/img 2.png')",
+        backgroundImage: `url('${isDark ? '/img 2.png' : '/img 1.png'}')`,
         backgroundSize: 'cover', backgroundPosition: 'center 30%',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.82) 0%, rgba(7,9,15,0.35) 60%, transparent 100%)' }} />
