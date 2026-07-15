@@ -300,7 +300,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
           <div className="home-cards-row">
             <button
               className="home-card-btn"
-              style={{ backgroundImage: "url('/Quality Inspection & Testing.png'), linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
+              style={{ backgroundImage: "url('/Bus background 2.png'), linear-gradient(135deg, #92400e 0%, #101623 100%)" }}
               onClick={onSelectPendingReviews}
             >
               <div className="home-card-overlay">

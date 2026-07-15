@@ -94,7 +94,7 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
       <div style={{
         width: '100%', maxWidth: 860, height: 130, borderRadius: 10, overflow: 'hidden',
         marginBottom: 28, position: 'relative',
-        backgroundImage: "url('/Trim Line & Final Assembly.jpg')",
+        backgroundImage: "url('/img 1.png')",
         backgroundSize: 'cover', backgroundPosition: 'center 40%',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.82) 0%, rgba(7,9,15,0.35) 60%, transparent 100%)' }} />
