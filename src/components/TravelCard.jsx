@@ -904,7 +904,7 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
   const isAdmin = role === "systemadmin" || role === "useradmin";
   const isSupervisor = role === "supervisor";
   const isUser = role === "user"; // plain user — 2 tabs only, no downtime/sign-off
@@ -1046,6 +1046,23 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedStation]);
+
+  // Prefill current user into reviewer (supervisor) or operators (station user)
+  useEffect(() => {
+    if (!currentUserName) return;
+    if (role === "user") {
+      // Add to operator pool and auto-select them
+      setOperators(prev => prev.includes(currentUserName) ? prev : [...prev, currentUserName]);
+      setSelOps(prev => prev.includes(currentUserName) ? prev : [...prev, currentUserName]);
+    } else if (role === "supervisor" || role === "manager" || role === "director") {
+      // Prefill as reviewer
+      setReviewer(currentUserName);
+      if (!reviewers.includes(currentUserName)) {
+        setReviewers(prev => [...prev, currentUserName]);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserName]);
 
   // KEC templates are not yet available (documents cover EVS and KDC only).
   const isKEC = busModel.includes("KEC");

@@ -212,6 +212,9 @@ export default function App() {
     return result;
   }, [filteredRows, filters.line, filters.station, filters.status]);
 
+  // Current user info (set by Login from dynamic user record)
+  const currentUserName  = localStorage.getItem('kmc_user_fullname') || null;
+
   // Role-specific access assignments (set by Login from dynamic user record)
   const assignedStation  = localStorage.getItem('kmc_assigned_station') || null;
   const assignedStations = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_stations') || 'null'); } catch { return null; } })();
@@ -222,6 +225,7 @@ export default function App() {
     localStorage.removeItem('kmc_role');
     localStorage.removeItem('kmc_ncr_domain');
     localStorage.removeItem('kmc_landing');
+    localStorage.removeItem('kmc_user_fullname');
     localStorage.removeItem('kmc_assigned_station');
     localStorage.removeItem('kmc_assigned_stations');
     localStorage.removeItem('kmc_assigned_line');
@@ -267,6 +271,7 @@ export default function App() {
       onBack={() => setMode('home')}
       assignedStations={assignedStations}
       assignedLine={assignedLine}
+      currentUserName={currentUserName}
     />
   );
 
@@ -368,6 +373,7 @@ export default function App() {
           prefillModel={tcPrefill?.model ?? ''}
           prefillStation={tcPrefill?.stationCode ?? ''}
           lockedStation={assignedStation}
+          currentUserName={currentUserName}
           onReset={() => setTcPrefill(null)}
           onSubmitSuccess={refresh}
           theme={theme}

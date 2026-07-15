@@ -18,7 +18,7 @@ const LS = {
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
-export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLine = null }) {
+export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLine = null, currentUserName = null }) {
   const isDark = theme === 'dark';
   const bg      = isDark ? 'rgba(7,9,15,0.92)'     : 'rgba(255,255,255,0.97)';
   const card    = isDark ? 'rgba(13,21,38,0.90)'    : '#fff';
@@ -48,7 +48,7 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
     return allPending;
   });
   const [selected, setSelected] = useState(null);
-  const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: '' });
+  const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -56,7 +56,7 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
 
   function openReview(item) {
     setSelected(item);
-    setReviewFields({ approvalStatus: '', reviewComments: '', reviewer: '' });
+    setReviewFields({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   }
 
   function saveReview() {

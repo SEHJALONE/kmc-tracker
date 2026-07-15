@@ -50,6 +50,10 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
       if (match) {
         // Store role-specific access assignments for dynamic users
         if (dynMatch) {
+          if (dynMatch.fullName)
+            localStorage.setItem('kmc_user_fullname', dynMatch.fullName);
+          else localStorage.removeItem('kmc_user_fullname');
+
           if (dynMatch.assignedStation)
             localStorage.setItem('kmc_assigned_station', dynMatch.assignedStation);
           else localStorage.removeItem('kmc_assigned_station');
@@ -63,6 +67,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           else localStorage.removeItem('kmc_assigned_line');
         } else {
           // Static credential — clear any leftover assignments
+          localStorage.removeItem('kmc_user_fullname');
           localStorage.removeItem('kmc_assigned_station');
           localStorage.removeItem('kmc_assigned_stations');
           localStorage.removeItem('kmc_assigned_line');
