@@ -62,15 +62,18 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
             localStorage.setItem('kmc_assigned_stations', JSON.stringify(dynMatch.assignedStations));
           else localStorage.removeItem('kmc_assigned_stations');
 
-          if (dynMatch.assignedLine)
-            localStorage.setItem('kmc_assigned_line', dynMatch.assignedLine);
-          else localStorage.removeItem('kmc_assigned_line');
+          const lines = dynMatch.assignedLines?.length
+            ? dynMatch.assignedLines
+            : dynMatch.assignedLine ? [dynMatch.assignedLine] : [];
+          if (lines.length)
+            localStorage.setItem('kmc_assigned_lines', JSON.stringify(lines));
+          else localStorage.removeItem('kmc_assigned_lines');
         } else {
           // Static credential — clear any leftover assignments
           localStorage.removeItem('kmc_user_fullname');
           localStorage.removeItem('kmc_assigned_station');
           localStorage.removeItem('kmc_assigned_stations');
-          localStorage.removeItem('kmc_assigned_line');
+          localStorage.removeItem('kmc_assigned_lines');
         }
 
         if (remember) {

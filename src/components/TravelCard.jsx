@@ -756,6 +756,7 @@ const SIX = [
 import { useState, useEffect } from "react";
 import { buildStationReportPDF, buildBusReportPDF } from '../export/buildTravelCardPDF';
 import { fetchLogoBase64 } from '../export/exportHelpers';
+import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const R = "#dc2626";
@@ -1036,16 +1037,44 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
 
-  // Auto-select locked station on mount (station-assigned users)
+  // Auto-select locked station (station-assigned users) — also loads operator pool.
+  // Re-resolves when the bus model changes because some lines are model-suffixed
+  // ("Chassis Line 01 — EVS/KDC") and the visible line list depends on the model.
   useEffect(() => {
     if (!lockedStation) return;
     const LINES_L = { ...TC_LINES, ...(catalog.tcLines || {}) };
-    for (const [lineId, stns] of Object.entries(LINES_L)) {
+    const kind = busModel.includes("KDC") ? "KDC" : "EVS";
+
+    // 1) Look for the code in the travel-card line lists, preferring the
+    //    variant that matches the current bus model.
+    let found = null;
+    for (const [lineName, stns] of Object.entries(LINES_L)) {
       const match = stns.find(s => s.split(":")[0].trim() === lockedStation);
-      if (match) { setCurLine(lineId); setCurSt(match); setCurCode(lockedStation); break; }
+      if (!match) continue;
+      const suffixed = lineName.includes("— EVS") || lineName.includes("— KDC");
+      if (!suffixed || lineName.endsWith(`— ${kind}`)) { found = { lineName, station: match }; break; }
+      if (!found) found = { lineName, station: match };
     }
+
+    // 2) Fallback: the admin station database has codes that aren't in
+    //    TC_LINES (welding QA, chassis sub-stations, trim electrics, …).
+    //    Derive the line from the seed record and synthesise the station label.
+    if (!found) {
+      const seed = SEED_STATIONS[lockedStation];
+      if (seed) {
+        const seedLabel = SEED_LINES.find(l => l.id === seed.line)?.label || "";
+        const names = Object.keys(LINES_L);
+        const lineName =
+          names.find(n => n === `${seedLabel} — ${kind}`) ||
+          names.find(n => n === seedLabel) ||
+          names.find(n => n.startsWith(seedLabel)) || "";
+        found = { lineName, station: `${lockedStation}: ${seed.name}` };
+      }
+    }
+
+    if (found) { setCurLine(found.lineName); onStation(found.station); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockedStation]);
+  }, [lockedStation, busModel]);
 
   // Prefill current user into reviewer (supervisor) or operators (station user)
   useEffect(() => {
@@ -1199,6 +1228,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       downtime: null,
+      submittedBy: currentUserName || null,
       reviewer: null,
       approvalStatus: "pending_review",
       reviewDate: null, reviewComments: null,
@@ -1283,6 +1313,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       downtime: hasDowntime ? { selMs, subCauses, causeTimes, customCauses, correctiveAction: corrAction, comments: orComments, rcaMethod, why1, why2, why3, why4, why5, category: fiveCategory, preventiveAction, attachmentName, attachmentMime, attachmentB64 } : null,
+      submittedBy: currentUserName || null,
       reviewer: revName, approvalStatus: appStatus, reviewDate: revDate, reviewComments: revComments,
     };
     setSubmission(sub);
@@ -1475,10 +1506,12 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               <Sel label="Production line" value={curLine} disabled={!!lockedStation} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
                 <option value="">Select line…</option>
                 {visibleLines.map(l => <option key={l}>{l}</option>)}
+                {curLine && !visibleLines.includes(curLine) && <option>{curLine}</option>}
               </Sel>
               <Sel label={lockedStation ? "Station (assigned — locked)" : "Station"} value={curSt} disabled={!!lockedStation} onChange={e => onStation(e.target.value)}>
                 <option value="">Select station…</option>
                 {stations.map(s => <option key={s}>{s}</option>)}
+                {curSt && !stations.includes(curSt) && <option>{curSt}</option>}
               </Sel>
             </div>
             {/* Admin can always override the designed (cycle) time */}

@@ -62,7 +62,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
   const [form, setForm] = useState({
     username: '', role: 'user',
     assignedStation: '',     // user: one station code
-    assignedLine: '',        // manager: one line id
+    assignedLines: {},       // manager: { [lineId]: true }
     assignedStations: {},    // supervisor: { [code]: true }
     stationLine: '',         // user/supervisor: line filter for station picker
     supervisorLineFilter: '', // supervisor: which line to show in picker
@@ -79,7 +79,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     setSelected(req);
     setForm({
       username: req.username || '', role: 'user',
-      assignedStation: '', assignedLine: '', assignedStations: {},
+      assignedStation: '', assignedLines: {}, assignedStations: {},
       stationLine: '', supervisorLineFilter: '',
     });
   }
@@ -98,7 +98,10 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       const picked = Object.keys(form.assignedStations).filter(k => form.assignedStations[k]);
       if (!picked.length) return alert('Assign at least one station to this supervisor.');
     }
-    if (form.role === 'manager' && !form.assignedLine) return alert('Select the line this manager oversees.');
+    if (form.role === 'manager') {
+      const pickedLines = Object.keys(form.assignedLines).filter(k => form.assignedLines[k]);
+      if (!pickedLines.length) return alert('Select at least one line for this manager.');
+    }
     if (form.role === 'user' && !form.assignedStation) return alert('Assign a station to this user.');
     setBusy(true);
 
@@ -120,7 +123,8 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       createdAt:        new Date().toISOString(),
       // role-specific access
       assignedStation:  form.role === 'user'       ? form.assignedStation  : null,
-      assignedLine:     form.role === 'manager'    ? form.assignedLine     : null,
+      assignedLine:     null,
+      assignedLines:    form.role === 'manager'    ? Object.keys(form.assignedLines).filter(k => form.assignedLines[k]) : [],
       assignedStations: form.role === 'supervisor' ? assignedStationCodes  : [],
     };
 
@@ -323,7 +327,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                   const rc = ROLE_COLOR[r.value];
                   const sel = form.role === r.value;
                   return (
-                    <button key={r.value} onClick={() => setForm(f => ({ ...f, role: r.value, assignedStation: '', assignedLine: '', assignedStations: {}, stationLine: '' }))} style={{
+                    <button key={r.value} onClick={() => setForm(f => ({ ...f, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' }))} style={{
                       display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
                       padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
                       background: sel ? `${rc}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
@@ -350,14 +354,28 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* MANAGER: pick a line */}
+            {/* MANAGER: pick one or more lines */}
             {form.role === 'manager' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Line to Manage</label>
-                <select style={inp} value={form.assignedLine} onChange={e => setF('assignedLine', e.target.value)}>
-                  <option value="">Select line…</option>
-                  {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                </select>
+                <label style={lbl}>Lines to Manage <span style={{ color: '#6366f1' }}>(select one or more)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg }}>
+                  {SEED_LINES.map(l => (
+                    <label key={l.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 14px', cursor: 'pointer',
+                      borderBottom: `1px solid ${border}`,
+                      background: form.assignedLines[l.id] ? (isDark ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.05)') : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={!!form.assignedLines[l.id]}
+                        onChange={() => setForm(f => ({ ...f, assignedLines: { ...f.assignedLines, [l.id]: !f.assignedLines[l.id] } }))}
+                        style={{ accentColor: '#6366f1', width: 13, height: 13 }} />
+                      <span style={{ fontSize: 12, color: form.assignedLines[l.id] ? text : muted }}>{l.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: dim, marginTop: 5 }}>
+                  {Object.values(form.assignedLines).filter(Boolean).length} line(s) selected
+                </div>
               </div>
             )}
 

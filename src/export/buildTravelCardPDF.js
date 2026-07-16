@@ -68,7 +68,7 @@ function drawHeader(doc, logoBase64, pageNum, totalPages, subtitle = '') {
   doc.line(M, 22, W - M, 22);
 }
 
-function drawFooter(doc, reviewer, status, reviewDate) {
+function drawFooter(doc, reviewer, status, reviewDate, submittedBy) {
   const fy = H - 18;
   doc.setFillColor(...XLIT);
   doc.rect(0, fy, W, 18, 'F');
@@ -77,6 +77,10 @@ function drawFooter(doc, reviewer, status, reviewDate) {
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...MID);
   doc.text('KIIRA MOTORS CORPORATION', M, fy + 5);
   doc.text(stamp(), W - M, fy + 5, { align: 'right' });
+  if (submittedBy) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...MID);
+    doc.text(`Submitted by: ${submittedBy}`, W - M, fy + 10, { align: 'right' });
+  }
   if (reviewer) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...BLACK);
     doc.text(`Reviewed by: ${reviewer}`, M, fy + 10);
@@ -118,7 +122,7 @@ export async function buildStationReportPDF(sub, logoBase64) {
   const totalPages = 1;
 
   function hdr(pg) { drawHeader(doc, logoBase64, pg, totalPages, `${sub.stationCode} — ${sub.vin}`); }
-  function ftr() { drawFooter(doc, sub.reviewer, sub.approvalStatus, sub.reviewDate); }
+  function ftr() { drawFooter(doc, sub.reviewer, sub.approvalStatus, sub.reviewDate, sub.submittedBy); }
 
   hdr(1);
   let y = 27;

@@ -218,7 +218,7 @@ export default function App() {
   // Role-specific access assignments (set by Login from dynamic user record)
   const assignedStation  = localStorage.getItem('kmc_assigned_station') || null;
   const assignedStations = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_stations') || 'null'); } catch { return null; } })();
-  const assignedLine     = localStorage.getItem('kmc_assigned_line') || null;
+  const assignedLines    = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_lines') || 'null'); } catch { return null; } })();
 
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
@@ -228,7 +228,7 @@ export default function App() {
     localStorage.removeItem('kmc_user_fullname');
     localStorage.removeItem('kmc_assigned_station');
     localStorage.removeItem('kmc_assigned_stations');
-    localStorage.removeItem('kmc_assigned_line');
+    localStorage.removeItem('kmc_assigned_lines');
     setRole('user');
     setNcrDomain(null);
     setAuthed(false);
@@ -270,7 +270,7 @@ export default function App() {
       role={role}
       onBack={() => setMode('home')}
       assignedStations={assignedStations}
-      assignedLine={assignedLine}
+      assignedLines={assignedLines}
       currentUserName={currentUserName}
     />
   );

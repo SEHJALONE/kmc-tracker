@@ -60,11 +60,14 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
   function openEdit(user) {
     setSelected(user);
     setLineFilter('');
+    const existingLines = user.assignedLines?.length
+      ? user.assignedLines
+      : user.assignedLine ? [user.assignedLine] : [];
     setEdit({
       role:             user.role || 'user',
       password:         '',
       assignedStation:  user.assignedStation || '',
-      assignedLine:     user.assignedLine || '',
+      assignedLines:    Object.fromEntries(existingLines.map(c => [c, true])),
       assignedStations: Object.fromEntries((user.assignedStations || []).map(c => [c, true])),
       stationLine:      user.assignedStation
         ? (SEED_STATIONS[user.assignedStation]?.line || '')
@@ -84,7 +87,10 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       const picked = Object.keys(edit.assignedStations).filter(k => edit.assignedStations[k]);
       if (!picked.length) return alert('Assign at least one station.');
     }
-    if (edit.role === 'manager' && !edit.assignedLine) return alert('Select a line for this manager.');
+    if (edit.role === 'manager') {
+      const pickedLines = Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]);
+      if (!pickedLines.length) return alert('Select at least one line for this manager.');
+    }
     if (edit.role === 'user' && !edit.assignedStation) return alert('Assign a station to this user.');
     setBusy(true);
 
@@ -98,7 +104,8 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
         ...u,
         role:             edit.role,
         assignedStation:  edit.role === 'user'       ? edit.assignedStation : null,
-        assignedLine:     edit.role === 'manager'    ? edit.assignedLine    : null,
+        assignedLine:     null,
+        assignedLines:    edit.role === 'manager'    ? Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]) : [],
         assignedStations: edit.role === 'supervisor' ? assignedCodes        : [],
       };
       if (edit.password.length >= 8) next.password = edit.password;
@@ -204,7 +211,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                     <div style={{ fontSize: 10, color: dim, marginTop: 2, fontFamily: "'Courier New', monospace" }}>
                       {user.email}
                       {user.assignedStation && <span style={{ color: GR }}> · Station: {user.assignedStation}</span>}
-                      {user.assignedLine && <span style={{ color: '#6366f1' }}> · Line: {SEED_LINES.find(l => l.id === user.assignedLine)?.label || user.assignedLine}</span>}
+                      {user.assignedLines?.length > 0 && <span style={{ color: '#6366f1' }}> · Lines: {user.assignedLines.map(id => SEED_LINES.find(l => l.id === id)?.label || id).join(', ')}</span>}
                       {user.assignedStations?.length > 0 && <span style={{ color: AM }}> · {user.assignedStations.length} station(s)</span>}
                     </div>
                   </div>
@@ -250,7 +257,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                 {ROLE_OPTIONS.map(r => {
                   const sel = edit.role === r.value;
                   return (
-                    <button key={r.value} onClick={() => setEdit(e => ({ ...e, role: r.value, assignedStation: '', assignedLine: '', assignedStations: {}, stationLine: '' }))} style={{
+                    <button key={r.value} onClick={() => setEdit(e => ({ ...e, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' }))} style={{
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
                       padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
                       background: sel ? `${r.color}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
@@ -271,14 +278,28 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* Manager: line */}
+            {/* Manager: lines (multi-select) */}
             {edit.role === 'manager' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Line to Manage</label>
-                <select style={inp} value={edit.assignedLine} onChange={e => setE('assignedLine', e.target.value)}>
-                  <option value="">Select line…</option>
-                  {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                </select>
+                <label style={lbl}>Lines to Manage <span style={{ color: '#6366f1' }}>(select one or more)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg }}>
+                  {SEED_LINES.map(l => (
+                    <label key={l.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 14px', cursor: 'pointer',
+                      borderBottom: `1px solid ${border}`,
+                      background: edit.assignedLines?.[l.id] ? (isDark ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.05)') : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={!!edit.assignedLines?.[l.id]}
+                        onChange={() => setEdit(e => ({ ...e, assignedLines: { ...e.assignedLines, [l.id]: !e.assignedLines?.[l.id] } }))}
+                        style={{ accentColor: '#6366f1', width: 13, height: 13 }} />
+                      <span style={{ fontSize: 12, color: edit.assignedLines?.[l.id] ? text : muted }}>{l.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: dim, marginTop: 5 }}>
+                  {Object.values(edit.assignedLines || {}).filter(Boolean).length} line(s) selected
+                </div>
               </div>
             )}
 

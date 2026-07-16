@@ -18,7 +18,7 @@ const LS = {
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
-export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLine = null, currentUserName = null }) {
+export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLines = null, currentUserName = null }) {
   const isDark = theme === 'dark';
   const bg      = isDark ? 'rgba(7,9,15,0.92)'     : 'rgba(255,255,255,0.97)';
   const card    = isDark ? 'rgba(13,21,38,0.90)'    : '#fff';
@@ -42,8 +42,8 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
     if (role === 'supervisor' && assignedStations?.length) {
       return allPending.filter(r => assignedStations.includes(r.stationCode));
     }
-    if (role === 'manager' && assignedLine) {
-      return allPending.filter(r => SEED_STATIONS[r.stationCode]?.line === assignedLine);
+    if (role === 'manager' && assignedLines?.length) {
+      return allPending.filter(r => assignedLines.includes(SEED_STATIONS[r.stationCode]?.line));
     }
     return allPending;
   });
@@ -168,6 +168,7 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
               ['VIN', selected.vin],
               ['Line', selected.line],
               ['Station', selected.stationCode],
+              ['Submitted by', selected.submittedBy || '—'],
               ['Operators', (selected.operators || []).join(', ') || '—'],
               ['Clock in', selected.clockIn ? new Date(selected.clockIn).toLocaleString() : '—'],
               ['Clock out', selected.clockOut ? new Date(selected.clockOut).toLocaleString() : '—'],
