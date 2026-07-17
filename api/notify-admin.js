@@ -76,12 +76,20 @@ export default async function handler(req, res) {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from, to: adminList,
       subject: `[KMC Tracker] Access Request — ${fullName} (${accessBadge})`,
       html,
     });
-    return res.json({ ok: true, emailed: true });
+    // The Resend SDK does NOT throw on API-level rejections (e.g. sandbox
+    // mode restricting sends to unverified recipients) — it resolves with
+    // { data: null, error: {...} } instead, so this must be checked explicitly
+    // or a real failure gets reported back as a false "emailed: true".
+    if (result.error) {
+      console.error('notify-admin email rejected:', result.error);
+      return res.json({ ok: true, emailed: false, note: result.error.message || 'Resend rejected the send.' });
+    }
+    return res.json({ ok: true, emailed: true, id: result.data?.id });
   } catch (err) {
     console.error('notify-admin email error:', err);
     return res.json({ ok: true, emailed: false, note: err.message });

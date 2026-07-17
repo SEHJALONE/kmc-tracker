@@ -80,6 +80,14 @@ export default async function handler(req, res) {
 
   try {
     const result = await sendEmail(payload);
+    // The Resend SDK does NOT throw on API-level rejections (e.g. sandbox
+    // mode restricting sends to unverified recipients) — it resolves with
+    // { data: null, error: {...} } instead, so this must be checked explicitly
+    // or a real failure gets reported back as a false success.
+    if (result.error) {
+      console.error('Resend rejected send-report:', result.error);
+      return res.status(502).json({ error: result.error.message || 'Resend rejected the send.' });
+    }
     res.json({ ok: true, sent: true, id: result.data?.id, scheduled: false });
   } catch (err) {
     console.error('Resend error:', err);
