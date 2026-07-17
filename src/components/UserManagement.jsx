@@ -42,7 +42,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
   const [toast, setToast]       = useState(null);
   const [busy, setBusy]         = useState(false);
   const [search, setSearch]     = useState('');
-  const [lineFilter, setLineFilter] = useState('');
+  const [supervisorLines, setSupervisorLines] = useState({}); // { [lineId]: true } — which lines to show stations for
   const [confirmDel, setConfirmDel] = useState(null);
 
   // Edit form mirrors the user's current values
@@ -55,7 +55,9 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
 
   function openEdit(user) {
     setSelected(user);
-    setLineFilter(user.assignedStations?.length ? (SEED_STATIONS[user.assignedStations[0]]?.line || '') : '');
+    // Cover every line the user's current stations belong to, not just the first.
+    const stationLines = [...new Set((user.assignedStations || []).map(c => SEED_STATIONS[c]?.line).filter(Boolean))];
+    setSupervisorLines(Object.fromEntries(stationLines.map(id => [id, true])));
     const existingLines = user.assignedLines?.length
       ? user.assignedLines
       : user.assignedLine ? [user.assignedLine] : [];
@@ -145,7 +147,6 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
   });
 
   const userLineStations = edit?.stationLine ? (stationsByLine[edit.stationLine] || []) : [];
-  const supervisorLines = SEED_LINES.filter(l => !lineFilter || l.id === lineFilter);
 
   return (
     <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
@@ -258,7 +259,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                 {ROLE_OPTIONS.map(r => {
                   const sel = edit.role === r.value;
                   return (
-                    <button key={r.value} onClick={() => setEdit(e => ({ ...e, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' }))} style={{
+                    <button key={r.value} onClick={() => { setEdit(e => ({ ...e, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' })); setSupervisorLines({}); }} style={{
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
                       padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
                       background: sel ? `${r.color}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
@@ -304,19 +305,43 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* Supervisor: line filter + stations (locked to one line) */}
+            {/* Supervisor: one or more lines, then stations within each */}
             {edit.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(one line only)</span></label>
-                <select style={{ ...inp, marginBottom: 8 }} value={lineFilter} onChange={e => { setLineFilter(e.target.value); setEdit(ed => ({ ...ed, assignedStations: {} })); }}>
-                  <option value="">Select line…</option>
-                  {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                </select>
-                {!lineFilter && (
-                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select a line to see its stations.</div>
+                <label style={lbl}>Lines to Supervise <span style={{ color: AM }}>(select one or more)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, marginBottom: 10 }}>
+                  {SEED_LINES.map(l => (
+                    <label key={l.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 14px', cursor: 'pointer',
+                      borderBottom: `1px solid ${border}`,
+                      background: supervisorLines[l.id] ? (isDark ? 'rgba(245,158,11,0.10)' : 'rgba(245,158,11,0.05)') : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={!!supervisorLines[l.id]}
+                        onChange={() => {
+                          const nowChecked = !supervisorLines[l.id];
+                          setSupervisorLines(sl => ({ ...sl, [l.id]: nowChecked }));
+                          if (!nowChecked) {
+                            // Line deselected — drop any stations picked from it.
+                            setEdit(ed => {
+                              const next = { ...ed.assignedStations };
+                              (stationsByLine[l.id] || []).forEach(s => { delete next[s.code]; });
+                              return { ...ed, assignedStations: next };
+                            });
+                          }
+                        }}
+                        style={{ accentColor: AM, width: 13, height: 13 }} />
+                      <span style={{ fontSize: 12, color: supervisorLines[l.id] ? text : muted }}>{l.label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more)</span></label>
+                {!Object.values(supervisorLines).some(Boolean) && (
+                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
                 )}
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
-                  {supervisorLines.filter(l => lineFilter && l.id === lineFilter).map(line => {
+                  {SEED_LINES.filter(l => supervisorLines[l.id]).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => edit.assignedStations[s.code]);

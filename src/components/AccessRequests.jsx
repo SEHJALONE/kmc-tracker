@@ -57,8 +57,8 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     assignedStation: '',     // user: one station code
     assignedLines: {},       // manager: { [lineId]: true }
     assignedStations: {},    // supervisor: { [code]: true }
-    stationLine: '',         // user/supervisor: line filter for station picker
-    supervisorLineFilter: '', // supervisor: which line to show in picker
+    stationLine: '',         // user: line filter for station picker
+    supervisorLines: {},     // supervisor: { [lineId]: true } — which lines to show stations for
   });
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -73,7 +73,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     setForm({
       username: req.username || '', role: 'user',
       assignedStation: '', assignedLines: {}, assignedStations: {},
-      stationLine: '', supervisorLineFilter: '',
+      stationLine: '', supervisorLines: {},
     });
   }
 
@@ -339,7 +339,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                   const rc = ROLE_COLOR[r.value];
                   const sel = form.role === r.value;
                   return (
-                    <button key={r.value} onClick={() => setForm(f => ({ ...f, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' }))} style={{
+                    <button key={r.value} onClick={() => setForm(f => ({ ...f, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '', supervisorLines: {} }))} style={{
                       display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
                       padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
                       background: sel ? `${rc}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
@@ -391,23 +391,41 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* SUPERVISOR: pick stations (multi-select, locked to one line) */}
+            {/* SUPERVISOR: pick one or more lines, then stations within each */}
             {form.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more — one line only)</span></label>
+                <label style={lbl}>Lines to Supervise <span style={{ color: AM }}>(select one or more)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, marginBottom: 10 }}>
+                  {SEED_LINES.map(l => (
+                    <label key={l.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 14px', cursor: 'pointer',
+                      borderBottom: `1px solid ${border}`,
+                      background: form.supervisorLines[l.id] ? (isDark ? 'rgba(245,158,11,0.10)' : 'rgba(245,158,11,0.05)') : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={!!form.supervisorLines[l.id]}
+                        onChange={() => setForm(f => {
+                          const nowChecked = !f.supervisorLines[l.id];
+                          const nextStations = { ...f.assignedStations };
+                          if (!nowChecked) {
+                            // Line deselected — drop any stations picked from it.
+                            (stationsByLine[l.id] || []).forEach(s => { delete nextStations[s.code]; });
+                          }
+                          return { ...f, supervisorLines: { ...f.supervisorLines, [l.id]: nowChecked }, assignedStations: nextStations };
+                        })}
+                        style={{ accentColor: AM, width: 13, height: 13 }} />
+                      <span style={{ fontSize: 12, color: form.supervisorLines[l.id] ? text : muted }}>{l.label}</span>
+                    </label>
+                  ))}
+                </div>
 
-                {/* Line — required; changing it clears any previously picked stations */}
-                <select style={{ ...inp, marginBottom: 8 }} value={form.supervisorLineFilter} onChange={e => setForm(f => ({ ...f, supervisorLineFilter: e.target.value, assignedStations: {} }))}>
-                  <option value="">Select line…</option>
-                  {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
-                </select>
-
-                {!form.supervisorLineFilter && (
-                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select a line to see its stations.</div>
+                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more)</span></label>
+                {!Object.values(form.supervisorLines).some(Boolean) && (
+                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
                 )}
 
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
-                  {SEED_LINES.filter(l => form.supervisorLineFilter && l.id === form.supervisorLineFilter).map(line => {
+                  {SEED_LINES.filter(l => form.supervisorLines[l.id]).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => form.assignedStations[s.code]);
