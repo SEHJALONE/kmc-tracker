@@ -137,8 +137,9 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       processedAt: new Date().toISOString(),
     });
 
+    let emailed = false;
     try {
-      await fetch('/api/notify-approved', {
+      const emailRes = await fetch('/api/notify-approved', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -146,11 +147,20 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
           username: newUser.username, role: form.role,
         }),
       });
+      emailed = (await emailRes.json())?.emailed === true;
     } catch { /* email failure is non-fatal — account is already created */ }
 
     setSelected(null);
     setBusy(false);
-    showToast(`Access granted to ${selected.fullName} ✓`);
+    // Resend's free tier can only email your own address until a domain is
+    // verified — so applicant notifications commonly fail. Tell the admin so
+    // they know to share credentials manually rather than assume it sent.
+    showToast(
+      emailed
+        ? `Access granted to ${selected.fullName} ✓ — confirmation emailed`
+        : `Access granted to ${selected.fullName} ✓ — email not sent, share credentials manually`,
+      true
+    );
   }
 
   async function handleDeny() {
