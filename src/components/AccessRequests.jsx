@@ -136,6 +136,18 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       assignedUsername: newUser.username, assignedRole: form.role,
       processedAt: new Date().toISOString(),
     });
+
+    try {
+      await fetch('/api/notify-approved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: selected.fullName, email: selected.email,
+          username: newUser.username, role: form.role,
+        }),
+      });
+    } catch { /* email failure is non-fatal — account is already created */ }
+
     setSelected(null);
     setBusy(false);
     showToast(`Access granted to ${selected.fullName} ✓`);
