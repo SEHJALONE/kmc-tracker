@@ -480,7 +480,7 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   );
 }
 
-// ── Email modal (posts to server.js /api/send-report) ───────────
+// ── Email modal (posts to the Vercel /api/send-report function) ───────────
 function ScoreboardEmailModal({ onClose, capturePages }) {
   const C = useC();
   const [to, setTo] = useState('');
@@ -490,8 +490,6 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
   const [weekday, setWeekday] = useState('MON');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
-
-  const endpoint = import.meta.env?.VITE_EMAIL_ENDPOINT || null;
 
   async function send() {
     if (!to.trim()) { setStatus({ ok: false, msg: 'Enter a recipient email.' }); return; }
@@ -503,14 +501,9 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
         filename: `KMC_Scoreboard_p${i + 1}_${stamp}.png`,
         dataUrl: cv.toDataURL('image/png'),
       }));
-      if (!endpoint) {
-        window.open(`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-          'KMC DPN Scoreboard — email server not configured (VITE_EMAIL_ENDPOINT). Use the PNG/PDF export buttons and attach manually.'
-        )}`, '_blank');
-        setStatus({ ok: true, msg: 'No email server configured — opened your mail client instead.' });
-        return;
-      }
-      const res = await fetch(endpoint, {
+      // Always same-origin — see EmailModal.jsx for why this isn't read from
+      // VITE_EMAIL_ENDPOINT (a committed .env value that drifts from prod).
+      const res = await fetch('/api/send-report', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to, subject, schedule, scheduledTime, weekday, busCount: 0, attachments }),
       });
