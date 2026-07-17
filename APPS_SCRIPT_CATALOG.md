@@ -1,4 +1,4 @@
-# Apps Script — complete script (catalog + submissions + analysis fields)
+# Apps Script — complete script (catalog + submissions + analysis fields + access/users)
 
 This is the full, ready-to-paste Apps Script. It merges:
 - your existing travel-card submission logic,
@@ -7,19 +7,44 @@ This is the full, ready-to-paste Apps Script. It merges:
 - **automatic catalog backups** — every `saveCatalog` snapshots whatever was in
   the `Catalog` tab into `Catalog_Backups` *before* overwriting it,
 - **MOC Register** create/update (`saveMOC`/`updateMOC`), writing to a new
-  `moc` tab, and
+  `moc` tab,
 - the **new analysis fields** (break/gross time, per-cause delay minutes, custom
-  causes, added activities) written into the submission sheets.
+  causes, added activities) written into the submission sheets, and
+- **Access Requests + Dynamic Users** (`login`, `submitAccessRequest`,
+  `listAccessRequests`, `updateAccessRequest`, `deleteAccessRequest`,
+  `listDynamicUsers`, `createDynamicUser`, `updateDynamicUser`,
+  `deleteDynamicUser`) — this is what makes sign-up requests and granted
+  accounts visible across every device instead of being stuck in one browser's
+  localStorage.
 
 ## Steps
 1. The **`Catalog`** tab already exists (key | value). ✅
 2. Token is set to **`kmcisgood`** in both `src/data/catalogConfig.js` and the
    script below — keep them identical.
-3. Replace your entire Apps Script with the code below.
-4. **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy.**
+3. **Create a new, separate Google Sheet** for access requests and dynamic
+   users — call it e.g. "KMC Tracker — Access & Users (Private)". **Do not
+   change its sharing settings** (leave it owner-only / private). This is
+   deliberate: unlike the main tracker sheet (shared "anyone with the link can
+   view", fine for catalog data), access requests and user records contain
+   plaintext passwords, so they must live somewhere nobody can open by just
+   having a link. Apps Script can still read/write it — script access doesn't
+   depend on the sheet's sharing settings, only on the deploying account
+   owning/editing it.
+4. Copy that new sheet's ID out of its URL
+   (`https://docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit`) and paste
+   it into `PRIVATE_SHEET_ID` near the top of the script below.
+5. Replace your entire Apps Script with the code below.
+6. **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy.**
    This keeps the same `/exec` URL so nothing else changes.
-5. The **`Catalog_Backups`** tab is created automatically on the first save
-   after deploying — nothing to set up by hand.
+7. The **`Catalog_Backups`**, **`AccessRequests`**, and **`DynamicUsers`** tabs
+   are all created automatically on first use — nothing to set up by hand
+   beyond the private sheet itself.
+
+**Passwords never leave the server.** `listDynamicUsers` and `login` both
+strip the password field before responding — the browser never receives it,
+even for an authenticated admin session. Editing a user's other fields
+(role, stations, etc.) without setting a new password leaves the stored
+password untouched server-side.
 
 > Reads use the public gviz CSV of the `Catalog` tab; the front-end reassembles
 > the chunked rows. Writes are token-checked here.
@@ -49,8 +74,75 @@ const CATALOG_ADMIN_TOKEN = "kmcisgood";
 const CATALOG_BACKUP_TAB = "Catalog_Backups";
 const CATALOG_BACKUP_MAX = 20;
 
+// ── Access Requests / Dynamic Users — PRIVATE spreadsheet ────────────────────
+// These carry plaintext applicant/user passwords, so they live in a SEPARATE
+// spreadsheet that is NOT shared "anyone with the link" (unlike the main
+// tracker sheet). Apps Script can read/write it regardless of its own sharing
+// settings because the script runs under the deploying account's authority.
+// Create a new blank Google Sheet, leave its sharing at the default
+// (owner-only), and paste its ID here.
+const PRIVATE_SHEET_ID = "1TS2xV3kDIOlQ9W1-j-P9DExvt5lNZhLX6xeeuLX9BNA";
+
+const ACCESS_REQUESTS_TAB = "AccessRequests";
+const ACCESS_REQUESTS_HEADERS = [
+  "id", "full_name", "email", "username", "department", "production_lines",
+  "position", "password", "reason", "status", "submitted_at",
+  "assigned_username", "assigned_role", "processed_at",
+];
+
+const DYNAMIC_USERS_TAB = "DynamicUsers";
+const DYNAMIC_USERS_HEADERS = [
+  "username", "password", "role", "domain", "landing", "full_name", "email",
+  "department", "production_line", "production_lines", "position", "created_at",
+  "assigned_station", "assigned_line", "assigned_lines", "assigned_stations",
+];
+
+function privateSs_() {
+  return SpreadsheetApp.openById(PRIVATE_SHEET_ID);
+}
+
 function doPost(e) {
   try {
+    // ── Login (public — the password itself is the credential) ────────────────
+    if (e && e.parameter && e.parameter.action === "login") {
+      return login_(e.parameter.username, e.parameter.password);
+    }
+
+    // ── Access requests ─────────────────────────────────────────────────────────
+    if (e && e.parameter && e.parameter.action === "submitAccessRequest") {
+      return submitAccessRequest_(e.parameter.payload);
+    }
+    if (e && e.parameter && e.parameter.action === "listAccessRequests") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return listAccessRequests_();
+    }
+    if (e && e.parameter && e.parameter.action === "updateAccessRequest") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return updateAccessRequest_(e.parameter.payload);
+    }
+    if (e && e.parameter && e.parameter.action === "deleteAccessRequest") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return deleteAccessRequest_(e.parameter.id);
+    }
+
+    // ── Dynamic users ────────────────────────────────────────────────────────────
+    if (e && e.parameter && e.parameter.action === "listDynamicUsers") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return listDynamicUsers_();
+    }
+    if (e && e.parameter && e.parameter.action === "createDynamicUser") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return createDynamicUser_(e.parameter.payload);
+    }
+    if (e && e.parameter && e.parameter.action === "updateDynamicUser") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return updateDynamicUser_(e.parameter.payload);
+    }
+    if (e && e.parameter && e.parameter.action === "deleteDynamicUser") {
+      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      return deleteDynamicUser_(e.parameter.username);
+    }
+
     // ── Catalog save branch (admin only) ──────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "saveCatalog") {
       if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
@@ -418,6 +510,219 @@ function writeProjects(ss, d) {
       }
     }
   }
+}
+
+// ── Login — server-side credential check against the private sheet ──────────
+// Never returns the password field, so no client ever receives it.
+function login_(username, password) {
+  if (!username || !password) return response({ status: "error", message: "missing-credentials" });
+  const sh = getOrCreate(privateSs_(), DYNAMIC_USERS_TAB, DYNAMIC_USERS_HEADERS);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const col = name => headers.indexOf(name);
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[col("username")]).toLowerCase() === String(username).toLowerCase() && String(row[col("password")]) === password) {
+      return response({ status: "ok", user: dynamicUserRowToObject_(headers, row) });
+    }
+  }
+  return response({ status: "error", message: "invalid-credentials" });
+}
+
+function dynamicUserRowToObject_(headers, row) {
+  const col = name => row[headers.indexOf(name)];
+  const jsonArr = v => { try { const p = JSON.parse(v || "[]"); return Array.isArray(p) ? p : []; } catch (e) { return []; } };
+  return {
+    username: col("username") || "",
+    role: col("role") || "user",
+    domain: col("domain") || null,
+    landing: col("landing") || null,
+    fullName: col("full_name") || "",
+    email: col("email") || "",
+    department: col("department") || "",
+    productionLine: col("production_line") || "",
+    productionLines: jsonArr(col("production_lines")),
+    position: col("position") || "",
+    createdAt: col("created_at") || "",
+    assignedStation: col("assigned_station") || "",
+    assignedLine: col("assigned_line") || null,
+    assignedLines: jsonArr(col("assigned_lines")),
+    assignedStations: jsonArr(col("assigned_stations")),
+  };
+}
+
+// ── Access requests (private sheet, one row per applicant) ───────────────────
+function submitAccessRequest_(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const sh = getOrCreate(privateSs_(), ACCESS_REQUESTS_TAB, ACCESS_REQUESTS_HEADERS);
+  const id = d.id || Utilities.getUuid();
+  sh.appendRow([
+    id, d.fullName || "", d.email || "", d.username || "", d.department || "",
+    JSON.stringify(d.productionLines || []), d.position || "", d.password || "",
+    d.reason || "", d.status || "pending", d.submittedAt || new Date().toISOString(),
+    "", "", "",
+  ]);
+  return response({ status: "ok", id });
+}
+
+function listAccessRequests_() {
+  const sh = getOrCreate(privateSs_(), ACCESS_REQUESTS_TAB, ACCESS_REQUESTS_HEADERS);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const col = (row, name) => row[headers.indexOf(name)];
+  const jsonArr = v => { try { const p = JSON.parse(v || "[]"); return Array.isArray(p) ? p : []; } catch (e) { return []; } };
+  const requests = data.slice(1).filter(r => col(r, "id")).map(r => {
+    const productionLines = jsonArr(col(r, "production_lines"));
+    return {
+      id: col(r, "id"),
+      fullName: col(r, "full_name") || "",
+      email: col(r, "email") || "",
+      username: col(r, "username") || "",
+      department: col(r, "department") || "",
+      productionLines,
+      productionLine: productionLines[0] || "",
+      position: col(r, "position") || "",
+      password: col(r, "password") || "",
+      reason: col(r, "reason") || "",
+      status: col(r, "status") || "pending",
+      submittedAt: col(r, "submitted_at") || "",
+      assignedUsername: col(r, "assigned_username") || "",
+      assignedRole: col(r, "assigned_role") || "",
+      processedAt: col(r, "processed_at") || "",
+    };
+  });
+  return response({ status: "ok", requests });
+}
+
+function updateAccessRequest_(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const sh = privateSs_().getSheetByName(ACCESS_REQUESTS_TAB);
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("id");
+  const fieldMap = { status: "status", assignedUsername: "assigned_username", assignedRole: "assigned_role", processedAt: "processed_at" };
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === String(d.id)) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", id: d.id });
+    }
+  }
+  return response({ status: "error", message: "request-not-found" });
+}
+
+function deleteAccessRequest_(id) {
+  if (!id) return response({ status: "error", message: "missing-id" });
+  const sh = privateSs_().getSheetByName(ACCESS_REQUESTS_TAB);
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(id)) {
+      sh.deleteRow(i + 1);
+      return response({ status: "ok", id });
+    }
+  }
+  return response({ status: "error", message: "request-not-found" });
+}
+
+// ── Dynamic users (private sheet, one row per user) ───────────────────────────
+function listDynamicUsers_() {
+  const sh = getOrCreate(privateSs_(), DYNAMIC_USERS_TAB, DYNAMIC_USERS_HEADERS);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const users = data.slice(1)
+    .filter(r => r[headers.indexOf("username")])
+    .map(r => dynamicUserRowToObject_(headers, r)); // never includes password
+  return response({ status: "ok", users });
+}
+
+function createDynamicUser_(payload) {
+  let u;
+  try { u = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!u.username || !u.password) return response({ status: "error", message: "missing-username-or-password" });
+  const sh = getOrCreate(privateSs_(), DYNAMIC_USERS_TAB, DYNAMIC_USERS_HEADERS);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const usernameCol = headers.indexOf("username");
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][usernameCol]).toLowerCase() === u.username.toLowerCase()) {
+      return response({ status: "error", message: "username-taken" });
+    }
+  }
+  sh.appendRow([
+    u.username, u.password, u.role || "user", u.domain || "", u.landing || "",
+    u.fullName || "", u.email || "", u.department || "", u.productionLine || "",
+    JSON.stringify(u.productionLines || []), u.position || "", u.createdAt || new Date().toISOString(),
+    u.assignedStation || "", u.assignedLine || "",
+    JSON.stringify(u.assignedLines || []), JSON.stringify(u.assignedStations || []),
+  ]);
+  return response({ status: "ok", username: u.username });
+}
+
+// Patches only the fields present on the payload. `password` is only ever
+// overwritten when explicitly included (a non-empty new password) — omitting
+// it (the normal case) leaves the stored password untouched, since reads
+// never send it back to any client.
+function updateDynamicUser_(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!d.username) return response({ status: "error", message: "missing-username" });
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const usernameCol = headers.indexOf("username");
+
+  const fieldMap = {
+    password: "password", role: "role", domain: "domain", landing: "landing",
+    fullName: "full_name", email: "email", department: "department",
+    productionLine: "production_line", position: "position",
+    assignedStation: "assigned_station", assignedLine: "assigned_line",
+  };
+  const jsonFieldMap = { productionLines: "production_lines", assignedLines: "assigned_lines", assignedStations: "assigned_stations" };
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][usernameCol]).toLowerCase() === d.username.toLowerCase()) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined && d[key] !== "") {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      Object.entries(jsonFieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(JSON.stringify(d[key]));
+        }
+      });
+      return response({ status: "ok", username: d.username });
+    }
+  }
+  return response({ status: "error", message: "user-not-found" });
+}
+
+function deleteDynamicUser_(username) {
+  if (!username) return response({ status: "error", message: "missing-username" });
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).toLowerCase() === String(username).toLowerCase()) {
+      sh.deleteRow(i + 1);
+      return response({ status: "ok", username });
+    }
+  }
+  return response({ status: "error", message: "user-not-found" });
 }
 
 function getOrCreate(ss, name, headers) {

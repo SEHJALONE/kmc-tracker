@@ -1,10 +1,6 @@
 import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
-
-const DYN_KEY = 'kmc_dynamic_users';
-
-function loadDynamic()     { try { return JSON.parse(localStorage.getItem(DYN_KEY) || '[]'); } catch { return []; } }
-function saveDynamic(list) { localStorage.setItem(DYN_KEY, JSON.stringify(list)); }
+import { useDynamicUsers } from '../hooks/useDynamicUsers';
 
 const ROLE_OPTIONS = [
   { value: 'user',       label: 'General User',  color: '#10b981' },
@@ -41,7 +37,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
 
   const stationsByLine = useMemo(buildStationsByLine, []);
 
-  const [users, setUsers]       = useState(() => loadDynamic());
+  const { dynamicUsers: users, updateUser: persistUpdateUser, deleteUser: persistDeleteUser } = useDynamicUsers();
   const [selected, setSelected] = useState(null);
   const [toast, setToast]       = useState(null);
   const [busy, setBusy]         = useState(false);
@@ -59,16 +55,21 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
 
   function openEdit(user) {
     setSelected(user);
-    setLineFilter('');
+    setLineFilter(user.assignedStations?.length ? (SEED_STATIONS[user.assignedStations[0]]?.line || '') : '');
     const existingLines = user.assignedLines?.length
       ? user.assignedLines
       : user.assignedLine ? [user.assignedLine] : [];
+    // Legacy dynamic users may only have the singular `assignedStation` —
+    // seed the multi-select from it when `assignedStations` isn't set yet.
+    const existingStations = user.assignedStations?.length
+      ? user.assignedStations
+      : user.assignedStation ? [user.assignedStation] : [];
     setEdit({
       role:             user.role || 'user',
       password:         '',
       assignedStation:  user.assignedStation || '',
       assignedLines:    Object.fromEntries(existingLines.map(c => [c, true])),
-      assignedStations: Object.fromEntries((user.assignedStations || []).map(c => [c, true])),
+      assignedStations: Object.fromEntries(existingStations.map(c => [c, true])),
       stationLine:      user.assignedStation
         ? (SEED_STATIONS[user.assignedStation]?.line || '')
         : '',
@@ -81,7 +82,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
     setEdit(e => ({ ...e, assignedStations: { ...e.assignedStations, [code]: !e.assignedStations[code] } }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!edit) return;
     if (edit.role === 'supervisor') {
       const picked = Object.keys(edit.assignedStations).filter(k => edit.assignedStations[k]);
@@ -91,39 +92,38 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       const pickedLines = Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]);
       if (!pickedLines.length) return alert('Select at least one line for this manager.');
     }
-    if (edit.role === 'user' && !edit.assignedStation) return alert('Assign a station to this user.');
+    if (edit.role === 'user') {
+      const pickedU = Object.keys(edit.assignedStations).filter(k => edit.assignedStations[k]);
+      if (!pickedU.length) return alert('Assign at least one station to this user.');
+    }
     setBusy(true);
 
-    const assignedCodes = edit.role === 'supervisor'
+    const assignedCodes = (edit.role === 'supervisor' || edit.role === 'user')
       ? Object.keys(edit.assignedStations).filter(k => edit.assignedStations[k])
       : [];
 
-    const updated = users.map(u => {
-      if (u.username !== selected.username) return u;
-      const next = {
-        ...u,
-        role:             edit.role,
-        assignedStation:  edit.role === 'user'       ? edit.assignedStation : null,
-        assignedLine:     null,
-        assignedLines:    edit.role === 'manager'    ? Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]) : [],
-        assignedStations: edit.role === 'supervisor' ? assignedCodes        : [],
-      };
-      if (edit.password.length >= 8) next.password = edit.password;
-      return next;
-    });
+    // Only include `password` when the admin actually entered a new one —
+    // the server never sends passwords back on reads, so omitting it here
+    // leaves the stored password untouched.
+    const patch = {
+      role:             edit.role,
+      assignedStation:  edit.role === 'user'       ? (assignedCodes[0] || '') : null,
+      assignedLine:     null,
+      assignedLines:    edit.role === 'manager'    ? Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]) : [],
+      assignedStations: (edit.role === 'supervisor' || edit.role === 'user') ? assignedCodes : [],
+    };
+    if (edit.password.length >= 8) patch.password = edit.password;
 
-    saveDynamic(updated);
-    setUsers(updated);
+    const result = await persistUpdateUser(selected.username, patch);
     setSelected(null);
     setEdit(null);
     setBusy(false);
+    if (!result.ok) return alert(`Could not save changes: ${result.error || 'unknown error'}`);
     showToast('User updated ✓');
   }
 
-  function handleDelete(username) {
-    const updated = users.filter(u => u.username !== username);
-    saveDynamic(updated);
-    setUsers(updated);
+  async function handleDelete(username) {
+    await persistDeleteUser(username);
     setSelected(null);
     setEdit(null);
     setConfirmDel(null);
@@ -210,9 +210,10 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                     </div>
                     <div style={{ fontSize: 10, color: dim, marginTop: 2, fontFamily: "'Courier New', monospace" }}>
                       {user.email}
-                      {user.assignedStation && <span style={{ color: GR }}> · Station: {user.assignedStation}</span>}
+                      {user.role === 'user' && user.assignedStations?.length > 0 && <span style={{ color: GR }}> · Station{user.assignedStations.length > 1 ? 's' : ''}: {user.assignedStations.join(', ')}</span>}
+                      {user.role === 'user' && !user.assignedStations?.length && user.assignedStation && <span style={{ color: GR }}> · Station: {user.assignedStation}</span>}
                       {user.assignedLines?.length > 0 && <span style={{ color: '#6366f1' }}> · Lines: {user.assignedLines.map(id => SEED_LINES.find(l => l.id === id)?.label || id).join(', ')}</span>}
-                      {user.assignedStations?.length > 0 && <span style={{ color: AM }}> · {user.assignedStations.length} station(s)</span>}
+                      {user.role === 'supervisor' && user.assignedStations?.length > 0 && <span style={{ color: AM }}> · {user.assignedStations.length} station(s)</span>}
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: muted, flexShrink: 0 }}>Edit →</div>
@@ -241,7 +242,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800 }}>{selected.fullName}</div>
                 <div style={{ fontSize: 12, color: muted }}>@{selected.username} · {selected.email}</div>
-                <div style={{ fontSize: 11, color: dim, marginTop: 2 }}>{selected.position} · {selected.department}{selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
+                <div style={{ fontSize: 11, color: dim, marginTop: 2 }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
               </div>
             </div>
           </div>
@@ -303,16 +304,19 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* Supervisor: line filter + stations */}
+            {/* Supervisor: line filter + stations (locked to one line) */}
             {edit.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Assigned Stations</label>
-                <select style={{ ...inp, marginBottom: 8 }} value={lineFilter} onChange={e => setLineFilter(e.target.value)}>
-                  <option value="">Show all lines</option>
+                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(one line only)</span></label>
+                <select style={{ ...inp, marginBottom: 8 }} value={lineFilter} onChange={e => { setLineFilter(e.target.value); setEdit(ed => ({ ...ed, assignedStations: {} })); }}>
+                  <option value="">Select line…</option>
                   {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                 </select>
+                {!lineFilter && (
+                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select a line to see its stations.</div>
+                )}
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
-                  {supervisorLines.map(line => {
+                  {supervisorLines.filter(l => lineFilter && l.id === lineFilter).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => edit.assignedStations[s.code]);
@@ -338,25 +342,38 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* User: line → station */}
+            {/* User: line → one or more stations */}
             {edit.role === 'user' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
                 <div>
                   <label style={lbl}>Line</label>
-                  <select style={inp} value={edit.stationLine} onChange={e => setEdit(e2 => ({ ...e2, stationLine: e.target.value, assignedStation: '' }))}>
+                  <select style={inp} value={edit.stationLine} onChange={e => setEdit(e2 => ({ ...e2, stationLine: e.target.value, assignedStations: {} }))}>
                     <option value="">Select line…</option>
                     {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
                 {edit.stationLine && (
                   <div>
-                    <label style={lbl}>Assigned Station <span style={{ color: GR }}>(prefilled & locked on login)</span></label>
-                    <select style={inp} value={edit.assignedStation} onChange={e => setE('assignedStation', e.target.value)}>
-                      <option value="">Select station…</option>
+                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more — prefilled & locked on login)</span></label>
+                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                       {userLineStations.map(s => (
-                        <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
+                        <label key={s.code} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '7px 14px', cursor: 'pointer',
+                          borderBottom: `1px solid ${border}`,
+                          background: edit.assignedStations[s.code]
+                            ? (isDark ? 'rgba(16,185,129,0.07)' : 'rgba(16,185,129,0.05)')
+                            : 'transparent',
+                        }}>
+                          <input type="checkbox" checked={!!edit.assignedStations[s.code]} onChange={() => toggleStation(s.code)} style={{ accentColor: GR, width: 13, height: 13 }} />
+                          <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                          <span style={{ fontSize: 11, color: edit.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
+                    <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                      {Object.values(edit.assignedStations).filter(Boolean).length} station(s) selected
+                    </div>
                   </div>
                 )}
               </div>

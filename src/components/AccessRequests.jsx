@@ -1,15 +1,7 @@
 import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
-
-const LS_KEY  = 'kmc_access_requests';
-const DYN_KEY = 'kmc_dynamic_users';
-
-function loadRequests() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-}
-function saveRequests(list) { localStorage.setItem(LS_KEY, JSON.stringify(list)); }
-function loadDynamic()  { try { return JSON.parse(localStorage.getItem(DYN_KEY) || '[]'); } catch { return []; } }
-function saveDynamic(list) { localStorage.setItem(DYN_KEY, JSON.stringify(list)); }
+import { useAccessRequests } from '../hooks/useAccessRequests';
+import { useDynamicUsers } from '../hooks/useDynamicUsers';
 
 const ROLE_OPTIONS = [
   { value: 'user',       label: 'General User',  desc: 'Assigned to one station — travel card prefilled & locked' },
@@ -52,7 +44,8 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   const stationsByLine = useMemo(buildStationsByLine, []);
 
-  const [requests, setRequests]     = useState(() => loadRequests());
+  const { requests, loading: requestsLoading, updateRequest: persistRequestUpdate, deleteRequest: persistRequestDelete } = useAccessRequests();
+  const { createUser } = useDynamicUsers();
   const [selected, setSelected]     = useState(null);
   const [tab, setTab]               = useState('pending');
   const [toast, setToast]           = useState(null);
@@ -91,7 +84,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     }));
   }
 
-  function handleApprove() {
+  async function handleApprove() {
     if (!form.username.trim()) return alert('Username is required.');
     if (!selected.password) return alert('This request has no password set. Ask the applicant to resubmit.');
     if (form.role === 'supervisor') {
@@ -102,10 +95,13 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       const pickedLines = Object.keys(form.assignedLines).filter(k => form.assignedLines[k]);
       if (!pickedLines.length) return alert('Select at least one line for this manager.');
     }
-    if (form.role === 'user' && !form.assignedStation) return alert('Assign a station to this user.');
+    if (form.role === 'user') {
+      const pickedU = Object.keys(form.assignedStations).filter(k => form.assignedStations[k]);
+      if (!pickedU.length) return alert('Assign at least one station to this user.');
+    }
     setBusy(true);
 
-    const assignedStationCodes = form.role === 'supervisor'
+    const assignedStationCodes = (form.role === 'supervisor' || form.role === 'user')
       ? Object.keys(form.assignedStations).filter(k => form.assignedStations[k])
       : [];
 
@@ -119,47 +115,41 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       email:            selected.email,
       department:       selected.department,
       productionLine:   selected.productionLine,
+      productionLines:  selected.productionLines?.length ? selected.productionLines : (selected.productionLine ? [selected.productionLine] : []),
       position:         selected.position,
       createdAt:        new Date().toISOString(),
       // role-specific access
-      assignedStation:  form.role === 'user'       ? form.assignedStation  : null,
+      assignedStation:  form.role === 'user'       ? (assignedStationCodes[0] || '') : null,
       assignedLine:     null,
       assignedLines:    form.role === 'manager'    ? Object.keys(form.assignedLines).filter(k => form.assignedLines[k]) : [],
-      assignedStations: form.role === 'supervisor' ? assignedStationCodes  : [],
+      assignedStations: (form.role === 'supervisor' || form.role === 'user') ? assignedStationCodes : [],
     };
 
-    const dynamic = loadDynamic();
-    const idx = dynamic.findIndex(u => u.username === newUser.username);
-    if (idx >= 0) dynamic[idx] = newUser; else dynamic.push(newUser);
-    saveDynamic(dynamic);
+    const result = await createUser(newUser);
+    if (!result.ok) {
+      setBusy(false);
+      return alert(`Could not create the account: ${result.error || 'unknown error'}`);
+    }
 
-    const updated = requests.map(r => r.id === selected.id
-      ? { ...r, status: 'approved', assignedUsername: newUser.username, assignedRole: form.role, processedAt: new Date().toISOString() }
-      : r
-    );
-    saveRequests(updated);
-    setRequests(updated);
+    await persistRequestUpdate({
+      id: selected.id, status: 'approved',
+      assignedUsername: newUser.username, assignedRole: form.role,
+      processedAt: new Date().toISOString(),
+    });
     setSelected(null);
     setBusy(false);
     showToast(`Access granted to ${selected.fullName} ✓`);
   }
 
-  function handleDeny() {
+  async function handleDeny() {
     if (!confirm(`Deny access for ${selected.fullName}?`)) return;
-    const updated = requests.map(r => r.id === selected.id
-      ? { ...r, status: 'denied', processedAt: new Date().toISOString() }
-      : r
-    );
-    saveRequests(updated);
-    setRequests(updated);
+    await persistRequestUpdate({ id: selected.id, status: 'denied', processedAt: new Date().toISOString() });
     setSelected(null);
     showToast('Request denied.', false);
   }
 
   function deleteRequest(id) {
-    const updated = requests.filter(r => r.id !== id);
-    saveRequests(updated);
-    setRequests(updated);
+    persistRequestDelete(id);
   }
 
   const inp = {
@@ -256,7 +246,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>{req.position} · {req.department}{req.productionLine ? ` · ${req.productionLine}` : ''}</div>
+                  <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>{req.position} · {req.department}{req.productionLines?.length ? ` · ${req.productionLines.join(', ')}` : req.productionLine ? ` · ${req.productionLine}` : ''}</div>
                   <div style={{ fontSize: 10, color: dim, fontFamily: "'Courier New', monospace", marginTop: 2 }}>
                     {req.email} · {new Date(req.submittedAt).toLocaleString()}
                     {req.assignedUsername && <span style={{ color: GR }}> · @{req.assignedUsername}</span>}
@@ -287,7 +277,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800 }}>{selected.fullName}</div>
-                <div style={{ fontSize: 12, color: muted }}>{selected.position} · {selected.department}{selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
+                <div style={{ fontSize: 12, color: muted }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
               </div>
             </div>
             {[
@@ -379,19 +369,23 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* SUPERVISOR: pick stations (multi-select, filtered by line) */}
+            {/* SUPERVISOR: pick stations (multi-select, locked to one line) */}
             {form.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more — across any line)</span></label>
+                <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more — one line only)</span></label>
 
-                {/* Line filter */}
-                <select style={{ ...inp, marginBottom: 8 }} value={form.supervisorLineFilter} onChange={e => setF('supervisorLineFilter', e.target.value)}>
-                  <option value="">Show all lines</option>
+                {/* Line — required; changing it clears any previously picked stations */}
+                <select style={{ ...inp, marginBottom: 8 }} value={form.supervisorLineFilter} onChange={e => setForm(f => ({ ...f, supervisorLineFilter: e.target.value, assignedStations: {} }))}>
+                  <option value="">Select line…</option>
                   {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                 </select>
 
+                {!form.supervisorLineFilter && (
+                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select a line to see its stations.</div>
+                )}
+
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
-                  {SEED_LINES.filter(l => !form.supervisorLineFilter || l.id === form.supervisorLineFilter).map(line => {
+                  {SEED_LINES.filter(l => form.supervisorLineFilter && l.id === form.supervisorLineFilter).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => form.assignedStations[s.code]);
@@ -437,25 +431,43 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               </div>
             )}
 
-            {/* USER: pick line → then station */}
+            {/* USER: pick line → then one or more stations (locked to that line on login) */}
             {form.role === 'user' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
                 <div>
                   <label style={lbl}>Line</label>
-                  <select style={inp} value={form.stationLine} onChange={e => setForm(f => ({ ...f, stationLine: e.target.value, assignedStation: '' }))}>
+                  <select style={inp} value={form.stationLine} onChange={e => setForm(f => ({ ...f, stationLine: e.target.value, assignedStations: {} }))}>
                     <option value="">Select line…</option>
                     {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
                 {form.stationLine && (
                   <div>
-                    <label style={lbl}>Assigned Station <span style={{ color: GR }}>(prefilled & locked on login)</span></label>
-                    <select style={inp} value={form.assignedStation} onChange={e => setF('assignedStation', e.target.value)}>
-                      <option value="">Select station…</option>
+                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more — prefilled & locked on login)</span></label>
+                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                       {userLineStations.map(s => (
-                        <option key={s.code} value={s.code}>{s.code} — {s.name}</option>
+                        <label key={s.code} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '7px 14px', cursor: 'pointer',
+                          borderBottom: `1px solid ${border}`,
+                          background: form.assignedStations[s.code]
+                            ? (isDark ? 'rgba(16,185,129,0.07)' : 'rgba(16,185,129,0.05)')
+                            : 'transparent',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={!!form.assignedStations[s.code]}
+                            onChange={() => toggleStation(s.code)}
+                            style={{ accentColor: GR, width: 13, height: 13 }}
+                          />
+                          <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                          <span style={{ fontSize: 11, color: form.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                        </label>
                       ))}
-                    </select>
+                    </div>
+                    <div style={{ fontSize: 10, color: dim, marginTop: 6, fontFamily: fm }}>
+                      {Object.values(form.assignedStations).filter(Boolean).length} station(s) selected
+                    </div>
                   </div>
                 )}
               </div>

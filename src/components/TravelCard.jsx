@@ -1,4 +1,4 @@
-const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwd3fW_ygzXVAtU3vgJg_l9hxab52l-nRt5S-X4I8nuqm5f0anh9JvLv8TjjsQtoWFf/exec";
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q/exec";
 
 const STATION_TIMES_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vQaiOeH78PS8rtCQOTd38jCTioVCQRan3Bg4MJcPbNB87odrcmsL_qA3cEPdAzfTZsP11Dqr1aNA7OY/pub?gid=343120708&single=true&output=csv";
@@ -905,7 +905,13 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
+  // Normalize single/multi station-lock props into one list. A single assigned
+  // station keeps the old fully-locked (disabled dropdown) behavior; multiple
+  // assigned stations (same line, e.g. a station head over several stations)
+  // instead show an enabled dropdown restricted to just those stations.
+  const lockedCodes = (lockedStations && lockedStations.length) ? lockedStations : (lockedStation ? [lockedStation] : []);
+  const isMultiLocked = lockedCodes.length > 1;
   const isAdmin = role === "systemadmin" || role === "useradmin";
   const isSupervisor = role === "supervisor";
   const isUser = role === "user"; // plain user — 2 tabs only, no downtime/sign-off
@@ -955,6 +961,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [busModel, setBusModel] = useState(prefillModel);
   const [vin, setVin] = useState(prefillVin);
   const [curLine, setCurLine] = useState("");
+  const [lockedStationOptions, setLockedStationOptions] = useState([]); // resolved "CODE: name" strings when multi-locked
   const [curCode, setCurCode] = useState(() => prefillStation ? prefillStation.split(":")[0].trim() : "");
   const [curSt, setCurSt] = useState(prefillStation);
   const [designedTime, setDesignedTime] = useState(0);
@@ -1037,44 +1044,58 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
 
-  // Auto-select locked station (station-assigned users) — also loads operator pool.
+  // Auto-select locked station(s) (station-assigned users) — also loads operator pool.
   // Re-resolves when the bus model changes because some lines are model-suffixed
   // ("Chassis Line 01 — EVS/KDC") and the visible line list depends on the model.
   useEffect(() => {
-    if (!lockedStation) return;
+    if (!lockedCodes.length) return;
     const LINES_L = { ...TC_LINES, ...(catalog.tcLines || {}) };
     const kind = busModel.includes("KDC") ? "KDC" : "EVS";
 
-    // 1) Look for the code in the travel-card line lists, preferring the
-    //    variant that matches the current bus model.
-    let found = null;
-    for (const [lineName, stns] of Object.entries(LINES_L)) {
-      const match = stns.find(s => s.split(":")[0].trim() === lockedStation);
-      if (!match) continue;
-      const suffixed = lineName.includes("— EVS") || lineName.includes("— KDC");
-      if (!suffixed || lineName.endsWith(`— ${kind}`)) { found = { lineName, station: match }; break; }
-      if (!found) found = { lineName, station: match };
-    }
-
-    // 2) Fallback: the admin station database has codes that aren't in
-    //    TC_LINES (welding QA, chassis sub-stations, trim electrics, …).
-    //    Derive the line from the seed record and synthesise the station label.
-    if (!found) {
-      const seed = SEED_STATIONS[lockedStation];
-      if (seed) {
-        const seedLabel = SEED_LINES.find(l => l.id === seed.line)?.label || "";
-        const names = Object.keys(LINES_L);
-        const lineName =
-          names.find(n => n === `${seedLabel} — ${kind}`) ||
-          names.find(n => n === seedLabel) ||
-          names.find(n => n.startsWith(seedLabel)) || "";
-        found = { lineName, station: `${lockedStation}: ${seed.name}` };
+    function resolveCode(code) {
+      // 1) Look for the code in the travel-card line lists, preferring the
+      //    variant that matches the current bus model.
+      let found = null;
+      for (const [lineName, stns] of Object.entries(LINES_L)) {
+        const match = stns.find(s => s.split(":")[0].trim() === code);
+        if (!match) continue;
+        const suffixed = lineName.includes("— EVS") || lineName.includes("— KDC");
+        if (!suffixed || lineName.endsWith(`— ${kind}`)) { found = { lineName, station: match }; break; }
+        if (!found) found = { lineName, station: match };
       }
+      // 2) Fallback: the admin station database has codes that aren't in
+      //    TC_LINES (welding QA, chassis sub-stations, trim electrics, …).
+      //    Derive the line from the seed record and synthesise the station label.
+      if (!found) {
+        const seed = SEED_STATIONS[code];
+        if (seed) {
+          const seedLabel = SEED_LINES.find(l => l.id === seed.line)?.label || "";
+          const names = Object.keys(LINES_L);
+          const lineName =
+            names.find(n => n === `${seedLabel} — ${kind}`) ||
+            names.find(n => n === seedLabel) ||
+            names.find(n => n.startsWith(seedLabel)) || "";
+          found = { lineName, station: `${code}: ${seed.name}` };
+        }
+      }
+      return found;
     }
 
-    if (found) { setCurLine(found.lineName); onStation(found.station); }
+    if (!isMultiLocked) {
+      const found = resolveCode(lockedCodes[0]);
+      if (found) { setCurLine(found.lineName); onStation(found.station); }
+      return;
+    }
+
+    // Multiple assigned stations (same line): resolve each, lock the line to
+    // the first resolved one, and offer the rest as a restricted dropdown.
+    const resolved = lockedCodes.map(resolveCode).filter(Boolean);
+    if (resolved.length) {
+      setCurLine(resolved[0].lineName);
+      setLockedStationOptions(resolved.map(r => r.station));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockedStation, busModel]);
+  }, [lockedStation, JSON.stringify(lockedStations), busModel]);
 
   // Prefill current user into reviewer (supervisor) or operators (station user)
   useEffect(() => {
@@ -1503,15 +1524,20 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.card}>
             <div style={css.cardHd}>Station</div>
             <div className="tc-grid-2" style={css.g2}>
-              <Sel label="Production line" value={curLine} disabled={!!lockedStation} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
+              <Sel label="Production line" value={curLine} disabled={lockedCodes.length > 0} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
                 <option value="">Select line…</option>
                 {visibleLines.map(l => <option key={l}>{l}</option>)}
                 {curLine && !visibleLines.includes(curLine) && <option>{curLine}</option>}
               </Sel>
-              <Sel label={lockedStation ? "Station (assigned — locked)" : "Station"} value={curSt} disabled={!!lockedStation} onChange={e => onStation(e.target.value)}>
+              <Sel
+                label={isMultiLocked ? "Station (assigned — choose one)" : lockedStation ? "Station (assigned — locked)" : "Station"}
+                value={curSt}
+                disabled={!!lockedStation && !isMultiLocked}
+                onChange={e => onStation(e.target.value)}
+              >
                 <option value="">Select station…</option>
-                {stations.map(s => <option key={s}>{s}</option>)}
-                {curSt && !stations.includes(curSt) && <option>{curSt}</option>}
+                {(isMultiLocked ? lockedStationOptions : stations).map(s => <option key={s}>{s}</option>)}
+                {curSt && !(isMultiLocked ? lockedStationOptions : stations).includes(curSt) && <option>{curSt}</option>}
               </Sel>
             </div>
             {/* Admin can always override the designed (cycle) time */}

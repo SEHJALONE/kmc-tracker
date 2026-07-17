@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SignUpModal from './SignUpModal';
+import { CATALOG_WRITE_URL } from '../data/catalogConfig';
 
 // Credential sets → role + NCR domain + optional landing module.
 // domain controls which NCR register tab the user lands on by default (admin sees all).
@@ -16,10 +17,6 @@ const CREDENTIALS = [
   { username: 'dpn.kmc', password: 'dpn1234!', role: 'user', domain: null, landing: 'scoreboard' },
 ];
 
-function loadDynamicUsers() {
-  try { return JSON.parse(localStorage.getItem('kmc_dynamic_users') || '[]'); } catch { return []; }
-}
-
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -31,23 +28,38 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError('');
     if (!username.trim() || !password) {
       setError('Please enter your username and password.');
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const dynamic = loadDynamicUsers();
-      const dynMatch = dynamic.find(
-        c => c.username === username.trim().toLowerCase() && c.password === password
-      );
-      const staticMatch = CREDENTIALS.find(
-        c => c.username.toLowerCase() === username.trim().toLowerCase() && c.password === password
-      );
-      const match = staticMatch || (dynMatch ? { ...dynMatch, domain: null, landing: null } : null);
-      if (match) {
+
+    const staticMatch = CREDENTIALS.find(
+      c => c.username.toLowerCase() === username.trim().toLowerCase() && c.password === password
+    );
+
+    let dynMatch = null;
+    if (!staticMatch) {
+      // Not a hard-coded account — check the shared, server-side user list
+      // (granted via Access Requests) so login works from any device.
+      try {
+        const body = new URLSearchParams({
+          action: 'login',
+          username: username.trim().toLowerCase(),
+          password,
+        });
+        const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
+        const json = await res.json();
+        if (json.status === 'ok' && json.user) dynMatch = json.user;
+      } catch (e) {
+        console.warn('Login: server check failed.', e.message);
+      }
+    }
+
+    const match = staticMatch || (dynMatch ? { ...dynMatch, domain: null, landing: null } : null);
+    if (match) {
         // Store role-specific access assignments for dynamic users
         if (dynMatch) {
           if (dynMatch.fullName)
@@ -85,11 +97,10 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           else localStorage.removeItem('kmc_landing');
         }
         onLogin(match.role, match.domain, match.landing);
-      } else {
-        setError('Incorrect username or password.');
-        setLoading(false);
-      }
-    }, 600);
+    } else {
+      setError('Incorrect username or password.');
+      setLoading(false);
+    }
   };
 
   const handleKey = e => {

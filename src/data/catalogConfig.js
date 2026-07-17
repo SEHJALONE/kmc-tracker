@@ -17,7 +17,7 @@ export const CATALOG_READ_URL =
 
 // Apps Script web-app endpoint (same one the Travel Card submits to).
 export const CATALOG_WRITE_URL =
-  'https://script.google.com/macros/s/AKfycbwd3fW_ygzXVAtU3vgJg_l9hxab52l-nRt5S-X4I8nuqm5f0anh9JvLv8TjjsQtoWFf/exec';
+  'https://script.google.com/macros/s/AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q/exec';
 
 // Shared admin secret. Only admin sessions send this; the Apps Script validates
 // it server-side before accepting a catalog write. CHANGE THIS to a value of

@@ -373,6 +373,7 @@ export default function App() {
           prefillModel={tcPrefill?.model ?? ''}
           prefillStation={tcPrefill?.stationCode ?? ''}
           lockedStation={assignedStation}
+          lockedStations={assignedStations}
           currentUserName={currentUserName}
           onReset={() => setTcPrefill(null)}
           onSubmitSuccess={refresh}

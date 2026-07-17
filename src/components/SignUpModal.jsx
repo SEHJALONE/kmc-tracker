@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAccessRequests } from '../hooks/useAccessRequests';
 
 const DEPARTMENTS = ['Production', 'Product Development'];
 
@@ -16,26 +17,18 @@ const PRODUCTION_LINES = [
 ];
 
 const PRODUCT_DEV_LINES = [
-  'Design Engineering',
-  'Systems Engineering',
-  'Vehicle Testing & Validation',
-  'Research & Development',
-  'Other',
+  'Vehicle Integration Division',
+  'Design and Engineering Division',
+  'EE and HV Division',
+  'Battery and Energy Storage System',
+  'Information Systems Division',
+  'Charger Systems Network',
 ];
-
-const LS_KEY = 'kmc_access_requests';
-
-function loadRequests() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
-}
-function saveRequest(req) {
-  const list = loadRequests();
-  list.push(req);
-  localStorage.setItem(LS_KEY, JSON.stringify(list));
-}
 
 export default function SignUpModal({ onClose, theme = 'dark' }) {
   const isDark = theme === 'dark';
+
+  const { submitRequest } = useAccessRequests();
 
   const [step, setStep]   = useState(1);
   const [busy, setBusy]   = useState(false);
@@ -43,7 +36,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
 
   const [form, setForm] = useState({
     fullName: '', email: '', username: '',
-    department: '', productionLine: '', position: '',
+    department: '', productionLines: [], position: '',
     password: '', confirmPassword: '', reason: '',
   });
   const [showPass, setShowPass] = useState(false);
@@ -51,9 +44,18 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
   function set(k, v) {
     setForm(f => {
       const next = { ...f, [k]: v };
-      if (k === 'department') next.productionLine = '';
+      if (k === 'department') next.productionLines = [];
       return next;
     });
+  }
+
+  function toggleLine(line) {
+    setForm(f => ({
+      ...f,
+      productionLines: f.productionLines.includes(line)
+        ? f.productionLines.filter(l => l !== line)
+        : [...f.productionLines, line],
+    }));
   }
 
   const lineOptions = form.department === 'Production'
@@ -68,7 +70,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     if (!form.email.trim() || !form.email.includes('@')) return setError('A valid email is required.');
     if (!form.username.trim())    return setError('Please choose a username.');
     if (!form.department)         return setError('Select your department.');
-    if (!form.productionLine)     return setError('Select your production line.');
+    if (!form.productionLines.length) return setError('Select at least one production line.');
     if (!form.position.trim())    return setError('Enter your job title / position.');
     if (!form.password || form.password.length < 8) return setError('Password must be at least 8 characters.');
     if (form.password !== form.confirmPassword)      return setError('Passwords do not match.');
@@ -79,8 +81,9 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       fullName:       form.fullName.trim(),
       email:          form.email.trim().toLowerCase(),
       username:       form.username.trim().toLowerCase(),
-      department:     form.department,
-      productionLine: form.productionLine,
+      department:      form.department,
+      productionLines: form.productionLines,
+      productionLine:  form.productionLines[0] || '',
       position:       form.position.trim(),
       password:       form.password,
       reason:         form.reason.trim(),
@@ -88,7 +91,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       submittedAt:    new Date().toISOString(),
     };
 
-    saveRequest(request);
+    await submitRequest(request);
 
     try {
       const endpoint = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAIL_ENDPOINT)
@@ -224,14 +227,27 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
               </select>
             </div>
 
-            {/* Production Line — shows once department is picked */}
+            {/* Production Line(s) — shows once department is picked, multi-select */}
             {form.department && (
               <div>
-                <label style={lbl}>Production Line <span style={{ color: R }}>*</span></label>
-                <select style={inp} value={form.productionLine} onChange={e => set('productionLine', e.target.value)}>
-                  <option value="">Select line…</option>
-                  {lineOptions.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
+                <label style={lbl}>Production Line(s) <span style={{ color: R }}>*</span> <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(select one or more)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 200, overflowY: 'auto' }}>
+                  {lineOptions.map(l => (
+                    <label key={l} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 12px', cursor: 'pointer',
+                      borderBottom: `1px solid ${border}`,
+                      background: form.productionLines.includes(l) ? (isDark ? 'rgba(220,38,38,0.08)' : 'rgba(220,38,38,0.05)') : 'transparent',
+                    }}>
+                      <input type="checkbox" checked={form.productionLines.includes(l)} onChange={() => toggleLine(l)}
+                        style={{ accentColor: R, width: 13, height: 13 }} />
+                      <span style={{ fontSize: 12, color: form.productionLines.includes(l) ? text : muted }}>{l}</span>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                  {form.productionLines.length} line(s) selected
+                </div>
               </div>
             )}
 
