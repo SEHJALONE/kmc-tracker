@@ -94,10 +94,11 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     await submitRequest(request);
 
     try {
-      const endpoint = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAIL_ENDPOINT)
-        ? import.meta.env.VITE_EMAIL_ENDPOINT.replace('/send-report', '/notify-admin')
-        : '/api/notify-admin';
-      await fetch(endpoint, {
+      // Always same-origin — this Vercel serverless function is deployed
+      // alongside the app itself, so there's no env-dependent URL to get
+      // wrong (unlike a build-time VITE_* var, which bakes in whatever was
+      // last committed to .env and can silently drift from what's intended).
+      await fetch('/api/notify-admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),

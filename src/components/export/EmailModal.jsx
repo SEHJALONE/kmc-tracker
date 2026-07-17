@@ -37,39 +37,11 @@ async function captureElement(el, landscape = false) {
 }
 
 async function postEmailRequest(payload) {
-  const endpoint =
-    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAIL_ENDPOINT) ||
-    (typeof process    !== 'undefined' && process.env?.REACT_APP_EMAIL_ENDPOINT)  ||
-    null;
-  if (!endpoint) {
-    const dateRange = (payload.dataStartDate || payload.dataEndDate)
-      ? `Data range: ${payload.dataStartDate || 'beginning'} → ${payload.dataEndDate || 'today'}\n`
-      : '';
-    const body = encodeURIComponent(
-      `KMC Bus Production Report\n` +
-      `Generated: ${new Date().toLocaleString('en-GB')}\n` +
-      `Schedule: ${payload.schedule}\n` +
-      (payload.scheduledTime ? `Time: ${payload.scheduledTime}\n` : '') +
-      (payload.filterSummary ? `Dashboard filters: ${payload.filterSummary}\n` : '') +
-      `Buses on floor: ${payload.busCount}\n` +
-      (payload.firstPassYield != null ? `First Pass Yield: ${payload.firstPassYield}%\n` : '') +
-      (payload.totalDowntimeMin ? `Total Downtime Recorded: ${Math.floor(payload.totalDowntimeMin / 60)}h ${Math.round(payload.totalDowntimeMin % 60)}m\n` : '') +
-      dateRange +
-      `\nAttachments generated programmatically:\n` +
-      `  1. KMC_CoverSlide_[date].png     — Dashboard cover slide (dark theme)\n` +
-      `  2. KMC_Presentation_[date].pdf   — Dark slide PDF (cover + analytics + bus report)\n` +
-      `  3. KMC_Dashboard_[date].pdf      — Branded white PDF (cover + analytics + bus report)\n` +
-      `  4. KMC_Dashboard_[date].xlsx     — Excel workbook (Summary, Buses, Efficiency, Downtime, Rework, History)\n` +
-      `\nNote: If your mail client did not receive the attachments automatically,\n` +
-      `please use the Export buttons to download and attach them manually.`
-    );
-    window.open(
-      `mailto:${encodeURIComponent(payload.to)}?subject=${encodeURIComponent(payload.subject)}&body=${body}`,
-      '_blank'
-    );
-    return { ok: true, fallback: true };
-  }
-  const res = await fetch(endpoint, {
+  // Always same-origin — this Vercel serverless function is deployed
+  // alongside the app itself, so there's no env-dependent URL to get wrong
+  // (unlike a build-time VITE_* var, which bakes in whatever was last
+  // committed to .env and can silently drift from what's intended).
+  const res = await fetch('/api/send-report', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
