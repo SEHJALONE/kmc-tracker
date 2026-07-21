@@ -219,7 +219,6 @@ function ScoreCard({ label, value, sub, status, valueColor }) {
       <div style={{ fontSize: 9, color: C.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 14 }}>
-        {sub && <span style={{ fontSize: 8.5, color: C.grey }}>{sub}</span>}
         <Pill status={status} />
       </div>
     </div>
@@ -681,7 +680,6 @@ function ScoreboardInner() {
     { label: 'Rate (Takt)', value: `${f1(actualRate)}/day`, sub: taktActual ? `≈ ${f1(taktActual)} d/bus` : null, status: statusOf(actualRate, targetRate, 'gte') },
     { label: 'Target Rate (Takt)', value: `${fint(targetRate)}/day`, sub: taktTarget ? `Takt ${f2(taktTarget)} d/bus` : null, status: null },
     { label: 'SPI', value: f2(num('SPI')), sub: 'Target ≥ 0.95', status: statusOf(num('SPI'), 0.95, 'gte') },
-    { label: 'Forecast Completion', value: raw('Forecast Completion') || '—', sub: `Period end ${raw('Scoreboard Period End')}`, status: null },
   ];
 
   const baseDT = num('Baseline Unplanned Downtime (hrs / period)');
@@ -743,7 +741,7 @@ function ScoreboardInner() {
 
         {/* Overall Progress — first, and exempt from any period slicing */}
         <SectionLabel>Overall Progress</SectionLabel>
-        <CardGrid cols={7}>
+        <CardGrid cols={6}>
           {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
         <div>
@@ -784,8 +782,8 @@ function ScoreboardInner() {
           ))}
         </div>
 
-        {/* Key Objectives — the 8 big rocks */}
-        <SectionLabel>Key Objectives</SectionLabel>
+        {/* Key Performance Indicators — the 8 big rocks */}
+        <SectionLabel>Key Performance Indicators</SectionLabel>
         <CardGrid cols={4}>
           {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
@@ -947,8 +945,57 @@ function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportP
 // ── Theme provider wrapper ────────────────────────────────────────
 const ThemeToggleCtx = createContext({ theme: 'dark', toggleTheme: () => {} });
 
+const SB_TABS = [
+  { id: 'dashboard', label: 'Live Dashboard' },
+  { id: 'workbook',  label: 'Workbook View' },
+];
+
+function ScoreboardTabs({ view, setView }) {
+  const C = useC();
+  return (
+    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 6 }}>
+      {SB_TABS.map(t => {
+        const active = view === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => setView(t.id)}
+            style={{
+              padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
+              textTransform: 'uppercase', fontFamily: 'inherit', cursor: 'pointer',
+              borderRadius: 6, border: `1px solid ${active ? C.red : C.border}`,
+              background: active ? C.red : 'transparent',
+              color: active ? '#fff' : C.grey,
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// The uploaded standalone workbook dashboard (public/dpn-scoreboard-workbook.html) is a
+// separate, self-contained vanilla-JS app (its own Excel parser, live-file watcher, and
+// theme) — embedding it via iframe keeps it intact rather than risking a lossy rewrite
+// into the React component's rendering model.
+function WorkbookView() {
+  const C = useC();
+  return (
+    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto', borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}`, boxShadow: C.shadowLg }}>
+      <iframe
+        src="/dpn-scoreboard-workbook.html"
+        title="DPN Scoreboard Workbook"
+        style={{ width: '100%', height: 'calc(100vh - 90px)', border: 'none', display: 'block' }}
+      />
+    </div>
+  );
+}
+
 export default function Scoreboard() {
   const [theme, setTheme] = useState(() => localStorage.getItem('kmc_scoreboard_theme') || 'dark');
+  const [view, setView] = useState('dashboard');
 
   useEffect(() => {
     localStorage.setItem('kmc_scoreboard_theme', theme);
@@ -959,7 +1006,8 @@ export default function Scoreboard() {
   return (
     <ThemeToggleCtx.Provider value={{ theme, toggleTheme }}>
       <ThemeCtx.Provider value={PALETTES[theme]}>
-        <ScoreboardInner />
+        <ScoreboardTabs view={view} setView={setView} />
+        {view === 'dashboard' ? <ScoreboardInner /> : <WorkbookView />}
       </ThemeCtx.Provider>
     </ThemeToggleCtx.Provider>
   );
