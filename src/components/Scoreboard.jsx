@@ -50,18 +50,20 @@ function MoonIcon() {
 }
 
 // Workshops actually shown as line-status scorecards — Machine Shop, Frame & Body
-// Parts Making and Quality Inspection & Testing are excluded per request (they sit
-// outside the main assembly line flow the floor cares about day to day).
+// Parts Making, Quality Inspection & Testing, and Chassis Production Line 01 are
+// excluded per request. Order: Trim, Chassis Line 02, Paint Shop, Body Shop.
+// `dataName` matches the Tracker sheet's workshop name; `display` is the label shown.
 const LINE_WORKSHOPS = [
-  'Chassis Production Line 01', 'Frame & Body Welding', 'Paint Shop',
-  'Chassis Production Line 02', 'Trim & Final Assembly',
+  { dataName: 'Trim & Final Assembly', display: 'Trim & Final Assembly' },
+  { dataName: 'Chassis Production Line 02', display: 'Chassis Line 02' },
+  { dataName: 'Paint Shop', display: 'Paint Shop' },
+  { dataName: 'Frame & Body Welding', display: 'Body Shop' },
 ];
 const WORKSHOP_IMG = {
-  'Chassis Production Line 01': '/Chassis Line 01.jpeg',
-  'Frame & Body Welding': '/Frame & Body Welding.png',
-  'Paint Shop': '/Paint Shop.png',
-  'Chassis Production Line 02': '/Chassis Line 02.jpg',
   'Trim & Final Assembly': '/Trim Line & Final Assembly.jpg',
+  'Chassis Production Line 02': '/Chassis Line 02.jpg',
+  'Paint Shop': '/Paint Shop.png',
+  'Frame & Body Welding': '/Frame & Body Welding.png',
 };
 
 const DT_REASONS = ['M1 - Machine breakdown', 'M2 - Material shortage', 'M3 - Power/Energy',
@@ -103,6 +105,13 @@ const SAMPLE = {
     'Paper Used (latest month, reams)': { num: 0 }, 'Paper vs Baseline': { num: 0 },
     'Budget Total': { num: 704000 }, 'Actual Total': { num: 0 },
     'Variance': { num: -704000 }, 'Variance %': { num: -1 },
+    'Production Operational Cost': { num: 0 }, 'Workshop Supplies per Unit': { num: 0 },
+    'Labour Cost': { num: 0 }, 'Cost of Using the Production System': { num: 0 },
+    'Operational Cost — Trim & Final Assembly': { num: 0 },
+    'Operational Cost — Chassis Production Line 02': { num: 0 },
+    'Operational Cost — Paint Shop': { num: 0 },
+    'Operational Cost — Frame & Body Welding': { num: 0 },
+    'Total Production Cost': { num: 0 },
     "Waste Cost (period, UGX '000)": { num: 0 }, 'Waste Items (period)': { num: 0 },
     'Kaizen Implemented': { num: 0 }, 'Kaizen In Progress': { num: 0 }, 'Kaizen Proposed': { num: 2 },
     'ECR Open': { num: 0 }, 'ECR Under Review': { num: 0 }, 'ECR Approved': { num: 0 }, 'ECR Implemented': { num: 0 },
@@ -149,26 +158,6 @@ const f1    = v => (v == null ? '—' : Number(v).toFixed(1));
 const f2    = v => (v == null ? '—' : Number(v).toFixed(2));
 const fint  = v => (v == null ? '—' : Math.round(v).toLocaleString());
 
-function statusOf(actual, target, dir) {
-  if (actual == null || target == null || dir == null) return null;
-  if (dir === 'gte') return actual >= target ? 'ON TRACK' : 'BEHIND';
-  if (dir === 'lte') return actual <= target ? 'ON TRACK' : 'BEHIND';
-  return null;
-}
-
-function Pill({ status }) {
-  const C = useC();
-  if (!status) return <span style={{ color: C.grey, fontSize: 9 }}>—</span>;
-  const bg = status === 'ON TRACK' ? C.green : status === 'AT RISK' ? C.amber : C.red;
-  const fg = status === 'ON TRACK' || status === 'AT RISK' ? '#04210f' : '#fff';
-  return (
-    <span style={{
-      background: bg, color: fg, fontSize: 8, fontWeight: 800, padding: '2px 7px',
-      borderRadius: 3, letterSpacing: '0.04em', whiteSpace: 'nowrap',
-    }}>{status}</span>
-  );
-}
-
 // SVG-only donut (CSS conic-gradient is silently blank in html2canvas exports —
 // this renders as plain circles/text so PNG/PDF capture keeps the ring).
 function Donut({ pct, color, size = 58 }) {
@@ -203,24 +192,19 @@ function SectionLabel({ children }) {
   );
 }
 
-// The reusable KPI tile — value first, target/status secondary. Top accent
-// bar carries the status colour so a grid of these reads like a real scorecard
-// wall rather than a form. Title is white + centred to match the red banners.
-function ScoreCard({ label, value, sub, status, valueColor }) {
+// The reusable KPI tile — value first, no target/status clutter. Title is
+// white + centred to match the red banners.
+function ScoreCard({ label, value, valueColor }) {
   const C = useC();
-  const accent = status === 'ON TRACK' ? C.green : status === 'BEHIND' ? C.red : status === 'AT RISK' ? C.amber : C.border;
   return (
     <div style={{
-      background: C.panel, border: `1px solid ${C.border}`, borderTop: `4px solid ${accent}`,
+      background: C.panel, border: `1px solid ${C.border}`, borderTop: `4px solid ${C.border}`,
       borderRadius: 7, padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 4,
       alignItems: 'center', textAlign: 'center',
-      boxShadow: C.shadow, minHeight: 72,
+      boxShadow: C.shadow, minHeight: 58,
     }}>
       <div style={{ fontSize: 9, color: C.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
       <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minHeight: 14 }}>
-        <Pill status={status} />
-      </div>
     </div>
   );
 }
@@ -668,51 +652,60 @@ function ScoreboardInner() {
   const achievement = num('Achievement %') ?? 0;
   const actualRate = num('Buses per Day (period)');
   const targetRate = num('Target: Buses per Day');
-  const taktActual = actualRate ? 1 / actualRate : null;
-  const taktTarget = targetRate ? 1 / targetRate : null;
 
   // ── Overall Progress scorecards (exempt from any future period filter — these
   // reflect current tracker state, not a date-bounded slice) ──
   const overallCards = [
-    { label: 'Production Achievement', value: fpct(achievement), sub: `${fint(num('Completed'))} of ${fint(target)} buses`, status: null },
-    { label: 'Completed', value: fint(num('Completed')), sub: `Target ${fint(target)}`, status: null },
-    { label: 'In Production', value: fint(num('In Production')), sub: `Behind: ${fint(num('Behind Schedule (buses)'))}`, status: statusOf(num('Behind Schedule (buses)'), 0, 'lte') },
-    { label: 'Rate (Takt)', value: `${f1(actualRate)}/day`, sub: taktActual ? `≈ ${f1(taktActual)} d/bus` : null, status: statusOf(actualRate, targetRate, 'gte') },
-    { label: 'Target Rate (Takt)', value: `${fint(targetRate)}/day`, sub: taktTarget ? `Takt ${f2(taktTarget)} d/bus` : null, status: null },
-    { label: 'SPI', value: f2(num('SPI')), sub: 'Target ≥ 0.95', status: statusOf(num('SPI'), 0.95, 'gte') },
+    { label: 'Production Achievement', value: fpct(achievement) },
+    { label: 'Completed', value: fint(num('Completed')) },
+    { label: 'In Progress', value: fint(num('In Production')) },
+    { label: 'Rate (Takt)', value: `${f1(actualRate)}/day` },
+    { label: 'Target Rate (Takt)', value: `${fint(targetRate)}/day` },
+    { label: 'SPI', value: f2(num('SPI')) },
   ];
 
-  const baseDT = num('Baseline Unplanned Downtime (hrs / period)');
-  const insp = num('Vehicles Inspected');
   // The 8 "big rock" KPIs pulled out of objectives 2-5 — the numbers that
   // actually move the needle, one card each, no more per-objective tables.
   const bigRocks = [
-    { label: 'First Pass Yield', value: fpct(num('First Pass Yield')), sub: `Target ${fpct(num('Target: First Pass Yield'))}`, status: insp ? statusOf(num('First Pass Yield'), num('Target: First Pass Yield'), 'gte') : null },
-    { label: 'Critical Defects', value: fint(num('Critical Defects')), sub: 'Target 0', status: statusOf(num('Critical Defects'), 0, 'lte') },
-    { label: 'OEE', value: fpct(num('OEE')), sub: `Target ${fpct(num('Target: OEE'))}`, status: statusOf(num('OEE'), num('Target: OEE'), 'gte') },
-    { label: 'MTTR', value: `${f1(num('MTTR (hrs)'))} h`, sub: `Target ≤ ${fint(num('Target: MTTR (hours)'))} h`, status: num('Breakdown Events (M1)') ? statusOf(num('MTTR (hrs)'), num('Target: MTTR (hours)'), 'lte') : null },
-    { label: 'Days Without LTI', value: fint(num('Days Without Lost-Time Injury')), sub: 'Target: zero LTIs', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
-    { label: 'Near-Miss Response', value: fpct(num('Near-Miss Response Rate')), sub: 'Target 100%', status: statusOf(num('Near-Miss Response Rate'), 1, 'gte') },
-    { label: 'Energy vs Baseline', value: fpct1(num('Energy vs Baseline')), sub: 'Target ≤ −5%', status: baseDT ? null : null },
-    { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')), sub: 'Target ≤ −10%', status: null },
+    { label: 'First Pass Yield', value: fpct(num('First Pass Yield')) },
+    { label: 'Critical Defects', value: fint(num('Critical Defects')) },
+    { label: 'OEE', value: fpct(num('OEE')) },
+    { label: 'MTTR', value: `${f1(num('MTTR (hrs)'))} h` },
+    { label: 'Days Without LTI', value: fint(num('Days Without Lost-Time Injury')) },
+    { label: 'Near-Miss Response', value: fpct(num('Near-Miss Response Rate')) },
+    { label: 'Energy vs Baseline', value: fpct1(num('Energy vs Baseline')) },
+    { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')) },
   ];
 
   const costCards = [
-    { label: "Budget (UGX '000)", value: fint(num('Budget Total')), sub: null, status: null },
-    { label: "Actual (UGX '000)", value: fint(num('Actual Total')), sub: null, status: null },
-    { label: 'Variance', value: fint(num('Variance')), sub: 'Target ≤ 0', status: statusOf(num('Variance'), 0, 'lte') },
-    { label: 'Variance %', value: fpct1(num('Variance %')), sub: 'Target ≤ 5%', status: num('Actual Total') ? statusOf(num('Variance %'), 0.05, 'lte') : null },
+    { label: "Budget (UGX '000)", value: fint(num('Budget Total')) },
+    { label: "Actual (UGX '000)", value: fint(num('Actual Total')) },
+    { label: 'Variance', value: fint(num('Variance')) },
+    { label: 'Variance %', value: fpct1(num('Variance %')) },
+    { label: "Production Operational Cost (UGX '000)", value: fint(num('Production Operational Cost')) },
+    { label: "Workshop Supplies / Unit (UGX '000)", value: fint(num('Workshop Supplies per Unit')) },
+    { label: "Labour (UGX '000)", value: fint(num('Labour Cost')) },
+    { label: "Cost of Using the Production System (UGX '000)", value: fint(num('Cost of Using the Production System')) },
   ];
+  const lineCostCards = LINE_WORKSHOPS.map(lw => ({
+    label: lw.display,
+    value: fint(num(`Operational Cost — ${lw.dataName}`)),
+  }));
+  const totalProductionCost = fint(num('Total Production Cost'));
   const schedCards = [
-    { label: 'Activities On Time', value: fpct(num('On-Time %')), sub: 'Target ≥ 95%', status: statusOf(num('On-Time %'), 0.95, 'gte') },
-    { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')), sub: 'Target 0', status: statusOf(num('Avg Schedule Delay (days)'), 0, 'lte') },
-    { label: 'Critical Activity', value: raw('Critical Activity') || '—', sub: null, status: null },
-    { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')), sub: null, status: null },
+    { label: 'Activities On Time', value: fpct(num('On-Time %')) },
+    { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')) },
+    { label: 'Critical Activity', value: raw('Critical Activity') || '—' },
+    { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')) },
   ];
 
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
-  const lineWorkshops = d.workshops.filter(w => LINE_WORKSHOPS.includes(w.name));
+  const lineWorkshops = LINE_WORKSHOPS.map(lw => {
+    const w = d.workshops.find(x => x.name === lw.dataName) || { done: 0, due: 0, na: 0, pct: 0, status: null, constraint: '—' };
+    return { ...w, name: lw.dataName, display: lw.display };
+  });
   const dailyRecent = d.daily.slice(-8);
+  const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
 
   const btn = {
     background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey,
@@ -745,12 +738,13 @@ function ScoreboardInner() {
           {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
         <div>
-          <div style={{ background: C.track, borderRadius: 7, height: 18, overflow: 'hidden' }}>
+          <div style={{ background: C.track, borderRadius: 9, height: 32, overflow: 'hidden' }}>
             <div style={{
               width: `${Math.round(achievement * 100)}%`, height: '100%',
               background: `linear-gradient(90deg, #1e8449, ${C.green})`,
-              fontSize: 9.5, fontWeight: 800, color: '#04210f', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', minWidth: 34,
+              fontSize: 15, fontWeight: 900, fontFamily: "'Arial Black', 'Inter', sans-serif",
+              letterSpacing: '0.02em', color: '#04210f', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', minWidth: 44,
             }}>{fpct(achievement)}</div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: C.grey, marginTop: 2 }}>
@@ -758,9 +752,9 @@ function ScoreboardInner() {
           </div>
         </div>
 
-        {/* Production Line Status — 5 core assembly-line workshops as scorecards */}
+        {/* Production Line Status — 4 core assembly-line workshops as scorecards */}
         <SectionLabel>Production Line Status</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {lineWorkshops.map(w => (
             <div key={w.name} style={{
               background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${wsColor(w.status)}`,
@@ -772,11 +766,10 @@ function ScoreboardInner() {
                     style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
                 )}
               </div>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.name}</div>
-              <div style={{ fontSize: 10.5, color: C.grey, margin: '2px 0 6px' }}>{w.done} / {45 - (w.na || 0)}</div>
-              <Donut pct={w.pct} color={wsColor(w.status)} size={60} />
-              <div style={{ marginTop: 6 }}><Pill status={w.status} /></div>
-              <div style={{ fontSize: 7.5, color: C.grey, textTransform: 'uppercase', marginTop: 5 }}>Constraint</div>
+              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.display}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: '2px 0 6px' }}>{w.done} / {45 - (w.na || 0)}</div>
+              <Donut pct={w.pct} color={wsColor(w.status)} size={92} />
+              <div style={{ fontSize: 7.5, color: C.grey, textTransform: 'uppercase', marginTop: 8 }}>Constraint</div>
               <div style={{ fontSize: 9.5, fontWeight: 700, minHeight: 13 }}>{w.constraint}</div>
             </div>
           ))}
@@ -808,7 +801,7 @@ function ScoreboardInner() {
               empty="No output rows for this period."
             />
           </Panel>
-          <Panel title="Planned vs Actual (Cumulative)">
+          <Panel title={`Cumulative Throughput (May to ${currentMonthLabel})`}>
             <CumChart daily={d.daily} />
             <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
@@ -829,20 +822,19 @@ function ScoreboardInner() {
           <Panel title="Safety">
             <CardGrid cols={2}>
               {[
-                { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')), sub: 'Target 0', status: statusOf(num('Lost-Time Injuries'), 0, 'lte') },
-                { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')), sub: 'Target 0', status: statusOf(num('PPE Misuse Incidents'), 0, 'lte') },
-                { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')), sub: null, status: null },
-                { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')), sub: 'Target 100%', status: statusOf(num('Safety Inspection Compliance'), 0.95, 'gte') },
+                { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')) },
+                { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')) },
+                { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')) },
+                { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')) },
               ].map(c => <ScoreCard key={c.label} {...c} />)}
             </CardGrid>
           </Panel>
           <Panel title="Environment">
             <CardGrid cols={2}>
               {[
-                { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')), sub: null, status: null },
-                { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')), sub: null, status: null },
-                { label: 'Paper (reams/mo)', value: fint(num('Paper Used (latest month, reams)')), sub: null, status: null },
-                { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")), sub: null, status: null },
+                { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')) },
+                { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')) },
+                { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")) },
               ].map(c => <ScoreCard key={c.label} {...c} />)}
             </CardGrid>
           </Panel>
@@ -854,6 +846,15 @@ function ScoreboardInner() {
           </Panel>
           <Panel title="Schedule">
             <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 8 }}>
+          <Panel title="Operational Cost per Line">
+            <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
+          <Panel title="Total Production Cost">
+            <ScoreCard label="Total (UGX '000)" value={totalProductionCost} />
           </Panel>
         </div>
 
@@ -890,17 +891,12 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        {/* footer legend */}
+        {/* footer */}
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
           background: C.panel, border: `1px solid ${C.border}`, borderRadius: 4,
           padding: '7px 14px', fontSize: 10,
         }}>
-          <div style={{ display: 'flex', gap: 18, alignItems: 'center', color: C.grey }}>
-            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.green, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />ON TRACK — on plan</span>
-            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.amber, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />AT RISK — requires attention</span>
-            <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.red, borderRadius: 2, marginRight: 5, verticalAlign: -1 }} />DELAYED / BEHIND — immediate action</span>
-          </div>
           <div style={{ fontWeight: 800, letterSpacing: '0.25em', color: C.red, fontSize: 10 }}>
             FOCUS · PLAN · EXECUTE · DELIVER
           </div>
