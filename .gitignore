@@ -3,6 +3,9 @@
 .env.local
 .env.production
 
+# Private credentials reference — never commit
+CREDENTIALS-PRIVATE.md
+
 # Logs
 logs
 *.log
