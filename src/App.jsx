@@ -219,6 +219,16 @@ export default function App() {
   const assignedStation  = localStorage.getItem('kmc_assigned_station') || null;
   const assignedStations = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_stations') || 'null'); } catch { return null; } })();
   const assignedLines    = (() => { try { return JSON.parse(localStorage.getItem('kmc_assigned_lines') || 'null'); } catch { return null; } })();
+  // Admin-controlled Bus Tracker module access (User Management). Missing
+  // key (e.g. never logged in through the new Login flow yet) defaults to
+  // allowed, matching the server-side default.
+  const canAccessTracker = localStorage.getItem('kmc_can_access_tracker') !== 'false';
+
+  // Belt-and-braces: bounce back home if tracker access is off, even if
+  // `mode` somehow got set to 'tracker' some other way (e.g. stale state).
+  useEffect(() => {
+    if (mode === 'tracker' && !canAccessTracker) setMode('home');
+  }, [mode, canAccessTracker]);
 
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
@@ -229,6 +239,7 @@ export default function App() {
     localStorage.removeItem('kmc_assigned_station');
     localStorage.removeItem('kmc_assigned_stations');
     localStorage.removeItem('kmc_assigned_lines');
+    localStorage.removeItem('kmc_can_access_tracker');
     setRole('user');
     setNcrDomain(null);
     setAuthed(false);
@@ -253,6 +264,7 @@ export default function App() {
       onSelectAccessRequests={() => setMode('access-requests')}
       onSelectUserManagement={() => setMode('user-management')}
       role={role}
+      canAccessTracker={canAccessTracker}
     />
   );
 
@@ -412,6 +424,11 @@ export default function App() {
       hideHome={landingOnly}
     />
   );
+
+  // Anything past this point is the Bus Tracker (the only remaining mode) —
+  // guarded by the useEffect above too, not just by hiding the HomeScreen
+  // card, in case mode was ever set some other way.
+  if (mode === 'tracker' && !canAccessTracker) return null;
 
   return (
     <div style={{

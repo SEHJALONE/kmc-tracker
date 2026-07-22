@@ -80,12 +80,18 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           if (lines.length)
             localStorage.setItem('kmc_assigned_lines', JSON.stringify(lines));
           else localStorage.removeItem('kmc_assigned_lines');
+
+          // Admin-controlled Bus Tracker module access (User Management).
+          // Missing/undefined defaults to true — same as the server default.
+          localStorage.setItem('kmc_can_access_tracker', dynMatch.canAccessTracker === false ? 'false' : 'true');
         } else {
-          // Static credential — clear any leftover assignments
+          // Static credential — clear any leftover assignments; hardcoded
+          // accounts always keep full Bus Tracker access.
           localStorage.removeItem('kmc_user_fullname');
           localStorage.removeItem('kmc_assigned_station');
           localStorage.removeItem('kmc_assigned_stations');
           localStorage.removeItem('kmc_assigned_lines');
+          localStorage.setItem('kmc_can_access_tracker', 'true');
         }
 
         if (remember) {

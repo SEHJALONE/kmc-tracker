@@ -75,6 +75,9 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       stationLine:      user.assignedStation
         ? (SEED_STATIONS[user.assignedStation]?.line || '')
         : '',
+      // Missing/undefined = access on (every user created before this
+      // toggle existed keeps working exactly as before).
+      canAccessTracker: user.canAccessTracker !== false,
     });
   }
 
@@ -113,6 +116,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       assignedLine:     null,
       assignedLines:    edit.role === 'manager'    ? Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]) : [],
       assignedStations: (edit.role === 'supervisor' || edit.role === 'user') ? assignedCodes : [],
+      canAccessTracker: edit.canAccessTracker,
     };
     if (edit.password.length >= 8) patch.password = edit.password;
 
@@ -205,6 +209,9 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 700 }}>{user.fullName || user.username}</span>
                       <span style={{ fontSize: 10, background: `${rc}15`, color: rc, border: `1px solid ${rc}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>{rl}</span>
+                      {user.canAccessTracker === false && (
+                        <span style={{ fontSize: 10, background: `${R}15`, color: R, border: `1px solid ${R}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>Tracker Access Revoked</span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>
                       @{user.username} · {user.position || '—'} · {user.department || '—'}
@@ -403,6 +410,27 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                 )}
               </div>
             )}
+
+            {/* Bus Tracker module access — independent of role/station assignment */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={lbl}>System Access</label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={edit.canAccessTracker}
+                  onChange={() => setEdit(e => ({ ...e, canAccessTracker: !e.canAccessTracker }))}
+                  style={{ accentColor: GR, width: 14, height: 14 }}
+                />
+                <span style={{ fontSize: 12, color: text }}>Bus Tracker access</span>
+                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
+                  {edit.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden — Travel Card only'}
+                </span>
+              </label>
+            </div>
 
             {/* Optional password reset */}
             <div style={{ marginBottom: 16 }}>

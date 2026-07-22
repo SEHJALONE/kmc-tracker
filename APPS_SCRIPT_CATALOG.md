@@ -95,6 +95,7 @@ const DYNAMIC_USERS_HEADERS = [
   "username", "password", "role", "domain", "landing", "full_name", "email",
   "department", "production_line", "production_lines", "position", "created_at",
   "assigned_station", "assigned_line", "assigned_lines", "assigned_stations",
+  "can_access_tracker",
 ];
 
 function privateSs_() {
@@ -548,6 +549,9 @@ function dynamicUserRowToObject_(headers, row) {
     assignedLine: col("assigned_line") || null,
     assignedLines: jsonArr(col("assigned_lines")),
     assignedStations: jsonArr(col("assigned_stations")),
+    // Missing/blank column = true (backward-compatible default for every
+    // user created before this field existed) — only an explicit "NO" revokes.
+    canAccessTracker: String(col("can_access_tracker") || "").toUpperCase() !== "NO",
   };
 }
 
@@ -664,6 +668,7 @@ function createDynamicUser_(payload) {
     JSON.stringify(u.productionLines || []), u.position || "", u.createdAt || new Date().toISOString(),
     u.assignedStation || "", u.assignedLine || "",
     JSON.stringify(u.assignedLines || []), JSON.stringify(u.assignedStations || []),
+    u.canAccessTracker === false ? "NO" : "YES",
   ]);
   return response({ status: "ok", username: u.username });
 }
@@ -689,6 +694,7 @@ function updateDynamicUser_(payload) {
     assignedStation: "assigned_station", assignedLine: "assigned_line",
   };
   const jsonFieldMap = { productionLines: "production_lines", assignedLines: "assigned_lines", assignedStations: "assigned_stations" };
+  const boolFieldMap = { canAccessTracker: "can_access_tracker" };
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][usernameCol]).toLowerCase() === d.username.toLowerCase()) {
@@ -703,6 +709,12 @@ function updateDynamicUser_(payload) {
         if (d[key] !== undefined) {
           const colIdx = headers.indexOf(colName);
           if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(JSON.stringify(d[key]));
+        }
+      });
+      Object.entries(boolFieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key] === false ? "NO" : "YES");
         }
       });
       return response({ status: "ok", username: d.username });

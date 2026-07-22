@@ -59,6 +59,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     assignedStations: {},    // supervisor: { [code]: true }
     stationLine: '',         // user: line filter for station picker
     supervisorLines: {},     // supervisor: { [lineId]: true } — which lines to show stations for
+    canAccessTracker: true,  // whether this account can open the Bus Tracker module
   });
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -73,7 +74,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
     setForm({
       username: req.username || '', role: 'user',
       assignedStation: '', assignedLines: {}, assignedStations: {},
-      stationLine: '', supervisorLines: {},
+      stationLine: '', supervisorLines: {}, canAccessTracker: true,
     });
   }
 
@@ -123,6 +124,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       assignedLine:     null,
       assignedLines:    form.role === 'manager'    ? Object.keys(form.assignedLines).filter(k => form.assignedLines[k]) : [],
       assignedStations: (form.role === 'supervisor' || form.role === 'user') ? assignedStationCodes : [],
+      canAccessTracker: form.canAccessTracker,
     };
 
     const result = await createUser(newUser);
@@ -512,6 +514,27 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                 )}
               </div>
             )}
+
+            {/* Bus Tracker module access — independent of role/station assignment */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>System Access</label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.canAccessTracker}
+                  onChange={() => setForm(f => ({ ...f, canAccessTracker: !f.canAccessTracker }))}
+                  style={{ accentColor: GR, width: 14, height: 14 }}
+                />
+                <span style={{ fontSize: 12, color: text }}>Bus Tracker access</span>
+                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
+                  {form.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden — Travel Card only'}
+                </span>
+              </label>
+            </div>
 
             {/* Deny / Approve */}
             <div style={{ display: 'flex', gap: 10 }}>

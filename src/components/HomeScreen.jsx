@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onLogout, theme, toggleTheme, role }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onLogout, theme, toggleTheme, role, canAccessTracker = true }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
   const isSupervisor  = role === 'supervisor';
@@ -279,16 +279,18 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             </div>
           </button>
 
-          <button
-            className="home-card-btn"
-            style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 2.png' : '/Bus background 4.png'}'), linear-gradient(135deg, #6b1fb0 0%, #d6177a 100%)` }}
-            onClick={onSelectTracker}
-          >
-            <div className="home-card-overlay">
-              <div className="home-card-title">Bus Tracker</div>
-              <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
-            </div>
-          </button>
+          {canAccessTracker && (
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 2.png' : '/Bus background 4.png'}'), linear-gradient(135deg, #6b1fb0 0%, #d6177a 100%)` }}
+              onClick={onSelectTracker}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">Bus Tracker</div>
+                <div className="home-card-sub">Line tracker · Reports · Dashboard</div>
+              </div>
+            </button>
+          )}
 
         </div>
       </div>
