@@ -354,6 +354,23 @@ function barPath(x, y, w, h, r = 4) {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 }
 
+// Two-tone bar: a solid/opaque band anchored at the baseline, translucent
+// above it — the whole bar keeps one rounded top corner regardless of where
+// the color split falls.
+function TwoToneBar({ x, y, width, height, color, bandHeight = 14, r = 4 }) {
+  if (height <= 0 || width <= 0) return null;
+  if (height <= bandHeight) {
+    return <path d={barPath(x, y, width, height, r)} fill={color} />;
+  }
+  const upperH = height - bandHeight;
+  return (
+    <>
+      <path d={barPath(x, y, width, upperH, r)} fill={color} fillOpacity="0.35" />
+      <rect x={x} y={y + upperH} width={width} height={bandHeight} fill={color} />
+    </>
+  );
+}
+
 // Solid baseline + a small circle marker per category, evoking a timeline —
 // used by the monthly bar charts (Downtime, Planned vs Actual, Output by Line).
 function AxisTimeline({ C, y0, padL, padR, w, positions }) {
@@ -413,8 +430,8 @@ function CumChart({ daily }) {
           const y0 = yFor(0);
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.06, yFor(d.cumPlan), pw, Math.max(0, y0 - yFor(d.cumPlan)), 2)} fill={C.blue} />
-              {d.cumAct != null && <path d={barPath(x0 + bw * 0.5, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />}
+              <TwoToneBar x={x0 + bw * 0.06} y={yFor(d.cumPlan)} width={pw} height={Math.max(0, y0 - yFor(d.cumPlan))} color={C.blue} bandHeight={8} r={2} />
+              {d.cumAct != null && <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.cumAct)} width={pw} height={Math.max(0, y0 - yFor(d.cumAct))} color={C.green} bandHeight={8} r={2} />}
               {i % Math.ceil(pts.length / 8) === 0 && (
                 <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
                   {String(d.date).split(' ').slice(-2).join(' ')}
@@ -461,8 +478,8 @@ function DailyBarChart({ daily }) {
           const y0 = yFor(0);
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.1, yFor(d.planned), pw, Math.max(0, y0 - yFor(d.planned)), 2)} fill={C.blue} />
-              {d.actual != null && <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)), 2)} fill={C.green} />}
+              <TwoToneBar x={x0 + bw * 0.1} y={yFor(d.planned)} width={pw} height={Math.max(0, y0 - yFor(d.planned))} color={C.blue} bandHeight={8} r={2} />
+              {d.actual != null && <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, y0 - yFor(d.actual))} color={C.green} bandHeight={8} r={2} />}
               <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">
                 {String(d.date).split(' ').slice(-2).join(' ')}
               </text>
@@ -503,7 +520,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
           <g key={i}>
-            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))} fill={color} />
+            <TwoToneBar x={x0 + bw * 0.25} y={yFor(p.value)} width={pw} height={Math.max(0, y0 - yFor(p.value))} color={color} />
             <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="9" fill={C.text} textAnchor="middle" fontWeight="800">{fmt(p.value)}</text>
           </g>
         );
@@ -544,20 +561,23 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
           const planned = d.planned || 0;
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))} fill={C.blue} />
+              <TwoToneBar x={x0 + bw * 0.1} y={yFor(planned)} width={pw} height={Math.max(0, y0 - yFor(planned))} color={C.blue} />
               {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{planned}</text>}
               {d.actual != null && (
                 <>
-                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))} fill={C.green} />
+                  <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, y0 - yFor(d.actual))} color={C.green} />
                   {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{d.actual}</text>}
                 </>
               )}
             </g>
           );
         })}
-        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * bw + bw / 2)} />
+        {/* dot centers on the true midpoint of the planned+actual bar cluster
+            ([0.1bw, 0.5bw+pw] = [0.1bw, 0.82bw]), not bw/2 which sits visibly
+            off-center between the two bars */}
+        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * bw + bw * 0.46)} />
         {pts.map((d, i) => (
-          <text key={d.label} x={padL + i * bw + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
+          <text key={d.label} x={padL + i * bw + bw * 0.46} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
         ))}
       </svg>
     </div>
@@ -579,6 +599,10 @@ function MultiLineOutputChart({ points, lineNames }) {
   const barW = (groupW * 0.8) / lineNames.length;
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
   const y0 = yFor(0);
+  // True midpoint of the N-bar cluster (bars span [0, (N-1)*barW + barW*0.85]
+  // from the group's left edge) — NOT (barW*N)/2, which sits visibly off
+  // the actual bars since each bar is only 0.85 of its slot.
+  const clusterCenter = (barW * (lineNames.length - 1 + 0.85)) / 2;
   return (
     <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -595,15 +619,15 @@ function MultiLineOutputChart({ points, lineNames }) {
               {lineNames.map((n, j) => {
                 const v = p[n] || 0;
                 return (
-                  <path key={n} d={barPath(x0 + j * barW, yFor(v), barW * 0.85, Math.max(0, y0 - yFor(v)))} fill={LINE_COLORS[n] || C.grey} />
+                  <TwoToneBar key={n} x={x0 + j * barW} y={yFor(v)} width={barW * 0.85} height={Math.max(0, y0 - yFor(v))} color={LINE_COLORS[n] || C.grey} bandHeight={10} />
                 );
               })}
             </g>
           );
         })}
-        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * groupW + groupW * 0.1 + (barW * lineNames.length) / 2)} />
+        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * groupW + groupW * 0.1 + clusterCenter)} />
         {pts.map((p, i) => (
-          <text key={p.label} x={padL + i * groupW + groupW * 0.1 + (barW * lineNames.length) / 2} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+          <text key={p.label} x={padL + i * groupW + groupW * 0.1 + clusterCenter} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
         ))}
       </svg>
     </div>
@@ -852,21 +876,13 @@ function ScoreboardInner() {
     { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')) },
   ];
 
-  const costCards = [
-    { label: "Production Operational Cost (UGX '000)", value: fint(num('Production Operational Cost')) },
-    { label: "Labour (UGX '000)", value: fint(num('Labour Cost')) },
-    { label: "Budget (UGX '000)", value: fint(num('Budget Total')) },
-    { label: "Actual (UGX '000)", value: fint(num('Actual Total')) },
-    { label: 'Variance', value: fint(num('Variance')) },
-    { label: 'Variance %', value: fpct1(num('Variance %')) },
-    { label: "Workshop Supplies / Unit (UGX '000)", value: fint(num('Workshop Supplies per Unit')) },
-    { label: "Cost of Using the Production System (UGX '000)", value: fint(num('Cost of Using the Production System')) },
-  ];
+  // Cost reporting is deliberately just these two things — overall and
+  // per-line — no budget/actual/variance clutter (removed per request).
+  const productionOperationalCost = fint(num('Production Operational Cost'));
   const lineCostCards = LINE_WORKSHOPS.map(lw => ({
     label: lw.display,
     value: fint(num(`Operational Cost — ${lw.dataName}`)),
   }));
-  const totalProductionCost = fint(num('Total Production Cost'));
   const schedCards = [
     { label: 'Activities On Time', value: fpct(num('On-Time %')) },
     { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')) },
@@ -1022,22 +1038,17 @@ function ScoreboardInner() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Production Cost">
-            <CardGrid cols={4}>{costCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          <Panel title="Production Operational Cost">
+            <ScoreCard label="Total (UGX '000)" value={productionOperationalCost} />
           </Panel>
           <Panel title="Schedule">
             <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
           </Panel>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 8 }}>
-          <Panel title="Operational Cost per Line">
-            <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-          </Panel>
-          <Panel title="Total Production Cost">
-            <ScoreCard label="Total (UGX '000)" value={totalProductionCost} />
-          </Panel>
-        </div>
+        <Panel title="Operational Cost per Line">
+          <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+        </Panel>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <Panel title="Open Bottlenecks">
