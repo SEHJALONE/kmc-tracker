@@ -50,63 +50,61 @@ time (they're fully built and tested on the frontend, just waiting on this):
   UI works and saves, but the server ignores the `can_access_tracker` field
   until this script version is live.
 
-## 🟡 DPN Scoreboard — needs alignment, explicitly deferred
+## ✅ DPN Scoreboard — now reading real data (resolved 2026-07-25)
 
-The user's instruction this session was: **"For now let the DPN scoreboard
-be a standalone"** — i.e., don't merge its data pipeline with the main
-Apps Script/tracker sheet. That's respected. But there's a real, unresolved
-mismatch underneath it that will need fixing whenever scoreboard work
-resumes:
+Previously flagged as broken/unresolved; fixed same day. `useScoreboardData.js`
+was completely rewritten to read the user's actual working sheet,
+**`KMC_Department_Monthly_Scoreboard`**, ID
+`1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs` (the old ID,
+`1Z338nnUHTxelGTUtXwbVQPdFi0czu_4us39070i3axM`, was never made public and is
+no longer referenced anywhere). Verified live in the browser — the "Live"
+badge shows, and figures (workshop completion, cumulative throughput, cost
+variance) were checked by hand against the raw sheet CSV and matched exactly.
 
-1. **Wrong sheet ID configured.** `src/hooks/useScoreboardData.js` points at
-   `SHEET_ID = '1Z338nnUHTxelGTUtXwbVQPdFi0czu_4us39070i3axM'` — this was
-   flagged as a blocker back on 2026-07-10 (never set to "Anyone with the
-   link → Viewer", so gviz can't read it). The user's actual working sheet,
-   confirmed via screenshot this session, is a **different** spreadsheet:
-   `KMC_Department_Monthly_Scoreboard`, ID
-   `1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs`.
+**What changed:** the real sheet is a **Tracker-grid workbook** (tabs
+`Tracker`, `SUGGESTION`, `Breakdown`, `Cost` — 45-bus × 7-workshop
+Plan/Actual/Status/Delay columns), not the `Calc`/`Targets` KV-row format the
+hook originally expected. The parser now derives everything directly from
+that grid instead:
 
-2. **Schema mismatch, not just a wrong ID.** That real sheet is a
-   **Tracker-grid workbook** (tabs: `Tracker`, `SUGGESTION`, `Breakdown`,
-   `Cost` — 45-bus × workshop columns, matching the original
-   `KMC_Department_Monthly_Scoreboard.xlsx`/`.gsheet` files sitting untracked
-   in `src/`). `useScoreboardData.js`, by contrast, expects a totally
-   different shape: `Calc`/`Targets` tabs with label→value KV rows plus a
-   workshop summary table (matching the IMS-objectives dashboard design from
-   the 2026-07-10 rebuild). **Pointing the hook at the real sheet ID alone
-   will not work** — the parser needs to be rewritten to match the real
-   sheet's actual columns, or the real sheet needs new tabs built to match
-   what the parser expects. Decide which direction before touching this.
+- **Workshops** (`Tracker` tab, columns hardcoded by index — see
+  `WORKSHOP_COLS` in the hook, verified against the live header row):
+  Machine Shop, Frame & Body Parts, Chassis Line 01, Frame & Body Welding,
+  Paint Shop, Chassis Line 02, Trim & Final Assembly. Done/Active/Not
+  Started/N/A counted directly from the `Status` sub-column per workshop;
+  `DELAYED` status is set if any in-progress row has a positive `Delay` value.
+- **Daily/cumulative output** — built from Trim & Final Assembly's Plan
+  End / Actual End dates across all 45 buses (this is the "completed"
+  workshop).
+- **Cost** — reads the `Cost` tab's repeating period blocks (Labour/
+  Material/Energy rows). Picks the most recent period that actually has
+  non-zero actuals logged (not just the last row — several months ahead are
+  pre-filled with budget-only placeholders and would otherwise get picked
+  as "current" and show all zeros).
+- **Kaizen** — from `SUGGESTION` tab (just SN/NAME columns; workshop/
+  proposedBy/impact aren't tracked there, so those columns show blank).
+- **Downtime** — from `Breakdown` tab's M1–M7 reason-code minutes. This is
+  a single current snapshot, not a monthly trend, so the "Downtime — by
+  Month" chart has no data to show (correctly says so rather than faking it).
+- **No data source in this sheet at all** for: Safety, Quality/FPY, OEE,
+  MTTR, Environment (energy/waste per unit), Open Bottlenecks, ECR register,
+  Waste register. These all correctly show `—` / empty states rather than
+  sample/fake numbers. If the user wants these tracked, it needs new tabs
+  added to the real sheet — nothing to fix in code until that data exists.
 
-3. **Because of #1, `Scoreboard.jsx` has been running on `SAMPLE` fallback
-   data** for a while now — the "Live" badge in the toolbar tells you which
-   mode it's in at a glance.
+**Still true, unchanged:** the two orphaned standalone HTML files —
+`src/components/DPN_July_2026_Scoreboard_LOGO_UPDATED (4).html` and `(5).html`
+— are a separate, self-contained dashboard (own `.xlsx` importer, not gviz)
+that the user edits directly and is **not wired into the live app**. Not
+touched by this fix. If asked to apply the same real-data wiring there,
+that's a distinct task — that file reads an uploaded workbook buffer, not a
+live Google Sheet.
 
-4. **A second, unrelated scoreboard artifact exists**: two standalone HTML
-   files in `src/components/` —
-   `DPN_July_2026_Scoreboard_LOGO_UPDATED (4).html` and `(5).html` — a
-   self-contained, JS-driven dashboard (donut rings, workshop cards, its own
-   `.xlsx` importer) that the user edits directly and is **not** wired into
-   the live app at all (no App.jsx route references it). `(5).html` is the
-   more recent of the two. This session's UI decluttering work (bigger
-   donuts, remove target/behind pills, reordered workshop blocks, new cost
-   fields) was applied to **`Scoreboard.jsx` only**, per the user's explicit
-   choice — the standalone HTML files were left untouched. If asked to
-   apply matching changes there, that's a separate, not-yet-started task.
-
-5. **New cost fields added to `Scoreboard.jsx` this session** (Production
-   Operational Cost, Workshop Supplies per Unit, Labour, Cost of Using the
-   Production System, per-line operational cost, total production cost) all
-   read via `num('<label>')` from the sheet's KV rows — they'll show `—`
-   until matching rows are added to whichever sheet ends up being the real
-   data source (see #2 above). The exact label strings needed are listed in
-   the commit message for `57a0813`.
-
-**Bottom line for next session:** don't assume the Scoreboard "just needs
-its sheet ID fixed" — the real work is deciding whether to rewrite the
-parser to match the Tracker-grid sheet, or rebuild that sheet to match the
-KV/Calc format the parser already expects, and what (if anything) to do
-about the two orphaned standalone HTML files.
+**New cost fields added earlier this session** (Production Operational Cost,
+Workshop Supplies per Unit, Cost of Using the Production System, per-line
+operational cost, total production cost) still show `—` — the real sheet has
+no columns for these yet. Only `Budget Total`/`Actual Total`/`Variance`/
+`Variance %`/`Labour Cost` are populated from real data.
 
 ## Architecture quick reference
 
@@ -116,7 +114,7 @@ Three Google Sheets in play, deliberately separate:
 |---|---|---|
 | Main tracker | `1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es` | Travel Card, Catalog, MOC, NCR, Handover — all via the Apps Script above |
 | Private (access control) | `1TS2xV3kDIOlQ9W1-j-P9DExvt5lNZhLX6xeeuLX9BNA` | Access Requests + Dynamic Users (passwords) — never publicly shared, only the Apps Script can read it |
-| DPN Scoreboard | `1Z338nnUHTxelGTUtXwbVQPdFi0czu_4us39070i3axM` (configured, broken) vs `1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs` (real, per screenshot) | Standalone — see section above |
+| DPN Scoreboard | `1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs` (`KMC_Department_Monthly_Scoreboard`) | Standalone — now wired up for real, see section above |
 
 Login is server-side only (`login` Apps Script action) — passwords never
 reach any browser, including admin sessions. Static hardcoded accounts
@@ -141,13 +139,12 @@ gitignored — never committed, exists only on this machine).
 - Access-approval and admin-notification emails via Resend, with real
   error-surfacing (Resend's free tier only sends to your own address until
   a domain is verified at resend.com/domains — known limitation, not a bug).
-- DPN Scoreboard decluttering (see caveats above).
+- DPN Scoreboard reading real data end-to-end (see section above).
 
 ## Immediate next step
 
 1. Find and redeploy the **correct** Apps Script project (see verification
-   snippet above).
+   snippet above) — this is the only thing still blocking NCR, Handover, and
+   tracker-access from actually working.
 2. Re-verify NCR, Handover, and tracker-access all actually write once
    that's confirmed live.
-3. Whenever ready: decide the DPN Scoreboard data-source direction (rewrite
-   parser vs. rebuild sheet) — see that section for the full picture.

@@ -55,13 +55,13 @@ function MoonIcon() {
 // `dataName` matches the Tracker sheet's workshop name; `display` is the label shown.
 const LINE_WORKSHOPS = [
   { dataName: 'Trim & Final Assembly', display: 'Trim & Final Assembly' },
-  { dataName: 'Chassis Production Line 02', display: 'Chassis Line 02' },
+  { dataName: 'Chassis Line 02', display: 'Chassis Line 02' },
   { dataName: 'Paint Shop', display: 'Paint Shop' },
   { dataName: 'Frame & Body Welding', display: 'Body Shop' },
 ];
 const WORKSHOP_IMG = {
   'Trim & Final Assembly': '/Trim Line & Final Assembly.jpg',
-  'Chassis Production Line 02': '/Chassis Line 02.jpg',
+  'Chassis Line 02': '/Chassis Line 02.jpg',
   'Paint Shop': '/Paint Shop.png',
   'Frame & Body Welding': '/Frame & Body Welding.png',
 };
@@ -127,7 +127,7 @@ const SAMPLE = {
     { name: 'Chassis Production Line 01', done: 41, due: 45, na: 0, pct: 0.91, status: 'ON TRACK', constraint: 'None' },
     { name: 'Frame & Body Welding', done: 28, due: 45, na: 0, pct: 0.62, status: 'DELAYED', constraint: 'None' },
     { name: 'Paint Shop', done: 21, due: 45, na: 0, pct: 0.47, status: 'DELAYED', constraint: 'None' },
-    { name: 'Chassis Production Line 02', done: 20, due: 45, na: 0, pct: 0.44, status: 'DELAYED', constraint: 'None' },
+    { name: 'Chassis Line 02', done: 20, due: 45, na: 0, pct: 0.44, status: 'DELAYED', constraint: 'None' },
     { name: 'Trim & Final Assembly', done: 16, due: 40, na: 0, pct: 0.36, status: 'DELAYED', constraint: 'None' },
     { name: 'Quality Inspection & Testing', done: 0, due: 0, na: 0, pct: 0, status: 'ON TRACK', constraint: 'None' },
   ],
@@ -903,11 +903,12 @@ function ScoreboardInner() {
         </div>
       </Page>
 
-      {/* Note: the reporting period (Start/End) and project name are set in the
-          sheet's Targets tab and already drive every period-scoped figure here —
-          no separate on-page control, to avoid a second source of truth. */}
+      {/* Note: this reads the real Tracker/SUGGESTION/Breakdown/Cost workbook —
+          see useScoreboardData.js. The reporting period shown is whichever Cost
+          tab period block most recently has non-zero actuals logged; there's no
+          separate Targets tab in this sheet. */}
       <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
-        Reporting period and project name are set in the sheet — <b>Targets</b> tab, <b>Start/End</b> and <b>Program / Project Name</b> cells.
+        Production line status, output, and downtime are read live from the <b>Tracker</b> tab. Cost figures reflect the most recent period with actuals logged in the <b>Cost</b> tab. Safety/Quality/Environment metrics aren't tracked in this workbook yet.
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
