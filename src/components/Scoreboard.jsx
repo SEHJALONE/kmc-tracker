@@ -345,6 +345,28 @@ function niceAxis(dataMax, targetTicks = 4, integer = false) {
   return { niceMax, step, tickCount };
 }
 
+// Bar path with rounded TOP corners only, bottom anchored square to the
+// baseline (a plain <rect rx> rounds all four corners, which reads wrong for
+// a bar anchored at zero). h<=0 collapses to nothing rather than a negative path.
+function barPath(x, y, w, h, r = 4) {
+  if (h <= 0 || w <= 0) return '';
+  const rr = Math.min(r, w / 2, h);
+  return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
+}
+
+// Solid baseline + a small circle marker per category, evoking a timeline —
+// used by the monthly bar charts (Downtime, Planned vs Actual, Output by Line).
+function AxisTimeline({ C, y0, padL, padR, w, positions }) {
+  return (
+    <>
+      <line x1={padL} y1={y0} x2={w - padR} y2={y0} stroke={C.grey} strokeWidth="1.5" />
+      {positions.map((cx, i) => (
+        <circle key={i} cx={cx} cy={y0} r="3" fill={C.panel} stroke={C.grey} strokeWidth="1.5" />
+      ))}
+    </>
+  );
+}
+
 function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = (v) => Math.round(v) }) {
   const C = useC();
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
@@ -388,10 +410,11 @@ function CumChart({ daily }) {
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
         {pts.map((d, i) => {
           const x0 = padL + i * bw;
+          const y0 = yFor(0);
           return (
             <g key={i}>
-              <rect x={x0 + bw * 0.06} y={yFor(d.cumPlan)} width={pw} height={Math.max(0, yFor(0) - yFor(d.cumPlan))} fill={C.blue} />
-              {d.cumAct != null && <rect x={x0 + bw * 0.5} y={yFor(d.cumAct)} width={pw} height={Math.max(0, yFor(0) - yFor(d.cumAct))} fill={C.green} />}
+              <path d={barPath(x0 + bw * 0.06, yFor(d.cumPlan), pw, Math.max(0, y0 - yFor(d.cumPlan)), 2)} fill={C.blue} />
+              {d.cumAct != null && <path d={barPath(x0 + bw * 0.5, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />}
               {i % Math.ceil(pts.length / 8) === 0 && (
                 <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
                   {String(d.date).split(' ').slice(-2).join(' ')}
@@ -435,10 +458,11 @@ function DailyBarChart({ daily }) {
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses / Day" />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
+          const y0 = yFor(0);
           return (
             <g key={i}>
-              <rect x={x0 + bw * 0.1} y={yFor(d.planned)} width={pw} height={Math.max(0, yFor(0) - yFor(d.planned))} fill={C.blue} />
-              {d.actual != null && <rect x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, yFor(0) - yFor(d.actual))} fill={C.green} />}
+              <path d={barPath(x0 + bw * 0.1, yFor(d.planned), pw, Math.max(0, y0 - yFor(d.planned)), 2)} fill={C.blue} />
+              {d.actual != null && <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)), 2)} fill={C.green} />}
               <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">
                 {String(d.date).split(' ').slice(-2).join(' ')}
               </text>
@@ -471,6 +495,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const { niceMax, step, tickCount } = niceAxis(dataMax, 4, false);
   const bw = (w - padL - padR) / points.length;
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  const y0 = yFor(0);
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} />
@@ -478,12 +503,15 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
           <g key={i}>
-            <rect x={x0 + bw * 0.25} y={yFor(p.value)} width={pw} height={Math.max(0, yFor(0) - yFor(p.value))} fill={color} rx="2" />
-            <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
-            <text x={x0 + bw / 2} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))} fill={color} />
+            <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="9" fill={C.text} textAnchor="middle" fontWeight="800">{fmt(p.value)}</text>
           </g>
         );
       })}
+      <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={points.map((_, i) => padL + i * bw + bw / 2)} />
+      {points.map((p, i) => (
+        <text key={p.label} x={padL + i * bw + bw / 2} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+      ))}
     </svg>
   );
 }
@@ -502,6 +530,7 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   const { niceMax, step, tickCount } = niceAxis(dataMax, 3, true);
   const bw = (w - padL - padR) / pts.length;
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  const y0 = yFor(0);
   return (
     <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
@@ -512,14 +541,24 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle} />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
+          const planned = d.planned || 0;
           return (
             <g key={i}>
-              <rect x={x0 + bw * 0.1} y={yFor(d.planned || 0)} width={pw} height={Math.max(0, yFor(0) - yFor(d.planned || 0))} fill={C.blue} />
-              {d.actual != null && <rect x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, yFor(0) - yFor(d.actual))} fill={C.green} />}
-              <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
+              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))} fill={C.blue} />
+              {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{planned}</text>}
+              {d.actual != null && (
+                <>
+                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))} fill={C.green} />
+                  {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{d.actual}</text>}
+                </>
+              )}
             </g>
           );
         })}
+        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * bw + bw / 2)} />
+        {pts.map((d, i) => (
+          <text key={d.label} x={padL + i * bw + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
+        ))}
       </svg>
     </div>
   );
@@ -539,6 +578,7 @@ function MultiLineOutputChart({ points, lineNames }) {
   const groupW = (w - padL - padR) / pts.length;
   const barW = (groupW * 0.8) / lineNames.length;
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  const y0 = yFor(0);
   return (
     <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -555,14 +595,16 @@ function MultiLineOutputChart({ points, lineNames }) {
               {lineNames.map((n, j) => {
                 const v = p[n] || 0;
                 return (
-                  <rect key={n} x={x0 + j * barW} y={yFor(v)} width={barW * 0.85}
-                    height={Math.max(0, yFor(0) - yFor(v))} fill={LINE_COLORS[n] || C.grey} />
+                  <path key={n} d={barPath(x0 + j * barW, yFor(v), barW * 0.85, Math.max(0, y0 - yFor(v)))} fill={LINE_COLORS[n] || C.grey} />
                 );
               })}
-              <text x={x0 + (barW * lineNames.length) / 2} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
             </g>
           );
         })}
+        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * groupW + groupW * 0.1 + (barW * lineNames.length) / 2)} />
+        {pts.map((p, i) => (
+          <text key={p.label} x={padL + i * groupW + groupW * 0.1 + (barW * lineNames.length) / 2} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+        ))}
       </svg>
     </div>
   );
@@ -837,7 +879,6 @@ function ScoreboardInner() {
     const w = d.workshops.find(x => x.name === lw.dataName) || { done: 0, due: 0, na: 0, pct: 0, status: null, constraint: '—' };
     return { ...w, name: lw.dataName, display: lw.display };
   });
-  const dailyRecent = d.daily.slice(-8);
   const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
 
   const btn = {
@@ -924,29 +965,24 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.15fr', gap: 8 }}>
-          <Panel title="Daily Production Output">
-            <MiniTable
-              headers={['Date', 'Plan', 'Act', 'Cum P', 'Cum A']}
-              rows={dailyRecent.map(r => [r.date, r.planned, r.actual ?? '-', r.cumPlan, r.cumAct ?? '-'])}
-              empty="No output rows for this period."
-            />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Daily Output (Non-Cumulative)">
+            <DailyBarChart daily={d.daily} />
           </Panel>
           <Panel title={`Cumulative Throughput (May to ${currentMonthLabel})`}>
             <CumChart daily={d.daily} />
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 9, fontWeight: 800, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                Daily Output (Non-Cumulative)
-              </div>
-              <DailyBarChart daily={d.daily} />
-            </div>
           </Panel>
         </div>
 
-        {/* Planned vs Actual — bar charts, whole-program then per-line */}
-        <Panel title="Planned vs Actual — by Month (whole program)">
-          <MonthlyPlanActualChart points={d.overallMonthly} />
-        </Panel>
+        {/* Planned vs Actual (whole program) alongside the 4-line output comparison */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Panel title="Planned vs Actual — by Month (whole program)">
+            <MonthlyPlanActualChart points={d.overallMonthly} />
+          </Panel>
+          <Panel title="Monthly Output — by Line">
+            <MultiLineOutputChart points={d.lineMonthlyOutput} lineNames={LINE_WORKSHOPS.map(lw => lw.dataName)} />
+          </Panel>
+        </div>
 
         <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -956,10 +992,6 @@ function ScoreboardInner() {
             </Panel>
           ))}
         </div>
-
-        <Panel title="Monthly Output — by Line">
-          <MultiLineOutputChart points={d.lineMonthlyOutput} lineNames={LINE_WORKSHOPS.map(lw => lw.dataName)} />
-        </Panel>
       </Page>
 
       {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
