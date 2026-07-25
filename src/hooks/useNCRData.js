@@ -54,8 +54,8 @@ function parseNCRCSV(text) {
   const idxId       = col('ncr_id', 'ncr id');
   const idxTs       = col('timestamp', 'time', 'date');
   const idxVin      = col('vin');
-  const idxStation  = col('station_code', 'station code');
-  const idxType     = col('ncr_type', 'ncr type');
+  const idxStation  = col('station_code', 'station code', 'station');
+  const idxType     = col('ncr_type', 'ncr type', 'type');
   const idxDesc     = col('description');
   const idxSeverity = col('severity');
   const idxDisp     = col('disposition');

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { LINES, isMajorStation, majorStationCountForLine } from '../data/stations';
+import { useNCRData } from '../hooks/useNCRData';
 
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
@@ -99,6 +100,25 @@ function ApprovalBadge({ status }) {
       fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em',
     }}>
       {label}
+    </span>
+  );
+}
+
+function NCRFlag({ count }) {
+  if (!count) return null;
+  return (
+    <span
+      title={`${count} open NCR${count > 1 ? 's' : ''} against this VIN`}
+      style={{
+        background: 'var(--accent-alpha)', color: 'var(--accent-text)',
+        border: '1px solid var(--accent-border)',
+        borderRadius: 20, padding: '3px 9px',
+        fontSize: 10, fontWeight: 600,
+        fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em',
+        cursor: 'help',
+      }}
+    >
+      ⚑ NCR ×{count}
     </span>
   );
 }
@@ -231,6 +251,19 @@ function SummaryCard({ label, value, color }) {
 }
 
 export default function BusReport({ buses, allRows, filter, stationTimes = {}, theme = 'dark', onOpenTravelCard }) {
+  const { ncrs } = useNCRData();
+
+  const openNcrsByVin = useMemo(() => {
+    const map = {};
+    for (const n of ncrs) {
+      if (n.status !== 'Open' && n.status !== 'In Progress') continue;
+      const key = (n.vin || '').trim().toUpperCase();
+      if (!key) continue;
+      map[key] = (map[key] || 0) + 1;
+    }
+    return map;
+  }, [ncrs]);
+
   const report = useMemo(() => {
     const byVin = {};
     for (const row of (allRows ?? [])) {
@@ -271,6 +304,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
         const latestRow      = history[history.length - 1] ?? null;
         const approvalStatus = latestRow?.approvalStatus ?? null;
         const ohsIssue       = latestRow?.ohsIssue       ?? null;
+        const ncrCount       = openNcrsByVin[(bus.vin || '').trim().toUpperCase()] || 0;
 
         return {
           vin: bus.vin,
@@ -283,11 +317,11 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
           status, variance, estimatedMinutes,
           firstEntry: firstTs,
           colors: getColors(bus.model),
-          approvalStatus, ohsIssue,
+          approvalStatus, ohsIssue, ncrCount,
         };
       })
       .sort((a, b) => (b.totalMs || 0) - (a.totalMs || 0));
-  }, [buses, allRows, filter, stationTimes]);
+  }, [buses, allRows, filter, stationTimes, openNcrsByVin]);
 
   if (report.length === 0) {
     return (
@@ -316,6 +350,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
   const pendingCount  = report.filter(b => b.approvalStatus && b.approvalStatus.toUpperCase().includes('PEND')).length;
   const rejectedCount = report.filter(b => b.approvalStatus && b.approvalStatus.toUpperCase().includes('REJECT')).length;
   const ohsCount      = report.filter(b => b.ohsIssue).length;
+  const ncrTotal      = report.reduce((s, b) => s + b.ncrCount, 0);
 
   const font = "'Inter', system-ui, sans-serif";
 
@@ -344,6 +379,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
         {pendingCount  > 0 && <SummaryCard label="Pending approval" value={pendingCount}  color="var(--warning-color)" />}
         {rejectedCount > 0 && <SummaryCard label="Rejected"         value={rejectedCount} color="var(--accent)" />}
         {ohsCount      > 0 && <SummaryCard label="OHS issues"       value={ohsCount}      color="var(--accent-text)" />}
+        {ncrTotal      > 0 && <SummaryCard label="Open NCRs"        value={ncrTotal}      color="var(--accent)" />}
       </div>
 
       {/* ── Bus rows ── */}
@@ -443,6 +479,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
               <StatusBadge status={bus.status} />
               <ApprovalBadge status={bus.approvalStatus} />
               <OHSFlag ohsIssue={bus.ohsIssue} />
+              <NCRFlag count={bus.ncrCount} />
             </div>
           </div>
         ))}

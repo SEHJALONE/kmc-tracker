@@ -1,5 +1,131 @@
 # KMC Bus Production Tracker — Handover (2026-07-25)
 
+## 🔴 Open and urgent: 3 new sheet tabs need to be uploaded to go live
+
+DPN Scoreboard now has real charts and a real cost model (see next section),
+but they read from **3 brand-new tabs** that only exist in the local file
+`src/KMC_Department_Monthly_Scoreboard.xlsx` — not yet on the live Google
+Sheet (`1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs`). Following the sheet's
+own established workflow ("re-upload this file" — already in the Breakdown
+tab's instructions), the user needs to **re-upload/replace the Google Sheet
+with this xlsx file** for any of the new charts/costs to show real data.
+Until that happens, everything gracefully falls back to zeros/empty states
+— it won't crash, it just won't be live.
+
+The 3 new tabs, each styled to match the sheet's existing convention
+(navy header, yellow = edit-this-cell, blue text = input):
+- **`Monthly Downtime Log`** — Month | Downtime Hours | Notes. Seeded with
+  one historical row (Apr-26, 0.7h, from the existing Breakdown snapshot).
+  Feeds the "Downtime — by Month" bar chart. User chose manual monthly entry
+  over an automatic Delay-column-derived proxy for now, but wants the
+  automatic derivation kept in mind for later.
+- **`Cost Inputs`** — 3 config cells: **Staff Hourly Rate** (UGX/hour,
+  currently 0 — user said they'll share the real number), **Machine Hourly
+  Rate** (UGX/hour, reserved for later, not used in any calc yet), **Energy
+  Tariff Rate** (UGX/kWh, currently 0). All cost figures downstream of these
+  show 0 until they're set to real values — deliberate, not a bug.
+- **`Weekly Meter Readings`** (renamed from `Daily Meter Readings` same day,
+  per request) — Week Ending | Meter Reading (kWh) | Notes. Meter reading =
+  **TX1 + TX2 + TX3** (the site's three transformer feeds = total grid draw;
+  solar generation meters 250K/500K/144K and area submeters Trim/QIT/SMDB
+  Chassis are excluded — they sit downstream of the transformers, not
+  additional draw). **Seeded with 4 real legacy rows** (22/06, 29/06, 06/07,
+  13/07/2026) read from a shared energy-audit photo, converted MWh→kWh.
+  The 06/07 and 13/07 rows involved reconstructing OCR-wrapped decimal
+  digits from a phone screenshot — flagged in each row's Notes as
+  "verify against source PDF" since exact digits weren't fully certain.
+  Dashboard computes consumption as the delta between the earliest and
+  latest logged reading.
+
+**Immediate next step**: user re-uploads the xlsx (already updated in the
+repo) to the live Google Sheet, then sends the real Staff Hourly Rate and
+Energy Tariff Rate so `Cost Inputs` can be filled in with real numbers.
+
+## ✅ DPN Scoreboard — monthly charts + real cost model (2026-07-25)
+
+Built on top of the Tracker-grid rewiring from earlier the same day. All new
+logic lives in `useScoreboardData.js` (parsing) and `Scoreboard.jsx`
+(rendering); `SAMPLE` data updated to match so the page never crashes before
+the new tabs exist on the live sheet.
+
+- **Downtime — by Month** — changed from a line chart to a bar chart
+  (`MonthlyBarChart`), reading the new `Monthly Downtime Log` tab.
+- **Planned vs Actual — by Month (whole program)** — new bar-chart panel
+  (`MonthlyPlanActualChart`), derived from the Tracker's Trim & Final
+  Assembly Plan End / Actual End dates bucketed by month, spanning the
+  full production timeline (not just the last N days like the existing
+  daily/cumulative charts, which are untouched).
+- **Planned vs Actual — by Month, per Line** — same chart type, one panel
+  each for the 4 reported lines (Trim & Final Assembly, Chassis Line 02,
+  Paint Shop, Frame & Body Welding — these 4 were already established in
+  an earlier session as "the four we report on", per `LINE_WORKSHOPS` in
+  Scoreboard.jsx).
+- **Monthly Output — by Line** — new comparison chart (`MultiLineOutputChart`),
+  4 colored bars per month (one per line), so throughput trends across the
+  4 lines can be compared side by side.
+- **Cost model** — `Production Operational Cost` and per-line
+  `Operational Cost — <line>` are no longer permanently blank placeholders:
+  - **Labour cost**: cross-sheet read of the Travel Card's own `operators`
+    + `submissions` tabs (on the *other* sheet, `1npt7Tf2y...`) — each
+    `operators` row is one staff member on duty for one submission; joined
+    to that submission's `actual_time_min` and `station_code` (mapped to
+    one of the 4 lines via `data/stations.js`'s `STATIONS[code].line`).
+    Cost = Σ(headcount-instances × hours worked) × Staff Hourly Rate.
+  - **Energy cost**: `Daily Meter Readings` delta × Energy Tariff Rate.
+  - **Production Operational Cost** = Labour + Energy (Material not
+    included — no per-shift material data source exists yet).
+  - All cost KV values are stored in UGX '000 to match the existing Cost
+    tab's unit convention (raw UGX ÷ 1000) — this matters if extending the
+    calc later, easy to get a 1000x display bug otherwise.
+  - Cost panel reordered so **Production Operational Cost** leads, per
+    request, followed by Labour/Budget/Actual/Variance, then the existing
+    **Operational Cost per Line** panel right below it (already existed,
+    was just always empty).
+- Fixed a pre-existing typo in `Scoreboard.jsx`'s `SAMPLE` data: the key was
+  `'Operational Cost — Chassis Production Line 02'` but every real code path
+  uses `'Operational Cost — Chassis Line 02'` (no "Production") — the sample
+  fallback was showing `—` for that one line's cost card only.
+
+Verified in-browser against `SAMPLE` fallback data (live sheet fetch isn't
+reachable from this sandboxed dev environment) — all new panels render, no
+console errors, values match `SAMPLE` exactly. **Not yet verified against
+real live data** since the new tabs don't exist on the live sheet yet (see
+previous section) — do that once the xlsx is re-uploaded.
+
+## ✅ NCR + Travel Card data now wired into Dashboard, Bus Report, Line Tracker
+
+User confirmed the correct data source is the **`NI Travel Tool Data`** sheet
+(ID `1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es`, tabs incl. `ncrs`,
+`Travel Card Data`), and the correct Apps Script project is
+**`KMC Travel Card Data Collector`** — both already matched what
+`useNCRData.js`, `useSheetData.js`, `useOverrunData.js`, `useHandoverData.js`
+and `catalogConfig.js` were pointed at, so no sheet-ID changes were needed.
+
+What *was* missing/broken, now fixed:
+- **`useNCRData.js` parsing bug** — it searched for `station_code`/`ncr_type`
+  header names, but the live `ncrs` tab (matching `NCR_HEADERS` in
+  `APPS_SCRIPT_CATALOG.md`) uses plain `station`/`type`. NCR station and
+  type were silently parsing as blank on every row. Fixed by adding those
+  as fallback search terms.
+- **Dashboard.jsx** — added an `NCRSummaryCard` (open/critical/overdue/
+  closed/total, links to `/ncr.html`) and actually rendered the existing
+  `HandoverSummaryCard`, which was fully built but never mounted in JSX.
+- **BusReport.jsx** — each bus row now shows a `⚑ NCR ×N` badge when it has
+  open NCRs against its VIN; summary grid gets an "Open NCRs" tile when any
+  exist.
+- **LineTracker.jsx** — bus cards on the live floor view get a small red
+  flag badge (count) when they have open NCRs, threaded down through
+  `LineCard` → `StationDot` → `BusCallout`; also shown in the hover tooltip.
+
+Verified live in the browser (dev server, systemadmin login): all three
+views render without console errors; NCR summary card on Dashboard showed
+real counts (1 total / 1 overdue) from the live sheet's one test NCR record.
+Note the test NCR's VIN (`KMC TEST 001`) doesn't match any real bus
+currently on the floor, so the BusReport/LineTracker badges didn't have
+a chance to visually confirm against real data yet — logic was verified
+by code review + the Dashboard card pulling from the same hook correctly.
+
+
 Read this first in a fresh session. It's the state of the system, what's
 solid, what's broken, and — especially — what's unresolved with the DPN
 Scoreboard.
@@ -84,8 +210,9 @@ that grid instead:
 - **Kaizen** — from `SUGGESTION` tab (just SN/NAME columns; workshop/
   proposedBy/impact aren't tracked there, so those columns show blank).
 - **Downtime** — from `Breakdown` tab's M1–M7 reason-code minutes. This is
-  a single current snapshot, not a monthly trend, so the "Downtime — by
-  Month" chart has no data to show (correctly says so rather than faking it).
+  a single current snapshot, not a monthly trend. *(Superseded later the same
+  day — see "DPN Scoreboard — monthly charts + real cost model" above: the
+  "Downtime — by Month" chart now reads a separate `Monthly Downtime Log` tab.)*
 - **No data source in this sheet at all** for: Safety, Quality/FPY, OEE,
   MTTR, Environment (energy/waste per unit), Open Bottlenecks, ECR register,
   Waste register. These all correctly show `—` / empty states rather than
@@ -102,9 +229,12 @@ live Google Sheet.
 
 **New cost fields added earlier this session** (Production Operational Cost,
 Workshop Supplies per Unit, Cost of Using the Production System, per-line
-operational cost, total production cost) still show `—` — the real sheet has
-no columns for these yet. Only `Budget Total`/`Actual Total`/`Variance`/
-`Variance %`/`Labour Cost` are populated from real data.
+operational cost, total production cost) originally showed `—`. *(Superseded
+later the same day — see "DPN Scoreboard — monthly charts + real cost model"
+above: Production Operational Cost and per-line Operational Cost are now
+computed from Travel Card labour data + the new `Cost Inputs`/`Daily Meter
+Readings` tabs, currently 0 pending real rate values. `Workshop Supplies per
+Unit` and `Cost of Using the Production System` still have no data source.)*
 
 ## Architecture quick reference
 

@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel } from '../data/stations';
 import { isActive, stationMatchesProject } from '../data/catalogConfig';
+import { useNCRData } from '../hooks/useNCRData';
 
 // Normalise a free-text model string to 'KDC' | 'EVS' | null.
 function modelKindOf(model = '') {
@@ -73,7 +74,7 @@ function PortalTooltip({ anchorRef, visible, above, children }) {
   );
 }
 
-function BusCallout({ bus }) {
+function BusCallout({ bus, ncrCount = 0 }) {
   const [hover, setHover]       = useState(false);
   const [imgError, setImgError] = useState(false);
   const cardRef = useRef(null);
@@ -88,6 +89,7 @@ function BusCallout({ bus }) {
         onMouseLeave={() => setHover(false)}
         onTouchStart={() => setHover(h => !h)}
         style={{
+          position: 'relative',
           width: 100,
           minHeight: 44,
           background: c.bg,
@@ -102,6 +104,21 @@ function BusCallout({ bus }) {
           flexShrink: 0,
         }}
       >
+        {ncrCount > 0 && (
+          <div
+            title={`${ncrCount} open NCR${ncrCount > 1 ? 's' : ''}`}
+            style={{
+              position: 'absolute', top: -6, right: -6, zIndex: 3,
+              background: '#dc2626', color: '#fff',
+              borderRadius: 10, minWidth: 16, height: 16, padding: '0 4px',
+              fontSize: 9, fontWeight: 700, fontFamily: "'Space Mono', monospace",
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1.5px solid #0d1526', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            }}
+          >
+            ⚑{ncrCount}
+          </div>
+        )}
         <div style={{
           background: c.badgeBg, color: c.badgeText, borderRadius: 3,
           padding: '2px 5px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
@@ -147,13 +164,18 @@ function BusCallout({ bus }) {
             </div>
           )}
           {bus.timestamp && <div style={{ color: '#475569', fontSize: 10 }}>{bus.timestamp}</div>}
+          {ncrCount > 0 && (
+            <div style={{ marginTop: 4, color: '#fca5a5', fontSize: 10, fontWeight: 600 }}>
+              ⚑ {ncrCount} open NCR{ncrCount > 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       </PortalTooltip>
     </>
   );
 }
 
-function StationDot({ station, code, buses, filter }) {
+function StationDot({ station, code, buses, filter, ncrCounts }) {
   const [tooltip, setTooltip] = useState(false);
   const dotRef = useRef(null);
 
@@ -181,7 +203,9 @@ function StationDot({ station, code, buses, filter }) {
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: archived ? 0.55 : 1 }}>
       {busesHere.length > 0 && (
         <div style={{ display: 'flex', gap: 5, marginBottom: 8, flexWrap: 'nowrap', justifyContent: 'center' }}>
-          {busesHere.map(bus => <BusCallout key={bus.vin} bus={bus} />)}
+          {busesHere.map(bus => (
+            <BusCallout key={bus.vin} bus={bus} ncrCount={ncrCounts?.[(bus.vin || '').trim().toUpperCase()] || 0} />
+          ))}
         </div>
       )}
 
@@ -238,7 +262,7 @@ function StationDot({ station, code, buses, filter }) {
   );
 }
 
-function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
+function LineCard({ line, stations, buses, filter, lineColor, zigzagRight, ncrCounts }) {
   const [collapsed, setCollapsed] = useState(false);
   const [bgLoaded, setBgLoaded]   = useState(false);
   const bgImage = LINE_BG[line.id];
@@ -349,7 +373,7 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
             }}>
               {stations.map((station, idx) => (
                 <div key={station.code} style={{ display: 'flex', alignItems: 'center' }}>
-                  <StationDot station={station} code={station.code} buses={buses} filter={filter} />
+                  <StationDot station={station} code={station.code} buses={buses} filter={filter} ncrCounts={ncrCounts} />
                   {idx < stations.length - 1 && (
                     <div style={{
                       width: 28, height: 1.5,
@@ -371,6 +395,18 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight }) {
 }
 
 export default function LineTracker({ buses, filter, projectFilter = null }) {
+  const { ncrs } = useNCRData();
+  const ncrCounts = useMemo(() => {
+    const map = {};
+    for (const n of ncrs) {
+      if (n.status !== 'Open' && n.status !== 'In Progress') continue;
+      const key = (n.vin || '').trim().toUpperCase();
+      if (!key) continue;
+      map[key] = (map[key] || 0) + 1;
+    }
+    return map;
+  }, [ncrs]);
+
   const linesToShow = LINES.filter(line => {
     if (!isActive(line)) return false;
     if (filter === 'ALL') return true;
@@ -416,6 +452,7 @@ export default function LineTracker({ buses, filter, projectFilter = null }) {
           filter={filter}
           lineColor={lineColors[line.id] || '#64748b'}
           zigzagRight={idx % 2 === 1}
+          ncrCounts={ncrCounts}
         />
       ))}
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { LINES, STATIONS, isMajorStation } from '../data/stations';
 import { useDowntimeData } from '../hooks/useOverrunData';
 import { useHandoverData } from '../hooks/useHandoverData';
+import { useNCRData } from '../hooks/useNCRData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
@@ -667,6 +668,44 @@ function HandoverSummaryCard({ onOpenHandover }) {
   );
 }
 
+function NCRSummaryCard() {
+  const { summary, loading } = useNCRData();
+  const openCount     = Array.isArray(summary.open)     ? summary.open.length     : 0;
+  const criticalCount = Array.isArray(summary.critical) ? summary.critical.length : 0;
+  const overdueCount  = Array.isArray(summary.overdue)  ? summary.overdue.length  : 0;
+  const closedCount   = Array.isArray(summary.closed)   ? summary.closed.length   : 0;
+  const accentColor   = criticalCount > 0 ? '#dc2626' : overdueCount > 0 ? '#f59e0b' : openCount > 0 ? '#3b82f6' : '#10b981';
+
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: `1px solid ${criticalCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
+          NCR Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC Quality</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
+          {[
+            { label: 'Open',      value: loading ? '…' : openCount,     color: openCount > 0 ? '#3b82f6' : 'var(--text-dim)' },
+            { label: 'Critical',  value: loading ? '…' : criticalCount, color: criticalCount > 0 ? '#dc2626' : 'var(--text-dim)' },
+            { label: 'Overdue',   value: loading ? '…' : overdueCount,  color: overdueCount > 0 ? '#f59e0b' : 'var(--text-dim)' },
+            { label: 'Closed',    value: loading ? '…' : closedCount,   color: 'var(--text-heading)' },
+            { label: 'Total',     value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
+          ].map(s => (
+            <div key={s.label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginLeft: 'auto' }}>
+        <a href="/ncr.html" target="_blank" rel="noopener noreferrer" style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", textDecoration: 'none', display: 'inline-block' }}>
+          Open Register →
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard export ────────────────────────────────
 export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filters = {}, stationTimes = {}, theme = 'dark', onOpenHandover }) {
   // Guard against undefined during initial render before sheet data loads
@@ -973,6 +1012,10 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
               />
             )}
           </div>
+
+          {/* ── NCR + Handover summary bars ── */}
+          <NCRSummaryCard />
+          <HandoverSummaryCard onOpenHandover={onOpenHandover} />
 
           {/* Takt Time panel */}
           <TaktTimePanel

@@ -108,7 +108,7 @@ const SAMPLE = {
     'Production Operational Cost': { num: 0 }, 'Workshop Supplies per Unit': { num: 0 },
     'Labour Cost': { num: 0 }, 'Cost of Using the Production System': { num: 0 },
     'Operational Cost — Trim & Final Assembly': { num: 0 },
-    'Operational Cost — Chassis Production Line 02': { num: 0 },
+    'Operational Cost — Chassis Line 02': { num: 0 },
     'Operational Cost — Paint Shop': { num: 0 },
     'Operational Cost — Frame & Body Welding': { num: 0 },
     'Total Production Cost': { num: 0 },
@@ -149,6 +149,20 @@ const SAMPLE = {
   downtimeTrend: [
     { label: 'May 26', value: 18 }, { label: 'Jun 26', value: 9 }, { label: 'Jul 26', value: 0.7 },
   ],
+  overallMonthly: [
+    { label: 'May 26', planned: 8, actual: 6 }, { label: 'Jun 26', planned: 10, actual: 7 }, { label: 'Jul 26', planned: 9, actual: 3 },
+  ],
+  linePlannedVsActual: {
+    'Trim & Final Assembly':  [{ label: 'May 26', planned: 8, actual: 6 }, { label: 'Jun 26', planned: 10, actual: 7 }, { label: 'Jul 26', planned: 9, actual: 3 }],
+    'Chassis Line 02':        [{ label: 'May 26', planned: 5, actual: 4 }, { label: 'Jun 26', planned: 6, actual: 5 }, { label: 'Jul 26', planned: 6, actual: 2 }],
+    'Paint Shop':             [{ label: 'May 26', planned: 6, actual: 5 }, { label: 'Jun 26', planned: 7, actual: 6 }, { label: 'Jul 26', planned: 6, actual: 3 }],
+    'Frame & Body Welding':   [{ label: 'May 26', planned: 9, actual: 7 }, { label: 'Jun 26', planned: 9, actual: 8 }, { label: 'Jul 26', planned: 8, actual: 4 }],
+  },
+  lineMonthlyOutput: [
+    { label: 'May 26', 'Trim & Final Assembly': 6, 'Chassis Line 02': 4, 'Paint Shop': 5, 'Frame & Body Welding': 7 },
+    { label: 'Jun 26', 'Trim & Final Assembly': 7, 'Chassis Line 02': 5, 'Paint Shop': 6, 'Frame & Body Welding': 8 },
+    { label: 'Jul 26', 'Trim & Final Assembly': 3, 'Chassis Line 02': 2, 'Paint Shop': 3, 'Frame & Body Welding': 4 },
+  ],
 };
 
 // ── formatting helpers ──────────────────────────────────────────
@@ -160,17 +174,17 @@ const fint  = v => (v == null ? '—' : Math.round(v).toLocaleString());
 
 // SVG-only donut (CSS conic-gradient is silently blank in html2canvas exports —
 // this renders as plain circles/text so PNG/PDF capture keeps the ring).
-function Donut({ pct, color, size = 58 }) {
+function Donut({ pct, color, size = 58, thickness = 14 }) {
   const C = useC();
   const p = Math.max(0, Math.min(100, Math.round((pct || 0) * 100)));
-  const r = (size - 12) / 2, cx = size / 2, cy = size / 2;
+  const r = (size - thickness - 6) / 2, cx = size / 2, cy = size / 2;
   const circ = 2 * Math.PI * r;
   const dash = (p / 100) * circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.track} strokeWidth="7" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.track} strokeWidth={thickness} />
       <circle
-        cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="7"
+        cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={thickness}
         strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`}
       />
@@ -359,32 +373,33 @@ function CumChart({ daily }) {
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
   const dataMax = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1);
   const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
-  const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
-  const y = v => h - padB - (v / niceMax) * (h - padB - padT);
-  const path = (key) => pts.map((d, i) => (d[key] == null ? null : `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(d[key]).toFixed(1)}`)).filter(Boolean).join(' ');
+  const bw = (w - padL - padR) / pts.length;
+  const pw = Math.max(1, bw * 0.38);
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
   const actPts = pts.filter(d => d.cumAct != null);
   const gap = actPts.length ? (actPts[actPts.length - 1].cumPlan ?? 0) - (actPts[actPts.length - 1].cumAct ?? 0) : 0;
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 10, height: 3, background: C.blue, marginRight: 4 }} />Planned (cum.)</span>
-        <span><span style={{ display: 'inline-block', width: 10, height: 3, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned (cum.)</span>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
-        <path d={path('cumPlan')} fill="none" stroke={C.blue} strokeWidth="2" />
-        <path d={path('cumAct')} fill="none" stroke={C.green} strokeWidth="2" />
-        {pts.map((d, i) => (
-          <g key={i}>
-            <circle cx={x(i)} cy={y(d.cumPlan)} r="2.5" fill={C.blue} />
-            {d.cumAct != null && <circle cx={x(i)} cy={y(d.cumAct)} r="2.5" fill={C.green} />}
-            {i % Math.ceil(pts.length / 8) === 0 && (
-              <text x={x(i)} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
-                {String(d.date).split(' ').slice(-2).join(' ')}
-              </text>
-            )}
-          </g>
-        ))}
+        {pts.map((d, i) => {
+          const x0 = padL + i * bw;
+          return (
+            <g key={i}>
+              <rect x={x0 + bw * 0.06} y={yFor(d.cumPlan)} width={pw} height={Math.max(0, yFor(0) - yFor(d.cumPlan))} fill={C.blue} />
+              {d.cumAct != null && <rect x={x0 + bw * 0.5} y={yFor(d.cumAct)} width={pw} height={Math.max(0, yFor(0) - yFor(d.cumAct))} fill={C.green} />}
+              {i % Math.ceil(pts.length / 8) === 0 && (
+                <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
+                  {String(d.date).split(' ').slice(-2).join(' ')}
+                </text>
+              )}
+            </g>
+          );
+        })}
       </svg>
       {gap > 0 && (
         <div style={{
@@ -435,7 +450,125 @@ function DailyBarChart({ daily }) {
   );
 }
 
-// Generic monthly trend line — used for FPY% and Downtime hours.
+// Colors for the 4 reported lines, kept consistent with the Bus Tracker's
+// own line colors (Dashboard.jsx / LineTracker.jsx lineColors map).
+const LINE_COLORS = {
+  'Trim & Final Assembly': '#3b82f6',
+  'Chassis Line 02': '#059669',
+  'Paint Shop': '#ec4899',
+  'Frame & Body Welding': '#f97316',
+};
+
+// Single-series monthly bar chart — used for the Downtime trend now that
+// it's a bar chart, not a line, per request.
+function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
+  const C = useC();
+  if (!points || points.length === 0) {
+    return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet — add rows to the Monthly Downtime Log tab.</div>;
+  }
+  const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
+  const dataMax = Math.max(...points.map(p => p.value), 0.0001);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 4, false);
+  const bw = (w - padL - padR) / points.length;
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} />
+      {points.map((p, i) => {
+        const x0 = padL + i * bw, pw = bw * 0.5;
+        return (
+          <g key={i}>
+            <rect x={x0 + bw * 0.25} y={yFor(p.value)} width={pw} height={Math.max(0, yFor(0) - yFor(p.value))} fill={color} rx="2" />
+            <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
+            <text x={x0 + bw / 2} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Grouped monthly Planned-vs-Actual bar chart — same visual language as
+// DailyBarChart but for month-bucketed points (no slicing to a recent window;
+// this is meant to span the whole production timeline).
+function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
+  const C = useC();
+  const pts = (points || []).filter(p => p.planned != null || p.actual != null);
+  if (pts.length === 0) {
+    return <div style={{ color: C.grey, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly data yet.</div>;
+  }
+  const w = 460, h = 160, padL = 30, padR = 10, padT = 10, padB = 22;
+  const dataMax = Math.max(...pts.map(d => d.planned || 0), ...pts.map(d => d.actual ?? 0), 1);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 3, true);
+  const bw = (w - padL - padR) / pts.length;
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned</span>
+        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle} />
+        {pts.map((d, i) => {
+          const x0 = padL + i * bw, pw = bw * 0.32;
+          return (
+            <g key={i}>
+              <rect x={x0 + bw * 0.1} y={yFor(d.planned || 0)} width={pw} height={Math.max(0, yFor(0) - yFor(d.planned || 0))} fill={C.blue} />
+              {d.actual != null && <rect x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, yFor(0) - yFor(d.actual))} fill={C.green} />}
+              <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// Monthly output comparison across the 4 reported lines — one small cluster
+// of 4 bars per month, one color per line.
+function MultiLineOutputChart({ points, lineNames }) {
+  const C = useC();
+  const pts = points || [];
+  if (pts.length === 0) {
+    return <div style={{ color: C.grey, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly output logged yet.</div>;
+  }
+  const w = 700, h = 180, padL = 32, padR = 12, padT = 12, padB = 30;
+  const dataMax = Math.max(...pts.flatMap(p => lineNames.map(n => p[n] || 0)), 1);
+  const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
+  const groupW = (w - padL - padR) / pts.length;
+  const barW = (groupW * 0.8) / lineNames.length;
+  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4, flexWrap: 'wrap' }}>
+        {lineNames.map(n => (
+          <span key={n}><span style={{ display: 'inline-block', width: 9, height: 8, background: LINE_COLORS[n] || C.grey, marginRight: 4 }} />{n}</span>
+        ))}
+      </div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses Completed" />
+        {pts.map((p, i) => {
+          const x0 = padL + i * groupW + groupW * 0.1;
+          return (
+            <g key={i}>
+              {lineNames.map((n, j) => {
+                const v = p[n] || 0;
+                return (
+                  <rect key={n} x={x0 + j * barW} y={yFor(v)} width={barW * 0.85}
+                    height={Math.max(0, yFor(0) - yFor(v))} fill={LINE_COLORS[n] || C.grey} />
+                );
+              })}
+              <text x={x0 + (barW * lineNames.length) / 2} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// Generic monthly trend line — used for FPY%.
 function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const C = useC();
   if (!points || points.length < 2) {
@@ -678,13 +811,13 @@ function ScoreboardInner() {
   ];
 
   const costCards = [
+    { label: "Production Operational Cost (UGX '000)", value: fint(num('Production Operational Cost')) },
+    { label: "Labour (UGX '000)", value: fint(num('Labour Cost')) },
     { label: "Budget (UGX '000)", value: fint(num('Budget Total')) },
     { label: "Actual (UGX '000)", value: fint(num('Actual Total')) },
     { label: 'Variance', value: fint(num('Variance')) },
     { label: 'Variance %', value: fpct1(num('Variance %')) },
-    { label: "Production Operational Cost (UGX '000)", value: fint(num('Production Operational Cost')) },
     { label: "Workshop Supplies / Unit (UGX '000)", value: fint(num('Workshop Supplies per Unit')) },
-    { label: "Labour (UGX '000)", value: fint(num('Labour Cost')) },
     { label: "Cost of Using the Production System (UGX '000)", value: fint(num('Cost of Using the Production System')) },
   ];
   const lineCostCards = LINE_WORKSHOPS.map(lw => ({
@@ -769,8 +902,6 @@ function ScoreboardInner() {
               <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.display}</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: '2px 0 6px' }}>{w.done} / {45 - (w.na || 0)}</div>
               <Donut pct={w.pct} color={wsColor(w.status)} size={92} />
-              <div style={{ fontSize: 7.5, color: C.grey, textTransform: 'uppercase', marginTop: 8 }}>Constraint</div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, minHeight: 13 }}>{w.constraint}</div>
             </div>
           ))}
         </div>
@@ -789,7 +920,7 @@ function ScoreboardInner() {
             <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
           </Panel>
           <Panel title="Downtime — by Month (hours)">
-            <TrendChart points={d.downtimeTrend} color={C.red} fmt={v => `${f1(v)}h`} axisTitle="Hours" axisFmt={v => f1(v)} />
+            <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
           </Panel>
         </div>
 
@@ -811,6 +942,24 @@ function ScoreboardInner() {
             </div>
           </Panel>
         </div>
+
+        {/* Planned vs Actual — bar charts, whole-program then per-line */}
+        <Panel title="Planned vs Actual — by Month (whole program)">
+          <MonthlyPlanActualChart points={d.overallMonthly} />
+        </Panel>
+
+        <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {LINE_WORKSHOPS.map(lw => (
+            <Panel key={lw.dataName} title={lw.display}>
+              <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} />
+            </Panel>
+          ))}
+        </div>
+
+        <Panel title="Monthly Output — by Line">
+          <MultiLineOutputChart points={d.lineMonthlyOutput} lineNames={LINE_WORKSHOPS.map(lw => lw.dataName)} />
+        </Panel>
       </Page>
 
       {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
@@ -903,12 +1052,14 @@ function ScoreboardInner() {
         </div>
       </Page>
 
-      {/* Note: this reads the real Tracker/SUGGESTION/Breakdown/Cost workbook —
-          see useScoreboardData.js. The reporting period shown is whichever Cost
-          tab period block most recently has non-zero actuals logged; there's no
-          separate Targets tab in this sheet. */}
+      {/* Note: this reads the real Tracker/SUGGESTION/Breakdown/Cost workbook
+          plus 3 newer tabs (Monthly Downtime Log, Cost Inputs, Daily Meter
+          Readings) — see useScoreboardData.js. Labour cost is a cross-sheet
+          read of the Travel Card's operators+submissions tabs, not this
+          workbook. The reporting period for Budget/Actual is whichever Cost
+          tab period block most recently has non-zero actuals logged. */}
       <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
-        Production line status, output, and downtime are read live from the <b>Tracker</b> tab. Cost figures reflect the most recent period with actuals logged in the <b>Cost</b> tab. Safety/Quality/Environment metrics aren't tracked in this workbook yet.
+        Production line status, output, and downtime are read live from the <b>Tracker</b> tab. Labour cost is derived from Travel Card staff-on-duty records × the <b>Cost Inputs</b> tab's hourly rate; Energy cost from the <b>Weekly Meter Readings</b> tab. Cost figures show 0 until <b>Cost Inputs</b> rates are set to real values. Safety/Quality/Environment metrics aren't tracked in this workbook yet.
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
