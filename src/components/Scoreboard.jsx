@@ -354,23 +354,6 @@ function barPath(x, y, w, h, r = 4) {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 }
 
-// Two-tone bar: a solid/opaque band anchored at the baseline, translucent
-// above it — the whole bar keeps one rounded top corner regardless of where
-// the color split falls.
-function TwoToneBar({ x, y, width, height, color, bandHeight = 14, r = 4 }) {
-  if (height <= 0 || width <= 0) return null;
-  if (height <= bandHeight) {
-    return <path d={barPath(x, y, width, height, r)} fill={color} />;
-  }
-  const upperH = height - bandHeight;
-  return (
-    <>
-      <path d={barPath(x, y, width, upperH, r)} fill={color} fillOpacity="0.35" />
-      <rect x={x} y={y + upperH} width={width} height={bandHeight} fill={color} />
-    </>
-  );
-}
-
 // Solid baseline + a small circle marker per category, evoking a timeline —
 // used by the monthly bar charts (Downtime, Planned vs Actual, Output by Line).
 function AxisTimeline({ C, y0, padL, padR, w, positions }) {
@@ -430,8 +413,8 @@ function CumChart({ daily }) {
           const y0 = yFor(0);
           return (
             <g key={i}>
-              <TwoToneBar x={x0 + bw * 0.06} y={yFor(d.cumPlan)} width={pw} height={Math.max(0, y0 - yFor(d.cumPlan))} color={C.blue} bandHeight={8} r={2} />
-              {d.cumAct != null && <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.cumAct)} width={pw} height={Math.max(0, y0 - yFor(d.cumAct))} color={C.green} bandHeight={8} r={2} />}
+              <path d={barPath(x0 + bw * 0.06, yFor(d.cumPlan), pw, Math.max(0, y0 - yFor(d.cumPlan)), 2)} fill={C.blue} />
+              {d.cumAct != null && <path d={barPath(x0 + bw * 0.5, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />}
               {i % Math.ceil(pts.length / 8) === 0 && (
                 <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
                   {String(d.date).split(' ').slice(-2).join(' ')}
@@ -478,8 +461,8 @@ function DailyBarChart({ daily }) {
           const y0 = yFor(0);
           return (
             <g key={i}>
-              <TwoToneBar x={x0 + bw * 0.1} y={yFor(d.planned)} width={pw} height={Math.max(0, y0 - yFor(d.planned))} color={C.blue} bandHeight={8} r={2} />
-              {d.actual != null && <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, y0 - yFor(d.actual))} color={C.green} bandHeight={8} r={2} />}
+              <path d={barPath(x0 + bw * 0.1, yFor(d.planned), pw, Math.max(0, y0 - yFor(d.planned)), 2)} fill={C.blue} />
+              {d.actual != null && <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)), 2)} fill={C.green} />}
               <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">
                 {String(d.date).split(' ').slice(-2).join(' ')}
               </text>
@@ -520,7 +503,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
           <g key={i}>
-            <TwoToneBar x={x0 + bw * 0.25} y={yFor(p.value)} width={pw} height={Math.max(0, y0 - yFor(p.value))} color={color} />
+            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))} fill={color} />
             <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="9" fill={C.text} textAnchor="middle" fontWeight="800">{fmt(p.value)}</text>
           </g>
         );
@@ -561,11 +544,11 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
           const planned = d.planned || 0;
           return (
             <g key={i}>
-              <TwoToneBar x={x0 + bw * 0.1} y={yFor(planned)} width={pw} height={Math.max(0, y0 - yFor(planned))} color={C.blue} />
+              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))} fill={C.blue} />
               {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{planned}</text>}
               {d.actual != null && (
                 <>
-                  <TwoToneBar x={x0 + bw * 0.5} y={yFor(d.actual)} width={pw} height={Math.max(0, y0 - yFor(d.actual))} color={C.green} />
+                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))} fill={C.green} />
                   {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{d.actual}</text>}
                 </>
               )}
@@ -619,7 +602,7 @@ function MultiLineOutputChart({ points, lineNames }) {
               {lineNames.map((n, j) => {
                 const v = p[n] || 0;
                 return (
-                  <TwoToneBar key={n} x={x0 + j * barW} y={yFor(v)} width={barW * 0.85} height={Math.max(0, y0 - yFor(v))} color={LINE_COLORS[n] || C.grey} bandHeight={10} />
+                  <path key={n} d={barPath(x0 + j * barW, yFor(v), barW * 0.85, Math.max(0, y0 - yFor(v)))} fill={LINE_COLORS[n] || C.grey} />
                 );
               })}
             </g>
