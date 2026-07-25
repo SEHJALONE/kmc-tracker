@@ -166,13 +166,24 @@ function doPost(e) {
       return restoreCatalogBackup_(e.parameter.backupId);
     }
 
-    // Every other write (MOC, and future modules) sends its action *inside*
-    // the payload JSON rather than as a top-level form param — parse once and
-    // route on it before assuming this is a travel-card submission.
+    // ── NCR Register (src/hooks/useNCRData.js sends action as a top-level
+    // form param, same style as catalog/access actions) ───────────────────────
+    if (e && e.parameter && e.parameter.action === "saveNCR") {
+      return saveNCR_(e.parameter.payload);
+    }
+    if (e && e.parameter && e.parameter.action === "updateNCR") {
+      return updateNCR_(e.parameter.payload);
+    }
+
+    // Every other write (MOC, Handover, and future modules) sends its action
+    // *inside* the payload JSON rather than as a top-level form param — parse
+    // once and route on it before assuming this is a travel-card submission.
     const data = JSON.parse(e.parameter.payload);
 
-    if (data && data.action === "saveMOC")   return saveMOC_(data);
-    if (data && data.action === "updateMOC") return updateMOC_(data);
+    if (data && data.action === "saveMOC")        return saveMOC_(data);
+    if (data && data.action === "updateMOC")      return updateMOC_(data);
+    if (data && data.action === "saveHandover")   return saveHandover_(data);
+    if (data && data.action === "updateHandover") return updateHandover_(data);
 
     // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.getActiveSpreadsheet();
@@ -354,6 +365,127 @@ function updateMOC_(d) {
     }
   }
   return response({ status: "error", message: "moc-not-found" });
+}
+
+// ── NCR Register — create + update ────────────────────────────────────────────
+// Column order matches the LIVE "ncrs" tab exactly (verified against real
+// data) — do not reorder without also updating src/hooks/useNCRData.js's
+// column-name matching.
+const NCR_HEADERS = [
+  "record_id", "ncr_id", "date", "domain", "type", "severity", "vin",
+  "project", "station", "description", "root_cause", "corrective_action",
+  "raised_by", "status", "due_date", "closed_date", "timestamp",
+];
+
+function saveNCR_(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getOrCreate(ss, "ncrs", NCR_HEADERS);
+
+  // Human-readable sequential ID: NCR-YYYY-NNN
+  const year = new Date().getFullYear();
+  const existingRows = Math.max(sh.getLastRow() - 1, 0);
+  const ncrId = "NCR-" + year + "-" + String(existingRows + 1).padStart(3, "0");
+  const recordId = Utilities.getUuid();
+  const now = new Date().toISOString();
+
+  sh.appendRow([
+    recordId, ncrId, (now.slice(0, 10)), d.domain || "", d.ncrType || "",
+    d.severity || "", d.vin || "", d.project || "", d.stationCode || "",
+    d.description || "", d.rootCause || "", d.correctiveAction || "",
+    d.raisedBy || "", d.status || "Open", d.dueDate || "", d.closedDate || "", now,
+  ]);
+  return response({ status: "ok", ncrId });
+}
+
+// Patches only the fields present on the payload, matched by ncr_id.
+function updateNCR_(payload) {
+  let d;
+  try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!d.ncrId) return response({ status: "error", message: "missing-ncr-id" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("ncrs");
+  if (!sh) return response({ status: "error", message: "no-ncrs-sheet" });
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("ncr_id");
+  const fieldMap = {
+    status: "status", correctiveAction: "corrective_action",
+    dueDate: "due_date", closedDate: "closed_date",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.ncrId) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", ncrId: d.ncrId });
+    }
+  }
+  return response({ status: "error", message: "ncr-not-found" });
+}
+
+// ── Shift Handover — create + acknowledge ─────────────────────────────────────
+// Column order matches src/hooks/useHandoverData.js's parseHandoverCSV column
+// matching exactly. The "handovers" tab doesn't exist yet in the tracker
+// sheet — it's created fresh here on first submission.
+const HANDOVER_HEADERS = [
+  "handover_id", "timestamp", "shift_date", "shift", "line",
+  "outgoing_supervisor", "incoming_supervisor", "work_completed",
+  "outstanding_work", "buses_in_progress", "safety_issues", "quality_issues",
+  "equipment_status", "housekeeping", "actions_next_shift", "notes",
+  "acknowledged_by", "acknowledged_date", "status",
+];
+
+function saveHandover_(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = getOrCreate(ss, "handovers", HANDOVER_HEADERS);
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, d.timestamp || new Date().toISOString(), d.shiftDate || "", d.shift || "",
+    d.line || "", d.outgoingSupervisor || "", d.incomingSupervisor || "",
+    d.workCompleted || "", d.outstandingWork || "", d.busesInProgress || "",
+    d.safetyIssues || "", d.qualityIssues || "", d.equipmentStatus || "",
+    d.housekeeping || "", d.actionsNextShift || "", d.notes || "",
+    "", "", d.status || "Open",
+  ]);
+  return response({ status: "ok", id });
+}
+
+// Patches only the fields present on the payload, matched by handover_id.
+function updateHandover_(d) {
+  if (!d.handoverId) return response({ status: "error", message: "missing-handover-id" });
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("handovers");
+  if (!sh) return response({ status: "error", message: "no-handovers-sheet" });
+
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("handover_id");
+  const fieldMap = {
+    acknowledgedBy: "acknowledged_by", acknowledgedDate: "acknowledged_date",
+    status: "status",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.handoverId) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, colName]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(colName);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      return response({ status: "ok", id: d.handoverId });
+    }
+  }
+  return response({ status: "error", message: "handover-not-found" });
 }
 
 function writeTrackerLog(trackerSs, d, id) {
