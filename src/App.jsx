@@ -21,6 +21,7 @@ import Scoreboard from './components/Scoreboard';
 import PendingReviews from './components/PendingReviews';
 import AccessRequests from './components/AccessRequests';
 import UserManagement from './components/UserManagement';
+import DailyFleetLog from './components/DailyFleetLog';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -263,6 +264,7 @@ export default function App() {
       onSelectPendingReviews={() => setMode('pending-reviews')}
       onSelectAccessRequests={() => setMode('access-requests')}
       onSelectUserManagement={() => setMode('user-management')}
+      onSelectDailyFleetLog={() => setMode('daily-fleet-log')}
       role={role}
       canAccessTracker={canAccessTracker}
     />
@@ -274,6 +276,10 @@ export default function App() {
 
   if (mode === 'user-management') return (
     <UserManagement theme={theme} onBack={() => setMode('home')} />
+  );
+
+  if (mode === 'daily-fleet-log') return (
+    <DailyFleetLog theme={theme} onBack={() => setMode('home')} />
   );
 
   if (mode === 'pending-reviews') return (

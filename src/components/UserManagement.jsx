@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
 
+// Manager removed from selection for now — kept out of the picker, but any
+// existing manager-role user still displays fine (falls back to the color/
+// label lookups' defaults) and their review logic stays intact in code.
 const ROLE_OPTIONS = [
   { value: 'user',       label: 'General User',  color: '#10b981' },
   { value: 'supervisor', label: 'Supervisor',     color: '#f59e0b' },
-  { value: 'manager',    label: 'Manager',        color: '#6366f1' },
   { value: 'director',   label: 'Director',       color: '#0ea5e9' },
   { value: 'useradmin',  label: 'User Admin',     color: '#a855f7' },
 ];
@@ -18,6 +20,29 @@ function buildStationsByLine() {
   });
   Object.values(map).forEach(arr => arr.sort((a, b) => a.order - b.order));
   return map;
+}
+
+// Chassis Line 01 and 02 are two physical lines but one continuous flow —
+// grouped as a single pick for General User so one person can be assigned
+// stations spanning both without it being treated as "crossing lines".
+const CHASSIS_GROUP_ID = 'CHASSIS_ALL';
+const USER_LINE_OPTIONS = (() => {
+  const out = [];
+  let inserted = false;
+  SEED_LINES.forEach(l => {
+    if (l.id === 'CHASSIS1' || l.id === 'CHASSIS2') {
+      if (!inserted) { out.push({ id: CHASSIS_GROUP_ID, label: 'Chassis Line (01 & 02)' }); inserted = true; }
+      return;
+    }
+    out.push(l);
+  });
+  return out;
+})();
+function userLineStationsFor(stationsByLine, lineId) {
+  if (lineId === CHASSIS_GROUP_ID) {
+    return [...(stationsByLine.CHASSIS1 || []), ...(stationsByLine.CHASSIS2 || [])];
+  }
+  return stationsByLine[lineId] || [];
 }
 
 export default function UserManagement({ onBack, theme = 'dark' }) {
@@ -73,7 +98,10 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       assignedLines:    Object.fromEntries(existingLines.map(c => [c, true])),
       assignedStations: Object.fromEntries(existingStations.map(c => [c, true])),
       stationLine:      user.assignedStation
-        ? (SEED_STATIONS[user.assignedStation]?.line || '')
+        ? (() => {
+            const raw = SEED_STATIONS[user.assignedStation]?.line || '';
+            return (raw === 'CHASSIS1' || raw === 'CHASSIS2') ? CHASSIS_GROUP_ID : raw;
+          })()
         : '',
       // Missing/undefined = access on (every user created before this
       // toggle existed keeps working exactly as before).
@@ -150,7 +178,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
     return !q || u.username?.includes(q) || u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
   });
 
-  const userLineStations = edit?.stationLine ? (stationsByLine[edit.stationLine] || []) : [];
+  const userLineStations = edit?.stationLine ? userLineStationsFor(stationsByLine, edit.stationLine) : [];
 
   return (
     <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
@@ -352,10 +380,22 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => edit.assignedStations[s.code]);
+                    const allChecked = stns.every(s => edit.assignedStations[s.code]);
                     return (
                       <div key={line.id}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: anyChecked ? AM : dim, textTransform: 'uppercase', letterSpacing: '0.1em', borderBottom: `1px solid ${border}`, background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', fontFamily: fm }}>
-                          {line.label} ({stns.length})
+                        <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: anyChecked ? AM : dim, textTransform: 'uppercase', letterSpacing: '0.1em', borderBottom: `1px solid ${border}`, background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', fontFamily: fm, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span>{line.label} ({stns.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => setEdit(ed => {
+                              const next = { ...ed.assignedStations };
+                              stns.forEach(s => { next[s.code] = !allChecked; });
+                              return { ...ed, assignedStations: next };
+                            })}
+                            style={{ background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 4, padding: '2px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontFamily: fm }}
+                          >
+                            {allChecked ? 'Clear whole line' : 'Select whole line'}
+                          </button>
                         </div>
                         {stns.map(s => (
                           <label key={s.code} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', cursor: 'pointer', borderBottom: `1px solid ${border}`, background: edit.assignedStations[s.code] ? (isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)') : 'transparent' }}>
@@ -381,7 +421,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                   <label style={lbl}>Line</label>
                   <select style={inp} value={edit.stationLine} onChange={e => setEdit(e2 => ({ ...e2, stationLine: e.target.value, assignedStations: {} }))}>
                     <option value="">Select line…</option>
-                    {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+                    {USER_LINE_OPTIONS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
                 {edit.stationLine && (

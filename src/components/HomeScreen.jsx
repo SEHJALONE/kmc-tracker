@@ -1,4 +1,4 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onLogout, theme, toggleTheme, role, canAccessTracker = true }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onLogout, theme, toggleTheme, role, canAccessTracker = true }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
   const isSupervisor  = role === 'supervisor';
@@ -310,6 +310,18 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
                 <div className="home-card-sub">Review submitted travel cards</div>
               </div>
             </button>
+            {onSelectDailyFleetLog && (
+              <button
+                className="home-card-btn"
+                style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 2.png' : '/Bus background 4.png'}'), linear-gradient(135deg, #0e7490 0%, #101623 100%)` }}
+                onClick={onSelectDailyFleetLog}
+              >
+                <div className="home-card-overlay">
+                  <div className="home-card-title">Daily Fleet Log</div>
+                  <div className="home-card-sub">Where each bus was, station by station, today</div>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       )}

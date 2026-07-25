@@ -48,6 +48,7 @@ async function fetchStationTimes() {
 }
 
 // ── LocalStorage helpers ──────────────────────────────────────────────────────
+const SESSION_KEY = "kmc_travelcard_saved_session";
 const LS = {
   get: (k, fallback = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
   set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -1044,6 +1045,65 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
 
+  // ── Manual session save/restore — an operator filling a long card can save
+  // their progress and pick up later (or on a fresh page load) instead of
+  // losing everything to a refresh or interruption. Explicit save/restore/
+  // clear, not auto-saved, so it never silently overwrites a fresh card.
+  const [savedSession, setSavedSession] = useState(() => LS.get(SESSION_KEY, null));
+  const [sessionBanner, setSessionBanner] = useState(() => !!LS.get(SESSION_KEY, null));
+
+  function buildSessionSnapshot() {
+    return {
+      savedAt: new Date().toISOString(),
+      page, curProj, busModel, vin, curLine, curSt, curCode, designedTime,
+      operators, selOps, hseCount, clockIn, clockOut,
+      actualTime, grossTime, breakTime,
+      actStatuses, otherActs, resQtys, removedRes, otherRes,
+      ohs, ohsTxt, waste,
+      hasDowntime, selMs, subCauses, causeTimes, customCauses, corrAction, orComments,
+      rcaMethod, why1, why2, why3, why4, why5, fiveCategory, preventiveAction,
+      reviewer, revOther, appStatus, revDate, revComments,
+    };
+  }
+
+  function saveSession() {
+    const snap = buildSessionSnapshot();
+    LS.set(SESSION_KEY, snap);
+    setSavedSession(snap);
+    setSessionBanner(false);
+    alert("Session saved. Come back to the Travel Card any time and click “Resume Saved Session” to continue.");
+  }
+
+  function restoreSession() {
+    const snap = savedSession || LS.get(SESSION_KEY, null);
+    if (!snap) return;
+    setPage(snap.page ?? 0);
+    setCurProj(snap.curProj ?? ""); setBusModel(snap.busModel ?? ""); setVin(snap.vin ?? "");
+    setCurLine(snap.curLine ?? ""); setCurSt(snap.curSt ?? ""); setCurCode(snap.curCode ?? "");
+    setDesignedTime(snap.designedTime ?? 0);
+    setOperators(snap.operators ?? []); setSelOps(snap.selOps ?? []);
+    setHseCount(snap.hseCount ?? ""); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? "");
+    setActualTime(snap.actualTime ?? 0); setGrossTime(snap.grossTime ?? 0); setBreakTime(snap.breakTime ?? 0);
+    setActStatuses(snap.actStatuses ?? {}); setOtherActs(snap.otherActs ?? []);
+    setResQtys(snap.resQtys ?? {}); setRemovedRes(snap.removedRes ?? []); setOtherRes(snap.otherRes ?? []);
+    setOhs(snap.ohs ?? false); setOhsTxt(snap.ohsTxt ?? ""); setWaste(snap.waste ?? "");
+    setHasDowntime(snap.hasDowntime ?? false); setSelMs(snap.selMs ?? []);
+    setSubCauses(snap.subCauses ?? {}); setCauseTimes(snap.causeTimes ?? {});
+    setCustomCauses(snap.customCauses ?? []); setCorrAction(snap.corrAction ?? ""); setOrComments(snap.orComments ?? "");
+    setRcaMethod(snap.rcaMethod ?? ""); setWhy1(snap.why1 ?? ""); setWhy2(snap.why2 ?? ""); setWhy3(snap.why3 ?? "");
+    setWhy4(snap.why4 ?? ""); setWhy5(snap.why5 ?? ""); setFiveCategory(snap.fiveCategory ?? "");
+    setPreventiveAction(snap.preventiveAction ?? "");
+    setReviewer(snap.reviewer ?? ""); setRevOther(snap.revOther ?? ""); setAppStatus(snap.appStatus ?? "");
+    setRevDate(snap.revDate ?? new Date().toISOString().slice(0, 10)); setRevComments(snap.revComments ?? "");
+    setSessionBanner(false);
+  }
+
+  function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+    setSavedSession(null);
+    setSessionBanner(false);
+  }
+
   // Auto-select locked station(s) (station-assigned users) — also loads operator pool.
   // Re-resolves when the bus model changes because some lines are model-suffixed
   // ("Chassis Line 01 — EVS/KDC") and the visible line list depends on the model.
@@ -1457,7 +1517,30 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.t1}>Production Travel Card</div>
           <div style={css.t2}>KMC.DPN.05/26-FM004 · Rev #01</div>
         </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button style={css.addBtn} onClick={saveSession} title="Save your progress so you can continue later">
+            💾 Save Session
+          </button>
+          {savedSession && (
+            <button style={css.addBtn} onClick={() => { if (confirm("Clear the saved session? This cannot be undone.")) clearSession(); }} title="Discard the saved session">
+              ✕ Clear Saved Session
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Resume banner — only shown once, until dismissed/resumed/cleared */}
+      {sessionBanner && savedSession && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          background: "rgba(220,38,38,0.08)", border: `1px solid ${RB}`, borderRadius: 6,
+          padding: "10px 14px", marginBottom: 10, fontSize: 12, color: T.text,
+        }}>
+          <span>You have a saved session from {new Date(savedSession.savedAt).toLocaleString()}.</span>
+          <button style={{ ...css.addBtn, marginLeft: "auto" }} onClick={restoreSession}>Resume Saved Session</button>
+          <button style={css.addBtn} onClick={() => { if (confirm("Discard the saved session and start fresh?")) clearSession(); }}>Discard & Start Fresh</button>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div style={css.segsWrap}>{LABELS.map((_, i) => <div key={i} style={segStyle(i)} />)}</div>

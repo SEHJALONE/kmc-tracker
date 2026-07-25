@@ -4,9 +4,10 @@ import { useAccessRequests } from '../hooks/useAccessRequests';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
 
 const ROLE_OPTIONS = [
-  { value: 'user',       label: 'General User',  desc: 'Assigned to one station — travel card prefilled & locked' },
+  { value: 'user',       label: 'General User',  desc: 'Assigned to one or more stations — travel card prefilled & locked' },
   { value: 'supervisor', label: 'Supervisor',     desc: 'Reviews travel cards for assigned stations' },
-  { value: 'manager',    label: 'Manager',        desc: 'Reviews all travel cards on a specific line' },
+  // Manager removed from selection for now — role + its review logic stay
+  // intact in code in case it's needed again later.
   { value: 'director',   label: 'Director',       desc: 'Reviews travel cards across all lines' },
   { value: 'useradmin',  label: 'User Admin',     desc: 'Manages users, no system settings' },
 ];
@@ -25,6 +26,29 @@ function buildStationsByLine() {
   });
   Object.values(map).forEach(arr => arr.sort((a, b) => a.order - b.order));
   return map;
+}
+
+// Chassis Line 01 and 02 are two physical lines but one continuous flow —
+// grouped as a single pick for General User so one person can be assigned
+// stations spanning both without it being treated as "crossing lines".
+const CHASSIS_GROUP_ID = 'CHASSIS_ALL';
+const USER_LINE_OPTIONS = (() => {
+  const out = [];
+  let inserted = false;
+  SEED_LINES.forEach(l => {
+    if (l.id === 'CHASSIS1' || l.id === 'CHASSIS2') {
+      if (!inserted) { out.push({ id: CHASSIS_GROUP_ID, label: 'Chassis Line (01 & 02)' }); inserted = true; }
+      return;
+    }
+    out.push(l);
+  });
+  return out;
+})();
+function userLineStationsFor(stationsByLine, lineId) {
+  if (lineId === CHASSIS_GROUP_ID) {
+    return [...(stationsByLine.CHASSIS1 || []), ...(stationsByLine.CHASSIS2 || [])];
+  }
+  return stationsByLine[lineId] || [];
 }
 
 export default function AccessRequests({ onBack, theme = 'dark' }) {
@@ -190,7 +214,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
   const displayed = tab === 'pending' ? pending : processed;
 
   // For user role: stations in the selected line
-  const userLineStations = form.stationLine ? (stationsByLine[form.stationLine] || []) : [];
+  const userLineStations = form.stationLine ? userLineStationsFor(stationsByLine, form.stationLine) : [];
 
   return (
     <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
@@ -431,9 +455,10 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
                     const anyChecked = stns.some(s => form.assignedStations[s.code]);
+                    const allChecked = stns.every(s => form.assignedStations[s.code]);
                     return (
                       <div key={line.id}>
-                        {/* Line header */}
+                        {/* Line header — quick-toggle the whole line at once */}
                         <div style={{
                           padding: '7px 12px', fontSize: 10, fontWeight: 700,
                           color: anyChecked ? AM : dim,
@@ -441,8 +466,24 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                           borderBottom: `1px solid ${border}`,
                           background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
                           fontFamily: fm,
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                         }}>
-                          {line.label} ({stns.length})
+                          <span>{line.label} ({stns.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => {
+                              const next = { ...f.assignedStations };
+                              stns.forEach(s => { next[s.code] = !allChecked; });
+                              return { ...f, assignedStations: next };
+                            })}
+                            style={{
+                              background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 4,
+                              padding: '2px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
+                              textTransform: 'none', letterSpacing: 0, fontFamily: fm,
+                            }}
+                          >
+                            {allChecked ? 'Clear whole line' : 'Select whole line'}
+                          </button>
                         </div>
                         {stns.map(s => (
                           <label key={s.code} style={{
@@ -480,7 +521,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
                   <label style={lbl}>Line</label>
                   <select style={inp} value={form.stationLine} onChange={e => setForm(f => ({ ...f, stationLine: e.target.value, assignedStations: {} }))}>
                     <option value="">Select line…</option>
-                    {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+                    {USER_LINE_OPTIONS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                   </select>
                 </div>
                 {form.stationLine && (
