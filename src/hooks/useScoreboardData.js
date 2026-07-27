@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { STATIONS } from '../data/stations';
+import { STATIONS } from '../data/stations.js';
 
-// DPN Scoreboard — reads the REAL "KMC_Department_Monthly_Scoreboard" workbook
-// (separate from NI Travel Tool Data), which is a Tracker-GRID workbook (one
-// row per bus × workshop Plan/Actual/Status/Delay columns), not the
-// label/value Calc+Targets format this hook originally expected. Rewritten
-// 2026-07-25 to derive every metric Scoreboard.jsx needs directly from that
-// grid plus the sheet's SUGGESTION/Breakdown/Cost tabs. Requires the sheet to
-// be shared "Anyone with the link can view".
+// DPN Scoreboard — reads the REAL "KMC_Department_Monthly_Scoreboard" workbook,
+// which as of 2026-07-27 is the full IMS-objectives master workbook (README /
+// Dashboard / Targets / Tracker / Daily Output / Downtime / Bottlenecks /
+// Quality / Safety / Environment / ECR / Cost / Waste / Kaizen / Calc), plus
+// our own "Cost Inputs" tab. The Calc tab is a pre-computed label/value +
+// workshop-status dump driven by spreadsheet formulas — most KPIs are just a
+// lookup into it, not something this hook needs to derive itself. Requires
+// the sheet to be shared "Anyone with the link can view".
 const SHEET_ID = '1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs';
 const TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
@@ -18,20 +19,20 @@ const TRAVEL_SHEET_ID = '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es';
 const TRAVEL_TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${TRAVEL_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
-const TOTAL_UNITS = 45;
 
 // The 4 core assembly lines the scoreboard reports per-line figures for —
-// must match Scoreboard.jsx's LINE_WORKSHOPS `dataName` values exactly.
-const LINE_WORKSHOP_NAMES = ['Frame & Body Welding', 'Chassis Line 02', 'Paint Shop', 'Trim & Final Assembly'];
+// must match Scoreboard.jsx's LINE_WORKSHOPS `dataName` values, and the
+// Tracker/Calc tabs' own workshop names, exactly.
+const LINE_WORKSHOP_NAMES = ['Frame & Body Welding', 'Chassis Production Line 02', 'Paint Shop', 'Trim & Final Assembly'];
 // data/stations.js LINES id -> the Tracker workshop name it corresponds to,
 // for attributing Travel Card labour hours to one of the 4 reported lines.
 const LINE_ID_TO_WORKSHOP = {
-  FRAME: 'Frame & Body Welding', CHASSIS2: 'Chassis Line 02',
+  FRAME: 'Frame & Body Welding', CHASSIS2: 'Chassis Production Line 02',
   PAINT: 'Paint Shop', TRIM: 'Trim & Final Assembly',
 };
 
 // Quote-aware CSV → array of string arrays
-function parseGrid(text) {
+export function parseGrid(text) {
   const rows = [];
   let row = [], cell = '', inQuotes = false;
   for (let i = 0; i < text.length; i++) {
@@ -66,133 +67,260 @@ export function toNum(v) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// The Tracker tab's dates have no year ("20-May") — the workbook is scoped
-// to the current programme year, so we assume THIS year throughout.
-function parseTrackerDate(v) {
+// The Tracker tab's per-workshop dates have no year ("20-May") — the workbook
+// is scoped to the current programme year — but most other date cells here
+// (Targets, Downtime, Daily Output, registers) are full dates; this also
+// falls back to plain Date parsing for those.
+export function parseTrackerDate(v) {
   if (!v) return null;
-  const m = /^(\d{1,2})-([A-Za-z]{3})$/.exec(v.trim());
-  if (m) {
-    const mi = MONTHS.findIndex(x => x.toLowerCase() === m[2].toLowerCase());
-    if (mi !== -1) return new Date(new Date().getFullYear(), mi, Number(m[1]));
+  const s = String(v).trim();
+  const short = /^(\d{1,2})-([A-Za-z]{3})$/.exec(s);
+  if (short) {
+    const mi = MONTHS.findIndex(x => x.toLowerCase() === short[2].toLowerCase());
+    if (mi !== -1) return new Date(new Date().getFullYear(), mi, Number(short[1]));
   }
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const native = new Date(s);
+  if (!Number.isNaN(native.getTime())) return native;
+  // Fallback: DD/MM/YYYY typed as text (native Date() assumes MM/DD and
+  // silently fails whenever day > 12 — e.g. a hand-typed "25/06/2026" in a
+  // register row, vs. a real Excel date value in the row above/below it).
+  const dmy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (dmy) {
+    const d = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
 }
-function dateKey(d) { return d.toISOString().slice(0, 10); }
 function dailyLabel(d) { return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; }
+function shortDate(d) { return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
 function monthLabel(d) { return `${MONTHS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`; }
-
-// "Apr-26" / "Apr 26" (Month-YY, as typed in Monthly Downtime Log) → Date.
-// Distinct from parseTrackerDate, whose "20-May" format is day-first.
-function parseMonthYear(v) {
-  const m = /^([A-Za-z]{3})[\s-](\d{2,4})$/.exec(String(v).trim());
-  if (!m) return null;
-  const mi = MONTHS.findIndex(x => x.toLowerCase() === m[1].toLowerCase());
-  if (mi === -1) return null;
-  const year = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
-  return new Date(year, mi, 1);
+function monthKey(d) { return `${d.getFullYear()}-${d.getMonth()}`; }
+function sortMonthKeys(keys) {
+  return [...keys].sort((a, b) => {
+    const [ay, am] = a.split('-').map(Number), [by, bm] = b.split('-').map(Number);
+    return ay - by || am - bm;
+  });
 }
 
-// ── Tracker tab: one row per bus, 6 columns per workshop
-// (Plan Start, Plan End, Actual Start, Actual End, Status, Delay), 7 workshops
-// starting at column 4. Column layout verified directly against the live
-// sheet on 2026-07-25 — if workshops are ever added/removed/reordered in the
-// sheet, this list needs updating to match.
+// ── Tracker tab: one row per bus, 6 columns per workshop (Plan Start, Plan
+// End, Actual Start, Actual End, Status, Delay), 8 workshops starting at
+// column 4 (0-indexed) — verified against the live header row on 2026-07-27.
+// Only used for the per-line monthly Plan-vs-Actual breakdown now; overall
+// progress/workshop-status/daily-output all come from Calc/Daily Output,
+// which are formula-driven off this same tab inside the spreadsheet itself.
 const WORKSHOP_COLS = [
-  { name: 'Machine Shop',            base: 4 },
-  { name: 'Frame & Body Parts',      base: 10 },
-  { name: 'Chassis Line 01',         base: 16 },
-  { name: 'Frame & Body Welding',    base: 22 },
-  { name: 'Paint Shop',              base: 28 },
-  { name: 'Chassis Line 02',         base: 34 },
-  { name: 'Trim & Final Assembly',   base: 40 },
+  { name: 'Machine Shop', base: 4 },
+  { name: 'Frame & Body Parts Making', base: 10 },
+  { name: 'Chassis Production Line 01', base: 16 },
+  { name: 'Frame & Body Welding', base: 22 },
+  { name: 'Paint Shop', base: 28 },
+  { name: 'Chassis Production Line 02', base: 34 },
+  { name: 'Trim & Final Assembly', base: 40 },
+  { name: 'Quality Inspection & Testing', base: 46 },
 ];
 
-function parseTrackerGrid(grid) {
-  const rows = grid.slice(1).filter(r => r[1]); // has a VIN
+// ── Per-line monthly Plan vs Actual, for the 4 reported lines — bucketed by
+// calendar month per-line (Calc/Daily Output only give current totals, not
+// a monthly-history breakdown, so this still needs the raw Tracker grid).
+export function parseLineMonthly(grid) {
+  const rows = grid.slice(1).filter(r => r[1]);
+  const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
 
-  const workshops = WORKSHOP_COLS.map(w => {
-    let done = 0, active = 0, notStarted = 0, na = 0, delayed = false;
-    rows.forEach(r => {
-      const status = (r[w.base + 4] || '').trim();
-      if (status === 'Done') done++;
-      else if (status === 'Active') active++;
-      else if (status === 'Not Started') notStarted++;
-      else na++; // "N/A" or blank
-      const delayNum = parseFloat((r[w.base + 5] || '').replace('+', ''));
-      if (!Number.isNaN(delayNum) && delayNum > 0 && status !== 'Done') delayed = true;
-    });
-    const target = TOTAL_UNITS - na;
-    return {
-      name: w.name, done, active, notStarted, na, due: target,
-      pct: target ? done / target : 0,
-      status: delayed ? 'DELAYED' : 'ON TRACK',
-      constraint: 'None',
-    };
-  });
+  const labelByKey = new Map();
+  const perLine = {};
+  relevantCols.forEach(w => { perLine[w.name] = new Map(); });
 
-  // "Completed" = finished the last workshop (Trim & Final Assembly).
-  const trim = WORKSHOP_COLS[WORKSHOP_COLS.length - 1];
-  const planByDate = new Map(), actByDate = new Map();
+  const bump = (name, date, kind) => {
+    const key = monthKey(date);
+    if (!labelByKey.has(key)) labelByKey.set(key, monthLabel(date));
+    const m = perLine[name];
+    if (!m.has(key)) m.set(key, { planned: 0, actual: 0, hasActual: false });
+    const entry = m.get(key);
+    if (kind === 'plan') entry.planned += 1;
+    else { entry.actual += 1; entry.hasActual = true; }
+  };
+
   rows.forEach(r => {
-    const planEnd = parseTrackerDate(r[trim.base + 1]);
-    const actEnd = parseTrackerDate(r[trim.base + 3]);
-    if (planEnd) planByDate.set(dateKey(planEnd), (planByDate.get(dateKey(planEnd)) || 0) + 1);
-    if (actEnd) actByDate.set(dateKey(actEnd), (actByDate.get(dateKey(actEnd)) || 0) + 1);
-  });
-  const allKeys = [...new Set([...planByDate.keys(), ...actByDate.keys()])].sort();
-  let cumPlan = 0, cumAct = 0;
-  const daily = allKeys.map(k => {
-    const planned = planByDate.get(k) || 0;
-    const hasActual = actByDate.has(k);
-    cumPlan += planned;
-    if (hasActual) cumAct += actByDate.get(k);
-    return {
-      date: dailyLabel(new Date(k)), planned, actual: hasActual ? actByDate.get(k) : null,
-      cumPlan, cumAct: cumAct || null, gap: cumAct - cumPlan,
-    };
+    relevantCols.forEach(w => {
+      const planEnd = parseTrackerDate(r[w.base + 1]);
+      const actEnd = parseTrackerDate(r[w.base + 3]);
+      if (planEnd) bump(w.name, planEnd, 'plan');
+      if (actEnd) bump(w.name, actEnd, 'actual');
+    });
   });
 
-  const totalDone = workshops[workshops.length - 1].done;
-  const activeUnits = rows.filter(r => WORKSHOP_COLS.some(w => (r[w.base + 4] || '').trim() === 'Active')).length;
+  const sortedKeys = sortMonthKeys(labelByKey.keys());
+  const byLine = {};
+  relevantCols.forEach(w => {
+    byLine[w.name] = sortedKeys.map(k => {
+      const e = perLine[w.name].get(k);
+      return { label: labelByKey.get(k), planned: e?.planned || 0, actual: e?.hasActual ? e.actual : null };
+    });
+  });
 
-  return { workshops, daily, totalDone, activeUnits, unitCount: rows.length };
+  return { byLine, overallMonthly: byLine['Trim & Final Assembly'] || [] };
 }
 
-// ── SUGGESTION tab (SN | NAME) → Kaizen register rows, shaped to match
-// what Scoreboard.jsx's Kaizen MiniTable reads: [_, idea, workshop, by, status, impact]
-function parseSuggestions(grid) {
-  return grid
-    .filter(r => r[1] && r[1].trim() && !/^name$/i.test(r[1].trim()))
-    .map(r => ['', r[1].trim(), '', '', 'Proposed', '']);
-}
-
-// ── Breakdown tab: M1-M7 reason codes (minutes) + a single current snapshot
-// (not a monthly trend — the sheet only tracks "the latest breakdown").
-const DT_REASONS = ['M1 - Machine breakdown', 'M2 - Material shortage', 'M3 - Power/Energy',
-  'M4 - Tooling/jig failure', 'M5 - Operator/skill gap', 'M6 - Quality rework stoppage', 'M7 - Other'];
-function parseBreakdown(grid) {
+// ── Calc tab: pre-computed by the spreadsheet itself — a workshop-status
+// table (rows) followed by a flat label/value KPI dump (one pair per row,
+// grouped under blank-valued section headers like "OVERALL / OBJECTIVE 1").
+// Reading this directly means Scoreboard.jsx's KPI cards are a straight
+// lookup, not something re-derived here.
+export function parseCalc(grid) {
   const kv = {};
-  let totalMin = 0;
-  grid.forEach(r => {
-    const code = (r[0] || '').trim();
-    const mIdx = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7'].indexOf(code);
-    if (mIdx > -1) {
-      const min = toNum(r[2]) || 0;
-      kv[DT_REASONS[mIdx]] = { raw: String(min / 60), num: min / 60 };
-      totalMin += min;
+  const workshops = [];
+  for (let i = 0; i < grid.length; i++) {
+    const row = grid[i];
+    const c0 = (row[0] || '').trim();
+    if (c0 === 'Workshop' && (row[1] || '').trim() === 'Done') {
+      let j = i + 1;
+      while (j < grid.length && (grid[j][0] || '').trim()) {
+        const r = grid[j];
+        workshops.push({
+          name: r[0].trim(),
+          done: toNum(r[1]) || 0, active: toNum(r[2]) || 0,
+          notStarted: toNum(r[3]) || 0, na: toNum(r[4]) || 0,
+          due: toNum(r[5]) || 0, pct: toNum(r[6]) || 0,
+          status: (r[7] || '').trim(), constraint: (r[8] || '').trim() || 'None',
+        });
+        j++;
+      }
+      i = j - 1;
+      continue;
     }
-  });
-  kv['Unplanned Downtime (hrs)'] = { raw: String(totalMin / 60), num: totalMin / 60 };
-  kv['Total Hours Lost'] = { raw: String(totalMin / 60), num: totalMin / 60 };
+    if (c0 && row[1] != null && String(row[1]).trim() !== '') {
+      kv[c0] = { raw: String(row[1]), num: toNum(row[1]) };
+    }
+  }
+  return { kv, workshops };
+}
+
+// ── Targets tab: label/value pairs (Scoreboard Period, Program info, shift
+// hours, baselines, "Target: X" rows) — same flat-lookup shape as Calc.
+export function parseTargetsKv(grid) {
+  const kv = {};
+  for (const row of grid) {
+    const label = (row[0] || '').trim();
+    if (!label || row[1] == null || String(row[1]).trim() === '') continue;
+    kv[label] = { raw: String(row[1]), num: toNum(row[1]) };
+  }
   return kv;
 }
 
+// ── Daily Output tab: fully formula-driven in the sheet — Date | Planned |
+// Actual | Cum. Plan | Cum. Act. | Gap. Read directly rather than re-derived
+// from the Tracker grid.
+export function parseDailyOutput(grid) {
+  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && (r[1] || '').trim() === 'Planned');
+  if (hIdx === -1) return [];
+  const out = [];
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    if (!d) continue;
+    const actual = r[2] !== undefined && r[2] !== '' ? toNum(r[2]) : null;
+    const cumAct = r[4] !== undefined && r[4] !== '' ? toNum(r[4]) : null;
+    out.push({
+      date: dailyLabel(d), planned: toNum(r[1]) || 0, actual,
+      cumPlan: toNum(r[3]) || 0, cumAct, gap: toNum(r[5]),
+    });
+  }
+  return out;
+}
+
+// ── Downtime tab: one row per breakdown event (Date | Workshop | Equipment |
+// Reason Code | Downtime (min) | Description | Reported By) — the period
+// M1-M7 totals come from Calc, but this drives the monthly downtime-hours
+// trend chart, which needs the full dated history Calc doesn't keep.
+export function parseDowntimeMonthly(grid) {
+  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /reason/i.test(r[3] || ''));
+  if (hIdx === -1) return [];
+  const byMonth = new Map();
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    const mins = toNum(r[4]);
+    if (!d || mins == null) continue;
+    const key = monthKey(d);
+    if (!byMonth.has(key)) byMonth.set(key, { label: monthLabel(d), value: 0 });
+    byMonth.get(key).value += mins / 60;
+  }
+  return sortMonthKeys(byMonth.keys()).map(k => ({
+    label: byMonth.get(k).label, value: Math.round(byMonth.get(k).value * 100) / 100,
+  }));
+}
+
+// ── Quality tab: one row per vehicle inspection (Date | Unit | First
+// Inspection Result | ...). "Pass" in the result column counts toward First
+// Pass Yield; bucketed by month for the FPY trend chart. Assumes the result
+// column contains something matching /pass/i for a first-time pass — no real
+// rows exist yet to confirm the exact dropdown wording, so this degrades
+// gracefully (empty trend) rather than guessing wrong silently.
+export function parseQualityMonthly(grid) {
+  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /inspection result/i.test(r[2] || ''));
+  if (hIdx === -1) return [];
+  const byMonth = new Map();
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    const result = (r[2] || '').trim();
+    if (!d || !result) continue;
+    const key = monthKey(d);
+    if (!byMonth.has(key)) byMonth.set(key, { label: monthLabel(d), passed: 0, total: 0 });
+    const e = byMonth.get(key);
+    e.total += 1;
+    if (/pass/i.test(result)) e.passed += 1;
+  }
+  return sortMonthKeys(byMonth.keys()).map(k => {
+    const e = byMonth.get(k);
+    return { label: e.label, value: e.total ? e.passed / e.total : 0 };
+  });
+}
+
+// ── Environment tab: one row per month (Month Start | Energy Used (kWh) |
+// ...) — returns the most recently dated row's kWh figure, for Energy Cost.
+// Energy per Unit / vs Baseline are already computed by Calc from this same
+// tab; this is only for the NEW cost calculation, not those existing KPIs.
+export function parseEnvironmentLatestKwh(grid) {
+  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Month Start');
+  if (hIdx === -1) return 0;
+  let latestDate = null, latestKwh = 0;
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    const kwh = toNum(r[1]);
+    if (d && kwh != null && (!latestDate || d > latestDate)) { latestDate = d; latestKwh = kwh; }
+  }
+  return latestKwh;
+}
+
+// ── Generic register reader for Bottlenecks / ECR / Waste / Kaizen — finds
+// the header row, then reads every row with a non-empty first column,
+// formatting it as a date if it parses as one. Returns array-of-arrays in
+// the sheet's own column order, which is what Scoreboard.jsx's MiniTable
+// row-slicing already expects.
+export function parseRegisterRows(grid, isHeaderRow) {
+  const hIdx = grid.findIndex(isHeaderRow);
+  if (hIdx === -1) return [];
+  const rows = [];
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    rows.push(d ? [shortDate(d), ...r.slice(1)] : r);
+  }
+  return rows;
+}
+
 // ── Cost tab: repeating period blocks of category rows (Labour/Material/
-// Energy...). Future periods sit in the sheet pre-filled with budget only
-// (actuals still zero) — so instead of blindly taking the last block, use
-// the most recent period that actually has non-zero actuals logged.
-function parseCost(grid) {
+// Energy...). Calc already re-exposes Budget/Actual/Variance for the current
+// period, but not the Labour-specific actual — kept here as the fallback
+// source for Labour Cost when Travel Card data + a rate aren't available yet.
+export function parseCost(grid) {
   const rows = grid.filter(r => r[3] !== undefined && toNum(r[3]) != null && r[2] && !/cost category/i.test(r[2]));
   if (!rows.length) return {};
   const periodKeys = [];
@@ -208,21 +336,7 @@ function parseCost(grid) {
     if (total > 0) { chosenKey = periodKeys[i]; break; }
   }
   const periodRows = byPeriod.get(chosenKey);
-  let budget = 0, actual = 0;
-  periodRows.forEach(r => {
-    budget += toNum(r[3]) || 0;
-    actual += toNum(r[4]) || 0;
-  });
-  const variance = actual - budget;
-  const [periodStart, periodEnd] = chosenKey.split('|');
-  const kv = {
-    'Budget Total': { raw: String(budget), num: budget },
-    'Actual Total': { raw: String(actual), num: actual },
-    'Variance': { raw: String(variance), num: variance },
-    'Variance %': { raw: '', num: budget ? variance / budget : null },
-    'Scoreboard Period Start': { raw: periodStart, num: null },
-    'Scoreboard Period End': { raw: periodEnd, num: null },
-  };
+  const kv = {};
   const labour = periodRows.find(r => /labour/i.test(r[2]));
   if (labour) {
     const v = toNum(labour[4]);
@@ -241,8 +355,8 @@ async function fetchTab(tab) {
 }
 
 // Same as fetchTab, but for tabs that might not exist yet on the live sheet
-// (the three new data-entry tabs) — returns an empty grid instead of
-// throwing, so a not-yet-uploaded tab degrades to "no data" rather than
+// (Cost Inputs) and the Travel Card's own sheet — returns an empty grid
+// instead of throwing, so a missing tab degrades to "no data" rather than
 // breaking the whole scoreboard.
 async function fetchTabSoft(urlFn, tab) {
   try {
@@ -260,21 +374,8 @@ function headerIndex(grid, name) {
   return grid[0].findIndex(h => h.trim().toLowerCase() === name);
 }
 
-// ── Monthly Downtime Log tab: Month | Downtime Hours | Notes ───────────────
-function parseMonthlyDowntimeLog(grid) {
-  const rows = grid.slice(1).filter(r => r[0] && toNum(r[1]) != null);
-  return rows
-    .map(r => {
-      const d = parseMonthYear(r[0]);
-      return d ? { label: monthLabel(d), value: toNum(r[1]), sortDate: d } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.sortDate - b.sortDate)
-    .map(({ label, value }) => ({ label, value }));
-}
-
 // ── Cost Inputs tab: Setting | Value | Unit | Notes ─────────────────────────
-function parseCostInputs(grid) {
+export function parseCostInputs(grid) {
   const rows = grid.slice(1);
   const find = (label) => {
     const r = rows.find(r => (r[0] || '').trim().toLowerCase() === label);
@@ -287,27 +388,12 @@ function parseCostInputs(grid) {
   };
 }
 
-// ── Weekly Meter Readings tab: Week Ending | Meter Reading (kWh) | Notes ───
-// Cumulative meter readings (TX1+TX2+TX3 transformer feeds, MWh→kWh) —
-// consumption is the delta between the earliest and latest logged reading,
-// not a per-row figure. Cadence is weekly by convention, but the calc itself
-// doesn't care how far apart the readings are.
-function parseMeterReadings(grid) {
-  const rows = grid.slice(1)
-    .map(r => ({ date: parseTrackerDate(r[0]), kwh: toNum(r[1]) }))
-    .filter(r => r.date && r.kwh != null)
-    .sort((a, b) => a.date - b.date);
-  if (rows.length < 2) return { totalKwh: 0, readingsCount: rows.length };
-  const totalKwh = Math.max(0, rows[rows.length - 1].kwh - rows[0].kwh);
-  return { totalKwh, readingsCount: rows.length };
-}
-
 // ── Labour cost: cross-sheet read of the Travel Card's operators + submissions
 // tabs. Each "operators" row is one staff member on duty for one submission;
 // the matching "submissions" row gives how long that stint actually took
 // (actual_time_min) and which station — mapped to one of the 4 reported
 // lines via data/stations.js. Cost = headcount-instances × hours × hourly rate.
-function parseLabourCost(operatorsGrid, submissionsGrid, hourlyRate) {
+export function parseLabourCost(operatorsGrid, submissionsGrid, hourlyRate) {
   const empty = { totalHours: 0, totalCost: 0, byLine: {} };
   if (!operatorsGrid.length || !submissionsGrid.length) return empty;
 
@@ -351,52 +437,6 @@ function parseLabourCost(operatorsGrid, submissionsGrid, hourlyRate) {
   return { totalHours, totalCost: totalHours * hourlyRate, byLine };
 }
 
-// ── Per-line monthly Plan vs Actual + combined monthly output, for the 4
-// reported lines — same Tracker grid as parseTrackerGrid, but bucketed by
-// calendar month per-line instead of collapsed to one "completed" total.
-function parseLineMonthly(grid) {
-  const rows = grid.slice(1).filter(r => r[1]);
-  const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
-
-  const labelByKey = new Map();
-  const perLine = {};
-  relevantCols.forEach(w => { perLine[w.name] = new Map(); });
-
-  const bump = (name, date, kind) => {
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (!labelByKey.has(key)) labelByKey.set(key, monthLabel(date));
-    const m = perLine[name];
-    if (!m.has(key)) m.set(key, { planned: 0, actual: 0, hasActual: false });
-    const entry = m.get(key);
-    if (kind === 'plan') entry.planned += 1;
-    else { entry.actual += 1; entry.hasActual = true; }
-  };
-
-  rows.forEach(r => {
-    relevantCols.forEach(w => {
-      const planEnd = parseTrackerDate(r[w.base + 1]);
-      const actEnd = parseTrackerDate(r[w.base + 3]);
-      if (planEnd) bump(w.name, planEnd, 'plan');
-      if (actEnd) bump(w.name, actEnd, 'actual');
-    });
-  });
-
-  const sortedKeys = [...labelByKey.keys()].sort((a, b) => {
-    const [ay, am] = a.split('-').map(Number), [by, bm] = b.split('-').map(Number);
-    return ay - by || am - bm;
-  });
-
-  const byLine = {};
-  relevantCols.forEach(w => {
-    byLine[w.name] = sortedKeys.map(k => {
-      const e = perLine[w.name].get(k);
-      return { label: labelByKey.get(k), planned: e?.planned || 0, actual: e?.hasActual ? e.actual : null };
-    });
-  });
-
-  return { byLine, overallMonthly: byLine['Trim & Final Assembly'] || [] };
-}
-
 export function useScoreboardData() {
   const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -407,33 +447,37 @@ export function useScoreboardData() {
     setLoading(true);
     try {
       const [
-        trackerGrid, suggestionGrid, breakdownGrid, costGrid,
-        downtimeLogGrid, costInputsGrid, meterGrid,
-        operatorsGrid, submissionsGrid,
+        targetsGrid, trackerGrid, dailyOutputGrid, downtimeGrid, bottlenecksGrid,
+        qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, kaizenGrid, calcGrid,
+        costInputsGrid, operatorsGrid, submissionsGrid,
       ] = await Promise.all([
-        fetchTab('Tracker'), fetchTab('SUGGESTION'), fetchTab('Breakdown'), fetchTab('Cost'),
-        // Soft-fetched: new tabs that may not exist yet on the live sheet
-        // until it's re-uploaded, and the Travel Card's own sheet.
-        fetchTabSoft(TAB_URL, 'Monthly Downtime Log'),
+        fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'), fetchTab('Downtime'),
+        fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'), fetchTab('ECR'),
+        fetchTab('Cost'), fetchTab('Waste'), fetchTab('Kaizen'), fetchTab('Calc'),
         fetchTabSoft(TAB_URL, 'Cost Inputs'),
-        fetchTabSoft(TAB_URL, 'Weekly Meter Readings'),
         fetchTabSoft(TRAVEL_TAB_URL, 'operators'),
         fetchTabSoft(TRAVEL_TAB_URL, 'submissions'),
       ]);
-      const tracker = parseTrackerGrid(trackerGrid);
-      const kaizen = parseSuggestions(suggestionGrid);
-      const breakdownKv = parseBreakdown(breakdownGrid);
+
+      const targetsKv = parseTargetsKv(targetsGrid);
+      const { kv: calcKv, workshops } = parseCalc(calcGrid);
+      const daily = parseDailyOutput(dailyOutputGrid);
+      const downtimeTrend = parseDowntimeMonthly(downtimeGrid);
+      const fpyTrend = parseQualityMonthly(qualityGrid);
+      const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
+      const bottlenecks = parseRegisterRows(bottlenecksGrid, r => (r[0] || '').trim() === 'Date Raised');
+      const ecr = parseRegisterRows(ecrGrid, r => (r[0] || '').trim().toUpperCase().startsWith('ECR NO'));
+      const waste = parseRegisterRows(wasteGrid, r => (r[0] || '').trim() === 'Date' && /waste type/i.test(r[1] || ''));
+      const kaizen = parseRegisterRows(kaizenGrid, r => (r[0] || '').trim() === 'Date' && /kaizen idea/i.test(r[1] || ''));
       const costKv = parseCost(costGrid);
-      const downtimeTrend = parseMonthlyDowntimeLog(downtimeLogGrid);
       const costInputs = parseCostInputs(costInputsGrid);
-      const meter = parseMeterReadings(meterGrid);
       const labour = parseLabourCost(operatorsGrid, submissionsGrid, costInputs.staffHourlyRate);
       const lineMonthly = parseLineMonthly(trackerGrid);
 
       // The Cost tab's own figures are in UGX '000 (see Cost!F3) — divide our
       // raw-UGX computations by 1000 so every cost card on the board shares
       // one unit and isn't off by 1000x next to the manually-entered ones.
-      const energyCostK = (meter.totalKwh * costInputs.energyTariffRate) / 1000;
+      const energyCostK = (latestKwh * costInputs.energyTariffRate) / 1000;
       const labourTotalK = labour.totalCost / 1000;
       const productionOperationalCostK = labourTotalK + energyCostK;
 
@@ -447,26 +491,21 @@ export function useScoreboardData() {
         costKvExtra[`Operational Cost — ${name}`] = { raw: String(k), num: k };
       }
 
-      const achievement = TOTAL_UNITS ? tracker.totalDone / TOTAL_UNITS : 0;
-
       setData({
         kv: {
-          'Program Target (vehicles)': { raw: String(TOTAL_UNITS), num: TOTAL_UNITS },
-          'Completed': { raw: String(tracker.totalDone), num: tracker.totalDone },
-          'In Production': { raw: String(tracker.activeUnits), num: tracker.activeUnits },
-          'Achievement %': { raw: '', num: achievement },
-          ...breakdownKv,
+          ...targetsKv,
+          ...calcKv,
           ...costKv,
           ...costKvExtra,
         },
-        workshops: tracker.workshops,
-        daily: tracker.daily,
-        bottlenecks: [],   // no data source in this sheet
+        workshops,
+        daily,
+        bottlenecks,
         kaizen,
-        ecr: [],           // no data source in this sheet
-        waste: [],         // no data source in this sheet
-        fpyTrend: [],       // no Quality register in this sheet
-        downtimeTrend,      // Monthly Downtime Log tab — manual monthly entries
+        ecr,
+        waste,
+        fpyTrend,
+        downtimeTrend,
         linePlannedVsActual: lineMonthly.byLine,    // per-line monthly Plan vs Actual, the 4 reported lines
         overallMonthly: lineMonthly.overallMonthly, // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
       });

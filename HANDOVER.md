@@ -1,6 +1,123 @@
-# KMC Bus Production Tracker — Handover (2026-07-25)
+# KMC Bus Production Tracker — Handover (2026-07-25, major update 2026-07-27)
 
-## 🔴 Open and urgent: 3 new sheet tabs need to be uploaded to go live
+## 🔴 Open and urgent (2026-07-27): re-upload the new master workbook
+
+**Superseded the whole "3 new tabs" plan below** — the user shared the real
+**IMS-objectives master workbook** (`KMC DPN SCOREBOARD.xlsx`, via WhatsApp),
+which is a much richer 15-tab file (README/Dashboard/Targets/Tracker/Daily
+Output/Downtime/Bottlenecks/Quality/Safety/Environment/ECR/Cost/Waste/
+Kaizen/Calc) than the lean 4-tab grid we'd been reverse-engineering since
+07-25. `useScoreboardData.js` was **rewritten from scratch** around it —
+see "DPN Scoreboard — rebuilt around the real master workbook" below for
+full detail. `src/KMC_Department_Monthly_Scoreboard.xlsx` now **is** that
+master workbook (plus our own `Cost Inputs` tab) — the old
+`Monthly Downtime Log` / `Weekly Meter Readings` tabs are gone, replaced by
+the master's own `Downtime` and `Environment` tabs which do the same job
+properly.
+
+**This needs to be re-uploaded to the live Google Sheet
+(`1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs`)** before any of it goes
+live — it's a bigger structural change than previous re-uploads (the whole
+tab set changed, not just 3 additions), so treat it as replacing the sheet
+wholesale rather than an incremental update. Until that happens, the
+Scoreboard falls back to `SAMPLE` data (old workshop names, old shape) —
+verified that fallback still renders without crashing, but it's stale.
+
+Also still true: **Cost Inputs rates are all 0** (Staff Hourly Rate,
+Machine Hourly Rate, Energy Tariff Rate) — user hasn't shared real numbers
+yet. Production Operational Cost and per-line costs will show 0 until then.
+
+## ✅ DPN Scoreboard — rebuilt around the real master workbook (2026-07-27)
+
+`useScoreboardData.js` was rewritten essentially from scratch. The old
+version reverse-engineered everything from a bare 46-column Tracker grid
+because that's all the sheet had; the real master workbook the user shared
+turns out to have a **`Calc` tab that's pre-computed by spreadsheet formulas**
+— a workshop-status table + a flat label/value KPI dump covering almost
+every field `Scoreboard.jsx` reads (Completed, In Production, Achievement %,
+SPI, OEE, MTTR, M1-M7 downtime minutes, FPY, Safety/Environment KPIs, cost
+Budget/Actual/Variance, register counts...). So most of the hook is now a
+direct lookup into `Calc`'s kv map, not re-derived math.
+
+**Tabs fetched now**: `Targets`, `Tracker`, `Daily Output`, `Downtime`,
+`Bottlenecks`, `Quality`, `Environment`, `ECR`, `Cost`, `Waste`, `Kaizen`,
+`Calc`, plus our own `Cost Inputs` (soft-fetched) and the Travel Card's
+`operators`/`submissions` (cross-sheet, soft-fetched).
+
+- **`Calc`** → workshop-status array (8 workshops now, incl. Quality
+  Inspection & Testing) + ~75 KV fields covering nearly every KPI card on
+  the board.
+- **`Targets`** → Scoreboard Period Start/End, Shift Label, Program Target
+  (vehicles — no longer hardcoded to 45), all the "Target: X" fields,
+  baselines.
+- **`Daily Output`** → the `daily` array (Date/Planned/Actual/Cum
+  Plan/Cum Act/Gap) read directly — it's formula-driven in the sheet, no
+  need to re-derive from Tracker Plan/Actual dates anymore.
+- **`Downtime`** → event log (Date/Workshop/Equipment/Reason
+  Code/Downtime min/...), bucketed by month for the "Downtime — by Month"
+  trend chart. Current-period M1-M7 totals still come from `Calc`.
+- **`Bottlenecks` / `ECR` / `Waste` / `Kaizen`** → real registers, finally
+  populating panels that showed "No X logged" placeholders since this
+  workbook didn't exist yet. All 4 currently have 0-3 real rows.
+- **`Quality`** → per-inspection log, bucketed by month for a First Pass
+  Yield trend. 0 real rows currently — the parser assumes the result
+  column contains something matching `/pass/i`, unverified against real
+  data since none exists yet; worth double-checking once rows appear.
+- **`Environment`** → monthly Energy Used (kWh), read for the *latest*
+  month with data — feeds the NEW Energy Cost calc (see below). The
+  existing Energy-per-Unit/vs-Baseline KPIs are still `Calc`'s own formulas
+  off this same tab, untouched.
+- **Workshop names changed** to match the real sheet's naming exactly:
+  `Chassis Production Line 02` (not `Chassis Line 02`), `Chassis Production
+  Line 01`, `Frame & Body Parts Making`. Updated everywhere: `WORKSHOP_COLS`
+  and `LINE_WORKSHOP_NAMES`/`LINE_ID_TO_WORKSHOP` in the hook,
+  `LINE_WORKSHOPS`/`WORKSHOP_IMG`/`SAMPLE` in `Scoreboard.jsx`. The
+  `display` labels shown in the UI are unchanged (still "Chassis Line 02"
+  etc.) — only the internal `dataName` used to match sheet data changed.
+- **Cost Inputs** tab kept as our own addition (Staff/Machine Hourly Rate,
+  Energy Tariff Rate) — still the only new tab we maintain outside the
+  master template. Labour cost calc (Travel Card headcount × hours × rate)
+  is unchanged from 07-25. Energy cost now reads `Environment`'s latest
+  month × Energy Tariff Rate, replacing the old separate meter-reading tab.
+- **`Monthly Downtime Log` and `Weekly Meter Readings` tabs are gone** —
+  fully superseded by the master's own `Downtime` and `Environment` tabs.
+
+**Two real bugs found and fixed while verifying against real exported data**
+(don't trust "renders fine with SAMPLE" as proof — SAMPLE bypasses all real
+parsing; a Node test harness feeding actual CSV exports through the parser
+functions caught both of these):
+1. **Date parsing** — `parseTrackerDate` only handled ISO/US-style dates via
+   native `Date()`, which silently returns Invalid Date for hand-typed
+   `DD/MM/YYYY` text (e.g. a Downtime row with `"25/06/2026"` — day=25 makes
+   `new Date()` assume MM/DD and fail). Added a DD/MM/YYYY regex fallback.
+   Real risk: any tab with hand-typed dates instead of a real Excel date
+   picker could silently drop rows from monthly trends.
+2. **Mojibake** — a PowerShell bulk `-replace` I ran to add `export` to
+   several functions round-tripped the file through the wrong default
+   encoding, turning every em-dash/arrow into garbage (`â€”` etc.) plus a
+   stray BOM. Repaired via a Python `cp1252`-encode → `utf-8`-decode
+   round-trip. Worth remembering: **PowerShell `Get-Content`/`Set-Content`
+   default encoding is not reliably UTF-8** — always pass `-Encoding utf8`
+   explicitly, or better, do bulk text edits in Python.
+
+**Verification method**: exported `Calc`, `Targets`, `Daily Output`,
+`Downtime`, `Quality`, `Environment`, `Bottlenecks`, `ECR`, `Waste`,
+`Kaizen`, `Cost`, `Cost Inputs`, `Tracker` to CSV from the real xlsx
+(`data_only=True`, restored from the *original* WhatsApp file for the
+formula-driven tabs since an earlier `openpyxl` re-save had stripped their
+cached values — Sheets recalculates on import regardless, this only
+affected local testing) and ran every parser function against that real
+CSV text via a small Node ESM harness (parser functions now exported from
+`useScoreboardData.js` for this reason — harmless to leave exported).
+Output cross-checked by hand against the raw `openpyxl` cell dump earlier in
+the session. All fields matched.
+
+**Not yet verified**: actual live fetch from Google Sheets (this sandbox
+can't reach `docs.google.com`) — do a real check once the sheet is
+re-uploaded, same as every previous "verified against SAMPLE only" caveat
+this project has had.
+
+## 🟡 Superseded 2026-07-25 plan: 3 new sheet tabs (historical, no longer the plan)
 
 DPN Scoreboard now has real charts and a real cost model (see next section),
 but they read from **3 brand-new tabs** that only exist in the local file

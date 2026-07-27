@@ -55,13 +55,13 @@ function MoonIcon() {
 // `dataName` matches the Tracker sheet's workshop name; `display` is the label shown.
 const LINE_WORKSHOPS = [
   { dataName: 'Trim & Final Assembly', display: 'Trim & Final Assembly' },
-  { dataName: 'Chassis Line 02', display: 'Chassis Line 02' },
+  { dataName: 'Chassis Production Line 02', display: 'Chassis Line 02' },
   { dataName: 'Paint Shop', display: 'Paint Shop' },
   { dataName: 'Frame & Body Welding', display: 'Body Shop' },
 ];
 const WORKSHOP_IMG = {
   'Trim & Final Assembly': '/Trim Line & Final Assembly.jpg',
-  'Chassis Line 02': '/Chassis Line 02.jpg',
+  'Chassis Production Line 02': '/Chassis Line 02.jpg',
   'Paint Shop': '/Paint Shop.png',
   'Frame & Body Welding': '/Frame & Body Welding.png',
 };
@@ -108,7 +108,7 @@ const SAMPLE = {
     'Production Operational Cost': { num: 0 }, 'Workshop Supplies per Unit': { num: 0 },
     'Labour Cost': { num: 0 }, 'Cost of Using the Production System': { num: 0 },
     'Operational Cost — Trim & Final Assembly': { num: 0 },
-    'Operational Cost — Chassis Line 02': { num: 0 },
+    'Operational Cost — Chassis Production Line 02': { num: 0 },
     'Operational Cost — Paint Shop': { num: 0 },
     'Operational Cost — Frame & Body Welding': { num: 0 },
     'Total Production Cost': { num: 0 },
@@ -127,7 +127,7 @@ const SAMPLE = {
     { name: 'Chassis Production Line 01', done: 41, due: 45, na: 0, pct: 0.91, status: 'ON TRACK', constraint: 'None' },
     { name: 'Frame & Body Welding', done: 28, due: 45, na: 0, pct: 0.62, status: 'DELAYED', constraint: 'None' },
     { name: 'Paint Shop', done: 21, due: 45, na: 0, pct: 0.47, status: 'DELAYED', constraint: 'None' },
-    { name: 'Chassis Line 02', done: 20, due: 45, na: 0, pct: 0.44, status: 'DELAYED', constraint: 'None' },
+    { name: 'Chassis Production Line 02', done: 20, due: 45, na: 0, pct: 0.44, status: 'DELAYED', constraint: 'None' },
     { name: 'Trim & Final Assembly', done: 16, due: 40, na: 0, pct: 0.36, status: 'DELAYED', constraint: 'None' },
     { name: 'Quality Inspection & Testing', done: 0, due: 0, na: 0, pct: 0, status: 'ON TRACK', constraint: 'None' },
   ],
@@ -154,7 +154,7 @@ const SAMPLE = {
   ],
   linePlannedVsActual: {
     'Trim & Final Assembly':  [{ label: 'May 26', planned: 8, actual: 6 }, { label: 'Jun 26', planned: 10, actual: 7 }, { label: 'Jul 26', planned: 9, actual: 3 }],
-    'Chassis Line 02':        [{ label: 'May 26', planned: 5, actual: 4 }, { label: 'Jun 26', planned: 6, actual: 5 }, { label: 'Jul 26', planned: 6, actual: 2 }],
+    'Chassis Production Line 02': [{ label: 'May 26', planned: 5, actual: 4 }, { label: 'Jun 26', planned: 6, actual: 5 }, { label: 'Jul 26', planned: 6, actual: 2 }],
     'Paint Shop':             [{ label: 'May 26', planned: 6, actual: 5 }, { label: 'Jun 26', planned: 7, actual: 6 }, { label: 'Jul 26', planned: 6, actual: 3 }],
     'Frame & Body Welding':   [{ label: 'May 26', planned: 9, actual: 7 }, { label: 'Jun 26', planned: 9, actual: 8 }, { label: 'Jul 26', planned: 8, actual: 4 }],
   },
@@ -956,14 +956,15 @@ function ScoreboardInner() {
         </div>
       </Page>
 
-      {/* Note: this reads the real Tracker/SUGGESTION/Breakdown/Cost workbook
-          plus 3 newer tabs (Monthly Downtime Log, Cost Inputs, Daily Meter
-          Readings) — see useScoreboardData.js. Labour cost is a cross-sheet
-          read of the Travel Card's operators+submissions tabs, not this
-          workbook. The reporting period for Budget/Actual is whichever Cost
-          tab period block most recently has non-zero actuals logged. */}
+      {/* Note: this reads the full IMS-objectives master workbook (Targets,
+          Tracker, Daily Output, Downtime, Bottlenecks, Quality, Safety,
+          Environment, ECR, Cost, Waste, Kaizen, Calc) plus our own Cost
+          Inputs tab — see useScoreboardData.js. Calc is pre-computed by the
+          spreadsheet itself, so most KPIs are a direct lookup, not derived
+          here. Labour cost is a cross-sheet read of the Travel Card's
+          operators+submissions tabs, not this workbook. */}
       <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
-        Production line status, output, and downtime are read live from the <b>Tracker</b> tab. Labour cost is derived from Travel Card staff-on-duty records × the <b>Cost Inputs</b> tab's hourly rate; Energy cost from the <b>Weekly Meter Readings</b> tab. Cost figures show 0 until <b>Cost Inputs</b> rates are set to real values. Safety/Quality/Environment metrics aren't tracked in this workbook yet.
+        Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Labour cost is derived from Travel Card staff-on-duty records × the <b>Cost Inputs</b> tab's hourly rate; Energy cost from the <b>Environment</b> tab's latest logged month × the Energy Tariff Rate. Cost figures show 0 until <b>Cost Inputs</b> rates are set to real values. Safety/Quality/Environment/Bottlenecks/ECR/Waste all have real registers now — they'll populate as rows are logged in those tabs.
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
