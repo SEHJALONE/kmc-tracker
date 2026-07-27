@@ -158,11 +158,6 @@ const SAMPLE = {
     'Paint Shop':             [{ label: 'May 26', planned: 6, actual: 5 }, { label: 'Jun 26', planned: 7, actual: 6 }, { label: 'Jul 26', planned: 6, actual: 3 }],
     'Frame & Body Welding':   [{ label: 'May 26', planned: 9, actual: 7 }, { label: 'Jun 26', planned: 9, actual: 8 }, { label: 'Jul 26', planned: 8, actual: 4 }],
   },
-  lineMonthlyOutput: [
-    { label: 'May 26', 'Trim & Final Assembly': 6, 'Chassis Line 02': 4, 'Paint Shop': 5, 'Frame & Body Welding': 7 },
-    { label: 'Jun 26', 'Trim & Final Assembly': 7, 'Chassis Line 02': 5, 'Paint Shop': 6, 'Frame & Body Welding': 8 },
-    { label: 'Jul 26', 'Trim & Final Assembly': 3, 'Chassis Line 02': 2, 'Paint Shop': 3, 'Frame & Body Welding': 4 },
-  ],
 };
 
 // ── formatting helpers ──────────────────────────────────────────
@@ -388,33 +383,31 @@ function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = 
   );
 }
 
+// Actual output only (no planned comparison — this is the sole output chart
+// on the board per request, so it just reports what happened).
 function CumChart({ daily }) {
   const C = useC();
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
-  const pts = daily.filter(d => d.cumPlan != null);
+  const pts = daily.filter(d => d.cumAct != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
-  const dataMax = Math.max(...pts.map(d => d.cumPlan), ...pts.map(d => d.cumAct ?? 0), 1);
+  const dataMax = Math.max(...pts.map(d => d.cumAct), 1);
   const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
   const bw = (w - padL - padR) / pts.length;
-  const pw = Math.max(1, bw * 0.38);
+  const pw = Math.max(1, bw * 0.6);
   const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
-  const actPts = pts.filter(d => d.cumAct != null);
-  const gap = actPts.length ? (actPts[actPts.length - 1].cumPlan ?? 0) - (actPts[actPts.length - 1].cumAct ?? 0) : 0;
+  const y0 = yFor(0);
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned (cum.)</span>
         <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
         {pts.map((d, i) => {
           const x0 = padL + i * bw;
-          const y0 = yFor(0);
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.06, yFor(d.cumPlan), pw, Math.max(0, y0 - yFor(d.cumPlan)), 2)} fill={C.blue} />
-              {d.cumAct != null && <path d={barPath(x0 + bw * 0.5, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />}
+              <path d={barPath(x0 + (bw - pw) / 2, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />
               {i % Math.ceil(pts.length / 8) === 0 && (
                 <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
                   {String(d.date).split(' ').slice(-2).join(' ')}
@@ -424,64 +417,10 @@ function CumChart({ daily }) {
           );
         })}
       </svg>
-      {gap > 0 && (
-        <div style={{
-          position: 'absolute', right: 6, top: '30%', background: C.panel,
-          border: `1px solid ${C.red}`, borderRadius: 4, padding: '4px 10px',
-          textAlign: 'center', fontSize: 8.5, color: C.grey,
-        }}>
-          CURRENT GAP<span style={{ color: C.red, fontWeight: 800, fontSize: 14, display: 'block' }}>{gap} VEHICLES</span>
-        </div>
-      )}
     </div>
   );
 }
 
-// Non-cumulative daily planned-vs-actual bars — complements the cumulative
-// line chart above it by showing the day-to-day delta, not just the running gap.
-function DailyBarChart({ daily }) {
-  const C = useC();
-  const pts = daily.filter(d => d.planned != null).slice(-10);
-  if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: '14px 0' }}>No daily data yet.</div>;
-  const w = 460, h = 150, padL = 30, padR = 10, padT = 10, padB = 22;
-  const dataMax = Math.max(...pts.map(d => d.planned), ...pts.map(d => d.actual ?? 0), 1);
-  const { niceMax, step, tickCount } = niceAxis(dataMax, 3, true);
-  const bw = (w - padL - padR) / pts.length;
-  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned</span>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
-      </div>
-      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses / Day" />
-        {pts.map((d, i) => {
-          const x0 = padL + i * bw, pw = bw * 0.32;
-          const y0 = yFor(0);
-          return (
-            <g key={i}>
-              <path d={barPath(x0 + bw * 0.1, yFor(d.planned), pw, Math.max(0, y0 - yFor(d.planned)), 2)} fill={C.blue} />
-              {d.actual != null && <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)), 2)} fill={C.green} />}
-              <text x={x0 + bw / 2} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">
-                {String(d.date).split(' ').slice(-2).join(' ')}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-// Colors for the 4 reported lines, kept consistent with the Bus Tracker's
-// own line colors (Dashboard.jsx / LineTracker.jsx lineColors map).
-const LINE_COLORS = {
-  'Trim & Final Assembly': '#3b82f6',
-  'Chassis Line 02': '#059669',
-  'Paint Shop': '#ec4899',
-  'Frame & Body Welding': '#f97316',
-};
 
 // Single-series monthly bar chart — used for the Downtime trend now that
 // it's a bar chart, not a line, per request.
@@ -516,9 +455,8 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   );
 }
 
-// Grouped monthly Planned-vs-Actual bar chart — same visual language as
-// DailyBarChart but for month-bucketed points (no slicing to a recent window;
-// this is meant to span the whole production timeline).
+// Grouped monthly Planned-vs-Actual bar chart, spanning the whole
+// production timeline (no slicing to a recent window).
 function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   const C = useC();
   const pts = (points || []).filter(p => p.planned != null || p.actual != null);
@@ -561,56 +499,6 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
         <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * bw + bw * 0.46)} />
         {pts.map((d, i) => (
           <text key={d.label} x={padL + i * bw + bw * 0.46} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
-// Monthly output comparison across the 4 reported lines — one small cluster
-// of 4 bars per month, one color per line.
-function MultiLineOutputChart({ points, lineNames }) {
-  const C = useC();
-  const pts = points || [];
-  if (pts.length === 0) {
-    return <div style={{ color: C.grey, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly output logged yet.</div>;
-  }
-  const w = 700, h = 180, padL = 32, padR = 12, padT = 12, padB = 30;
-  const dataMax = Math.max(...pts.flatMap(p => lineNames.map(n => p[n] || 0)), 1);
-  const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
-  const groupW = (w - padL - padR) / pts.length;
-  const barW = (groupW * 0.8) / lineNames.length;
-  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
-  const y0 = yFor(0);
-  // True midpoint of the N-bar cluster (bars span [0, (N-1)*barW + barW*0.85]
-  // from the group's left edge) — NOT (barW*N)/2, which sits visibly off
-  // the actual bars since each bar is only 0.85 of its slot.
-  const clusterCenter = (barW * (lineNames.length - 1 + 0.85)) / 2;
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4, flexWrap: 'wrap' }}>
-        {lineNames.map(n => (
-          <span key={n}><span style={{ display: 'inline-block', width: 9, height: 8, background: LINE_COLORS[n] || C.grey, marginRight: 4 }} />{n}</span>
-        ))}
-      </div>
-      <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-        <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Buses Completed" />
-        {pts.map((p, i) => {
-          const x0 = padL + i * groupW + groupW * 0.1;
-          return (
-            <g key={i}>
-              {lineNames.map((n, j) => {
-                const v = p[n] || 0;
-                return (
-                  <path key={n} d={barPath(x0 + j * barW, yFor(v), barW * 0.85, Math.max(0, y0 - yFor(v)))} fill={LINE_COLORS[n] || C.grey} />
-                );
-              })}
-            </g>
-          );
-        })}
-        <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * groupW + groupW * 0.1 + clusterCenter)} />
-        {pts.map((p, i) => (
-          <text key={p.label} x={padL + i * groupW + groupW * 0.1 + clusterCenter} y={h - 10} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
         ))}
       </svg>
     </div>
@@ -750,7 +638,7 @@ function BoardHeader({ raw }) {
       <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, color: '#fff' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DQHSE12/25-REG003</b></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DPN.07/26-REG004</b></div>
       </div>
     </div>
   );
@@ -964,24 +852,14 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Daily Output (Non-Cumulative)">
-            <DailyBarChart daily={d.daily} />
-          </Panel>
-          <Panel title={`Cumulative Throughput (May to ${currentMonthLabel})`}>
-            <CumChart daily={d.daily} />
-          </Panel>
-        </div>
+        {/* Cumulative Throughput is the sole output chart — actual only, no planned comparison */}
+        <Panel title={`Cumulative Throughput (May to ${currentMonthLabel})`}>
+          <CumChart daily={d.daily} />
+        </Panel>
 
-        {/* Planned vs Actual (whole program) alongside the 4-line output comparison */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Planned vs Actual — by Month (whole program)">
-            <MonthlyPlanActualChart points={d.overallMonthly} />
-          </Panel>
-          <Panel title="Monthly Output — by Line">
-            <MultiLineOutputChart points={d.lineMonthlyOutput} lineNames={LINE_WORKSHOPS.map(lw => lw.dataName)} />
-          </Panel>
-        </div>
+        <Panel title="Planned vs Actual — by Month (whole program)">
+          <MonthlyPlanActualChart points={d.overallMonthly} />
+        </Panel>
 
         <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>

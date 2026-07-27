@@ -394,13 +394,7 @@ function parseLineMonthly(grid) {
     });
   });
 
-  const combinedOutput = sortedKeys.map(k => {
-    const row = { label: labelByKey.get(k) };
-    relevantCols.forEach(w => { row[w.name] = perLine[w.name].get(k)?.hasActual ? perLine[w.name].get(k).actual : 0; });
-    return row;
-  });
-
-  return { byLine, combinedOutput, overallMonthly: byLine['Trim & Final Assembly'] || [] };
+  return { byLine, overallMonthly: byLine['Trim & Final Assembly'] || [] };
 }
 
 export function useScoreboardData() {
@@ -473,9 +467,8 @@ export function useScoreboardData() {
         waste: [],         // no data source in this sheet
         fpyTrend: [],       // no Quality register in this sheet
         downtimeTrend,      // Monthly Downtime Log tab — manual monthly entries
-        linePlannedVsActual: lineMonthly.byLine,       // per-line monthly Plan vs Actual, the 4 reported lines
-        lineMonthlyOutput: lineMonthly.combinedOutput, // monthly actual output, all 4 lines compared
-        overallMonthly: lineMonthly.overallMonthly,    // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
+        linePlannedVsActual: lineMonthly.byLine,    // per-line monthly Plan vs Actual, the 4 reported lines
+        overallMonthly: lineMonthly.overallMonthly, // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
       });
       setError(null);
       setLastUpdated(new Date());
