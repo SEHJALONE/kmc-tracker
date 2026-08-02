@@ -1,4 +1,205 @@
-# KMC Bus Production Tracker — Handover (2026-07-25, major update 2026-07-27)
+# KMC Bus Production Tracker — Handover (2026-07-25, major update 2026-07-27, root-cause fix + new features 2026-08-02)
+
+## ✅ 2026-08-02, later: Travel Card additions + Access Request station preference
+
+Three more things shipped the same session as the Apps Script fix above, all
+deployed live and verified end-to-end in the browser (not just code review):
+
+1. **Travel Card — optional Comments + Unexpected Delay/Time Lost** for
+   general users only (supervisors already have the full 6M/RCA downtime
+   flow when actual time exceeds designed time). New card at the bottom of
+   page 1 ("Additional notes — optional"): a free-text Comments box, plus
+   pick-any-of-6M delay tags each with a rough time-range dropdown (0–15,
+   15–30, 30–60, 60–120, 120+ min) instead of an exact number, since the
+   ask was "a range of time, not exact." Stored as `general_comments` /
+   `unexpected_delay` (JSON) columns on the `submissions` tab. See
+   `TravelCard.jsx` — state near `genComments`/`delayTypes`/`delayRanges`,
+   UI right before the page-1 nav buttons, payload in `submitUserCard`.
+2. **Access Requests — applicant station preference, preselected for admin.**
+   `SignUpModal.jsx` now shows an optional per-line station picker (only for
+   "Production" dept, since Product Development lines have no station
+   catalog) once at least one production line is picked. Stored as
+   `preferredStations` → `preferred_stations` column on `AccessRequests`.
+   `AccessRequests.jsx`'s `openRequest()` preselects `assignedStations` (and
+   `stationLine`/`supervisorLines`) from it, plus shows a "Applicant
+   requested" box so the admin can see the original ask even after
+   adjusting. Admin can still add/remove before granting — it's a
+   starting point, not a lock.
+3. **Found and fixed a real pre-existing data bug while verifying #1/#2**:
+   `getOrCreate` only sets headers when it creates a tab from scratch — it
+   never updates headers on a tab that already exists (same class of issue
+   as the original "add `roles` column by hand" instruction). Appending new
+   columns to `writeSubmission`/`submitAccessRequest_` without also editing
+   the *already-live* header row meant the written data landed in the right
+   column positionally, but any name-based reader (`listAccessRequests_`,
+   and potentially future report code) couldn't find it — confirmed via a
+   real submitted request coming back with `preferredStations: []` despite
+   the sheet actually having the data. Worse: this uncovered that the
+   `submissions` tab's header row had been stuck at an **old 21-column
+   schema since before `gross_time_min`/`break_min` were ever added to the
+   code** — every column from `actual_time_min` onward was mislabeled by 2
+   positions for any row written after that change. Fixed by rewriting the
+   `submissions` header row to match the current 25-column write order
+   exactly, and moving `preferred_stations` to its correct column on
+   `AccessRequests`. **This only relabels going forward — it does not
+   migrate historical rows.** Any row written before `gross_time_min`/
+   `break_min` were added to the code will still have those specific
+   columns effectively blank/misaligned if read by name; only rows from
+   whenever that schema change actually shipped onward are affected by the
+   mislabeling this fix corrects. Worth a spot-check if a report ever looks
+   wrong for `gross_time_min`/`break_min`/`overrun_min` on an older row.
+
+## ✅ 2026-08-02, later still: edit-before-approval, built properly
+
+The user chose "fix approval sync first" when asked (see the flag this
+section used to contain, kept in git history). Built and verified live
+end-to-end in the browser, not just code review:
+
+- **`updateSubmission_`** (Apps Script) — one action, two callers: a
+  supervisor's review decision (`reviewOnly` — patches
+  `reviewer`/`approvalStatus`/`reviewDate`/`reviewComments` only, no
+  restriction) and a general user's own edit (`requireStillPending` +
+  `_fullEdit` — rewrites the submission row plus deletes-and-rewrites its
+  `activities`/`resources`/`operators` rows, since those are one-row-per-item
+  tables with no stable per-item id to patch in place). Blocks only on
+  `approval_status === "approved"` — a first-pass "pending"/"rejected"
+  decision still leaves the card editable, per the actual requirement
+  ("as long as the supervisor has not yet approved").
+- **`PendingReviews.jsx` rewritten** off `kmc_pending_reviews` localStorage
+  onto `useSubmissionsData` (new hook) — reads live from the sheet
+  (submissions + activities + resources + operators joined by `record_id`
+  via gviz), and `saveReview` now calls `updateSubmission_` for real instead
+  of only touching localStorage. This was the load-bearing fix: without it,
+  an edit-lock gated on "has a supervisor approved" would've been checking
+  data that only ever existed in one browser.
+- **New `submitted_by` column** on `submissions` — was being sent in every
+  payload all along (`sub.submittedBy`) but `writeSubmission` never actually
+  wrote it anywhere until this was needed to reliably find "this general
+  user's own cards."
+- **`MySubmissions.jsx`** (new) — general user's own submission history,
+  status badges, "Edit →" when not yet approved, "Locked" once it is. New
+  HomeScreen card, `role === 'user'` only.
+- **`TravelCard.jsx` edit mode** — `editSubmission`/`onEditSubmit` props,
+  pre-fills every field (including the new Comments/delay-range section)
+  from the record being edited, "Save Changes" instead of "Submit for
+  Review," posts through `updateSubmission_` instead of creating a new row.
+  Guards the pre-existing `p0next()` auto-`clockOut`-to-now side effect so
+  editing doesn't silently overwrite the original clock-out.
+
+**Verified live, full round trip**: submitted a real card as a general user
+→ saw it in My Submissions with live "Pending review" status → edited it
+(changed the Comments field) → confirmed the edit landed in the sheet →
+logged in as admin, saw the SAME edited data in Pending Reviews (proving
+cross-device sync works) → approved it → confirmed it left the pending
+queue → logged back in as the general user → confirmed My Submissions now
+shows "Approved" / "Locked" with no edit button.
+
+**Known pre-existing UI hiccups noticed while testing** (not caused by this
+work, not fixed): several older `Pending Reviews` list rows show `— · Invalid
+Date` — those submissions have a blank/unparseable `timestamp` cell; and
+the "Add VIN"/project dropdown interaction in `TravelCard.jsx` silently
+no-ops if a project isn't selected first (by design — `if (!n.trim() ||
+!curProj) return;` — but has no user-facing error message, worth a UX pass
+if it comes up as a real complaint).
+
+## KMC Travel Card Data Collector project — dead weight, not "wrong"
+
+Correcting the framing directly below: `1Tll1te0Vd1ynakjvAry0LdGbdJOeNhWOobqadnSnEXIWfLFByrLgBZJa`
+("KMC Travel Card Data Collector") is not bound to any sheet the app reads
+from and its 2 deployments don't match the live URL — it's simply unused.
+No action needed on it; don't waste time investigating it further.
+
+## ✅ RESOLVED 2026-08-02: the real Apps Script problem (was never "wrong project")
+
+Everything below in the two 🔴 sections was based on a wrong model. The
+actual root cause, found by pulling the live script with `clasp` (Google's
+Apps Script CLI, already installed + authenticated as `xcellencysehj@gmail.com`
+on this machine) instead of guessing from URLs:
+
+- **The project that's actually live** (serving `.../UePnesSQgnbJlfyIuiy7FkuAOH_q/exec`,
+  the URL every hook/component posts to) is called **"Password masterdata"**
+  (Script ID `1MdmeSsq6IE22UKxz5IV8__c8bvFArpW7oXGA72BeAmaffQ54wKirTBLD`),
+  found via Extensions → Apps Script from *inside* the private
+  `KMC Tracker — Access & Users (Private)` sheet — i.e. it's **container-bound
+  to the private sheet**, not to `NI Travel Tool Data` and not a standalone
+  project. "KMC Travel Card Data Collector" (`1Tll1te0Vd1ynakjvAry0LdGbdJOeNhWOobqadnSnEXIWfLFByrLgBZJa`)
+  — the project every prior session assumed was correct — is a real project
+  the account can edit, but its only two deployments (`...RUxEEtLvh3Rhw`
+  @HEAD and `...X4I8nuqm5f0anh9JvLv8TjjsQtoWFf` @17) are **neither one** the
+  URL the app calls. It's unused dead weight, not "the wrong one being
+  redeployed by mistake" — nobody had been redeploying it at all recently;
+  it just isn't relevant.
+- **The actual bug**: because the live script is bound to the *private*
+  sheet, every `SpreadsheetApp.getActiveSpreadsheet()` call in it (nearly
+  every write function — `saveCatalog_`, `saveNCR_`, `saveMOC_`,
+  `saveHandover_`, `saveMachine_`/rates, the default travel-card writer)
+  was writing into the **private sheet's** `submissions`/`operators`/`ncrs`/
+  etc. tabs — confirmed empirically (18 submissions, 27 users, etc. already
+  sitting there). But **every read hook in the app** (`useNCRData.js`,
+  `useMachineCostData.js`, `useHandoverData.js`, `useSheetData.js`,
+  `useOverrunData.js`, `useCatalog.js`) reads via public gviz CSV from
+  **`NI Travel Tool Data`** (`1npt7Tf2y...`) — a *different* spreadsheet.
+  Writes and reads had been silently targeting two different sheets the
+  whole time. That's the real reason NCR/Handover/tracker-access/Machine
+  Cost writes "silently failed to persist" for weeks — not a stale
+  deployment, a wrong write target.
+- **Fix applied and deployed live** (via `clasp push` + `clasp deploy -i
+  <existing deploymentId>`, same `/exec` URL, verified with a real
+  write→gviz-read round trip before/after): every
+  `SpreadsheetApp.getActiveSpreadsheet()` in `APPS_SCRIPT_CATALOG.md`
+  changed to `SpreadsheetApp.openById(TRACKER_SHEET_ID)` (i.e. explicitly
+  `NI Travel Tool Data`), **except** the `privateSs_()`-based
+  AccessRequests/DynamicUsers functions, which correctly keep targeting the
+  private sheet. Confirmed live: `listDynamicUsers` now returns
+  `canAccessTracker`/`roles` on every user, and a test `saveMachine` write
+  landed in `NI Travel Tool Data`'s `machines` tab and was immediately
+  readable via the app's own gviz URL.
+- **Password hashing added** at the same time (user request): `DynamicUsers`
+  passwords are now stored as `salt$sha256hex` (see `hashPassword_`/
+  `verifyPassword_`/`isHashedPassword_` in `APPS_SCRIPT_CATALOG.md`).
+  Legacy plaintext rows keep working — `login_` falls back to a direct
+  compare and migrates the row to a hash on next successful login, no bulk
+  migration needed. `AccessRequests` passwords **intentionally stay
+  plaintext** — the approval UI (`AccessRequests.jsx`'s `handleApprove`)
+  reads that value once to relay the password to the applicant; hashing it
+  there would break that flow.
+- **Two minor cleanup items left**: (1) one empty phantom `submissions` row
+  (id `bfe03995-d339-4436-8ffe-5f76b73e3e43`) in the **private** sheet's
+  `submissions` tab, from an earlier malformed test call in this session —
+  harmless (never read by the app), safe to delete by hand if it bothers
+  you. (2) the private sheet also has 18/19/26/7/7 real rows already sitting
+  in its own `submissions`/`activities`/`resources`/`operators`/`projects`
+  tabs from however long the write-target bug was live — those are now
+  orphaned (nothing reads them) but represent real historical submissions
+  that never made it into `NI Travel Tool Data`. Worth deciding whether to
+  migrate them across by hand if that history matters.
+
+## ✅ RESOLVED 2026-08-02: Machine Cost module tabs
+
+The 4 tabs (`machines`, `machine_rates`, `staff_rates`, `energy_rates`) were
+added to a **copy of the DPN Scoreboard workbook** at the user's explicit
+request (not `NI Travel Tool Data` as originally planned) — delivered back
+as a file, `machines`/`machine_rates` populated with the real 205-machine/
+120-rate seed data, `staff_rates`/`energy_rates` header-only. This is a
+**static reference copy only** — the DPN Scoreboard sheet has no Apps
+Script, so the CEE UI's add/edit actions still can't write there; live
+reads/writes both go through `NI Travel Tool Data` per the fix above. If
+`NI Travel Tool Data` doesn't yet have its own `machines`/`machine_rates`/
+`staff_rates`/`energy_rates` tabs, add them there too (same seed data,
+already in this repo's session scratchpad as `machine_cost_seed_tabs.xlsx`)
+for the CEE screen to actually work end-to-end.
+
+**Also worth a quick sanity check from the user**: the source costing
+template's "Machine Rate (UGX)" column has no explicit "/hour" — I assumed
+UGX/hour to match "Staff Hourly Rate"/"Energy Tariff Rate" framing. At that
+assumption, the computed absorption-cost total for one period (480h) across
+just the 120 machines with a real rate is **~1.06 billion UGX** — noticeably
+larger than the existing Budget Total (704,000, in UGX '000, i.e. ~704
+million) for the whole program. That's a genuinely new cost dimension
+(machine costs were never one of the Cost tab's 3 categories), so a big
+number isn't necessarily wrong — but it's large enough that it's worth
+confirming the rate unit is really UGX/hour and not, say, UGX/day or a
+one-time figure, before treating it as authoritative.
 
 ## 🔴 Open and urgent (2026-07-27): re-upload the new master workbook
 
@@ -116,6 +317,94 @@ the session. All fields matched.
 can't reach `docs.google.com`) — do a real check once the sheet is
 re-uploaded, same as every previous "verified against SAMPLE only" caveat
 this project has had.
+
+## ✅ Machine Cost Database + Cost Estimations Engineer module (2026-07-27)
+
+User shared `Production Costing Template to Rodney (1).xlsx` — a real
+machine registry (220 raw rows → 205 clean machines across every station,
+120 with a real UGX rate) — and asked for a proper machine-cost system:
+register machines per station, track hourly rates for machines/staff/energy
+with a **time-bounded validity window** (a rate change shouldn't rewrite
+past costing), a 3-tab UI for a new **Cost Estimations Engineer (CEE)**
+role, a cost/uptime report, support for one person holding more than one
+role (e.g. supervisor **and** CEE), and the existing cost calculation
+updated to actually use it.
+
+**Data model — 4 new tabs on the main sheet** (`1npt7Tf2y...`, write access
+lives there via the same Apps Script NCR/Handover/Travel Card already use):
+- `machines` — `record_id, station_code, activity, machine_name, active, created_at, created_by`. Soft-delete via `active` (archive, never hard-delete — a machine with rate history needs to keep resolving).
+- `machine_rates` / `staff_rates` / `energy_rates` — append-only rate history, each row has `valid_from`/`valid_to` (blank `valid_to` = open-ended, "July to date"). Editing a rate means adding a new row, never overwriting an old one.
+
+**Resolved design decision** (user confirmed, since Travel Card only tracks
+station not individual machine, and the Downtime log's equipment list
+doesn't cover real machine names): cost uses **absorption costing** —
+`Machine Hourly Rate × Available Production Hours for the period`, same
+hours for every machine at a station regardless of which one actually ran.
+Not a true utilization measurement; documented as such in the Report tab
+itself and in the footer note.
+
+**Seed data**: `machines` + `machine_rates` tabs built from the real xlsx
+(delivered separately as its own file) — forward-filled the source's merged
+Station Line/Number/Process cells, cleaned obvious typos (duplicate
+near-identical names, a stray backtick), dropped ~5 repeated header rows
+the source re-prints periodically and a few non-standard "Transfer"/
+"Buffer" pseudo-station rows with no real station code. **~43% of machines
+(85 of 205) had no rate in the source** — mostly auxiliary equipment
+(Power Grid, Elevated Trolley, Material Racks, Transfer Trolleys) rather
+than core processing machines — imported anyway with no rate row, costing
+0 until a real rate is set. Also found: **18 station codes** in the costing
+template don't exist in `src/data/stations.js`'s `STATIONS` catalog (PDI,
+"Washing Bay" as literal text vs the app's `WASHING` code, `Q01-07a`/`b`
+where the app only has one combined `Q01-07`, several `C0x-xx-01`
+sub-stations, `C01-06`/`C01-08`/`P02-06`/`P02-07`/`P04-03..05`) — the real
+factory has more granular/complete station coverage than the app currently
+models. Machines at those codes still cost correctly overall; only the
+per-LINE rollup skips them (no line to attribute to). Worth reconciling the
+station catalog separately via `CatalogAdmin.jsx` if per-line accuracy
+matters here — out of scope for this session.
+
+**Apps Script** (`APPS_SCRIPT_CATALOG.md`): new `data.action`-style handlers
+`saveMachine`/`updateMachine`/`saveMachineRate`/`saveStaffRate`/
+`saveEnergyRate`, following the exact `saveMOC_`/`updateNCR_` conventions
+(`getOrCreate`, `Utilities.getUuid()`, `fieldMap`-driven patch). **Multi-role
+support** added the same way: a new `roles` (plural) column on
+`DynamicUsers`, JSON-array-stringified exactly like the existing
+`assignedLines`/`assignedStations` fields — deliberately narrow in scope,
+additive only. The primary `role` (singular) field is untouched and every
+*existing* `role === 'x'` check elsewhere in the app still only looks at
+that; only the new CEE-access check in `App.jsx` also consults `roles`.
+
+**Frontend**: new `src/hooks/useMachineCostData.js` (mirrors
+`useNCRData.js`) and `src/components/CostEstimation.jsx` — Machines /
+Rates / Report tabs, gated behind `hasCeeAccess` in `App.jsx`
+(`role === 'systemadmin' || role === 'cee' || roles.includes('cee')`), with
+a new HomeScreen card. Test accounts: `kmc.cee` / `Cee1234!` (CEE only) and
+`kmc.super` / `Super1234!` now also has `roles: ['cee']` — demonstrates one
+person holding two roles at once (Supervisor section + Cost Estimations
+Engineer section both show up on their home screen).
+
+**Cost engine** (`useScoreboardData.js`): Production Operational Cost is
+now Labour + Energy + **Machine** (was Labour + Energy only). Staff/Energy
+rates now resolve "as of today" from the new time-bounded history tabs
+instead of the old flat `Cost Inputs` value. Per-line `Operational Cost —
+<line>` cards now include each line's machine cost too, mapped via the same
+`STATIONS[code].line` → `LINE_ID_TO_WORKSHOP` lookup already built for
+Labour Cost.
+
+**Verification**: exported the real seed `machines.csv`/`machine_rates.csv`
+and ran the new `parseMachines`/`parseRateHistory`/`resolveRateAsOf`
+functions (now exported from `useScoreboardData.js`) against them via a
+Node harness — 205 machines / 120 rate rows parsed correctly, rate
+resolution correctly returns `null` for a date before the program started
+and the correct rate within the valid window, and the computed absorption
+total at 480h cross-checked by hand (sum of raw rates × 480) to the exact
+UGX. Browser-verified in-app: `kmc.super` shows both Supervisor and Cost
+Estimations Engineer sections; `kmc.cee` shows only Cost Estimation; a
+plain `kmc` user shows neither; all 3 Cost Estimation tabs render and
+degrade gracefully with no live data yet; DPN Scoreboard renders fine with
+the reworked 3-component cost total. **Not verified**: an actual write
+(add machine / rate) succeeding — blocked on the Apps Script redeploy, same
+as NCR/Handover.
 
 ## 🟡 Superseded 2026-07-25 plan: 3 new sheet tabs (historical, no longer the plan)
 
@@ -255,43 +544,27 @@ A React 18 + Vite MPA for Kiira Motors Corporation, deployed on Vercel at
 (line/dashboard), NCR Register, Shift Handover, DPN Scoreboard, and admin
 screens (Access Requests, User Management).
 
-## 🔴 Open and urgent: Apps Script redeploy still not live
+## ✅ RESOLVED 2026-08-02: Apps Script — see top-of-file section for the real story
 
-This has failed **three times** in a row for the same reason: **there are
-two different Apps Script projects in the Google account**, and the wrong
-one keeps getting redeployed.
+This section originally claimed "two projects, wrong one keeps getting
+redeployed." That model was wrong — see the "✅ RESOLVED 2026-08-02: the
+real Apps Script problem" section at the top of this file for what was
+actually going on (a write/read sheet mismatch, not a deployment mixup) and
+what was fixed. Kept here only so old links to this heading don't 404.
 
-- **Correct project** — Web app URL ends in `...UePnesSQgnbJlfyIuiy7FkuAOH_q`.
-  This is the one the whole app actually calls (`CATALOG_WRITE_URL` in
-  `src/data/catalogConfig.js`, and the same constant duplicated in
-  `useNCRData.js`/`useHandoverData.js`/`TravelCard.jsx`). Full source lives in
-  **`APPS_SCRIPT_CATALOG.md`** at the repo root — always paste that file's
-  code block in whole, never partial edits.
-- **Wrong project** (keeps getting redeployed by mistake) — URL ends in
-  `...X4I8nuqm5f0anh9JvLv8TjjsQtoWFf`. An old, unrelated legacy script. Not
-  used by anything in this app anymore.
-
-**How to verify which is deployed**, before trusting any "I redeployed it"
-claim: run this in a browser console (or ask Claude to run it) —
+**Verification snippet still valid** — run this any time to confirm the
+live script is current (now checks for `canAccessTracker`+`roles`, same as
+before):
 
 ```js
 fetch('https://script.google.com/macros/s/AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q/exec', {
   method: 'POST', body: new URLSearchParams({ action: 'listDynamicUsers', token: 'kmcisgood' })
 }).then(r => r.json()).then(j => console.log(j.users[0]));
 ```
-If the returned user object has a `canAccessTracker` key, the current script
-is live. If not, the redeploy hasn't landed — go find the *other* Apps
-Script project at [script.google.com/home](https://script.google.com/home).
 
-**Once it's actually deployed correctly**, these become usable for the first
-time (they're fully built and tested on the frontend, just waiting on this):
-- NCR Register writes (`saveNCR`/`updateNCR`) — currently silently falling
-  through to the travel-card writer.
-- Shift Handover writes — same problem; the `handovers` tab doesn't exist
-  in the sheet yet, gets created on first successful write.
-- Per-user Bus Tracker access toggle (User Management / Access Requests) —
-  UI works and saves, but the server ignores the `can_access_tracker` field
-  until this script version is live.
+NCR Register writes, Shift Handover writes, and the per-user Bus Tracker
+access toggle are now expected to actually persist — re-verify in the app
+if anything still looks stuck.
 
 ## ✅ DPN Scoreboard — now reading real data (resolved 2026-07-25)
 
@@ -359,9 +632,20 @@ Three Google Sheets in play, deliberately separate:
 
 | Sheet | ID | Used for |
 |---|---|---|
-| Main tracker | `1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es` | Travel Card, Catalog, MOC, NCR, Handover — all via the Apps Script above |
-| Private (access control) | `1TS2xV3kDIOlQ9W1-j-P9DExvt5lNZhLX6xeeuLX9BNA` | Access Requests + Dynamic Users (passwords) — never publicly shared, only the Apps Script can read it |
+| Main tracker | `1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es` | Travel Card, Catalog, MOC, NCR, Handover, Machine Cost — every gviz read in the app targets this sheet, and (as of the 2026-08-02 fix) every write does too |
+| Private (access control) | `1TS2xV3kDIOlQ9W1-j-P9DExvt5lNZhLX6xeeuLX9BNA` ("Password manager for Bus Tracker" / "KMC Tracker — Access & Users (Private)") | Access Requests + Dynamic Users (passwords) — never publicly shared. **This is also where the live Apps Script project is container-bound** (Script ID `1MdmeSsq6IE22UKxz5IV8__c8bvFArpW7oXGA72BeAmaffQ54wKirTBLD`, named "Password masterdata" — open it via Extensions → Apps Script from inside *this* sheet, not the main tracker) |
 | DPN Scoreboard | `1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs` (`KMC_Department_Monthly_Scoreboard`) | Standalone — now wired up for real, see section above |
+
+**To redeploy the live script in future**: `clasp` (Google's Apps Script
+CLI) is installed on this machine and was authenticated as
+`xcellencysehj@gmail.com` on 2026-08-02 (`clasp login`, token in
+`~/.clasprc.json` — may need re-auth if expired). From a folder with
+`.clasp.json` pointing at Script ID `1MdmeSsq6IE22UKxz5IV8__c8bvFArpW7oXGA72BeAmaffQ54wKirTBLD`
+(`clasp clone-script <id>` to set one up fresh): edit `Code.js`, `clasp push`,
+then `clasp deploy -i AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q`
+to update the *existing* live deployment (same `/exec` URL) rather than
+`clasp deploy` alone, which would create a brand-new URL nothing points to.
+No more manual copy-paste into the browser editor needed.
 
 Login is server-side only (`login` Apps Script action) — passwords never
 reach any browser, including admin sessions. Static hardcoded accounts
@@ -390,8 +674,15 @@ gitignored — never committed, exists only on this machine).
 
 ## Immediate next step
 
-1. Find and redeploy the **correct** Apps Script project (see verification
-   snippet above) — this is the only thing still blocking NCR, Handover, and
-   tracker-access from actually working.
-2. Re-verify NCR, Handover, and tracker-access all actually write once
-   that's confirmed live.
+1. Spot-check NCR, Handover, and tracker-access writes for real in the app
+   (not just the machine-cost round-trip already verified) now that the
+   write-target fix is live — should all persist to `NI Travel Tool Data`
+   correctly.
+2. Decide what to do with the ~18-26 orphaned rows sitting in the private
+   sheet's `submissions`/`activities`/`resources`/`operators`/`projects`
+   tabs (real historical data the write-target bug misdirected there) —
+   migrate by hand or leave as an archived record.
+3. Add `machines`/`machine_rates`/`staff_rates`/`energy_rates` tabs to
+   `NI Travel Tool Data` itself (currently only exist as a static copy on
+   the DPN Scoreboard workbook) so the CEE screen's writes have somewhere
+   real to land.

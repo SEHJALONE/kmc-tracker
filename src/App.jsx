@@ -22,6 +22,9 @@ import PendingReviews from './components/PendingReviews';
 import AccessRequests from './components/AccessRequests';
 import UserManagement from './components/UserManagement';
 import DailyFleetLog from './components/DailyFleetLog';
+import CostEstimation from './components/CostEstimation';
+import MySubmissions from './components/MySubmissions';
+import { useSubmissionsData } from './hooks/useSubmissionsData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -115,6 +118,8 @@ export default function App() {
   const canEditCatalog = role === 'systemadmin' || role === 'useradmin';
 
   const [tcPrefill, setTcPrefill] = useState(null);
+  const [editingSubmission, setEditingSubmission] = useState(null);
+  const { editSubmission: saveSubmissionEdit } = useSubmissionsData();
 
   const toggleTheme = useCallback(() => {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
@@ -225,11 +230,22 @@ export default function App() {
   // allowed, matching the server-side default.
   const canAccessTracker = localStorage.getItem('kmc_can_access_tracker') !== 'false';
 
+  // Supplementary roles on top of the primary `role` (e.g. a supervisor
+  // who's also a Cost Estimations Engineer) — additive only, does not
+  // change what `role` itself gates elsewhere in the app.
+  const roles = (() => { try { return JSON.parse(localStorage.getItem('kmc_roles') || '[]'); } catch { return []; } })();
+  const username = localStorage.getItem('kmc_username') || '';
+  const hasCeeAccess = role === 'systemadmin' || role === 'cee' || roles.includes('cee');
+
   // Belt-and-braces: bounce back home if tracker access is off, even if
   // `mode` somehow got set to 'tracker' some other way (e.g. stale state).
   useEffect(() => {
     if (mode === 'tracker' && !canAccessTracker) setMode('home');
   }, [mode, canAccessTracker]);
+
+  useEffect(() => {
+    if (mode === 'cost-estimation' && !hasCeeAccess) setMode('home');
+  }, [mode, hasCeeAccess]);
 
   const handleLogout = () => {
     localStorage.removeItem('kmc_auth');
@@ -241,6 +257,8 @@ export default function App() {
     localStorage.removeItem('kmc_assigned_stations');
     localStorage.removeItem('kmc_assigned_lines');
     localStorage.removeItem('kmc_can_access_tracker');
+    localStorage.removeItem('kmc_roles');
+    localStorage.removeItem('kmc_username');
     setRole('user');
     setNcrDomain(null);
     setAuthed(false);
@@ -265,13 +283,20 @@ export default function App() {
       onSelectAccessRequests={() => setMode('access-requests')}
       onSelectUserManagement={() => setMode('user-management')}
       onSelectDailyFleetLog={() => setMode('daily-fleet-log')}
+      onSelectCostEstimation={() => setMode('cost-estimation')}
+      onSelectMySubmissions={() => setMode('my-submissions')}
       role={role}
       canAccessTracker={canAccessTracker}
+      hasCeeAccess={hasCeeAccess}
     />
   );
 
   if (mode === 'access-requests') return (
     <AccessRequests theme={theme} role={role} onBack={() => setMode('home')} />
+  );
+
+  if (mode === 'cost-estimation') return (
+    <CostEstimation theme={theme} onBack={() => setMode('home')} />
   );
 
   if (mode === 'user-management') return (
@@ -290,6 +315,15 @@ export default function App() {
       assignedStations={assignedStations}
       assignedLines={assignedLines}
       currentUserName={currentUserName}
+    />
+  );
+
+  if (mode === 'my-submissions') return (
+    <MySubmissions
+      theme={theme}
+      currentUserName={currentUserName}
+      onBack={() => setMode('home')}
+      onEdit={(submission) => { setEditingSubmission(submission); setMode('travelcard'); }}
     />
   );
 
@@ -350,14 +384,14 @@ export default function App() {
         }
       `}</style>
       <header className="tc-header" style={{ height: 64 }}>
-        <button className="tc-btn" onClick={() => setMode('home')}>
+        <button className="tc-btn" onClick={() => { setEditingSubmission(null); setMode('home'); }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
           <span className="tc-label">Home</span>
         </button>
         <img className="tc-logo" src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
-        <div className="tc-title">Travel Card</div>
+        <div className="tc-title">{editingSubmission ? 'Edit Travel Card' : 'Travel Card'}</div>
         <div style={{ flex: 1 }} />
         {canEditCatalog && (
           <button className="tc-btn accent" onClick={() => setAdminOpen(true)}>
@@ -393,11 +427,13 @@ export default function App() {
           lockedStation={assignedStation}
           lockedStations={assignedStations}
           currentUserName={currentUserName}
-          onReset={() => setTcPrefill(null)}
+          onReset={() => { setTcPrefill(null); setEditingSubmission(null); }}
           onSubmitSuccess={refresh}
           theme={theme}
           role={role}
           catalog={catalog}
+          editSubmission={editingSubmission}
+          onEditSubmit={saveSubmissionEdit}
         />
       </main>
       {adminOpen && canEditCatalog && (

@@ -95,10 +95,21 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   function openRequest(req) {
     setSelected(req);
+    // Pre-fill from whatever the applicant picked at sign-up (preferredStations)
+    // so the admin can approve as-is, or still add/remove before granting —
+    // it's a starting point, not a lock.
+    const preferred = (req.preferredStations || []).filter(code => SEED_STATIONS[code]);
+    const preselectedStations = {};
+    preferred.forEach(code => { preselectedStations[code] = true; });
+    const preselectedLines = {};
+    preferred.forEach(code => { preselectedLines[SEED_STATIONS[code].line] = true; });
+    const firstLine = preferred.length ? SEED_STATIONS[preferred[0]].line : '';
+    const preselectedStationLine = firstLine === 'CHASSIS1' || firstLine === 'CHASSIS2' ? CHASSIS_GROUP_ID : firstLine;
+
     setForm({
       username: req.username || '', role: 'user',
-      assignedStation: '', assignedLines: {}, assignedStations: {},
-      stationLine: '', supervisorLines: {}, canAccessTracker: true,
+      assignedStation: '', assignedLines: {}, assignedStations: preselectedStations,
+      stationLine: preselectedStationLine, supervisorLines: preselectedLines, canAccessTracker: true,
     });
   }
 
@@ -342,6 +353,14 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
               <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 6, borderLeft: '2px solid rgba(99,102,241,0.4)' }}>
                 <div style={{ fontSize: 10, color: dim, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: fm, marginBottom: 4 }}>Reason</div>
                 <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{selected.reason}</div>
+              </div>
+            )}
+            {selected.preferredStations?.length > 0 && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.05)', borderRadius: 6, borderLeft: `2px solid ${GR}` }}>
+                <div style={{ fontSize: 10, color: dim, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: fm, marginBottom: 4 }}>Applicant requested (preselected below — adjust as needed)</div>
+                <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
+                  {selected.preferredStations.filter(c => SEED_STATIONS[c]).map(c => `${c}: ${SEED_STATIONS[c].name}`).join(', ')}
+                </div>
               </div>
             )}
           </div>

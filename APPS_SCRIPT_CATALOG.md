@@ -88,6 +88,10 @@ const ACCESS_REQUESTS_HEADERS = [
   "id", "full_name", "email", "username", "department", "production_lines",
   "position", "password", "reason", "status", "submitted_at",
   "assigned_username", "assigned_role", "processed_at",
+  // Applicant's own station picks (optional, JSON array of codes) — the
+  // admin's Access Requests screen preselects these on open, and can still
+  // add/remove before approving. Appended at the end, existing rows unaffected.
+  "preferred_stations",
 ];
 
 const DYNAMIC_USERS_TAB = "DynamicUsers";
@@ -96,6 +100,13 @@ const DYNAMIC_USERS_HEADERS = [
   "department", "production_line", "production_lines", "position", "created_at",
   "assigned_station", "assigned_line", "assigned_lines", "assigned_stations",
   "can_access_tracker",
+  // "roles" (plural) is a SUPPLEMENTARY list layered on top of "role" (the
+  // primary/legacy field every existing role check still uses) — lets one
+  // person hold more than one role, e.g. a supervisor who's also a Cost
+  // Estimations Engineer, without touching any existing role === 'x' check
+  // elsewhere in the app. Appended at the end so column positions for every
+  // existing field stay unchanged for already-live user rows.
+  "roles",
 ];
 
 function privateSs_() {
@@ -185,8 +196,22 @@ function doPost(e) {
     if (data && data.action === "saveHandover")   return saveHandover_(data);
     if (data && data.action === "updateHandover") return updateHandover_(data);
 
+    // ── Machine Cost Database (Cost Estimation module) ──────────────────────
+    if (data && data.action === "saveMachine")      return saveMachine_(data);
+    if (data && data.action === "updateMachine")    return updateMachine_(data);
+    if (data && data.action === "saveMachineRate")  return saveMachineRate_(data);
+    if (data && data.action === "saveStaffRate")    return saveStaffRate_(data);
+    if (data && data.action === "saveEnergyRate")   return saveEnergyRate_(data);
+
+    // ── Submission edits — both a general user editing their own pending
+    // card (requireStillPending + _fullEdit, rewrites activities/resources/
+    // operators too) and a supervisor's review decision (reviewOnly, just
+    // patches reviewer/approvalStatus/reviewDate/reviewComments) go through
+    // the same action. See updateSubmission_ below.
+    if (data && data.action === "updateSubmission") return updateSubmission_(data);
+
     // ── Travel-card submission (existing, default) ────────────────────────────
-    const ss        = SpreadsheetApp.getActiveSpreadsheet();
+    const ss        = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const id        = Utilities.getUuid();
 
@@ -216,7 +241,7 @@ function saveCatalog_(payload) {
   try { JSON.parse(payload); }
   catch (err) { return response({ status: "error", message: "bad-json" }); }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   let sh = ss.getSheetByName("Catalog");
   if (!sh) sh = ss.insertSheet("Catalog");
 
@@ -274,7 +299,7 @@ function pruneCatalogBackups_(bsh) {
 
 // List available backup_ids, newest first — lets the admin UI show a picker.
 function listCatalogBackups_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const bsh = ss.getSheetByName(CATALOG_BACKUP_TAB);
   if (!bsh) return response({ status: "ok", backups: [] });
   const data = bsh.getDataRange().getValues();
@@ -286,7 +311,7 @@ function listCatalogBackups_() {
 // the backup itself, so a bad restore can be undone by restoring again.
 function restoreCatalogBackup_(backupId) {
   if (!backupId) return response({ status: "error", message: "missing-backup-id" });
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const bsh = ss.getSheetByName(CATALOG_BACKUP_TAB);
   if (!bsh) return response({ status: "error", message: "no-backups" });
 
@@ -307,7 +332,7 @@ function restoreCatalogBackup_(backupId) {
 // ── MOC Register — create + update ────────────────────────────────────────────
 // Mirrors the shape src/hooks/useMOCData.js expects back out of the "moc" tab.
 function saveMOC_(d) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = getOrCreate(ss, "moc", [
     "moc_id", "timestamp", "requested_by", "department", "change_title",
     "change_type", "change_status", "expiry_date", "tier", "description",
@@ -335,7 +360,7 @@ function saveMOC_(d) {
 // approval stage sends just that stage's name/date + the new status.
 function updateMOC_(d) {
   if (!d.id) return response({ status: "error", message: "missing-id" });
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = ss.getSheetByName("moc");
   if (!sh) return response({ status: "error", message: "no-moc-sheet" });
 
@@ -380,7 +405,7 @@ const NCR_HEADERS = [
 function saveNCR_(payload) {
   let d;
   try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = getOrCreate(ss, "ncrs", NCR_HEADERS);
 
   // Human-readable sequential ID: NCR-YYYY-NNN
@@ -404,7 +429,7 @@ function updateNCR_(payload) {
   let d;
   try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
   if (!d.ncrId) return response({ status: "error", message: "missing-ncr-id" });
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = ss.getSheetByName("ncrs");
   if (!sh) return response({ status: "error", message: "no-ncrs-sheet" });
 
@@ -431,6 +456,109 @@ function updateNCR_(payload) {
   return response({ status: "error", message: "ncr-not-found" });
 }
 
+// ── Machine Cost Database — machines + time-bounded rate history ─────────────
+// Machines are soft-deleted (active:false) via updateMachine_, never removed,
+// since a machine with rate history in "machine_rates" would otherwise be
+// orphaned. Rates (machine/staff/energy) are append-only — editing a rate
+// means adding a new row with a new valid_from, not overwriting the old one,
+// so a rate change never retroactively rewrites past costing.
+const MACHINE_HEADERS = [
+  "record_id", "station_code", "activity", "machine_name", "active",
+  "created_at", "created_by",
+];
+const MACHINE_RATE_HEADERS = [
+  "record_id", "machine_id", "rate_ugx_per_hour", "valid_from", "valid_to",
+  "created_at", "created_by",
+];
+const STAFF_RATE_HEADERS = [
+  "record_id", "rate_ugx_per_hour", "valid_from", "valid_to", "created_at", "created_by",
+];
+const ENERGY_RATE_HEADERS = [
+  "record_id", "rate_ugx_per_kwh", "valid_from", "valid_to", "created_at", "created_by",
+];
+
+function saveMachine_(d) {
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = getOrCreate(ss, "machines", MACHINE_HEADERS);
+  const id = Utilities.getUuid();
+  const now = new Date().toISOString();
+  sh.appendRow([
+    id, d.stationCode || "", d.activity || "", d.machineName || "",
+    "TRUE", now, d.createdBy || "",
+  ]);
+  return response({ status: "ok", id });
+}
+
+// Patches name/activity, or archives (active:false) — never a hard delete,
+// so existing machine_rates rows always still resolve to a real machine.
+function updateMachine_(d) {
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = ss.getSheetByName("machines");
+  if (!sh) return response({ status: "error", message: "no-machines-sheet" });
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("record_id");
+  const fieldMap = { activity: "activity", machineName: "machine_name" };
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idCol] === d.id) {
+      const rowNum = i + 1;
+      Object.entries(fieldMap).forEach(([key, col]) => {
+        if (d[key] !== undefined) {
+          const colIdx = headers.indexOf(col);
+          if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+        }
+      });
+      if (d.active !== undefined) {
+        const colIdx = headers.indexOf("active");
+        if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d.active ? "TRUE" : "FALSE");
+      }
+      return response({ status: "ok", id: d.id });
+    }
+  }
+  return response({ status: "error", message: "machine-not-found" });
+}
+
+function saveMachineRate_(d) {
+  if (!d.machineId) return response({ status: "error", message: "missing-machine-id" });
+  if (d.rate === undefined || d.rate === null || d.rate === "") {
+    return response({ status: "error", message: "missing-rate" });
+  }
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = getOrCreate(ss, "machine_rates", MACHINE_RATE_HEADERS);
+  const id = Utilities.getUuid();
+  const now = new Date().toISOString();
+  sh.appendRow([
+    id, d.machineId, Number(d.rate), d.validFrom || now.slice(0, 10), d.validTo || "",
+    now, d.createdBy || "",
+  ]);
+  return response({ status: "ok", id });
+}
+
+function saveStaffRate_(d) {
+  if (d.rate === undefined || d.rate === null || d.rate === "") {
+    return response({ status: "error", message: "missing-rate" });
+  }
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = getOrCreate(ss, "staff_rates", STAFF_RATE_HEADERS);
+  const id = Utilities.getUuid();
+  const now = new Date().toISOString();
+  sh.appendRow([id, Number(d.rate), d.validFrom || now.slice(0, 10), d.validTo || "", now, d.createdBy || ""]);
+  return response({ status: "ok", id });
+}
+
+function saveEnergyRate_(d) {
+  if (d.rate === undefined || d.rate === null || d.rate === "") {
+    return response({ status: "error", message: "missing-rate" });
+  }
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = getOrCreate(ss, "energy_rates", ENERGY_RATE_HEADERS);
+  const id = Utilities.getUuid();
+  const now = new Date().toISOString();
+  sh.appendRow([id, Number(d.rate), d.validFrom || now.slice(0, 10), d.validTo || "", now, d.createdBy || ""]);
+  return response({ status: "ok", id });
+}
+
 // ── Shift Handover — create + acknowledge ─────────────────────────────────────
 // Column order matches src/hooks/useHandoverData.js's parseHandoverCSV column
 // matching exactly. The "handovers" tab doesn't exist yet in the tracker
@@ -444,7 +572,7 @@ const HANDOVER_HEADERS = [
 ];
 
 function saveHandover_(d) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = getOrCreate(ss, "handovers", HANDOVER_HEADERS);
   const id = Utilities.getUuid();
   sh.appendRow([
@@ -461,7 +589,7 @@ function saveHandover_(d) {
 // Patches only the fields present on the payload, matched by handover_id.
 function updateHandover_(d) {
   if (!d.handoverId) return response({ status: "error", message: "missing-handover-id" });
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = ss.getSheetByName("handovers");
   if (!sh) return response({ status: "error", message: "no-handovers-sheet" });
 
@@ -539,7 +667,15 @@ function writeSubmission(ss, d, id) {
     "actual_time_min","gross_time_min","break_min","designed_time_min",
     "overrun_min","has_overrun",
     "ohs_issue","waste_generated",
-    "reviewer","approval_status","review_date","review_comments"
+    "reviewer","approval_status","review_date","review_comments",
+    // Optional general-user pre-submit fields (comments + a rough delay-time
+    // range) — see the "Additional notes" card in TravelCard.jsx page 1.
+    // Appended at the end so column positions for existing rows don't shift.
+    "general_comments","unexpected_delay",
+    // Who submitted it — was sent in the payload all along but never
+    // actually persisted anywhere until the "My Submissions"/edit feature
+    // needed a reliable way to filter a general user's own cards.
+    "submitted_by",
   ]);
   sh.appendRow([
     id, d.timestamp, d.busModel, d.project, d.vin,
@@ -549,7 +685,10 @@ function writeSubmission(ss, d, id) {
     d.hasOverrun ? (d.actualTime - d.designedTime) : 0,
     d.hasOverrun ? "YES" : "NO",
     d.ohsIssue || "", d.wasteGenerated || "",
-    d.reviewer, d.approvalStatus, d.reviewDate, d.reviewComments || ""
+    d.reviewer, d.approvalStatus, d.reviewDate, d.reviewComments || "",
+    d.generalComments || "",
+    d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "",
+    d.submittedBy || "",
   ]);
 }
 
@@ -645,6 +784,106 @@ function writeProjects(ss, d) {
   }
 }
 
+// Patches an existing submission by record_id. Two callers, distinguished
+// by which fields they send:
+//  - PendingReviews.jsx (supervisor decision): reviewer/approvalStatus/
+//    reviewDate/reviewComments only, no restriction on current status.
+//  - TravelCard.jsx edit mode (general user correcting their own card):
+//    sends `requireStillPending: true` (rejected once approval_status is
+//    "approved" — pending_review/pending/rejected all still allow editing)
+//    and `_fullEdit: true` (also rewrites this record's
+//    activities/resources/operators rows — delete-then-rewrite, since those
+//    are one-row-per-item tables with no stable per-item id to patch).
+function updateSubmission_(d) {
+  if (!d.recordId) return response({ status: "error", message: "missing-record-id" });
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = ss.getSheetByName("submissions");
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const idCol = headers.indexOf("record_id");
+  const statusCol = headers.indexOf("approval_status");
+
+  const fieldMap = {
+    busModel: "bus_model", project: "project", vin: "vin",
+    line: "production_line", station: "station", stationCode: "station_code",
+    hseResources: "hse_resources", clockIn: "clock_in", clockOut: "clock_out",
+    actualTime: "actual_time_min", grossTime: "gross_time_min", breakMinutes: "break_min",
+    designedTime: "designed_time_min",
+    ohsIssue: "ohs_issue", wasteGenerated: "waste_generated",
+    generalComments: "general_comments",
+    reviewer: "reviewer", approvalStatus: "approval_status",
+    reviewDate: "review_date", reviewComments: "review_comments",
+  };
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) !== String(d.recordId)) continue;
+    const rowNum = i + 1;
+
+    // Edit stays open through every pre-approval state (pending_review,
+    // and "pending"/needs-further-review or "rejected" from a first pass) —
+    // it's specifically "approved" that locks it, per the requirement.
+    if (d.requireStillPending) {
+      const current = String(data[i][statusCol] || "").toLowerCase();
+      if (current === "approved") {
+        return response({ status: "error", message: "already-approved" });
+      }
+    }
+
+    Object.entries(fieldMap).forEach(([key, colName]) => {
+      if (d[key] !== undefined) {
+        const colIdx = headers.indexOf(colName);
+        if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
+      }
+    });
+    if (d.unexpectedDelay !== undefined) {
+      const udCol = headers.indexOf("unexpected_delay");
+      if (udCol > -1) sh.getRange(rowNum, udCol + 1).setValue(d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "");
+    }
+
+    if (d._fullEdit) {
+      ["activities", "resources", "operators"].forEach(tabName => {
+        const tsh = ss.getSheetByName(tabName);
+        if (!tsh) return;
+        const tdata = tsh.getDataRange().getValues();
+        for (let j = tdata.length - 1; j >= 1; j--) {
+          if (String(tdata[j][0]) === String(d.recordId)) tsh.deleteRow(j + 1);
+        }
+      });
+      writeActivities(ss, d, d.recordId);
+      writeResources(ss, d, d.recordId);
+      writeOperators(ss, d, d.recordId);
+    }
+
+    return response({ status: "ok", recordId: d.recordId });
+  }
+  return response({ status: "error", message: "not-found" });
+}
+
+// ── Password hashing (DynamicUsers only — AccessRequests intentionally stays
+// plaintext, since the approval UI reads it once to relay the password to
+// the applicant; see handleApprove() in src/components/AccessRequests.jsx).
+// Format: "<salt>$<sha256 hex of salt+password>". Legacy rows created before
+// this existed are still plain text; verifyPassword_ falls back to a direct
+// compare for those and login_ migrates the row to a hash on next successful
+// login, so no bulk migration pass is needed.
+function hashPassword_(plain, salt) {
+  salt = salt || Utilities.getUuid();
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + plain, Utilities.Charset.UTF_8);
+  const hex = bytes.map(b => ("0" + (b & 0xFF).toString(16)).slice(-2)).join("");
+  return salt + "$" + hex;
+}
+function isHashedPassword_(stored) {
+  return typeof stored === "string" && /^[0-9a-f-]{36}\$[0-9a-f]{64}$/i.test(stored);
+}
+function verifyPassword_(plain, stored) {
+  if (!stored) return false;
+  if (isHashedPassword_(stored)) {
+    return hashPassword_(plain, stored.split("$")[0]) === stored;
+  }
+  return stored === plain;
+}
+
 // ── Login — server-side credential check against the private sheet ──────────
 // Never returns the password field, so no client ever receives it.
 function login_(username, password) {
@@ -653,9 +892,14 @@ function login_(username, password) {
   const data = sh.getDataRange().getValues();
   const headers = data[0].map(h => String(h).toLowerCase().trim());
   const col = name => headers.indexOf(name);
+  const passwordCol = col("password");
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    if (String(row[col("username")]).toLowerCase() === String(username).toLowerCase() && String(row[col("password")]) === password) {
+    const stored = row[passwordCol];
+    if (String(row[col("username")]).toLowerCase() === String(username).toLowerCase() && verifyPassword_(password, String(stored))) {
+      if (!isHashedPassword_(String(stored))) {
+        sh.getRange(i + 1, passwordCol + 1).setValue(hashPassword_(password));
+      }
       return response({ status: "ok", user: dynamicUserRowToObject_(headers, row) });
     }
   }
@@ -684,6 +928,9 @@ function dynamicUserRowToObject_(headers, row) {
     // Missing/blank column = true (backward-compatible default for every
     // user created before this field existed) — only an explicit "NO" revokes.
     canAccessTracker: String(col("can_access_tracker") || "").toUpperCase() !== "NO",
+    // Supplementary roles on top of the primary "role" field — see the
+    // DYNAMIC_USERS_HEADERS comment.
+    roles: jsonArr(col("roles")),
   };
 }
 
@@ -698,6 +945,7 @@ function submitAccessRequest_(payload) {
     JSON.stringify(d.productionLines || []), d.position || "", d.password || "",
     d.reason || "", d.status || "pending", d.submittedAt || new Date().toISOString(),
     "", "", "",
+    JSON.stringify(d.preferredStations || []),
   ]);
   return response({ status: "ok", id });
 }
@@ -720,6 +968,7 @@ function listAccessRequests_() {
       productionLine: productionLines[0] || "",
       position: col(r, "position") || "",
       password: col(r, "password") || "",
+      preferredStations: jsonArr(col(r, "preferred_stations")),
       reason: col(r, "reason") || "",
       status: col(r, "status") || "pending",
       submittedAt: col(r, "submitted_at") || "",
@@ -795,12 +1044,13 @@ function createDynamicUser_(payload) {
     }
   }
   sh.appendRow([
-    u.username, u.password, u.role || "user", u.domain || "", u.landing || "",
+    u.username, hashPassword_(u.password), u.role || "user", u.domain || "", u.landing || "",
     u.fullName || "", u.email || "", u.department || "", u.productionLine || "",
     JSON.stringify(u.productionLines || []), u.position || "", u.createdAt || new Date().toISOString(),
     u.assignedStation || "", u.assignedLine || "",
     JSON.stringify(u.assignedLines || []), JSON.stringify(u.assignedStations || []),
     u.canAccessTracker === false ? "NO" : "YES",
+    JSON.stringify(u.roles || []),
   ]);
   return response({ status: "ok", username: u.username });
 }
@@ -820,17 +1070,21 @@ function updateDynamicUser_(payload) {
   const usernameCol = headers.indexOf("username");
 
   const fieldMap = {
-    password: "password", role: "role", domain: "domain", landing: "landing",
+    role: "role", domain: "domain", landing: "landing",
     fullName: "full_name", email: "email", department: "department",
     productionLine: "production_line", position: "position",
     assignedStation: "assigned_station", assignedLine: "assigned_line",
   };
-  const jsonFieldMap = { productionLines: "production_lines", assignedLines: "assigned_lines", assignedStations: "assigned_stations" };
+  const jsonFieldMap = { productionLines: "production_lines", assignedLines: "assigned_lines", assignedStations: "assigned_stations", roles: "roles" };
   const boolFieldMap = { canAccessTracker: "can_access_tracker" };
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][usernameCol]).toLowerCase() === d.username.toLowerCase()) {
       const rowNum = i + 1;
+      if (d.password !== undefined && d.password !== "") {
+        const colIdx = headers.indexOf("password");
+        if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(hashPassword_(d.password));
+      }
       Object.entries(fieldMap).forEach(([key, colName]) => {
         if (d[key] !== undefined && d[key] !== "") {
           const colIdx = headers.indexOf(colName);

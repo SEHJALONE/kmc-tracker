@@ -906,7 +906,7 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user" }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null }) {
   // Normalize single/multi station-lock props into one list. A single assigned
   // station keeps the old fully-locked (disabled dropdown) behavior; multiple
   // assigned stations (same line, e.g. a station head over several stations)
@@ -916,6 +916,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const isAdmin = role === "systemadmin" || role === "useradmin";
   const isSupervisor = role === "supervisor";
   const isUser = role === "user"; // plain user — 2 tabs only, no downtime/sign-off
+  // Editing an already-submitted card (general user, still pre-approval) —
+  // see MySubmissions.jsx. Patches the existing sheet row instead of
+  // creating a new one; see submitUserCard below.
+  const isEditMode = !!editSubmission;
   // Recompute theme tokens on every render so styles react to theme changes
   T = makeTheme(theme === 'dark');
   INP_BG  = T.inpBg;
@@ -1002,6 +1006,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [customCauseName, setCustomCauseName] = useState("");
   const [corrAction, setCorrAction] = useState("");
   const [orComments, setOrComments] = useState("");
+
+  // General-user optional pre-submit fields (kept separate from the
+  // supervisor-only downtime/RCA flow above, which plain users never see).
+  const [genComments, setGenComments] = useState("");
+  const [delayTypes, setDelayTypes] = useState([]);       // selected 6M cause names, informal use
+  const [delayRanges, setDelayRanges] = useState({});      // { causeName: "15-30" }
+  const DELAY_RANGE_OPTIONS = ["0-15", "15-30", "30-60", "60-120", "120+"];
+  function toggleDelayType(m) {
+    setDelayTypes(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+    setDelayRanges(prev => { const n = { ...prev }; delete n[m]; return n; });
+  }
   // Phase 1 CAPA fields
   const [rcaMethod, setRcaMethod] = useState("");
   const [why1, setWhy1] = useState("");
@@ -1045,6 +1060,35 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
 
+  // Pre-fill every field from the submission being edited. Runs once per
+  // edit session (keyed on recordId) — after this, the fields behave like
+  // normal form state so the user can correct anything before re-submitting.
+  useEffect(() => {
+    if (!editSubmission) return;
+    const s = editSubmission;
+    setCurProj(s.project || "");
+    setBusModel(s.busModel || "");
+    setVin(s.vin || "");
+    setCurLine(s.line || "");
+    setCurCode(s.stationCode || "");
+    setCurSt(s.station || "");
+    setSelOps(s.operators || []);
+    setHseCount(s.hseResources ?? "");
+    setClockIn(s.clockIn ? isoToLocalInput(s.clockIn) || s.clockIn : "");
+    setClockOut(s.clockOut || "");
+    setActStatuses(s.activityStatuses || {});
+    setOtherActs(s.addedActivities || []);
+    setResQtys(s.resourcesUsed || {});
+    setOtherRes(s.otherResources || []);
+    setOhs(!!s.ohsIssue);
+    setOhsTxt(s.ohsIssue || "");
+    setWaste(s.wasteGenerated || "");
+    setGenComments(s.generalComments || "");
+    setDelayTypes(s.unexpectedDelay?.types || []);
+    setDelayRanges(s.unexpectedDelay?.ranges || {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSubmission?.recordId]);
+
   // ── Manual session save/restore — an operator filling a long card can save
   // their progress and pick up later (or on a fresh page load) instead of
   // losing everything to a refresh or interruption. Explicit save/restore/
@@ -1063,6 +1107,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       hasDowntime, selMs, subCauses, causeTimes, customCauses, corrAction, orComments,
       rcaMethod, why1, why2, why3, why4, why5, fiveCategory, preventiveAction,
       reviewer, revOther, appStatus, revDate, revComments,
+      genComments, delayTypes, delayRanges,
     };
   }
 
@@ -1095,6 +1140,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setPreventiveAction(snap.preventiveAction ?? "");
     setReviewer(snap.reviewer ?? ""); setRevOther(snap.revOther ?? ""); setAppStatus(snap.appStatus ?? "");
     setRevDate(snap.revDate ?? new Date().toISOString().slice(0, 10)); setRevComments(snap.revComments ?? "");
+    setGenComments(snap.genComments ?? ""); setDelayTypes(snap.delayTypes ?? []); setDelayRanges(snap.delayRanges ?? {});
     setSessionBanner(false);
   }
 
@@ -1269,7 +1315,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!vin) { alert("Select or add a Bus VIN."); return; }
     if (!curLine) { alert("Select a production line."); return; }
     if (!curSt) { alert("Select a station."); return; }
-    setClockOut(new Date().toISOString());
+    // Editing an existing card shouldn't silently reset its original
+    // clock-out to "now" — only a fresh submission auto-stamps it.
+    if (!isEditMode) setClockOut(new Date().toISOString());
     goTo(1);
   }
 
@@ -1280,11 +1328,53 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setBreakTime(brkMin);
     setActualTime(actual);
     // Plain users submit directly — no downtime or sign-off tabs
-    if (isUser) { submitUserCard(gross, brkMin, actual); return; }
+    if (isUser) {
+      if (isEditMode) { saveEditedCard(gross, brkMin, actual); return; }
+      submitUserCard(gross, brkMin, actual); return;
+    }
     if (actual > 0 && designedTime > 0 && actual > designedTime) {
       setHasDowntime(true); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); goTo(2); return;
     }
     setHasDowntime(false); goTo(3);
+  }
+
+  async function saveEditedCard(gross, brkMin, actual) {
+    saveQtyMemory(resQtys, curCode);
+    saveOtherResMemory(otherRes, curCode);
+    if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
+    if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
+
+    const patch = {
+      recordId: editSubmission.recordId,
+      busModel, project: curProj, vin,
+      line: curLine, station: curSt, stationCode: curCode,
+      operators: selOps, hseResources: hseCount,
+      clockIn, clockOut, actualTime: actual, designedTime,
+      grossTime: gross, breakMinutes: brkMin,
+      activityStatuses: actStatuses,
+      addedActivities: otherActs,
+      resourcesUsed: resQtys,
+      otherResources: otherRes,
+      ohsIssue: ohs ? ohsTxt : null,
+      wasteGenerated: waste,
+      generalComments: genComments.trim() || null,
+      unexpectedDelay: delayTypes.length
+        ? { types: delayTypes, ranges: delayTypes.reduce((o, t) => { if (delayRanges[t]) o[t] = delayRanges[t]; return o; }, {}) }
+        : null,
+    };
+    setGsStatus("Saving your changes…");
+    const result = await onEditSubmit(patch);
+    if (result.ok) {
+      setSubmission({ ...editSubmission, ...patch, timestamp: editSubmission.timestamp });
+      setGsStatus("✅ Changes saved.");
+      goTo(4);
+    } else if (result.error === "already-approved") {
+      alert("This card has already been approved by a supervisor and can no longer be edited.");
+      setGsStatus("");
+    } else {
+      alert(`Could not save changes: ${result.error || "unknown error"}`);
+      setGsStatus("");
+    }
   }
 
   async function submitUserCard(gross, brkMin, actual) {
@@ -1309,6 +1399,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       downtime: null,
+      generalComments: genComments.trim() || null,
+      unexpectedDelay: delayTypes.length
+        ? { types: delayTypes, ranges: delayTypes.reduce((o, t) => { if (delayRanges[t]) o[t] = delayRanges[t]; return o; }, {}) }
+        : null,
       submittedBy: currentUserName || null,
       reviewer: null,
       approvalStatus: "pending_review",
@@ -1797,10 +1891,36 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           </div>
         </div>
 
+        {isUser && <div style={css.card}>
+          <div style={css.cardHd}>Additional notes <span style={{ ...css.mSub, marginLeft: 6 }}>(optional)</span></div>
+          <div style={css.fld}>
+            <label style={css.lbl_}>Comments</label>
+            <textarea style={css.ta} value={genComments} onChange={e => setGenComments(e.target.value)} placeholder="Anything worth flagging about this station run…" />
+          </div>
+          <div style={{ ...css.fld, marginTop: 12 }}>
+            <label style={css.lbl_}>Unexpected delay / time lost</label>
+            <div style={css.mSub}>Select any that applied — no exact time needed, just a rough range.</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {SIX.map(m => <div key={m.m} style={{ ...css.mCard, ...(delayTypes.includes(m.m) ? css.mCardSel : {}), flex: "0 0 auto", padding: "6px 10px", cursor: "pointer" }} onClick={() => toggleDelayType(m.m)}>
+                {m.icon} {m.m}
+              </div>)}
+            </div>
+            {delayTypes.map(m => (
+              <div key={m} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
+                <span style={{ fontSize: 12, color: T.muted }}>{m}</span>
+                <select style={{ ...css.inp, maxWidth: 140 }} value={delayRanges[m] || ""} onChange={e => setDelayRanges(p => ({ ...p, [m]: e.target.value }))}>
+                  <option value="">Time range…</option>
+                  {DELAY_RANGE_OPTIONS.map(r => <option key={r} value={r}>{r === "120+" ? "120+ min" : `${r.replace("-", "–")} min`}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>}
+
         <div style={css.nav2}>
           <button style={{ ...css.btnS, marginTop: 0, flex: .35 }} onClick={() => goTo(0)}>← Back</button>
           <button style={{ ...css.btnP, marginTop: 0, flex: 1 }} onClick={p1next}>
-            {isUser ? "Submit for Review →" : "Continue →"}
+            {isEditMode ? "Save Changes →" : isUser ? "Submit for Review →" : "Continue →"}
           </button>
         </div>
       </>}
@@ -2077,13 +2197,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       {page === 4 && submission && <>
         <div style={css.card}>
           <div style={{ textAlign: "center", padding: "12px 0 6px" }}>
-            <div style={{ fontSize: 42, color: submission.approvalStatus === "pending_review" ? AM : GR }}>
-              {submission.approvalStatus === "pending_review" ? "⏳" : "✓"}
+            <div style={{ fontSize: 42, color: isEditMode ? GR : submission.approvalStatus === "pending_review" ? AM : GR }}>
+              {isEditMode ? "✓" : submission.approvalStatus === "pending_review" ? "⏳" : "✓"}
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "0.1em", marginTop: 8, textTransform: "uppercase" }}>
-              {submission.approvalStatus === "pending_review" ? "Submitted — Pending Review" : "Travel card submitted"}
+              {isEditMode ? "Changes saved" : submission.approvalStatus === "pending_review" ? "Submitted — Pending Review" : "Travel card submitted"}
             </div>
-            {submission.approvalStatus === "pending_review" && (
+            {!isEditMode && submission.approvalStatus === "pending_review" && (
               <div style={{ fontSize: 12, color: AM, marginTop: 6, fontFamily: T.mono }}>
                 Your supervisor will review this submission.
               </div>
@@ -2165,6 +2285,24 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             </div>
           );
         })()}
+
+        {(submission.generalComments || submission.unexpectedDelay) && <div style={css.confC}>
+          <div style={css.cardHd}>Additional notes</div>
+          {submission.generalComments && (
+            <div style={css.confRow}>
+              <span style={css.confLbl}>Comments</span>
+              <span style={css.confVal}>{submission.generalComments}</span>
+            </div>
+          )}
+          {submission.unexpectedDelay?.types?.map(t => (
+            <div key={t} style={css.confRow}>
+              <span style={css.confLbl}>{t}</span>
+              <span style={{ ...css.confVal, color: AM }}>
+                {submission.unexpectedDelay.ranges?.[t] ? `${submission.unexpectedDelay.ranges[t].replace("-", "–")} min` : "flagged"}
+              </span>
+            </div>
+          ))}
+        </div>}
 
         {/* change 9: downtime details on done page */}
         {submission.hasDowntime && <div style={{ ...css.confC, background: RA, border: `1px solid ${RB}` }}>

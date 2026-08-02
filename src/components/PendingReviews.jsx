@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SEED_STATIONS } from '../data/stations';
+import { useSubmissionsData } from '../hooks/useSubmissionsData';
 
 const LINE_IMAGE = {
   MACHINE:  '/Machine Shop.jpg',
@@ -13,10 +14,10 @@ const LINE_IMAGE = {
   QA:       '/Quality Inspection & Testing.png',
 };
 
-const LS = {
-  get: (k, fallback = null) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
-  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
-};
+// Any status before "approved" still needs a reviewer's attention —
+// includes a first look (pending_review) and a second pass after "needs
+// further review" or "rejected" was chosen previously.
+const PENDING_STATUSES = ['pending_review', 'pending', 'rejected', ''];
 
 export default function PendingReviews({ onBack, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLines = null, currentUserName = null }) {
   const isDark = theme === 'dark';
@@ -34,19 +35,17 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
   const fm      = "'Inter', system-ui, sans-serif";
   const mono    = "'Inter', system-ui, sans-serif";
 
-  const allPending = LS.get('kmc_pending_reviews', []);
+  const { submissions, loading, reviewSubmission } = useSubmissionsData();
 
   // Filter by role scope: supervisor sees only their assigned stations,
-  // manager sees only their assigned line, director/admin sees everything.
-  const [pending, setPending] = useState(() => {
-    if (role === 'supervisor' && assignedStations?.length) {
-      return allPending.filter(r => assignedStations.includes(r.stationCode));
-    }
-    if (role === 'manager' && assignedLines?.length) {
-      return allPending.filter(r => assignedLines.includes(SEED_STATIONS[r.stationCode]?.line));
-    }
-    return allPending;
+  // director/admin sees everything. Scoped to still-pending items only —
+  // already-approved cards don't belong in this queue.
+  const pending = submissions.filter(r => PENDING_STATUSES.includes(r.approvalStatus)).filter(r => {
+    if (role === 'supervisor' && assignedStations?.length) return assignedStations.includes(r.stationCode);
+    if (role === 'manager' && assignedLines?.length) return assignedLines.includes(SEED_STATIONS[r.stationCode]?.line);
+    return true;
   });
+
   const [selected, setSelected] = useState(null);
   const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   const [saving, setSaving] = useState(false);
@@ -59,29 +58,23 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
     setReviewFields({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   }
 
-  function saveReview() {
+  async function saveReview() {
     if (!reviewFields.approvalStatus) { alert('Select an approval status.'); return; }
     if (!reviewFields.reviewer) { alert('Enter reviewer name.'); return; }
     setSaving(true);
-    const updated = pending.map(p =>
-      p.id === selected.id
-        ? { ...p, approvalStatus: reviewFields.approvalStatus, reviewComments: reviewFields.reviewComments, reviewer: reviewFields.reviewer, reviewDate: new Date().toISOString().slice(0,10) }
-        : p
-    ).filter(p => p.id !== selected.id || reviewFields.approvalStatus === 'pending_review');
 
-    const completedItem = { ...selected, ...reviewFields, reviewDate: new Date().toISOString().slice(0,10) };
-    LS.set('kmc_pending_reviews', updated.filter(p => p.id !== selected.id));
+    const result = await reviewSubmission({
+      recordId: selected.recordId,
+      approvalStatus: reviewFields.approvalStatus,
+      reviewComments: reviewFields.reviewComments,
+      reviewer: reviewFields.reviewer,
+      reviewDate: new Date().toISOString().slice(0, 10),
+    });
 
-    const busLog = LS.get(`kmc_bus_log_${selected.vin}`, []);
-    const updatedLog = busLog.map(s =>
-      s.timestamp === selected.timestamp ? { ...s, ...reviewFields, reviewDate: completedItem.reviewDate } : s
-    );
-    LS.set(`kmc_bus_log_${selected.vin}`, updatedLog);
-
-    setPending(prev => prev.filter(p => p.id !== selected.id));
     setSelected(null);
     setSaving(false);
-    showToast('Review submitted ✓');
+    if (result.ok) showToast('Review submitted ✓');
+    else showToast(`Could not save review: ${result.error || 'unknown error'}`, false);
   }
 
   const inp = { width: '100%', fontSize: 13, padding: '8px 10px', border: `1px solid ${inpBor}`, borderRadius: 4, background: inpBg, color: text, outline: 'none', boxSizing: 'border-box', fontFamily: fm, colorScheme: isDark ? 'dark' : 'light' };
@@ -112,7 +105,11 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
         </div>
       </div>
 
-      {pending.length === 0 && (
+      {loading && pending.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>Loading…</div>
+      )}
+
+      {!loading && pending.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: GR }}>All reviews complete</div>
@@ -190,6 +187,22 @@ export default function PendingReviews({ onBack, theme = 'dark', role = 'supervi
                   <div key={act} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11, borderBottom: `1px solid ${border}` }}>
                     <span style={{ color: muted, maxWidth: '70%' }}>{act}</span>
                     <span style={{ fontFamily: mono, fontSize: 10, color: status === 'complete' ? GR : status === 'issue' ? AM : muted }}>{status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Additional notes (comments + unexpected delay/time lost) */}
+            {(selected.generalComments || selected.unexpectedDelay?.types?.length > 0) && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 10, color: dim, fontFamily: mono, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Additional Notes</div>
+                {selected.generalComments && (
+                  <div style={{ fontSize: 11, color: muted, padding: '5px 0', borderBottom: `1px solid ${border}` }}>{selected.generalComments}</div>
+                )}
+                {selected.unexpectedDelay?.types?.map(t => (
+                  <div key={t} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11, borderBottom: `1px solid ${border}` }}>
+                    <span style={{ color: muted }}>{t}</span>
+                    <span style={{ fontFamily: mono, fontSize: 10, color: AM }}>{selected.unexpectedDelay.ranges?.[t] ? `${selected.unexpectedDelay.ranges[t].replace('-', '–')} min` : 'flagged'}</span>
                   </div>
                 ))}
               </div>

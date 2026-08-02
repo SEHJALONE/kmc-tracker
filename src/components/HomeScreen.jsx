@@ -1,7 +1,8 @@
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onLogout, theme, toggleTheme, role, canAccessTracker = true }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onSelectCostEstimation, onSelectMySubmissions, onLogout, theme, toggleTheme, role, canAccessTracker = true, hasCeeAccess = false }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
   const isSupervisor  = role === 'supervisor';
+  const isGeneralUser = role === 'user';
 
   function SunIcon() {
     return (
@@ -292,6 +293,19 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             </button>
           )}
 
+          {isGeneralUser && onSelectMySubmissions && (
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 4.png' : '/Bus background 2.png'}'), linear-gradient(135deg, #0e7490 0%, #101623 100%)` }}
+              onClick={onSelectMySubmissions}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">My Submissions</div>
+                <div className="home-card-sub">View status · Edit before it's reviewed</div>
+              </div>
+            </button>
+          )}
+
         </div>
       </div>
 
@@ -322,6 +336,25 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
                 </div>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cost Estimations Engineer — machine registry, rates, cost report */}
+      {hasCeeAccess && onSelectCostEstimation && (
+        <div className="home-section">
+          <div className="home-section-heading">Cost Estimations Engineer</div>
+          <div className="home-cards-row">
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 4.png' : '/Bus background 2.png'}'), linear-gradient(135deg, #0f766e 0%, #101623 100%)` }}
+              onClick={onSelectCostEstimation}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">Cost Estimation</div>
+                <div className="home-card-sub">Machines · Rates · Cost report</div>
+              </div>
+            </button>
           </div>
         </div>
       )}

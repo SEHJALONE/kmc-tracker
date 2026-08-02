@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAccessRequests } from '../hooks/useAccessRequests';
+import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 
 const DEPARTMENTS = ['Production', 'Product Development'];
 
@@ -38,13 +39,14 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     fullName: '', email: '', username: '',
     department: '', productionLines: [], position: '',
     password: '', confirmPassword: '', reason: '',
+    preferredStations: [],
   });
   const [showPass, setShowPass] = useState(false);
 
   function set(k, v) {
     setForm(f => {
       const next = { ...f, [k]: v };
-      if (k === 'department') next.productionLines = [];
+      if (k === 'department') { next.productionLines = []; next.preferredStations = []; }
       return next;
     });
   }
@@ -55,8 +57,34 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       productionLines: f.productionLines.includes(line)
         ? f.productionLines.filter(l => l !== line)
         : [...f.productionLines, line],
+      // Dropping a line clears any station picks that belonged only to it
+      preferredStations: f.productionLines.includes(line)
+        ? f.preferredStations.filter(code => stationsByLineLabel[line] ? !stationsByLineLabel[line].some(s => s.code === code) : true)
+        : f.preferredStations,
     }));
   }
+
+  function toggleStationPref(code) {
+    setForm(f => ({
+      ...f,
+      preferredStations: f.preferredStations.includes(code)
+        ? f.preferredStations.filter(c => c !== code)
+        : [...f.preferredStations, code],
+    }));
+  }
+
+  // Only "Production" department lines have a real station catalog
+  // (Product Development lines/divisions aren't in SEED_STATIONS).
+  const stationsByLineLabel = useMemo(() => {
+    const map = {};
+    SEED_LINES.forEach(l => { map[l.label] = []; });
+    Object.entries(SEED_STATIONS).forEach(([code, st]) => {
+      const line = SEED_LINES.find(l => l.id === st.line);
+      if (line) map[line.label].push({ code, name: st.name, order: st.order });
+    });
+    Object.values(map).forEach(arr => arr.sort((a, b) => a.order - b.order));
+    return map;
+  }, []);
 
   const lineOptions = form.department === 'Production'
     ? PRODUCTION_LINES
@@ -84,6 +112,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       department:      form.department,
       productionLines: form.productionLines,
       productionLine:  form.productionLines[0] || '',
+      preferredStations: form.preferredStations,
       position:       form.position.trim(),
       password:       form.password,
       reason:         form.reason.trim(),
@@ -248,6 +277,37 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                 </div>
                 <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
                   {form.productionLines.length} line(s) selected
+                </div>
+              </div>
+            )}
+
+            {/* Preferred station(s) — optional, only for lines with a real
+                station catalog (Production dept). Preselected on the admin's
+                approval screen so they can accept as-is or adjust. */}
+            {form.department === 'Production' && form.productionLines.length > 0 && (
+              <div>
+                <label style={lbl}>Preferred Station(s) <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — helps the admin pre-fill your assignment)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 220, overflowY: 'auto' }}>
+                  {form.productionLines.map(line => (
+                    <div key={line}>
+                      <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: dim, letterSpacing: '0.08em', textTransform: 'uppercase', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>{line}</div>
+                      {(stationsByLineLabel[line] || []).map(s => (
+                        <label key={s.code} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '7px 12px 7px 20px', cursor: 'pointer',
+                          borderBottom: `1px solid ${border}`,
+                          background: form.preferredStations.includes(s.code) ? (isDark ? 'rgba(220,38,38,0.08)' : 'rgba(220,38,38,0.05)') : 'transparent',
+                        }}>
+                          <input type="checkbox" checked={form.preferredStations.includes(s.code)} onChange={() => toggleStationPref(s.code)}
+                            style={{ accentColor: R, width: 13, height: 13 }} />
+                          <span style={{ fontSize: 11, color: form.preferredStations.includes(s.code) ? text : muted }}>{s.code}: {s.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                  {form.preferredStations.length} station(s) selected — leave blank if you're not sure, the admin will assign these.
                 </div>
               </div>
             )}
