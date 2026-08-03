@@ -674,6 +674,44 @@ correctly flagged and preselected on the admin's approval screen → granted
 logged in as that user → confirmed the Cost Estimation card appears on
 their home screen alongside their normal Travel Card access.
 
+## ✅ 2026-08-03, later: found why Vercel was stuck since July
+
+The "station picker not on the live site" chase led to the real answer.
+Vercel's GitHub webhook was never broken (confirmed via the Git settings
+tab — connected since Jun 2, healthy) and it *was* attempting a build on
+every push — but every deployment since **`8ced4b5` (Jul 27)** failed at
+build time in ~8-13s, so Vercel kept serving that Jul 27 build as
+production while 60+ commits piled up on `main` unnoticed. The user's
+Vercel Deployments tab made this obvious once we looked at it directly —
+`Error` status on every recent row, `Ready`+"Production" badge still on
+the Jul 27 one.
+
+**Root cause**: `App.jsx` has imported `./components/CostEstimation`
+since an earlier session that built the Machine Cost Database module, but
+`CostEstimation.jsx` (and its `useMachineCostData.js` hook) were never
+actually `git add`ed — sitting as untracked local-only files this whole
+time. Every build off `main` failed with `Could not resolve
+"./components/CostEstimation"`. Confirmed via `npm run build` locally
+(succeeds, because the untracked files are still present on disk) vs.
+checking `git ls-files` (they were never tracked) — the gap only shows up
+building from a clean git checkout, which is exactly what Vercel does and
+local dev never did.
+
+**Also fixed while adding them**: `CostEstimation.jsx` imported `{ LINES,
+STATIONS }` from `data/stations.js`, which only exports
+`SEED_LINES`/`SEED_STATIONS` — the Cost Estimation screen would have
+crashed on render (`Cannot read properties of undefined`) the moment it
+actually reached production. Renamed to the real exports; verified live
+in the browser as `kmc.cee` — the Machines tab now renders its full
+station picker with no console errors.
+
+**Lesson for future sessions**: when a component was built in an earlier
+session and works locally, don't assume it's committed — `git status`
+showing it as `??` (untracked) is easy to miss among genuinely-unrelated
+pre-existing changes. `npm run build` locally proves nothing about
+deployability if the missing file is sitting right there on disk; the
+real test is whatever `git ls-files` says, or a build from a fresh clone.
+
 ## Architecture quick reference
 
 Three Google Sheets in play, deliberately separate:
