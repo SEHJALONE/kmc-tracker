@@ -712,6 +712,33 @@ pre-existing changes. `npm run build` locally proves nothing about
 deployability if the missing file is sitting right there on disk; the
 real test is whatever `git ls-files` says, or a build from a fresh clone.
 
+## ✅ 2026-08-03, later still: CEE tab redesign + Daily Activities Log
+
+- **`CostEstimation.jsx` restyled** to match the rest of the app —
+  banner-image header with back button/title/subtitle (Machine Shop.jpg),
+  system color palette (`rgba(7,9,15,0.92)` bg, `rgba(13,21,38,0.90)` card,
+  etc., same as `PendingReviews.jsx`/`DailyFleetLog.jsx`). Functionality
+  untouched — same Machines/Rates/Report tabs, same actions.
+- **New: Daily Activities Log** (`DailyActivitiesLog.jsx` +
+  `useBusSightings.js` + `bus_sightings` sheet tab + `saveBusSighting_`/
+  `deleteBusSighting_` Apps Script actions). Supervisor-only, HomeScreen
+  card next to Daily Fleet Log. Deliberately **not** derived from Travel
+  Card data — the point is an independent record a supervisor can log
+  themselves (project, VIN, line, station, optional time, their own name)
+  so it can be used as an honest cross-check on Travel Card, not just an
+  echo of it. Multiple sightings per bus per day are expected (it moves
+  through stations); rows for the same VIN at >1 station on the same day
+  get a "MOVED" badge in the table as a quick visual flag. No "time left"
+  field — just a sighting snapshot, time is optional.
+
+Verified live end-to-end: logged a real sighting, confirmed it landed in
+`bus_sightings`, deleted it, confirmed the delete round-tripped too.
+
+**Learned from the Vercel outage earlier today** — before committing,
+explicitly checked every new/changed file's imports resolve to something
+that will *also* be in the same commit (not just present on disk), since
+that's exactly the gap that broke deployment for a month.
+
 ## Architecture quick reference
 
 Three Google Sheets in play, deliberately separate:

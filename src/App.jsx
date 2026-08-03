@@ -25,6 +25,7 @@ import DailyFleetLog from './components/DailyFleetLog';
 import CostEstimation from './components/CostEstimation';
 import MySubmissions from './components/MySubmissions';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
+import DailyActivitiesLog from './components/DailyActivitiesLog';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -285,6 +286,7 @@ export default function App() {
       onSelectDailyFleetLog={() => setMode('daily-fleet-log')}
       onSelectCostEstimation={() => setMode('cost-estimation')}
       onSelectMySubmissions={() => setMode('my-submissions')}
+      onSelectDailyActivitiesLog={() => setMode('daily-activities-log')}
       role={role}
       canAccessTracker={canAccessTracker}
       hasCeeAccess={hasCeeAccess}
@@ -324,6 +326,14 @@ export default function App() {
       currentUserName={currentUserName}
       onBack={() => setMode('home')}
       onEdit={(submission) => { setEditingSubmission(submission); setMode('travelcard'); }}
+    />
+  );
+
+  if (mode === 'daily-activities-log') return (
+    <DailyActivitiesLog
+      theme={theme}
+      currentUserName={currentUserName}
+      onBack={() => setMode('home')}
     />
   );
 

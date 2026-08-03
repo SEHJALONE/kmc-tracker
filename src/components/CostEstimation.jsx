@@ -24,14 +24,14 @@ function buildStationOptions() {
 
 export default function CostEstimation({ theme = 'dark', onBack }) {
   const isDark = theme === 'dark';
-  const bg     = isDark ? '#05070a'                : '#eef0f3';
-  const card   = isDark ? '#0d1117'                : '#ffffff';
+  const bg     = isDark ? 'rgba(7,9,15,0.92)'     : 'rgba(255,255,255,0.97)';
+  const card   = isDark ? 'rgba(13,21,38,0.90)'    : '#fff';
   const text   = isDark ? '#e2e8f0'                : '#1e293b';
   const muted  = isDark ? '#94a3b8'                : '#475569';
   const dim    = isDark ? '#64748b'                : '#94a3b8';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.09)';
   const inpBg  = isDark ? '#0d1526'                : '#f8fafc';
-  const inpBor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.14)';
+  const inpBor = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)';
   const R = '#dc2626', GR = '#10b981', AM = '#f59e0b', BL = '#3498db';
   const C = { bg, card, text, muted, dim, border, inpBg, inpBor, R, GR, AM, BL };
 
@@ -43,17 +43,33 @@ export default function CostEstimation({ theme = 'dark', onBack }) {
 
   return (
     <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22, maxWidth: 1100 }}>
-        <button onClick={onBack} style={{ background: card, border: `1px solid ${border}`, color: text, borderRadius: 6, padding: '7px 14px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>
-          ← Back
-        </button>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cost Estimation</div>
-          <div style={{ fontSize: 10, color: dim, letterSpacing: '0.06em', marginTop: 2 }}>Machine registry · rate history · cost report — Cost Estimations Engineer</div>
+      {/* Banner */}
+      <div style={{
+        width: '100%', maxWidth: 1100, height: 140, borderRadius: 10, overflow: 'hidden',
+        marginBottom: 28, position: 'relative',
+        backgroundImage: `url('/Machine Shop.jpg')`,
+        backgroundSize: 'cover', backgroundPosition: 'center 40%',
+      }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.82) 0%, rgba(7,9,15,0.35) 60%, transparent 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14 }}>
+          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 14px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>
+            ← Back
+          </button>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>Cost Estimation</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Machine registry · rate history · cost report — Cost Estimations Engineer</div>
+          </div>
+          {data.error && (
+            <div style={{ marginLeft: 'auto', background: 'rgba(245,158,11,0.2)', color: AM, border: `1px solid ${AM}55`, borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
+              ⚠ {data.error}
+            </div>
+          )}
+          {!data.error && data.loading && (
+            <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
+              Syncing…
+            </div>
+          )}
         </div>
-        {data.error && (
-          <div style={{ marginLeft: 'auto', fontSize: 11, color: AM }}>⚠ {data.error}</div>
-        )}
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, maxWidth: 1100, borderBottom: `1px solid ${border}` }}>
@@ -66,7 +82,6 @@ export default function CostEstimation({ theme = 'dark', onBack }) {
             fontFamily: fm, letterSpacing: '0.04em', marginBottom: -1,
           }}>{label}</button>
         ))}
-        {data.loading && <span style={{ marginLeft: 'auto', fontSize: 10, color: dim, alignSelf: 'center' }}>Syncing…</span>}
       </div>
 
       <div style={{ maxWidth: 1100 }}>

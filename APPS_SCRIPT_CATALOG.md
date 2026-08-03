@@ -214,6 +214,12 @@ function doPost(e) {
     // the same action. See updateSubmission_ below.
     if (data && data.action === "updateSubmission") return updateSubmission_(data);
 
+    // ── Daily Activities Log (Bus Sightings) — supervisor's own independent
+    // record of "bus X was at station Y on day Z", deliberately NOT derived
+    // from Travel Card data, so it can be used to cross-check it.
+    if (data && data.action === "saveBusSighting")   return saveBusSighting_(data);
+    if (data && data.action === "deleteBusSighting") return deleteBusSighting_(data);
+
     // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
@@ -863,6 +869,46 @@ function updateSubmission_(d) {
   }
   return response({ status: "error", message: "not-found" });
 }
+
+// ── Daily Activities Log (Bus Sightings) ──────────────────────────────────
+// A supervisor's own, independently-entered record of "bus X was at station
+// Y on day Z, roughly at time T" — deliberately separate from the
+// submissions tab (which records completed station WORK, not sightings) so
+// it can be used as an honest cross-check against Travel Card entries
+// rather than just echoing them back. Multiple sightings per bus per day
+// are expected as it moves through stations — this is a log, not a
+// single "current position" record.
+const BUS_SIGHTINGS_HEADERS = [
+  "record_id", "date", "project", "vin", "bus_model",
+  "line", "station", "station_code", "time",
+  "logged_by", "created_at",
+];
+function saveBusSighting_(d) {
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = getOrCreate(ss, "bus_sightings", BUS_SIGHTINGS_HEADERS);
+  const id = Utilities.getUuid();
+  sh.appendRow([
+    id, d.date || today_(), d.project || "", d.vin || "", d.busModel || "",
+    d.line || "", d.station || "", d.stationCode || "", d.time || "",
+    d.loggedBy || "", new Date().toISOString(),
+  ]);
+  return response({ status: "ok", id });
+}
+function deleteBusSighting_(d) {
+  if (!d.id) return response({ status: "error", message: "missing-id" });
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const sh = ss.getSheetByName("bus_sightings");
+  if (!sh) return response({ status: "error", message: "no-sheet" });
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(d.id)) {
+      sh.deleteRow(i + 1);
+      return response({ status: "ok" });
+    }
+  }
+  return response({ status: "error", message: "not-found" });
+}
+function today_() { return new Date().toISOString().slice(0, 10); }
 
 // ── Password hashing (DynamicUsers only — AccessRequests intentionally stays
 // plaintext, since the approval UI reads it once to relay the password to
