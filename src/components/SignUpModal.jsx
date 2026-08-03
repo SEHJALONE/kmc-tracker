@@ -39,7 +39,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     fullName: '', email: '', username: '',
     department: '', productionLines: [], position: '',
     password: '', confirmPassword: '', reason: '',
-    preferredStations: [],
+    preferredStations: [], ceeInterest: false,
   });
   const [showPass, setShowPass] = useState(false);
 
@@ -113,6 +113,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       productionLines: form.productionLines,
       productionLine:  form.productionLines[0] || '',
       preferredStations: form.preferredStations,
+      ceeInterest:    form.ceeInterest,
       position:       form.position.trim(),
       password:       form.password,
       reason:         form.reason.trim(),
@@ -311,6 +312,27 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                 </div>
               </div>
             )}
+
+            {/* Cost Estimations Engineer — a supplementary access grant, not
+                tied to any one department/line, so it's offered to everyone. */}
+            <div>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.ceeInterest}
+                  onChange={() => set('ceeInterest', !form.ceeInterest)}
+                  style={{ accentColor: R, width: 13, height: 13, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 12, color: text }}>I also need Cost Estimations Engineer (CEE) access</span>
+              </label>
+              <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                Machine/staff/energy cost rates and reporting — separate from your main role above.
+              </div>
+            </div>
 
             {/* Password + Confirm */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

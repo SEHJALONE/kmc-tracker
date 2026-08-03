@@ -626,6 +626,54 @@ computed from Travel Card labour data + the new `Cost Inputs`/`Daily Meter
 Readings` tabs, currently 0 pending real rate values. `Workshop Supplies per
 Unit` and `Cost of Using the Production System` still have no data source.)*
 
+## ✅ 2026-08-03: CEE access request flow + DynamicUsers header bug
+
+User reported general users couldn't specify stations at sign-up (turned
+out to be a stale Vercel deployment — the code fix from 2026-08-02 was on
+`main` but hadn't built live yet; confirmed by testing kmc-tracker.vercel.app
+directly and seeing no station picker there while it worked locally) and
+asked whether CEE (Cost Estimations Engineer) could be requested through
+the normal Access Request flow. It couldn't — added it:
+
+- **`SignUpModal.jsx`**: "I also need Cost Estimations Engineer (CEE)
+  access" checkbox, independent of department/role — CEE is supplementary,
+  not tied to a production line. Sent as `ceeInterest` → new
+  `cee_interest` column on `AccessRequests`.
+- **`AccessRequests.jsx`**: shows "Applicant also requested CEE access" and
+  preselects a new "Cost Estimations Engineer (CEE) access" checkbox in the
+  grant form (next to "Bus Tracker access") — admin can still add/remove
+  before granting. Sets `roles: ['cee']` on the created user, same
+  supplementary-role mechanism `kmc.super` already demonstrates.
+
+**Second real bug found while verifying this live**: granted a test user
+with CEE checked, and `listDynamicUsers` came back with `roles: []` despite
+the checkbox being on and the value actually being written. Root cause:
+**`DynamicUsers`'s header row was missing labels for columns 17-18
+(`can_access_tracker`, `roles`) entirely** — same "`getOrCreate` doesn't add
+columns to a tab that already exists" issue that hit `submissions` and
+`AccessRequests` earlier, except this one predates this session (HANDOVER's
+very first version already flagged "roles column needs to be added by
+hand" — it seems nobody ever actually did it). Confirmed via direct cell
+inspection: real data (`"YES"`, `["cee"]`) was sitting in columns 17-18 for
+the row just created, but the header cells there were blank, so any
+*header-name-based* lookup — including **`updateDynamicUser_`'s write
+guard** (`if (colIdx > -1) sh.getRange(...)`) — silently failed to find
+those columns. This means **the per-user Bus Tracker access toggle and any
+role edit in `UserManagement.jsx` have been no-ops for existing users this
+whole time**, not just at creation. Fixed by setting the header cells
+directly to `can_access_tracker`/`roles` at their actual data columns
+(17/18) — this only relabels going forward, doesn't touch existing data.
+**Worth spot-checking**: re-verify any past "I toggled Bus Tracker access
+off for someone" or "I added a supplementary role to an existing user" — if
+it was through `UserManagement.jsx`'s edit screen rather than fresh account
+creation, it likely didn't actually take effect until now.
+
+Verified live end-to-end: submitted a real CEE-interest request → saw it
+correctly flagged and preselected on the admin's approval screen → granted
+→ confirmed `roles: ["cee"]` actually persisted (after the header fix) →
+logged in as that user → confirmed the Cost Estimation card appears on
+their home screen alongside their normal Travel Card access.
+
 ## Architecture quick reference
 
 Three Google Sheets in play, deliberately separate:

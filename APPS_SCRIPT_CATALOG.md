@@ -92,6 +92,10 @@ const ACCESS_REQUESTS_HEADERS = [
   // admin's Access Requests screen preselects these on open, and can still
   // add/remove before approving. Appended at the end, existing rows unaffected.
   "preferred_stations",
+  // Applicant flagged interest in CEE (Cost Estimations Engineer) access —
+  // a supplementary role granted independent of the primary role, same as
+  // "preferred_stations" this is a hint the admin can act on or ignore.
+  "cee_interest",
 ];
 
 const DYNAMIC_USERS_TAB = "DynamicUsers";
@@ -946,6 +950,7 @@ function submitAccessRequest_(payload) {
     d.reason || "", d.status || "pending", d.submittedAt || new Date().toISOString(),
     "", "", "",
     JSON.stringify(d.preferredStations || []),
+    d.ceeInterest ? "YES" : "NO",
   ]);
   return response({ status: "ok", id });
 }
@@ -969,6 +974,7 @@ function listAccessRequests_() {
       position: col(r, "position") || "",
       password: col(r, "password") || "",
       preferredStations: jsonArr(col(r, "preferred_stations")),
+      ceeInterest: col(r, "cee_interest") === "YES",
       reason: col(r, "reason") || "",
       status: col(r, "status") || "pending",
       submittedAt: col(r, "submitted_at") || "",
