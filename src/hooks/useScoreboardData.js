@@ -167,14 +167,17 @@ export function parseLineMonthly(grid) {
 // lines can drift out of sync with the sheet's own formulas (seen live:
 // Calc showed 0/45 for all four while the sheet's own overall Achievement %
 // was 56%), so this recomputes "how many buses are Done" directly from the
-// same raw grid the per-line monthly chart already trusts. Not period-sliced
-// — a bus stays counted once done, same "exempt from period filtering"
-// convention as the Overall Progress cards.
+// same raw grid the per-line monthly chart already trusts. `done`/`target`
+// are cumulative (program-to-date, not period-sliced) — the default when no
+// manual target is set for a line. `tasks` carries each unit's dates so the
+// UI can re-slice to any period once a target IS set (see Scoreboard.jsx's
+// lineWorkshops) and can sum Planned vs Actual for the scheduled period.
 export function parseLineCompletion(grid) {
   const rows = grid.slice(1).filter(r => r[1]);
   const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
   const out = {};
-  relevantCols.forEach(w => { out[w.name] = { done: 0, target: 0, totalUnits: rows.length }; });
+  relevantCols.forEach(w => { out[w.name] = { done: 0, target: 0, totalUnits: rows.length, tasks: [] }; });
+  const iso = d => d ? d.toISOString().slice(0, 10) : null;
   rows.forEach(r => {
     relevantCols.forEach(w => {
       const status = (r[w.base + 4] || '').trim().toLowerCase();
@@ -185,7 +188,14 @@ export function parseLineCompletion(grid) {
       if (/^n\/?a$/.test(status) || status.includes('not applicable')) return;
       const entry = out[w.name];
       entry.target += 1;
-      if (status.includes('done') || status.includes('complete')) entry.done += 1;
+      const done = status.includes('done') || status.includes('complete');
+      if (done) entry.done += 1;
+      entry.tasks.push({
+        planStart: iso(parseTrackerDate(planStart)),
+        planEnd: iso(parseTrackerDate(planEnd)),
+        actualEnd: iso(parseTrackerDate(r[w.base + 3])),
+        done,
+      });
     });
   });
   return out;
