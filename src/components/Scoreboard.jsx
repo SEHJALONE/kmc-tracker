@@ -131,6 +131,17 @@ const SAMPLE = {
     { name: 'Trim & Final Assembly', done: 16, due: 40, na: 0, pct: 0.36, status: 'DELAYED', constraint: 'None' },
     { name: 'Quality Inspection & Testing', done: 0, due: 0, na: 0, pct: 0, status: 'ON TRACK', constraint: 'None' },
   ],
+  lineCompletion: {
+    'Trim & Final Assembly': { done: 16, target: 40, totalUnits: 45 },
+    'Chassis Production Line 02': { done: 20, target: 45, totalUnits: 45 },
+    'Paint Shop': { done: 21, target: 45, totalUnits: 45 },
+    'Frame & Body Welding': { done: 28, target: 45, totalUnits: 45 },
+  },
+  machineCostRows: [
+    { id: 'm1', stationCode: 'WLD-01', activity: 'Welding', machineName: 'MIG Welder A', rate: 12000, costK: 5760 },
+    { id: 'm2', stationCode: 'PNT-01', activity: 'Spraying', machineName: 'Paint Booth 1', rate: 9000, costK: 4320 },
+    { id: 'm3', stationCode: 'CHS-02', activity: 'Assembly', machineName: 'Chassis Jig B', rate: 6000, costK: 2880 },
+  ],
   daily: [
     { date: 'Wed 1 Jul', planned: 2, actual: 1, cumPlan: 2, cumAct: 1, gap: -1 },
     { date: 'Thu 2 Jul', planned: 1, actual: 0, cumPlan: 3, cumAct: 1, gap: -2 },
@@ -383,39 +394,39 @@ function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = 
   );
 }
 
-// Actual output only (no planned comparison — this is the sole output chart
-// on the board per request, so it just reports what happened).
+// Cumulative throughput is a running total of buses manufactured over a
+// period — a line, not discrete bars, so the trend of the running count
+// actually reads as a trend. Points come pre-filtered to whatever window the
+// caller wants (e.g. the selected range).
 function CumChart({ daily }) {
   const C = useC();
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumAct != null);
-  if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet.</div>;
+  if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet in this range.</div>;
   const dataMax = Math.max(...pts.map(d => d.cumAct), 1);
   const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
-  const bw = (w - padL - padR) / pts.length;
-  const pw = Math.max(1, bw * 0.6);
-  const yFor = v => h - padB - (v / niceMax) * (h - padB - padT);
-  const y0 = yFor(0);
+  const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
+  const y = v => h - padB - (v / niceMax) * (h - padB - padT);
+  const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.cumAct).toFixed(1)}`).join(' ');
+  const showEvery = Math.max(1, Math.ceil(pts.length / 8));
   return (
-    <div style={{ position: 'relative' }}>
+    <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual (cum.)</span>
+        <span><span style={{ display: 'inline-block', width: 9, height: 2, background: C.green, marginRight: 4, verticalAlign: 'middle' }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
-        {pts.map((d, i) => {
-          const x0 = padL + i * bw;
-          return (
-            <g key={i}>
-              <path d={barPath(x0 + (bw - pw) / 2, yFor(d.cumAct), pw, Math.max(0, y0 - yFor(d.cumAct)), 2)} fill={C.green} />
-              {i % Math.ceil(pts.length / 8) === 0 && (
-                <text x={x0 + bw / 2} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
-                  {String(d.date).split(' ').slice(-2).join(' ')}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        <path d={path} fill="none" stroke={C.green} strokeWidth="2.5" />
+        {pts.map((p, i) => (
+          <g key={i}>
+            {(i % showEvery === 0 || i === pts.length - 1) && <circle cx={x(i)} cy={y(p.cumAct)} r="3" fill={C.green} />}
+            {i % showEvery === 0 && (
+              <text x={x(i)} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
+                {String(p.date).split(' ').slice(-2).join(' ')}
+              </text>
+            )}
+          </g>
+        ))}
       </svg>
     </div>
   );
@@ -622,6 +633,52 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
   );
 }
 
+// ── Range & per-line target selector — mirrors the "⚙ Set Targets" panel in
+// the standalone workbook view (public/dpn-scoreboard-workbook.html): a date
+// range that drives the "selected range" Planned vs Actual chart, plus an
+// optional manual target override per line (blank = auto, computed from the
+// Tracker). Not captured in exports — rendered outside the Page refs.
+function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
+  const C = useC();
+  const field = { background: C.navy, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: '6px 9px', fontSize: 12, fontFamily: 'inherit' };
+  const label = { fontSize: 9, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' };
+  return (
+    <div style={{
+      maxWidth: PAGE_WIDTH, margin: '0 auto 10px', background: C.panel, border: `1px solid ${C.border}`,
+      borderRadius: 8, padding: 14, boxShadow: C.shadow,
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, color: C.text }}>
+        Selected Range &amp; Line Targets
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12, alignItems: 'flex-end' }}>
+        <div><span style={label}>Range Start</span>
+          <input type="date" style={field} value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))} />
+        </div>
+        <div><span style={label}>Range End</span>
+          <input type="date" style={field} value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))} />
+        </div>
+        <button
+          onClick={() => setLineTargets({})}
+          style={{ background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey, borderRadius: 4, padding: '7px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}
+        >Clear Targets</button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {LINE_WORKSHOPS.map(lw => (
+          <div key={lw.dataName}>
+            <span style={label}>{lw.display} target</span>
+            <input
+              type="number" min="0" style={{ ...field, width: '100%', boxSizing: 'border-box' }}
+              placeholder="auto"
+              value={lineTargets[lw.dataName] ?? ''}
+              onChange={e => setLineTargets(t => ({ ...t, [lw.dataName]: e.target.value }))}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Header (shared by all pages) ─────────────────────────────────
 function BoardHeader({ raw }) {
   const C = useC();
@@ -657,11 +714,30 @@ function Page({ innerRef, children }) {
 // ── Main component ──────────────────────────────────────────────
 const PAGE_WIDTH = 1320;
 
+function defaultRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
+}
+
 function ScoreboardInner() {
   const C = useC();
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [range, setRange] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('kmc_scoreboard_range') || 'null');
+      if (saved?.start && saved?.end) return saved;
+    } catch { /* ignore malformed storage */ }
+    return defaultRange();
+  });
+  const [lineTargets, setLineTargets] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kmc_scoreboard_targets') || '{}'); } catch { return {}; }
+  });
+  useEffect(() => { localStorage.setItem('kmc_scoreboard_range', JSON.stringify(range)); }, [range]);
+  useEffect(() => { localStorage.setItem('kmc_scoreboard_targets', JSON.stringify(lineTargets)); }, [lineTargets]);
   const pageRefs = [useRef(null), useRef(null), useRef(null)];
 
   const live = !!data;
@@ -762,11 +838,43 @@ function ScoreboardInner() {
   ];
 
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
+  // Done/target come straight from the Tracker (d.lineCompletion), not the
+  // Calc tab's workshop table — Calc's rows for these 4 lines can drift out
+  // of sync with the sheet's own formulas (seen live: 0/45 for all four
+  // while Achievement % read 56%). Status/constraint still come from Calc
+  // when available since those are more free-form ("ON TRACK"/"AT RISK"/
+  // "DELAYED" + a constraint note), falling back to a pct-based guess.
+  // Manual target override (Range & Line Targets panel) wins when set.
   const lineWorkshops = LINE_WORKSHOPS.map(lw => {
-    const w = d.workshops.find(x => x.name === lw.dataName) || { done: 0, due: 0, na: 0, pct: 0, status: null, constraint: '—' };
-    return { ...w, name: lw.dataName, display: lw.display };
+    const calcRow = d.workshops.find(x => x.name === lw.dataName);
+    const comp = d.lineCompletion?.[lw.dataName] || { done: 0, target: 0 };
+    const overrideTarget = Number(lineTargets[lw.dataName]);
+    const target = overrideTarget > 0 ? overrideTarget : (comp.target || 1);
+    const pct = target ? comp.done / target : 0;
+    const status = calcRow?.status || (pct >= 0.9 ? 'ON TRACK' : pct >= 0.6 ? 'AT RISK' : 'DELAYED');
+    return { name: lw.dataName, display: lw.display, done: comp.done, target, pct, status, constraint: calcRow?.constraint || '—' };
   });
-  const currentMonthLabel = new Date().toLocaleString('en-US', { month: 'long' });
+
+  // Range selector applies to exactly one graph — the selected-range Planned
+  // vs Actual chart. Daily Output rows (already day-granular with real Date
+  // objects) windowed to the picked range.
+  const rangeStartDate = range.start ? new Date(`${range.start}T00:00:00`) : null;
+  const rangeEndDate = range.end ? new Date(`${range.end}T23:59:59`) : null;
+  const rangeDaily = (d.daily || [])
+    .filter(x => x.dateObj && (!rangeStartDate || x.dateObj >= rangeStartDate) && (!rangeEndDate || x.dateObj <= rangeEndDate))
+    .map(x => ({ label: x.date, planned: x.planned, actual: x.actual }));
+
+  // Cumulative throughput (whole program, never range-sliced) — a running
+  // sum of buses actually built. Built off the monthly Planned vs Actual
+  // series (d.overallMonthly) rather than the Daily Output tab: that tab is
+  // often sparse/incomplete, while the monthly actuals come straight off the
+  // Tracker's own Actual End dates, so they're the more reliably-available
+  // data to sum. Each month's actual count just adds onto the running total.
+  let cumRunning = 0;
+  const cumulativeMonthly = (d.overallMonthly || []).map(m => {
+    cumRunning += m.actual || 0;
+    return { date: m.label, cumAct: cumRunning };
+  });
 
   const btn = {
     background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey,
@@ -782,12 +890,16 @@ function ScoreboardInner() {
       backgroundImage: `${C.overlay}, url('/Bus background 3.png')`,
       backgroundSize: 'cover', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
     }}>
-      {/* toolbar (not captured in exports) */}
+      {/* toolbar + range/target selector (neither captured in exports) */}
       <ScoreboardToolbar
         live={live} loading={loading} error={error} lastUpdated={lastUpdated}
         refresh={refresh} exportPNG={exportPNG} exportPDF={exportPDF}
         exporting={exporting} setEmailOpen={setEmailOpen} btn={btn}
+        selectorOpen={selectorOpen} setSelectorOpen={setSelectorOpen}
       />
+      {selectorOpen && (
+        <RangeTargetPanel range={range} setRange={setRange} lineTargets={lineTargets} setLineTargets={setLineTargets} />
+      )}
 
       {/* ═══════════ PAGE 1 — Overview ═══════════ */}
       <Page innerRef={pageRefs[0]}>
@@ -828,7 +940,7 @@ function ScoreboardInner() {
                 )}
               </div>
               <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.display}</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: '2px 0 6px' }}>{w.done} / {45 - (w.na || 0)}</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: '2px 0 6px' }}>{w.done} / {w.target}</div>
               <Donut pct={w.pct} color={wsColor(w.status)} size={92} />
             </div>
           ))}
@@ -852,14 +964,20 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        {/* Cumulative Throughput is the sole output chart — actual only, no planned comparison */}
-        <Panel title={`Cumulative Throughput (May to ${currentMonthLabel})`}>
-          <CumChart daily={d.daily} />
-        </Panel>
-
-        <Panel title="Planned vs Actual — by Month (whole program)">
-          <MonthlyPlanActualChart points={d.overallMonthly} />
-        </Panel>
+        {/* Whole-program Planned vs Actual, whole-program Cumulative Throughput
+            (never range-sliced), and the Selected Range Planned vs Actual —
+            the range picker above only ever applies to this third one. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <Panel title="Planned vs Actual — by Month (whole program)">
+            <MonthlyPlanActualChart points={d.overallMonthly} />
+          </Panel>
+          <Panel title="Cumulative Throughput (whole program)">
+            <CumChart daily={cumulativeMonthly} />
+          </Panel>
+          <Panel title={`Planned vs Actual — Selected Range (${range.start} to ${range.end})`}>
+            <MonthlyPlanActualChart points={rangeDaily} />
+          </Panel>
+        </div>
 
         <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -909,6 +1027,20 @@ function ScoreboardInner() {
 
         <Panel title="Operational Cost per Line">
           <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+        </Panel>
+
+        {/* Cost Estimations Engineer's own per-machine ranking (same figures
+            as CostEstimation.jsx's Report tab — rate × Available Hours),
+            surfaced here so the CEE's costing is visible on the scoreboard
+            itself, not just inside the CEE module. */}
+        <Panel title="Machine Cost Ranking (Cost Estimations Engineer)">
+          <MiniTable
+            headers={['Machine', 'Station', 'Activity', 'Rate (UGX/hr)', "Cost (UGX '000)"]}
+            rows={(d.machineCostRows || []).slice(0, 8).map(r => [
+              r.machineName || r.id, r.stationCode || '—', r.activity || '—', fint(r.rate), fint(r.costK),
+            ])}
+            empty="No machine rates set yet — add them in Cost Estimation."
+          />
         </Panel>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -964,7 +1096,7 @@ function ScoreboardInner() {
           here. Labour cost is a cross-sheet read of the Travel Card's
           operators+submissions tabs, not this workbook. */}
       <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
-        Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Labour cost is derived from Travel Card staff-on-duty records × the <b>Cost Inputs</b> tab's hourly rate; Energy cost from the <b>Environment</b> tab's latest logged month × the Energy Tariff Rate. Cost figures show 0 until <b>Cost Inputs</b> rates are set to real values. Safety/Quality/Environment/Bottlenecks/ECR/Waste all have real registers now — they'll populate as rows are logged in those tabs.
+        Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role) — a rate change never rewrites past costing. Cost figures show 0 until real rates are set. Safety/Quality/Environment/Bottlenecks/ECR/Waste all have real registers now — they'll populate as rows are logged in those tabs.
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
@@ -972,7 +1104,7 @@ function ScoreboardInner() {
   );
 }
 
-function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, btn }) {
+function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, btn, selectorOpen, setSelectorOpen }) {
   const C = useC();
   const { theme, toggleTheme } = useContext(ThemeToggleCtx);
   return (
@@ -983,6 +1115,10 @@ function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportP
           : `Showing sample data${error ? ` — ${error}` : ''}`}
       </span>
       <div style={{ flex: 1 }} />
+      <button
+        style={{ ...btn, borderColor: selectorOpen ? C.red : C.grey, color: selectorOpen ? C.red : C.grey }}
+        onClick={() => setSelectorOpen(o => !o)}
+      >⚙ {selectorOpen ? 'Hide' : 'Set'} Range &amp; Targets</button>
       <button style={btn} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         <span style={{ marginLeft: 6 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>

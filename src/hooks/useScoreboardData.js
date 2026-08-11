@@ -161,6 +161,36 @@ export function parseLineMonthly(grid) {
   return { byLine, overallMonthly: byLine['Trim & Final Assembly'] || [] };
 }
 
+// ── Per-line cumulative completion, straight from the Tracker grid — used
+// instead of the Calc tab's own workshop-status table for the 4 reported
+// lines' "done / applicable" cards. Calc's per-workshop rows for these 4
+// lines can drift out of sync with the sheet's own formulas (seen live:
+// Calc showed 0/45 for all four while the sheet's own overall Achievement %
+// was 56%), so this recomputes "how many buses are Done" directly from the
+// same raw grid the per-line monthly chart already trusts. Not period-sliced
+// — a bus stays counted once done, same "exempt from period filtering"
+// convention as the Overall Progress cards.
+export function parseLineCompletion(grid) {
+  const rows = grid.slice(1).filter(r => r[1]);
+  const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
+  const out = {};
+  relevantCols.forEach(w => { out[w.name] = { done: 0, target: 0, totalUnits: rows.length }; });
+  rows.forEach(r => {
+    relevantCols.forEach(w => {
+      const status = (r[w.base + 4] || '').trim().toLowerCase();
+      const planStart = r[w.base], planEnd = r[w.base + 1];
+      // No status and no plan dates at all = this workshop doesn't apply to
+      // this unit (e.g. a bus model that skips a line) — don't count it.
+      if (!status && !planStart && !planEnd) return;
+      if (/^n\/?a$/.test(status) || status.includes('not applicable')) return;
+      const entry = out[w.name];
+      entry.target += 1;
+      if (status.includes('done') || status.includes('complete')) entry.done += 1;
+    });
+  });
+  return out;
+}
+
 // ── Calc tab: pre-computed by the spreadsheet itself — a workshop-status
 // table (rows) followed by a flat label/value KPI dump (one pair per row,
 // grouped under blank-valued section headers like "OVERALL / OBJECTIVE 1").
@@ -222,7 +252,7 @@ export function parseDailyOutput(grid) {
     const actual = r[2] !== undefined && r[2] !== '' ? toNum(r[2]) : null;
     const cumAct = r[4] !== undefined && r[4] !== '' ? toNum(r[4]) : null;
     out.push({
-      date: dailyLabel(d), planned: toNum(r[1]) || 0, actual,
+      date: dailyLabel(d), dateObj: d, planned: toNum(r[1]) || 0, actual,
       cumPlan: toNum(r[3]) || 0, cumAct, gap: toNum(r[5]),
     });
   }
@@ -374,18 +404,57 @@ function headerIndex(grid, name) {
   return grid[0].findIndex(h => h.trim().toLowerCase() === name);
 }
 
-// ── Cost Inputs tab: Setting | Value | Unit | Notes ─────────────────────────
-export function parseCostInputs(grid) {
-  const rows = grid.slice(1);
-  const find = (label) => {
-    const r = rows.find(r => (r[0] || '').trim().toLowerCase() === label);
-    return r ? toNum(r[1]) : null;
-  };
-  return {
-    staffHourlyRate: find('staff hourly rate') || 0,
-    machineHourlyRate: find('machine hourly rate') || 0,
-    energyTariffRate: find('energy tariff rate') || 0,
-  };
+// ── Machine Cost Database (main sheet, cross-sheet like operators/
+// submissions): machines + time-bounded rate history for machines/staff/
+// energy. Supersedes the old flat "Cost Inputs" tab (DPN Scoreboard sheet,
+// no history) — a rate change here never rewrites past costing, because
+// resolveRateAsOf always picks whichever entry was actually in force on a
+// given date.
+export function parseMachines(grid) {
+  const idxId = headerIndex(grid, 'record_id');
+  const idxStation = headerIndex(grid, 'station_code');
+  const idxActive = headerIndex(grid, 'active');
+  const idxName = headerIndex(grid, 'machine_name');
+  const idxActivity = headerIndex(grid, 'activity');
+  if (idxId < 0) return [];
+  return grid.slice(1)
+    .filter(r => r[idxId] && (idxActive < 0 || String(r[idxActive]).toUpperCase() !== 'FALSE'))
+    .map(r => ({
+      id: r[idxId], stationCode: idxStation >= 0 ? r[idxStation] || null : null,
+      machineName: idxName >= 0 ? r[idxName] || null : null,
+      activity: idxActivity >= 0 ? r[idxActivity] || null : null,
+    }));
+}
+
+export function parseRateHistory(grid, rateColName) {
+  const idxId = headerIndex(grid, 'record_id');
+  const idxMachine = headerIndex(grid, 'machine_id');
+  const idxRate = headerIndex(grid, rateColName);
+  const idxFrom = headerIndex(grid, 'valid_from');
+  const idxTo = headerIndex(grid, 'valid_to');
+  if (idxId < 0 || idxRate < 0) return [];
+  return grid.slice(1)
+    .filter(r => r[idxId])
+    .map(r => ({
+      machineId: idxMachine >= 0 ? r[idxMachine] : null,
+      rate: toNum(r[idxRate]),
+      validFrom: idxFrom >= 0 ? r[idxFrom] || null : null,
+      validTo: idxTo >= 0 ? r[idxTo] || null : null,
+    }));
+}
+
+// Picks whichever rate row applies "as of" a date (ISO YYYY-MM-DD — matches
+// the <input type=date> values the Cost Estimation UI writes) — the most
+// recent entry whose valid_from is on/before that date and whose valid_to is
+// either blank (open-ended) or on/after it.
+export function resolveRateAsOf(rateRows, asOf, machineId = null) {
+  const pool = machineId == null ? rateRows : rateRows.filter(r => r.machineId === machineId);
+  const applicable = pool.filter(r =>
+    r.rate != null && r.validFrom && r.validFrom <= asOf && (!r.validTo || r.validTo >= asOf)
+  );
+  if (!applicable.length) return null;
+  applicable.sort((a, b) => (a.validFrom < b.validFrom ? -1 : 1));
+  return applicable[applicable.length - 1].rate;
 }
 
 // ── Labour cost: cross-sheet read of the Travel Card's operators + submissions
@@ -449,12 +518,19 @@ export function useScoreboardData() {
       const [
         targetsGrid, trackerGrid, dailyOutputGrid, downtimeGrid, bottlenecksGrid,
         qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, kaizenGrid, calcGrid,
-        costInputsGrid, operatorsGrid, submissionsGrid,
+        machinesGrid, machineRatesGrid, staffRatesGrid, energyRatesGrid,
+        operatorsGrid, submissionsGrid,
       ] = await Promise.all([
         fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'), fetchTab('Downtime'),
         fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'), fetchTab('ECR'),
         fetchTab('Cost'), fetchTab('Waste'), fetchTab('Kaizen'), fetchTab('Calc'),
-        fetchTabSoft(TAB_URL, 'Cost Inputs'),
+        // Machine Cost Database — lives on the main sheet (Cost Estimation
+        // module writes here via Apps Script), soft-fetched since it may not
+        // exist yet on a given deployment.
+        fetchTabSoft(TRAVEL_TAB_URL, 'machines'),
+        fetchTabSoft(TRAVEL_TAB_URL, 'machine_rates'),
+        fetchTabSoft(TRAVEL_TAB_URL, 'staff_rates'),
+        fetchTabSoft(TRAVEL_TAB_URL, 'energy_rates'),
         fetchTabSoft(TRAVEL_TAB_URL, 'operators'),
         fetchTabSoft(TRAVEL_TAB_URL, 'submissions'),
       ]);
@@ -470,25 +546,64 @@ export function useScoreboardData() {
       const waste = parseRegisterRows(wasteGrid, r => (r[0] || '').trim() === 'Date' && /waste type/i.test(r[1] || ''));
       const kaizen = parseRegisterRows(kaizenGrid, r => (r[0] || '').trim() === 'Date' && /kaizen idea/i.test(r[1] || ''));
       const costKv = parseCost(costGrid);
-      const costInputs = parseCostInputs(costInputsGrid);
-      const labour = parseLabourCost(operatorsGrid, submissionsGrid, costInputs.staffHourlyRate);
       const lineMonthly = parseLineMonthly(trackerGrid);
+      const lineCompletion = parseLineCompletion(trackerGrid);
+
+      // ── Cost model: Labour + Energy + Machine, all from time-bounded rate
+      // history (Cost Estimation module) instead of a flat un-dated value.
+      const asOf = new Date().toISOString().slice(0, 10);
+      const machines = parseMachines(machinesGrid);
+      const machineRates = parseRateHistory(machineRatesGrid, 'rate_ugx_per_hour');
+      const staffRateRows = parseRateHistory(staffRatesGrid, 'rate_ugx_per_hour');
+      const energyRateRows = parseRateHistory(energyRatesGrid, 'rate_ugx_per_kwh');
+      const staffHourlyRate = resolveRateAsOf(staffRateRows, asOf) || 0;
+      const energyTariffRate = resolveRateAsOf(energyRateRows, asOf) || 0;
+      const availableHours = calcKv['Available Hours']?.num || targetsKv['Total Available Production Hours (period)']?.num || 0;
+
+      const labour = parseLabourCost(operatorsGrid, submissionsGrid, staffHourlyRate);
+
+      // Machine Cost — absorption costing: rate × Available Hours for the
+      // period, same hours for every machine at a station regardless of
+      // which one actually ran (Travel Card only tracks station, not
+      // individual machine — see Cost Estimation > Report tab's own note).
+      let machineCostTotal = 0;
+      const machineCostByLine = {};
+      // Per-machine breakdown — the Cost Estimations Engineer's own ranking
+      // (same shape as CostEstimation.jsx's Report tab), surfaced on the
+      // scoreboard rather than staying CEE-module-only.
+      const machineCostRows = [];
+      machines.forEach(m => {
+        const rate = resolveRateAsOf(machineRates, asOf, m.id);
+        if (rate == null) return;
+        const cost = rate * availableHours;
+        machineCostTotal += cost;
+        machineCostRows.push({ id: m.id, stationCode: m.stationCode, activity: m.activity, machineName: m.machineName, rate, cost });
+        const lineId = m.stationCode ? STATIONS[m.stationCode]?.line : null;
+        const workshopName = lineId ? LINE_ID_TO_WORKSHOP[lineId] : null;
+        if (workshopName) machineCostByLine[workshopName] = (machineCostByLine[workshopName] || 0) + cost;
+      });
+      machineCostRows.sort((a, b) => b.cost - a.cost);
+      // Same UGX '000 convention as the rest of the cost cards.
+      const machineCostRowsK = machineCostRows.map(r => ({ ...r, costK: r.cost / 1000 }));
 
       // The Cost tab's own figures are in UGX '000 (see Cost!F3) — divide our
       // raw-UGX computations by 1000 so every cost card on the board shares
       // one unit and isn't off by 1000x next to the manually-entered ones.
-      const energyCostK = (latestKwh * costInputs.energyTariffRate) / 1000;
+      const energyCostK = (latestKwh * energyTariffRate) / 1000;
       const labourTotalK = labour.totalCost / 1000;
-      const productionOperationalCostK = labourTotalK + energyCostK;
+      const machineCostTotalK = machineCostTotal / 1000;
+      const productionOperationalCostK = labourTotalK + energyCostK + machineCostTotalK;
 
       const costKvExtra = {
         'Labour Cost': { raw: String(labourTotalK), num: labourTotalK || costKv['Labour Cost']?.num || 0 },
+        'Machine Cost': { raw: String(machineCostTotalK), num: machineCostTotalK },
         'Production Operational Cost': { raw: String(productionOperationalCostK), num: productionOperationalCostK },
         'Total Production Cost': { raw: String(productionOperationalCostK), num: productionOperationalCostK },
       };
       for (const name of LINE_WORKSHOP_NAMES) {
-        const k = (labour.byLine[name] || 0) / 1000;
-        costKvExtra[`Operational Cost — ${name}`] = { raw: String(k), num: k };
+        const labourK = (labour.byLine[name] || 0) / 1000;
+        const machineK = (machineCostByLine[name] || 0) / 1000;
+        costKvExtra[`Operational Cost — ${name}`] = { raw: String(labourK + machineK), num: labourK + machineK };
       }
 
       setData({
@@ -499,6 +614,8 @@ export function useScoreboardData() {
           ...costKvExtra,
         },
         workshops,
+        lineCompletion,
+        machineCostRows: machineCostRowsK,
         daily,
         bottlenecks,
         kaizen,
