@@ -170,14 +170,20 @@ export function parseLineMonthly(grid) {
 // same raw grid the per-line monthly chart already trusts. `done`/`target`
 // are cumulative (program-to-date, not period-sliced) — the default when no
 // manual target is set for a line. `tasks` carries each unit's dates so the
-// UI can re-slice to any period once a target IS set (see Scoreboard.jsx's
+// UI can re-slice to whatever range is selected (see Scoreboard.jsx's
 // lineWorkshops) and can sum Planned vs Actual for the scheduled period.
 export function parseLineCompletion(grid) {
   const rows = grid.slice(1).filter(r => r[1]);
   const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
   const out = {};
   relevantCols.forEach(w => { out[w.name] = { done: 0, target: 0, totalUnits: rows.length, tasks: [] }; });
-  const iso = d => d ? d.toISOString().slice(0, 10) : null;
+  // Local date parts, NOT toISOString() — the tracker's dates are calendar
+  // days with no timezone, and toISOString() converts to UTC, which shifts
+  // every date back a day in any UTC+ zone (Kampala is UTC+3), silently
+  // putting units in the wrong period at range boundaries.
+  const iso = d => d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    : null;
   rows.forEach(r => {
     relevantCols.forEach(w => {
       const status = (r[w.base + 4] || '').trim().toLowerCase();

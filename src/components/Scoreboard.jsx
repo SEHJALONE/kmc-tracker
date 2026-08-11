@@ -516,53 +516,24 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   );
 }
 
-// Range/task-date helpers — plain 'YYYY-MM-DD' strings sort/compare
-// correctly as-is, no Date parsing needed here.
-const inRange = (iso, start, end) => !!iso && (!start || iso >= start) && (!end || iso <= end);
+// Does a unit's plan window touch the selected range? Plain 'YYYY-MM-DD'
+// strings compare correctly as-is, so no Date parsing is needed here.
 const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
   !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
 
-// Two-slice pie — Planned vs Actual, summed across every reported line
-// ("progress made per part") for the scheduled period. Donut is reused
-// elsewhere for a single %; this one needs two independent slices.
-function PlannedActualPie({ planned, actual, size = 130 }) {
+// Planned vs Actual for the scheduled period, drawn exactly like the
+// by-shop line cards: buses-done / planned-total above, a % ring below.
+function PlannedActualPie({ planned, actual, size = 110 }) {
   const C = useC();
-  const r = size / 2 - 4, cx = size / 2, cy = size / 2, hole = r * 0.55;
-  const total = planned + actual;
-  const legend = (
-    <div style={{ fontSize: 10, color: C.grey, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.blue, marginRight: 6, borderRadius: 2 }} />Planned: {planned}</span>
-      <span><span style={{ display: 'inline-block', width: 9, height: 9, background: C.green, marginRight: 6, borderRadius: 2 }} />Actual: {actual}</span>
+  const pct = planned ? actual / planned : 0;
+  const color = pct >= 0.9 ? C.green : pct >= 0.6 ? C.amber : C.red;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0' }}>
+      <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{actual} / {planned}</div>
+      <Donut pct={pct} color={color} size={size} />
+      <div style={{ fontSize: 9, color: C.grey }}>buses completed / planned</div>
     </div>
   );
-  if (total === 0) {
-    return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No progress logged in this range yet.</div>;
-  }
-  const slice = (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {planned === 0 || actual === 0 ? (
-        <circle cx={cx} cy={cy} r={r} fill={planned === 0 ? C.green : C.blue} />
-      ) : (
-        <>
-          {(() => {
-            const frac = planned / total, angle = frac * 2 * Math.PI;
-            const x1 = cx, y1 = cy - r, x2 = cx + r * Math.sin(angle), y2 = cy - r * Math.cos(angle);
-            const largeArc = angle > Math.PI ? 1 : 0;
-            return (
-              <>
-                <path d={`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`} fill={C.blue} />
-                <path d={`M${cx},${cy} L${x2},${y2} A${r},${r} 0 ${1 - largeArc} 1 ${x1},${y1} Z`} fill={C.green} />
-              </>
-            );
-          })()}
-        </>
-      )}
-      <circle cx={cx} cy={cy} r={hole} fill={C.panel} />
-      <text x={cx} y={cy - 3} textAnchor="middle" fontSize="15" fontWeight="800" fill={C.text}>{actual}/{planned}</text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fontSize="7.5" fill={C.grey}>actual / planned</text>
-    </svg>
-  );
-  return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>{slice}{legend}</div>;
 }
 
 // Generic monthly trend line — used for FPY%.
@@ -894,46 +865,43 @@ function ScoreboardInner() {
   // when available since those are more free-form ("ON TRACK"/"AT RISK"/
   // "DELAYED" + a constraint note), falling back to a pct-based guess.
   //
-  // Once a manual target is set for a line (Range & Line Targets panel), its
-  // pie switches from cumulative program-to-date to the selected period:
-  // done = units of that line completed inside the range, target = what was
-  // typed in. No target set = stays cumulative, same as before.
+  // The selected range ALWAYS drives these pies — they report the period,
+  // not program-to-date. Per line: actual = units completed with an Actual
+  // End inside the range; planned = units whose Plan Start–Plan End window
+  // overlaps the range. A manual target (Range & Line Targets panel) only
+  // overrides the denominator; it is NOT what switches on period-slicing.
+  // Falls back to cumulative totals only when per-unit task dates aren't
+  // available (sample data, or a Tracker parse that yielded no dates).
   const lineWorkshops = LINE_WORKSHOPS.map(lw => {
     const calcRow = d.workshops.find(x => x.name === lw.dataName);
     const comp = d.lineCompletion?.[lw.dataName] || { done: 0, target: 0, tasks: [] };
+    const tasks = comp.tasks || [];
+    // Cohort = the units this line was SCHEDULED to work on in the range
+    // (its plan window overlaps the range); actual = how many of that same
+    // cohort are Done. Holding numerator and denominator to one cohort is
+    // what keeps the card inside 0-100%: counting "completed in the window"
+    // against "planned in the window" mixes two different populations and
+    // overshoots, because units planned earlier finish late — on live data
+    // that read 12 / 1 (1200%) for Chassis Line 02 over Jul-Aug.
+    const cohort = tasks.length > 0
+      ? tasks.filter(t => rangesOverlap(t.planStart, t.planEnd, range.start, range.end))
+      : null;
+    const done = cohort ? cohort.filter(t => t.done).length : comp.done;
+    const plannedInRange = cohort ? cohort.length : comp.target;
     const overrideTarget = Number(lineTargets[lw.dataName]);
-    const periodMode = overrideTarget > 0;
-    const done = periodMode
-      ? (comp.tasks || []).filter(t => t.done && inRange(t.actualEnd, range.start, range.end)).length
-      : comp.done;
-    const target = periodMode ? overrideTarget : (comp.target || 1);
+    const target = overrideTarget > 0 ? overrideTarget : plannedInRange;
     const pct = target ? done / target : 0;
     const status = calcRow?.status || (pct >= 0.9 ? 'ON TRACK' : pct >= 0.6 ? 'AT RISK' : 'DELAYED');
-    return { name: lw.dataName, display: lw.display, done, target, pct, status, constraint: calcRow?.constraint || '—', periodMode };
+    return { name: lw.dataName, display: lw.display, done, target, pct, status, constraint: calcRow?.constraint || '—' };
   });
 
-  // Range selector applies to exactly one bar/line graph — the selected-range
-  // Planned vs Actual chart. Daily Output rows (already day-granular with
-  // real Date objects) windowed to the picked range.
-  const rangeStartDate = range.start ? new Date(`${range.start}T00:00:00`) : null;
-  const rangeEndDate = range.end ? new Date(`${range.end}T23:59:59`) : null;
-  const rangeDaily = (d.daily || [])
-    .filter(x => x.dateObj && (!rangeStartDate || x.dateObj >= rangeStartDate) && (!rangeEndDate || x.dateObj <= rangeEndDate))
-    .map(x => ({ label: x.date, planned: x.planned, actual: x.actual }));
-
-  // Planned vs Actual for the scheduled period, as a pie — summed across
-  // every reported line's own task list ("progress made per part"), not the
-  // Daily Output tab. Planned = a line's task whose Plan Start–Plan End
-  // window overlaps the range; Actual = that line's tasks actually marked
-  // Done with an Actual End inside the range.
-  const periodPartsTotals = LINE_WORKSHOPS.reduce((acc, lw) => {
-    const tasks = d.lineCompletion?.[lw.dataName]?.tasks || [];
-    tasks.forEach(t => {
-      if (rangesOverlap(t.planStart, t.planEnd, range.start, range.end)) acc.planned += 1;
-      if (t.done && inRange(t.actualEnd, range.start, range.end)) acc.actual += 1;
-    });
-    return acc;
-  }, { planned: 0, actual: 0 });
+  // Planned vs Actual for the scheduled period, as a pie — summed straight
+  // off the per-line cards above ("progress made per part"), so the total
+  // always agrees with the four line pies instead of being derived twice.
+  const periodPartsTotals = lineWorkshops.reduce(
+    (acc, w) => ({ planned: acc.planned + w.target, actual: acc.actual + w.done }),
+    { planned: 0, actual: 0 },
+  );
 
   // Cumulative throughput (whole program, never range-sliced) — a running
   // sum of buses actually built. Built off the monthly Planned vs Actual
@@ -996,8 +964,10 @@ function ScoreboardInner() {
           </div>
         </div>
 
-        {/* Production Line Status — 4 core assembly-line workshops as scorecards */}
-        <SectionLabel>Production Line Status</SectionLabel>
+        {/* Production Line Status — 4 core assembly-line workshops as
+            scorecards, scoped to the selected range (labelled so a reader
+            never mistakes a period figure for a program-to-date one) */}
+        <SectionLabel>Production Line Status — {range.start} to {range.end}</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           {lineWorkshops.map(w => (
             <div key={w.name} style={{
@@ -1035,10 +1005,10 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        {/* Whole-program Planned vs Actual, whole-program Cumulative Throughput
-            (never range-sliced), and the Selected Range Planned vs Actual —
-            the range picker above only ever applies to the latter two. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+        {/* Two whole-program charts plus the selected-range pie. The range
+            picker drives the pie (and the line-status cards on page 1); the
+            first two are deliberately program-wide. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           <Panel title="Planned vs Actual — by Month (whole program)">
             <MonthlyPlanActualChart points={d.overallMonthly} />
           </Panel>
@@ -1046,9 +1016,6 @@ function ScoreboardInner() {
             <CumChart daily={cumulativeMonthly} />
           </Panel>
           <Panel title={`Planned vs Actual — Selected Range (${range.start} to ${range.end})`}>
-            <MonthlyPlanActualChart points={rangeDaily} />
-          </Panel>
-          <Panel title="Planned vs Actual — Selected Range (by Part)">
             <PlannedActualPie planned={periodPartsTotals.planned} actual={periodPartsTotals.actual} />
           </Panel>
         </div>
