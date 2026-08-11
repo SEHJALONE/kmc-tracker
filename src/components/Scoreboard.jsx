@@ -516,14 +516,18 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   );
 }
 
-// Does a unit's plan window touch the selected range? Plain 'YYYY-MM-DD'
-// strings compare correctly as-is, so no Date parsing is needed here.
+// Date helpers — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
+// Date parsing is needed here. `rangesOverlap` asks whether a unit's plan
+// window touches the range; `inRange` whether a single dated event falls in it.
 const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
   !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
+const inRange = (iso, start, end) => !!iso && (!start || iso >= start) && (!end || iso <= end);
 
 // Planned vs Actual for the scheduled period, drawn exactly like the
 // by-shop line cards: buses-done / planned-total above, a % ring below.
-function PlannedActualPie({ planned, actual, size = 110 }) {
+// The ring saturates at full, so beating plan reads as a complete ring and
+// the real figure is spelled out underneath rather than silently clipped.
+function PlannedActualPie({ planned, actual, caption, size = 110 }) {
   const C = useC();
   const pct = planned ? actual / planned : 0;
   const color = pct >= 0.9 ? C.green : pct >= 0.6 ? C.amber : C.red;
@@ -531,7 +535,10 @@ function PlannedActualPie({ planned, actual, size = 110 }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0' }}>
       <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{actual} / {planned}</div>
       <Donut pct={pct} color={color} size={size} />
-      <div style={{ fontSize: 9, color: C.grey }}>buses completed / planned</div>
+      <div style={{ fontSize: 9, color: C.grey, textAlign: 'center', lineHeight: 1.45 }}>
+        {caption}
+        {pct > 1 && <><br /><b style={{ color: C.green }}>{Math.round(pct * 100)}% of plan</b></>}
+      </div>
     </div>
   );
 }
@@ -903,6 +910,20 @@ function ScoreboardInner() {
     { planned: 0, actual: 0 },
   );
 
+  // Throughput for the same window — deliveries actually dated inside it,
+  // against the deliveries the plan called for. Deliberately a different
+  // question from the cohort pie above: this counts buses finished during
+  // the window no matter when they were scheduled, so units that ran late
+  // land here in the period they were really completed. It can exceed 100%
+  // when a backlog is cleared (live data: 46 delivered vs 17 due Jul-Aug).
+  const periodThroughput = LINE_WORKSHOPS.reduce((acc, lw) => {
+    (d.lineCompletion?.[lw.dataName]?.tasks || []).forEach(t => {
+      if (inRange(t.planEnd, range.start, range.end)) acc.planned += 1;
+      if (t.done && inRange(t.actualEnd, range.start, range.end)) acc.actual += 1;
+    });
+    return acc;
+  }, { planned: 0, actual: 0 });
+
   // Cumulative throughput (whole program, never range-sliced) — a running
   // sum of buses actually built. Built off the monthly Planned vs Actual
   // series (d.overallMonthly) rather than the Daily Output tab: that tab is
@@ -1005,10 +1026,11 @@ function ScoreboardInner() {
           </Panel>
         </div>
 
-        {/* Two whole-program charts plus the selected-range pie. The range
-            picker drives the pie (and the line-status cards on page 1); the
-            first two are deliberately program-wide. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        {/* Two whole-program charts plus the two selected-range pies. The
+            range picker drives both pies (and the line-status cards on page
+            1); the first two charts are deliberately program-wide. The pies
+            answer different questions — see their captions. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           <Panel title="Planned vs Actual — by Month (whole program)">
             <MonthlyPlanActualChart points={d.overallMonthly} />
           </Panel>
@@ -1016,7 +1038,16 @@ function ScoreboardInner() {
             <CumChart daily={cumulativeMonthly} />
           </Panel>
           <Panel title={`Planned vs Actual — Selected Range (${range.start} to ${range.end})`}>
-            <PlannedActualPie planned={periodPartsTotals.planned} actual={periodPartsTotals.actual} />
+            <PlannedActualPie
+              planned={periodPartsTotals.planned} actual={periodPartsTotals.actual}
+              caption="of the buses scheduled in this range, how many are done"
+            />
+          </Panel>
+          <Panel title={`Throughput — Selected Range (${range.start} to ${range.end})`}>
+            <PlannedActualPie
+              planned={periodThroughput.planned} actual={periodThroughput.actual}
+              caption="buses finished in this range / due in this range"
+            />
           </Panel>
         </div>
 
