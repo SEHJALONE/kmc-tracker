@@ -207,6 +207,66 @@ export function parseLineCompletion(grid) {
   return out;
 }
 
+// ── Tracker tab → one record per bus, for the Production Report's "buses
+// produced" table. Columns 0-3 are the unit's identity (row no. | Full VIN |
+// Unit | Batch) and the last three are roll-ups the sheet computes itself
+// (Max Delay | Bus Status | Cycle (d)); the trailing three are located by
+// header name rather than a fixed index because the workshop block in
+// between is what tends to grow. `completedOn` is the LAST actual end across
+// all 8 workshops — the date the bus actually rolled off, which no single
+// column holds. `ws` carries the plan/actual window per reported line, which
+// is what the monthly Production Process Time Analysis report measures
+// working days from (Annex A and every process-time table are built off it).
+export function parseBusUnits(grid) {
+  if (!grid.length) return [];
+  const header = grid[0].map(h => (h || '').trim().toLowerCase());
+  const col = (re, fallback) => {
+    const i = header.findIndex(h => re.test(h));
+    return i === -1 ? fallback : i;
+  };
+  const idxVin = col(/^full vin$/, 1);
+  const idxUnit = col(/^unit$/, 2);
+  const idxBatch = col(/^batch$/, 3);
+  const idxStatus = col(/^bus status$/, 54);
+  const idxCycle = col(/^cycle/, 55);
+  const idxDelay = col(/^max delay/, 53);
+  const iso = d => d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    : null;
+
+  return grid.slice(1).filter(r => r[idxVin] || r[idxUnit]).map((r, i) => {
+    let last = null;
+    WORKSHOP_COLS.forEach(w => {
+      const d = parseTrackerDate(r[w.base + 3]);
+      if (d && (!last || d > last)) last = d;
+    });
+    const ws = {};
+    WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name)).forEach(w => {
+      ws[w.name] = {
+        planStart: iso(parseTrackerDate(r[w.base])),
+        planEnd: iso(parseTrackerDate(r[w.base + 1])),
+        actualStart: iso(parseTrackerDate(r[w.base + 2])),
+        actualEnd: iso(parseTrackerDate(r[w.base + 3])),
+        status: (r[w.base + 4] || '').trim(),
+      };
+    });
+    const status = (r[idxStatus] || '').trim();
+    return {
+      no: toNum(r[0]) ?? i + 1,
+      vin: (r[idxVin] || '').trim(),
+      unit: (r[idxUnit] || '').trim(),
+      batch: (r[idxBatch] || '').trim(),
+      status,
+      done: /done|complete/i.test(status),
+      cycleDays: toNum(r[idxCycle]),
+      maxDelay: toNum(r[idxDelay]),
+      completedOn: iso(last),
+      completedLabel: last ? shortDate(last) : '',
+      ws,
+    };
+  });
+}
+
 // ── Calc tab: pre-computed by the spreadsheet itself — a workshop-status
 // table (rows) followed by a flat label/value KPI dump (one pair per row,
 // grouped under blank-valued section headers like "OVERALL / OBJECTIVE 1").
@@ -564,6 +624,7 @@ export function useScoreboardData() {
       const costKv = parseCost(costGrid);
       const lineMonthly = parseLineMonthly(trackerGrid);
       const lineCompletion = parseLineCompletion(trackerGrid);
+      const busUnits = parseBusUnits(trackerGrid);
 
       // ── Cost model: Labour + Energy + Machine, all from time-bounded rate
       // history (Cost Estimation module) instead of a flat un-dated value.
@@ -631,6 +692,7 @@ export function useScoreboardData() {
         },
         workshops,
         lineCompletion,
+        busUnits,
         machineCostRows: machineCostRowsK,
         daily,
         bottlenecks,

@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, createContext, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData } from '../hooks/useScoreboardData';
+import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
+import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
 
 // ── Theme-aware palettes ──────────────────────────────────────────────────
 // Scoreboard keeps its own theme state (separate from the rest of the app —
@@ -13,16 +15,20 @@ const PALETTES = {
     bg: '#05070a', panel: '#0d1117', border: '#1c2330', red: '#e0292b',
     navy: '#101623', green: '#2ecc71', amber: '#f2a900', blue: '#3498db',
     grey: '#8a93a3', text: '#eef1f6', rowAlt: '#0a0f16',
-    header: '#000000', track: '#1c2330', rowBorder: '#131a24',
-    overlay: 'linear-gradient(rgba(5,7,10,0.90), rgba(5,7,10,0.96))',
+    header: '#000000', headerAlt: '#171f2e', track: '#1c2330', rowBorder: '#131a24',
+    greenDeep: '#0f5c37', greenLite: '#7ee2a8', blueDeep: '#1d4f7c',
+    gridline: 'rgba(255,255,255,0.13)', progressText: '#04210f',
+    overlay: 'linear-gradient(rgba(5,7,10,0.62), rgba(5,7,10,0.93))',
     shadow: '0 2px 6px rgba(0,0,0,0.3)', shadowLg: '0 20px 60px rgba(0,0,0,0.5)',
   },
   light: {
     bg: '#eef0f3', panel: '#ffffff', border: '#d8dce2', red: '#c81e20',
     navy: '#eef1f5', green: '#1e8449', amber: '#b8790a', blue: '#2563a8',
     grey: '#5c6572', text: '#12161c', rowAlt: '#f6f7f9',
-    header: '#14181f', track: '#dfe3e8', rowBorder: '#e6e9ee',
-    overlay: 'linear-gradient(rgba(238,240,243,0.90), rgba(238,240,243,0.96))',
+    header: '#14181f', headerAlt: '#2b3442', track: '#dfe3e8', rowBorder: '#e6e9ee',
+    greenDeep: '#10502f', greenLite: '#54c489', blueDeep: '#17466f',
+    gridline: 'rgba(0,0,0,0.10)', progressText: '#ffffff',
+    overlay: 'linear-gradient(rgba(238,240,243,0.70), rgba(238,240,243,0.94))',
     shadow: '0 2px 6px rgba(0,0,0,0.08)', shadowLg: '0 16px 40px rgba(0,0,0,0.12)',
   },
 };
@@ -152,6 +158,38 @@ const SAMPLE = {
     { date: 'Wed 8 Jul', planned: 2, actual: 0, cumPlan: 9, cumAct: 3, gap: -6 },
     { date: 'Thu 9 Jul', planned: 1, actual: 1, cumPlan: 10, cumAct: 4, gap: -6 },
     { date: 'Fri 10 Jul', planned: 1, actual: 0, cumPlan: 11, cumAct: 4, gap: -7 },
+  ],
+  busUnits: [
+    {
+      no: 1, vin: 'BUKBHZ6A8TJ000029', unit: '7m KEV 01', batch: '1', status: 'Done', done: true,
+      cycleDays: 34, maxDelay: 2, completedOn: '2026-07-24', completedLabel: '24 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-01', actualEnd: '2026-07-09' },
+        'Paint Shop': { actualStart: '2026-07-10', actualEnd: '2026-07-17' },
+        'Chassis Production Line 02': { actualStart: '2026-07-20', actualEnd: '2026-07-20' },
+        'Trim & Final Assembly': { actualStart: '2026-07-21', actualEnd: '2026-07-24' },
+      },
+    },
+    {
+      no: 2, vin: 'BUKBHZ6A8TJ000030', unit: '7m KEV 02', batch: '1', status: 'Done', done: true,
+      cycleDays: 31, maxDelay: 0, completedOn: '2026-07-31', completedLabel: '31 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-06', actualEnd: '2026-07-14' },
+        'Paint Shop': { actualStart: '2026-07-15', actualEnd: '2026-07-21' },
+        'Chassis Production Line 02': { actualStart: '2026-07-22', actualEnd: '2026-07-23' },
+        'Trim & Final Assembly': { actualStart: '2026-07-24', actualEnd: '2026-07-31' },
+      },
+    },
+    {
+      no: 3, vin: 'BUKBHZ6A8TJ000031', unit: '7m KEV 03', batch: '1', status: 'In Production', done: false,
+      cycleDays: null, maxDelay: 5, completedOn: '2026-07-28', completedLabel: '28 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-13', actualEnd: '2026-07-24' },
+        'Paint Shop': { actualStart: '2026-07-27', actualEnd: '2026-07-28' },
+        'Chassis Production Line 02': {},
+        'Trim & Final Assembly': {},
+      },
+    },
   ],
   bottlenecks: [], kaizen: [], ecr: [], waste: [],
   fpyTrend: [
@@ -360,6 +398,27 @@ function barPath(x, y, w, h, r = 4) {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 }
 
+// Vertical bar gradient (solid at the cap, fading toward the baseline) and the
+// matching area-under-line wash. Both live in one <defs> helper so every chart
+// gets the same treatment, and both are plain SVG gradients — html2canvas
+// serialises inline SVG faithfully, unlike the CSS gradients it drops.
+function BarGradient({ id, color }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={color} stopOpacity="1" />
+      <stop offset="100%" stopColor={color} stopOpacity="0.42" />
+    </linearGradient>
+  );
+}
+function AreaGradient({ id, color }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={color} stopOpacity="0.34" />
+      <stop offset="100%" stopColor={color} stopOpacity="0" />
+    </linearGradient>
+  );
+}
+
 // Solid baseline + a small circle marker per category, evoking a timeline —
 // used by the monthly bar charts (Downtime, Planned vs Actual, Output by Line).
 function AxisTimeline({ C, y0, padL, padR, w, positions }) {
@@ -400,6 +459,7 @@ function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = 
 // caller wants (e.g. the selected range).
 function CumChart({ daily }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumAct != null);
   if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet in this range.</div>;
@@ -408,18 +468,22 @@ function CumChart({ daily }) {
   const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
   const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.cumAct).toFixed(1)}`).join(' ');
+  const area = `${path} L${x(pts.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
   const showEvery = Math.max(1, Math.ceil(pts.length / 8));
+  const last = pts.length - 1;
   return (
     <div>
       <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
         <span><span style={{ display: 'inline-block', width: 9, height: 2, background: C.green, marginRight: 4, verticalAlign: 'middle' }} />Actual (cum.)</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <defs><AreaGradient id={`ca${uid}`} color={C.green} /></defs>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
-        <path d={path} fill="none" stroke={C.green} strokeWidth="2.5" />
+        <path d={area} fill={`url(#ca${uid})`} stroke="none" />
+        <path d={path} fill="none" stroke={C.green} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <g key={i}>
-            {(i % showEvery === 0 || i === pts.length - 1) && <circle cx={x(i)} cy={y(p.cumAct)} r="3" fill={C.green} />}
+            {(i % showEvery === 0 || i === last) && <circle cx={x(i)} cy={y(p.cumAct)} r="3" fill={C.panel} stroke={C.green} strokeWidth="2" />}
             {i % showEvery === 0 && (
               <text x={x(i)} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
                 {String(p.date).split(' ').slice(-2).join(' ')}
@@ -427,6 +491,12 @@ function CumChart({ daily }) {
             )}
           </g>
         ))}
+        {/* the running total is the number that matters — call out the last point */}
+        <circle cx={x(last)} cy={y(pts[last].cumAct)} r="5.5" fill={C.green} opacity="0.22" />
+        <circle cx={x(last)} cy={y(pts[last].cumAct)} r="3.2" fill={C.green} />
+        <text x={x(last)} y={y(pts[last].cumAct) - 9} fontSize="9.5" fill={C.text} textAnchor="middle" fontWeight="800">
+          {pts[last].cumAct}
+        </text>
       </svg>
     </div>
   );
@@ -437,6 +507,7 @@ function CumChart({ daily }) {
 // it's a bar chart, not a line, per request.
 function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   if (!points || points.length === 0) {
     return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet — add rows to the Monthly Downtime Log tab.</div>;
   }
@@ -448,12 +519,16 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const y0 = yFor(0);
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <defs><BarGradient id={`mb${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} />
       {points.map((p, i) => {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
           <g key={i}>
-            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))} fill={color} />
+            {/* faint full-height ghost so short bars still read against the scale */}
+            <path d={barPath(x0 + bw * 0.25, padT, pw, Math.max(0, y0 - padT))} fill={C.gridline} />
+            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))}
+              fill={`url(#mb${uid})`} stroke={color} strokeWidth="0.6" />
             <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="9" fill={C.text} textAnchor="middle" fontWeight="800">{fmt(p.value)}</text>
           </g>
         );
@@ -470,6 +545,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
 // production timeline (no slicing to a recent window).
 function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   const pts = (points || []).filter(p => p.planned != null || p.actual != null);
   if (pts.length === 0) {
     return <div style={{ color: C.grey, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly data yet.</div>;
@@ -487,17 +563,23 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
         <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
       </div>
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <defs>
+          <BarGradient id={`pp${uid}`} color={C.blue} />
+          <BarGradient id={`pa${uid}`} color={C.green} />
+        </defs>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle} />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
           const planned = d.planned || 0;
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))} fill={C.blue} />
+              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))}
+                fill={`url(#pp${uid})`} stroke={C.blue} strokeWidth="0.6" />
               {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{planned}</text>}
               {d.actual != null && (
                 <>
-                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))} fill={C.green} />
+                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))}
+                    fill={`url(#pa${uid})`} stroke={C.green} strokeWidth="0.6" />
                   {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{d.actual}</text>}
                 </>
               )}
@@ -516,36 +598,16 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   );
 }
 
-// Date helpers — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
-// Date parsing is needed here. `rangesOverlap` asks whether a unit's plan
-// window touches the range; `inRange` whether a single dated event falls in it.
+// Date helper — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
+// Date parsing is needed here. Asks whether a unit's plan window touches the
+// selected range.
 const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
   !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
-const inRange = (iso, start, end) => !!iso && (!start || iso >= start) && (!end || iso <= end);
-
-// Planned vs Actual for the scheduled period, drawn exactly like the
-// by-shop line cards: buses-done / planned-total above, a % ring below.
-// The ring saturates at full, so beating plan reads as a complete ring and
-// the real figure is spelled out underneath rather than silently clipped.
-function PlannedActualPie({ planned, actual, caption, size = 110 }) {
-  const C = useC();
-  const pct = planned ? actual / planned : 0;
-  const color = pct >= 0.9 ? C.green : pct >= 0.6 ? C.amber : C.red;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0' }}>
-      <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{actual} / {planned}</div>
-      <Donut pct={pct} color={color} size={size} />
-      <div style={{ fontSize: 9, color: C.grey, textAlign: 'center', lineHeight: 1.45 }}>
-        {caption}
-        {pct > 1 && <><br /><b style={{ color: C.green }}>{Math.round(pct * 100)}% of plan</b></>}
-      </div>
-    </div>
-  );
-}
 
 // Generic monthly trend line — used for FPY%.
 function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   if (!points || points.length < 2) {
     return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
   }
@@ -556,13 +618,16 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const x = i => padL + i * ((w - padL - padR) / (points.length - 1));
   const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const area = `${path} L${x(points.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <defs><AreaGradient id={`tr${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" />
+      <path d={area} fill={`url(#tr${uid})`} stroke="none" />
+      <path d={path} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={x(i)} cy={y(p.value)} r="3" fill={color} />
+          <circle cx={x(i)} cy={y(p.value)} r="3.2" fill={C.panel} stroke={color} strokeWidth="2" />
           <text x={x(i)} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
           <text x={x(i)} y={y(p.value) - 8} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
         </g>
@@ -660,6 +725,106 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
   );
 }
 
+// ── Production Report modal ───────────────────────────────────────────────
+// The preliminary form for the monthly Production Report. Everything the
+// template leaves blank is filled here up front: the reporting month (which
+// is all that appears on the cover, and what Annex A is sliced to) plus the
+// three empty Document Version History cells — Reference No., Issue Date and
+// Last Review Date.
+//
+// Choosing a month also moves the board's own selected range to that month
+// before the pages are captured, so the embedded screenshots report the same
+// period as Annex A.
+function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, applyMonthRange }) {
+  const C = useC();
+  const [referenceNo, setReferenceNo] = useState(() => defaultReference(month));
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [lastReviewDate, setLastReviewDate] = useState('');
+  const [versionNo, setVersionNo] = useState('00');
+  const [nextReview, setNextReview] = useState('AS REQUIRED');
+  const [refTouched, setRefTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  // The reference number tracks the month until the preparer overrides it.
+  useEffect(() => { if (!refTouched) setReferenceNo(defaultReference(month)); }, [month, refTouched]);
+
+  const model = buildReportModel({ buses, month });
+
+  async function generate() {
+    setBusy(true); setStatus(null);
+    try {
+      applyMonthRange(month);
+      // Let the board re-render against the month before it is captured. A
+      // plain timer, not requestAnimationFrame — rAF is suspended while the
+      // tab is in the background, which would hang the export the moment the
+      // operator switched away.
+      await new Promise(r => setTimeout(r, 450));
+      const pageCanvases = await capturePages();
+      const pdf = await buildProductionReport({
+        meta: { month, referenceNo, issueDate, lastReviewDate, versionNo, nextReview },
+        buses,
+        pageCanvases,
+      });
+      pdf.save(`KMC_Production_Report_${month}.pdf`);
+      setStatus({ ok: true, msg: `Report generated for ${monthName(month)}.` });
+    } catch (e) {
+      setStatus({ ok: false, msg: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const field = { width: '100%', boxSizing: 'border-box', background: C.navy, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: '7px 9px', fontSize: 12, fontFamily: 'inherit' };
+  const label = { fontSize: 9, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' };
+
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, width: 'min(500px, 92vw)', padding: 18, color: C.text, fontFamily: "'Inter', Arial, sans-serif" }}>
+        <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>
+          Production Report (PDF)
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div><span style={label}>Reporting Month</span>
+            <input type="month" style={field} value={month} onChange={e => e.target.value && setMonth(e.target.value)} /></div>
+
+          <div style={{ fontSize: 9, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
+            Document Version History
+          </div>
+          <div><span style={label}>Reference No.</span>
+            <input style={field} value={referenceNo}
+              onChange={e => { setRefTouched(true); setReferenceNo(e.target.value); }} /></div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}><span style={label}>Issue Date</span>
+              <input type="date" style={field} value={issueDate} onChange={e => setIssueDate(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><span style={label}>Last Review Date</span>
+              <input type="date" style={field} value={lastReviewDate} onChange={e => setLastReviewDate(e.target.value)} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}><span style={label}>Version No.</span>
+              <input style={field} value={versionNo} onChange={e => setVersionNo(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><span style={label}>Next Review Date</span>
+              <input style={field} value={nextReview} onChange={e => setNextReview(e.target.value)} /></div>
+          </div>
+
+          <div style={{ fontSize: 11, color: C.grey }}>
+            Annex A will list the {model.completedCount} bus{model.completedCount === 1 ? '' : 'es'} completed
+            in {monthName(month)}.
+          </div>
+          {status && <div style={{ fontSize: 11, color: status.ok ? C.green : C.red }}>{status.msg}</div>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={onClose} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.grey, borderRadius: 4, padding: '7px 14px', fontSize: 11, cursor: 'pointer' }}>Close</button>
+            <button onClick={generate} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+              {busy ? 'Building…' : 'Generate PDF'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Range & per-line target selector — mirrors the "⚙ Set Targets" panel in
 // the standalone workbook view (public/dpn-scoreboard-workbook.html): a date
 // range that drives the "selected range" Planned vs Actual chart, plus an
@@ -707,22 +872,91 @@ function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
 }
 
 // ── Header (shared by all pages) ─────────────────────────────────
-function BoardHeader({ raw }) {
+// Same footprint as before (60px logo inside 8px padding) — what changed is
+// the treatment: a graded plate rather than flat black, a red rule along the
+// bottom edge, red hairlines separating the three zones, and the title paired
+// with a corporate kicker and its own short underline so the centre block has
+// a shape instead of floating.
+function BoardHeader({ raw, referenceNo }) {
   const C = useC();
+  const metaRow = (label, value, small) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+      <span style={{ color: C.grey, fontSize: 8.5, letterSpacing: '0.16em', fontWeight: 700 }}>{label}</span>
+      <b style={{ fontSize: small ? 8.5 : 10.5 }}>{value}</b>
+    </div>
+  );
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', background: C.header, border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260 }}>
+    <div style={{
+      display: 'flex', alignItems: 'stretch', borderRadius: 6, overflow: 'hidden',
+      background: `linear-gradient(100deg, ${C.header} 0%, ${C.header} 40%, ${C.headerAlt} 100%)`,
+      border: `1px solid ${C.border}`, borderBottom: `3px solid ${C.red}`,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260,
+        borderRight: `1px solid ${C.red}`,
+      }}>
         <img src="/kmc logo 2.png" alt="KMC" style={{ height: 60, objectFit: 'contain' }} crossOrigin="anonymous" />
       </div>
-      <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff' }}>
+      <div style={{
+        flex: 1, padding: '8px 10px', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 3,
+      }}>
+        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', lineHeight: 1.1 }}>
           Department of Production Scoreboard
         </div>
       </div>
-      <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DPN.07/26-REG004</b></div>
+      <div style={{
+        minWidth: 210, borderLeft: `1px solid ${C.red}`, padding: '6px 16px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, color: '#fff',
+      }}>
+        {metaRow('PERIOD', `${raw('Scoreboard Period Start')} – ${raw('Scoreboard Period End')}`)}
+        {metaRow('SHIFT', raw('Shift Label') || 'DAY SHIFT')}
+        {metaRow('REF', referenceNo, true)}
+      </div>
+    </div>
+  );
+}
+
+// Overall achievement, as a single wide meter. Kept at the original 32px
+// height — the change is the quarter ticks along the track, the three-stop
+// fill, and the figure riding the leading edge of the fill instead of being
+// centred in it.
+function ProgressBar({ pct, target }) {
+  const C = useC();
+  const p = Math.max(0, Math.min(1, pct || 0));
+  return (
+    <div>
+      <div style={{
+        position: 'relative', height: 32, borderRadius: 9, overflow: 'hidden',
+        background: C.track, border: `1px solid ${C.border}`,
+      }}>
+        <div style={{
+          width: `${p * 100}%`, height: '100%', minWidth: 52,
+          background: `linear-gradient(90deg, ${C.greenDeep} 0%, ${C.green} 72%, ${C.greenLite} 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 11,
+          boxSizing: 'border-box',
+        }}>
+          <span style={{
+            fontSize: 15, fontWeight: 900, fontFamily: "'Arial Black', 'Inter', sans-serif",
+            letterSpacing: '0.02em', color: C.progressText,
+          }}>{fpct(pct)}</span>
+        </div>
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{
+            position: 'absolute', left: `${i * 25}%`, top: 0, bottom: 0,
+            width: 1, background: C.gridline,
+          }} />
+        ))}
+      </div>
+      {/* tick labels sit on the same 25% grid as the marks above them, so they
+          are absolutely placed rather than space-between'd (which spaces by
+          label width, not by position) */}
+      <div style={{ position: 'relative', height: 12, marginTop: 2, fontSize: 8.5, color: C.grey }}>
+        <span style={{ position: 'absolute', left: 0 }}>0</span>
+        {[1, 2, 3].map(i => (
+          <span key={i} style={{ position: 'absolute', left: `${i * 25}%`, transform: 'translateX(-50%)' }}>{i * 25}%</span>
+        ))}
+        <span style={{ position: 'absolute', right: 0 }}>{fint(target)} buses</span>
       </div>
     </div>
   );
@@ -751,6 +985,7 @@ function ScoreboardInner() {
   const C = useC();
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [range, setRange] = useState(() => {
@@ -763,6 +998,10 @@ function ScoreboardInner() {
   const [lineTargets, setLineTargets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kmc_scoreboard_targets') || '{}'); } catch { return {}; }
   });
+  // The Production Report is month-scoped; the picker seeds from whatever
+  // month the board's selected range currently ends in.
+  const [reportMonth, setReportMonth] = useState(() => range.end.slice(0, 7));
+  const applyMonthRange = useCallback(m => setRange(monthBounds(m)), []);
   useEffect(() => { localStorage.setItem('kmc_scoreboard_range', JSON.stringify(range)); }, [range]);
   useEffect(() => { localStorage.setItem('kmc_scoreboard_targets', JSON.stringify(lineTargets)); }, [lineTargets]);
   const pageRefs = [useRef(null), useRef(null), useRef(null)];
@@ -820,6 +1059,10 @@ function ScoreboardInner() {
       pdf.save(`KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.pdf`);
     } finally { setExporting(false); }
   }
+
+  // Document reference shown on the board header and pre-filled into the
+  // report's version-history table, so both always agree.
+  const referenceNo = defaultReference(range.end);
 
   const target = num('Program Target (vehicles)') ?? 45;
   const achievement = num('Achievement %') ?? 0;
@@ -902,28 +1145,6 @@ function ScoreboardInner() {
     return { name: lw.dataName, display: lw.display, done, target, pct, status, constraint: calcRow?.constraint || '—' };
   });
 
-  // Planned vs Actual for the scheduled period, as a pie — summed straight
-  // off the per-line cards above ("progress made per part"), so the total
-  // always agrees with the four line pies instead of being derived twice.
-  const periodPartsTotals = lineWorkshops.reduce(
-    (acc, w) => ({ planned: acc.planned + w.target, actual: acc.actual + w.done }),
-    { planned: 0, actual: 0 },
-  );
-
-  // Throughput for the same window — deliveries actually dated inside it,
-  // against the deliveries the plan called for. Deliberately a different
-  // question from the cohort pie above: this counts buses finished during
-  // the window no matter when they were scheduled, so units that ran late
-  // land here in the period they were really completed. It can exceed 100%
-  // when a backlog is cleared (live data: 46 delivered vs 17 due Jul-Aug).
-  const periodThroughput = LINE_WORKSHOPS.reduce((acc, lw) => {
-    (d.lineCompletion?.[lw.dataName]?.tasks || []).forEach(t => {
-      if (inRange(t.planEnd, range.start, range.end)) acc.planned += 1;
-      if (t.done && inRange(t.actualEnd, range.start, range.end)) acc.actual += 1;
-    });
-    return acc;
-  }, { planned: 0, actual: 0 });
-
   // Cumulative throughput (whole program, never range-sliced) — a running
   // sum of buses actually built. Built off the monthly Planned vs Actual
   // series (d.overallMonthly) rather than the Daily Output tab: that tab is
@@ -947,14 +1168,14 @@ function ScoreboardInner() {
     <div style={{
       minHeight: '100vh', padding: '12px 12px 40px', fontFamily: "'Inter', Arial, sans-serif", color: C.text,
       backgroundColor: C.bg,
-      backgroundImage: `${C.overlay}, url('/Bus background 3.png')`,
+      backgroundImage: `${C.overlay}, url('/Bus background 5.png')`,
       backgroundSize: 'cover', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
     }}>
       {/* toolbar + range/target selector (neither captured in exports) */}
       <ScoreboardToolbar
         live={live} loading={loading} error={error} lastUpdated={lastUpdated}
         refresh={refresh} exportPNG={exportPNG} exportPDF={exportPDF}
-        exporting={exporting} setEmailOpen={setEmailOpen} btn={btn}
+        exporting={exporting} setEmailOpen={setEmailOpen} setReportOpen={setReportOpen} btn={btn}
         selectorOpen={selectorOpen} setSelectorOpen={setSelectorOpen}
       />
       {selectorOpen && (
@@ -963,27 +1184,14 @@ function ScoreboardInner() {
 
       {/* ═══════════ PAGE 1 — Overview ═══════════ */}
       <Page innerRef={pageRefs[0]}>
-        <BoardHeader raw={raw} />
+        <BoardHeader raw={raw} referenceNo={referenceNo} />
 
         {/* Overall Progress — first, and exempt from any period slicing */}
         <SectionLabel>Overall Progress</SectionLabel>
         <CardGrid cols={6}>
           {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
         </CardGrid>
-        <div>
-          <div style={{ background: C.track, borderRadius: 9, height: 32, overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.round(achievement * 100)}%`, height: '100%',
-              background: `linear-gradient(90deg, #1e8449, ${C.green})`,
-              fontSize: 15, fontWeight: 900, fontFamily: "'Arial Black', 'Inter', sans-serif",
-              letterSpacing: '0.02em', color: '#04210f', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', minWidth: 44,
-            }}>{fpct(achievement)}</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: C.grey, marginTop: 2 }}>
-            <span>0</span><span>{fint(target)} buses</span>
-          </div>
-        </div>
+        <ProgressBar pct={achievement} target={target} />
 
         {/* Production Line Status — 4 core assembly-line workshops as
             scorecards, scoped to the selected range (labelled so a reader
@@ -1017,37 +1225,21 @@ function ScoreboardInner() {
 
       {/* ═══════════ PAGE 2 — Performance ═══════════ */}
       <Page innerRef={pageRefs[1]}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {/* One row of four whole-program trends. The two selected-range pies
+            that used to sit here are gone (removed per request); the range
+            picker still drives the line-status cards on page 1. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
           <Panel title="First Pass Yield — by Month">
             <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
           </Panel>
           <Panel title="Downtime — by Month (hours)">
             <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
           </Panel>
-        </div>
-
-        {/* Two whole-program charts plus the two selected-range pies. The
-            range picker drives both pies (and the line-status cards on page
-            1); the first two charts are deliberately program-wide. The pies
-            answer different questions — see their captions. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           <Panel title="Planned vs Actual — by Month (whole program)">
             <MonthlyPlanActualChart points={d.overallMonthly} />
           </Panel>
           <Panel title="Cumulative Throughput (whole program)">
             <CumChart daily={cumulativeMonthly} />
-          </Panel>
-          <Panel title={`Planned vs Actual — Selected Range (${range.start} to ${range.end})`}>
-            <PlannedActualPie
-              planned={periodPartsTotals.planned} actual={periodPartsTotals.actual}
-              caption="of the buses scheduled in this range, how many are done"
-            />
-          </Panel>
-          <Panel title={`Throughput — Selected Range (${range.start} to ${range.end})`}>
-            <PlannedActualPie
-              planned={periodThroughput.planned} actual={periodThroughput.actual}
-              caption="buses finished in this range / due in this range"
-            />
           </Panel>
         </div>
 
@@ -1099,20 +1291,6 @@ function ScoreboardInner() {
 
         <Panel title="Operational Cost per Line">
           <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-        </Panel>
-
-        {/* Cost Estimations Engineer's own per-machine ranking (same figures
-            as CostEstimation.jsx's Report tab — rate × Available Hours),
-            surfaced here so the CEE's costing is visible on the scoreboard
-            itself, not just inside the CEE module. */}
-        <Panel title="Machine Cost Ranking (Cost Estimations Engineer)">
-          <MiniTable
-            headers={['Machine', 'Station', 'Activity', 'Rate (UGX/hr)', "Cost (UGX '000)"]}
-            rows={(d.machineCostRows || []).slice(0, 8).map(r => [
-              r.machineName || r.id, r.stationCode || '—', r.activity || '—', fint(r.rate), fint(r.costK),
-            ])}
-            empty="No machine rates set yet — add them in Cost Estimation."
-          />
         </Panel>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -1172,11 +1350,21 @@ function ScoreboardInner() {
       </div>
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
+      {reportOpen && (
+        <ProductionReportModal
+          onClose={() => setReportOpen(false)}
+          capturePages={capturePages}
+          buses={d.busUnits || []}
+          month={reportMonth}
+          setMonth={setReportMonth}
+          applyMonthRange={applyMonthRange}
+        />
+      )}
     </div>
   );
 }
 
-function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, btn, selectorOpen, setSelectorOpen }) {
+function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, setReportOpen, btn, selectorOpen, setSelectorOpen }) {
   const C = useC();
   const { theme, toggleTheme } = useContext(ThemeToggleCtx);
   return (
@@ -1198,6 +1386,7 @@ function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportP
       <button style={btn} onClick={refresh} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
       <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
       <button style={btn} onClick={exportPDF} disabled={exporting}>Export PDF</button>
+      <button style={{ ...btn, borderColor: C.red, color: C.red }} onClick={() => setReportOpen(true)}>Production Report</button>
       <button style={{ ...btn, borderColor: C.red, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
     </div>
   );
