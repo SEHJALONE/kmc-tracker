@@ -67,6 +67,19 @@ export function toNum(v) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Several tabs carry the sheet's own one-line instruction banner in the SAME
+// cell as the first column heading, so cell A of the header row reads
+// "PRODUCTION DOWNTIME LOG — one row per event (…) Date" rather than "Date".
+// Other tabs put the banner on its own row above a clean header. Matching the
+// end of the cell handles both shapes; an exact `=== 'Date'` test silently
+// failed to find the header on Downtime, Environment, Kaizen and Daily Output,
+// which made those tabs read as empty even when they had rows.
+function headerCellIs(cell, label) {
+  const s = String(cell || '').trim().toLowerCase();
+  const l = String(label).trim().toLowerCase();
+  return s === l || s.endsWith(` ${l}`);
+}
+
 // The Tracker tab's per-workshop dates have no year ("20-May") — the workbook
 // is scoped to the current programme year — but most other date cells here
 // (Targets, Downtime, Daily Output, registers) are full dates; this also
@@ -317,7 +330,7 @@ export function parseTargetsKv(grid) {
 // Actual | Cum. Plan | Cum. Act. | Gap. Read directly rather than re-derived
 // from the Tracker grid.
 export function parseDailyOutput(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && (r[1] || '').trim() === 'Planned');
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && (r[1] || '').trim() === 'Planned');
   if (hIdx === -1) return [];
   const out = [];
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -340,7 +353,7 @@ export function parseDailyOutput(grid) {
 // M1-M7 totals come from Calc, but this drives the monthly downtime-hours
 // trend chart, which needs the full dated history Calc doesn't keep.
 export function parseDowntimeMonthly(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /reason/i.test(r[3] || ''));
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /reason/i.test(r[3] || ''));
   if (hIdx === -1) return [];
   const byMonth = new Map();
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -365,7 +378,7 @@ export function parseDowntimeMonthly(grid) {
 // rows exist yet to confirm the exact dropdown wording, so this degrades
 // gracefully (empty trend) rather than guessing wrong silently.
 export function parseQualityMonthly(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /inspection result/i.test(r[2] || ''));
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /inspection result/i.test(r[2] || ''));
   if (hIdx === -1) return [];
   const byMonth = new Map();
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -391,7 +404,7 @@ export function parseQualityMonthly(grid) {
 // Energy per Unit / vs Baseline are already computed by Calc from this same
 // tab; this is only for the NEW cost calculation, not those existing KPIs.
 export function parseEnvironmentLatestKwh(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Month Start');
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Month Start'));
   if (hIdx === -1) return 0;
   let latestDate = null, latestKwh = 0;
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -617,10 +630,10 @@ export function useScoreboardData() {
       const downtimeTrend = parseDowntimeMonthly(downtimeGrid);
       const fpyTrend = parseQualityMonthly(qualityGrid);
       const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
-      const bottlenecks = parseRegisterRows(bottlenecksGrid, r => (r[0] || '').trim() === 'Date Raised');
-      const ecr = parseRegisterRows(ecrGrid, r => (r[0] || '').trim().toUpperCase().startsWith('ECR NO'));
-      const waste = parseRegisterRows(wasteGrid, r => (r[0] || '').trim() === 'Date' && /waste type/i.test(r[1] || ''));
-      const kaizen = parseRegisterRows(kaizenGrid, r => (r[0] || '').trim() === 'Date' && /kaizen idea/i.test(r[1] || ''));
+      const bottlenecks = parseRegisterRows(bottlenecksGrid, r => headerCellIs(r[0], 'Date Raised'));
+      const ecr = parseRegisterRows(ecrGrid, r => /^ecr no/i.test(String(r[0] || '').trim()) || /^description$/i.test(String(r[1] || '').trim()));
+      const waste = parseRegisterRows(wasteGrid, r => headerCellIs(r[0], 'Date') && /waste type/i.test(r[1] || ''));
+      const kaizen = parseRegisterRows(kaizenGrid, r => /kaizen idea/i.test(r[1] || ''));
       const costKv = parseCost(costGrid);
       const lineMonthly = parseLineMonthly(trackerGrid);
       const lineCompletion = parseLineCompletion(trackerGrid);
