@@ -10,6 +10,14 @@ const ROLE_OPTIONS = [
   { value: 'supervisor', label: 'Supervisor',     color: '#f59e0b' },
   { value: 'director',   label: 'Director',       color: '#0ea5e9' },
   { value: 'useradmin',  label: 'User Admin',     color: '#a855f7' },
+  { value: 'cee',        label: 'Cost Estimations Engineer', color: '#0f766e' },
+];
+
+// Supplementary roles a user can hold ON TOP OF their primary Role above —
+// e.g. a Supervisor who's also a Cost Estimations Engineer. Additive only;
+// every other role check in the app still looks at the primary `role` field.
+const SUPPLEMENTARY_ROLE_OPTIONS = [
+  { value: 'cee', label: 'Cost Estimations Engineer', color: '#0f766e' },
 ];
 
 function buildStationsByLine() {
@@ -106,6 +114,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       // Missing/undefined = access on (every user created before this
       // toggle existed keeps working exactly as before).
       canAccessTracker: user.canAccessTracker !== false,
+      roles: Object.fromEntries((user.roles || []).map(r => [r, true])),
     });
   }
 
@@ -145,6 +154,7 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
       assignedLines:    edit.role === 'manager'    ? Object.keys(edit.assignedLines).filter(k => edit.assignedLines[k]) : [],
       assignedStations: (edit.role === 'supervisor' || edit.role === 'user') ? assignedCodes : [],
       canAccessTracker: edit.canAccessTracker,
+      roles: Object.keys(edit.roles || {}).filter(k => edit.roles[k]),
     };
     if (edit.password.length >= 8) patch.password = edit.password;
 
@@ -303,6 +313,33 @@ export default function UserManagement({ onBack, theme = 'dark' }) {
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: sel ? r.color : dim, flexShrink: 0 }} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: sel ? r.color : text, fontFamily: fm }}>{r.label}</span>
                     </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Supplementary roles — additive on top of the primary Role above,
+                e.g. a Supervisor who's also a Cost Estimations Engineer. */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={lbl}>Additional Roles <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional — on top of the role above)</span></label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {SUPPLEMENTARY_ROLE_OPTIONS.filter(r => r.value !== edit.role).map(r => {
+                  const checked = !!edit.roles?.[r.value];
+                  return (
+                    <label key={r.value} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                      padding: '9px 12px', borderRadius: 6,
+                      background: checked ? `${r.color}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
+                      border: `1px solid ${checked ? r.color + '50' : border}`,
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => setEdit(e => ({ ...e, roles: { ...e.roles, [r.value]: !checked } }))}
+                        style={{ width: 14, height: 14, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: checked ? r.color : text, fontFamily: fm }}>{r.label}</span>
+                    </label>
                   );
                 })}
               </div>

@@ -5,16 +5,20 @@ import { CATALOG_WRITE_URL } from '../data/catalogConfig';
 // Credential sets → role + NCR domain + optional landing module.
 // domain controls which NCR register tab the user lands on by default (admin sees all).
 // landing sends the user straight into a module on login, skipping the HomeScreen menu.
+// `roles` (plural, optional) lists SUPPLEMENTARY roles on top of the primary
+// `role` — e.g. kmc.super below is a supervisor who's ALSO a Cost Estimations
+// Engineer, demonstrating one person holding more than one role.
 const CREDENTIALS = [
   { username: 'systemadmin', password: 'admin1234!', role: 'systemadmin', domain: null, landing: null },
   { username: 'kmcadmin',    password: 'KMC1234!',   role: 'useradmin', domain: null, landing: null },
   { username: 'kmc',         password: 'kmc1234!',   role: 'user',       domain: null, landing: null },
-  { username: 'kmc.super',  password: 'Super1234!', role: 'supervisor', domain: null, landing: null },
+  { username: 'kmc.super',  password: 'Super1234!', role: 'supervisor', domain: null, landing: null, roles: ['cee'] },
   { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials', landing: null },
   { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },
   { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality', landing: null },
   { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production', landing: null },
   { username: 'dpn.kmc', password: 'dpn1234!', role: 'user', domain: null, landing: 'scoreboard' },
+  { username: 'kmc.cee', password: 'Cee1234!', role: 'cee', domain: null, landing: null },
 ];
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
@@ -84,6 +88,11 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           // Admin-controlled Bus Tracker module access (User Management).
           // Missing/undefined defaults to true — same as the server default.
           localStorage.setItem('kmc_can_access_tracker', dynMatch.canAccessTracker === false ? 'false' : 'true');
+
+          // Supplementary roles (e.g. a supervisor who's also a Cost
+          // Estimations Engineer) — additive on top of the primary `role`.
+          if (dynMatch.roles?.length) localStorage.setItem('kmc_roles', JSON.stringify(dynMatch.roles));
+          else localStorage.removeItem('kmc_roles');
         } else {
           // Static credential — clear any leftover assignments; hardcoded
           // accounts always keep full Bus Tracker access.
@@ -92,7 +101,11 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           localStorage.removeItem('kmc_assigned_stations');
           localStorage.removeItem('kmc_assigned_lines');
           localStorage.setItem('kmc_can_access_tracker', 'true');
+
+          if (staticMatch.roles?.length) localStorage.setItem('kmc_roles', JSON.stringify(staticMatch.roles));
+          else localStorage.removeItem('kmc_roles');
         }
+        localStorage.setItem('kmc_username', match.username || username.trim());
 
         if (remember) {
           localStorage.setItem('kmc_auth', 'true');
