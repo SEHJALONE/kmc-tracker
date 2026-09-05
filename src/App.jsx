@@ -25,7 +25,6 @@ import DailyFleetLog from './components/DailyFleetLog';
 import CostEstimation from './components/CostEstimation';
 import MySubmissions from './components/MySubmissions';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
-import DailyActivitiesLog from './components/DailyActivitiesLog';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
 function getInitialTheme() {
@@ -286,7 +285,6 @@ export default function App() {
       onSelectDailyFleetLog={() => setMode('daily-fleet-log')}
       onSelectCostEstimation={() => setMode('cost-estimation')}
       onSelectMySubmissions={() => setMode('my-submissions')}
-      onSelectDailyActivitiesLog={() => setMode('daily-activities-log')}
       role={role}
       canAccessTracker={canAccessTracker}
       hasCeeAccess={hasCeeAccess}
@@ -306,7 +304,7 @@ export default function App() {
   );
 
   if (mode === 'daily-fleet-log') return (
-    <DailyFleetLog theme={theme} onBack={() => setMode('home')} />
+    <DailyFleetLog theme={theme} currentUserName={currentUserName} onBack={() => setMode('home')} />
   );
 
   if (mode === 'pending-reviews') return (
@@ -329,13 +327,6 @@ export default function App() {
     />
   );
 
-  if (mode === 'daily-activities-log') return (
-    <DailyActivitiesLog
-      theme={theme}
-      currentUserName={currentUserName}
-      onBack={() => setMode('home')}
-    />
-  );
 
   if (mode === 'travelcard') return (
     <div style={{
@@ -978,43 +969,12 @@ export default function App() {
 }
 
 // ── Scoreboard Standalone page ────────────────────────────────────────────────
-// The scoreboard renders in its own fixed dark palette (wall-display / export
-// consistency), so the standalone wrapper only adds a minimal Home bar.
+// The scoreboard owns its own theme and control bar — Home, the view tabs and
+// Sign Out all sit on that one toolbar row inside the board, so this wrapper
+// no longer adds a bar of its own (it used to, which put the tabs and Sign Out
+// on two separate strips above the toolbar).
 function ScoreboardStandalone({ onHome, onLogout, hideHome }) {
-  const barBtn = {
-    background: 'transparent', border: '1px solid #1c2330', color: '#8a93a3',
-    borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 600,
-    letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
-    fontFamily: "'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', gap: 6,
-  };
-  return (
-    <div style={{ minHeight: '100vh', background: '#05070a' }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        padding: '10px 16px 0', maxWidth: 1584, margin: '0 auto',
-      }}>
-        {!hideHome && (
-          <button onClick={onHome} style={barBtn}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
-            </svg>
-            Home
-          </button>
-        )}
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: '#eef1f6', textTransform: 'uppercase' }}>
-          DPN Scoreboard
-        </span>
-        <div style={{ flex: 1 }} />
-        <button onClick={onLogout} style={{ ...barBtn, borderColor: '#7a1417' }}>
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
-          </svg>
-          Sign Out
-        </button>
-      </div>
-      <Scoreboard />
-    </div>
-  );
+  return <Scoreboard onHome={onHome} onLogout={onLogout} hideHome={hideHome} />;
 }
 
 // ── Handover Standalone page ──────────────────────────────────────────────────

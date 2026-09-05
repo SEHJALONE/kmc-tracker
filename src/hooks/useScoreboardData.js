@@ -67,6 +67,19 @@ export function toNum(v) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Several tabs carry the sheet's own one-line instruction banner in the SAME
+// cell as the first column heading, so cell A of the header row reads
+// "PRODUCTION DOWNTIME LOG — one row per event (…) Date" rather than "Date".
+// Other tabs put the banner on its own row above a clean header. Matching the
+// end of the cell handles both shapes; an exact `=== 'Date'` test silently
+// failed to find the header on Downtime, Environment, Kaizen and Daily Output,
+// which made those tabs read as empty even when they had rows.
+function headerCellIs(cell, label) {
+  const s = String(cell || '').trim().toLowerCase();
+  const l = String(label).trim().toLowerCase();
+  return s === l || s.endsWith(` ${l}`);
+}
+
 // The Tracker tab's per-workshop dates have no year ("20-May") — the workbook
 // is scoped to the current programme year — but most other date cells here
 // (Targets, Downtime, Daily Output, registers) are full dates; this also
@@ -207,6 +220,66 @@ export function parseLineCompletion(grid) {
   return out;
 }
 
+// ── Tracker tab → one record per bus, for the Production Report's "buses
+// produced" table. Columns 0-3 are the unit's identity (row no. | Full VIN |
+// Unit | Batch) and the last three are roll-ups the sheet computes itself
+// (Max Delay | Bus Status | Cycle (d)); the trailing three are located by
+// header name rather than a fixed index because the workshop block in
+// between is what tends to grow. `completedOn` is the LAST actual end across
+// all 8 workshops — the date the bus actually rolled off, which no single
+// column holds. `ws` carries the plan/actual window per reported line, which
+// is what the monthly Production Process Time Analysis report measures
+// working days from (Annex A and every process-time table are built off it).
+export function parseBusUnits(grid) {
+  if (!grid.length) return [];
+  const header = grid[0].map(h => (h || '').trim().toLowerCase());
+  const col = (re, fallback) => {
+    const i = header.findIndex(h => re.test(h));
+    return i === -1 ? fallback : i;
+  };
+  const idxVin = col(/^full vin$/, 1);
+  const idxUnit = col(/^unit$/, 2);
+  const idxBatch = col(/^batch$/, 3);
+  const idxStatus = col(/^bus status$/, 54);
+  const idxCycle = col(/^cycle/, 55);
+  const idxDelay = col(/^max delay/, 53);
+  const iso = d => d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    : null;
+
+  return grid.slice(1).filter(r => r[idxVin] || r[idxUnit]).map((r, i) => {
+    let last = null;
+    WORKSHOP_COLS.forEach(w => {
+      const d = parseTrackerDate(r[w.base + 3]);
+      if (d && (!last || d > last)) last = d;
+    });
+    const ws = {};
+    WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name)).forEach(w => {
+      ws[w.name] = {
+        planStart: iso(parseTrackerDate(r[w.base])),
+        planEnd: iso(parseTrackerDate(r[w.base + 1])),
+        actualStart: iso(parseTrackerDate(r[w.base + 2])),
+        actualEnd: iso(parseTrackerDate(r[w.base + 3])),
+        status: (r[w.base + 4] || '').trim(),
+      };
+    });
+    const status = (r[idxStatus] || '').trim();
+    return {
+      no: toNum(r[0]) ?? i + 1,
+      vin: (r[idxVin] || '').trim(),
+      unit: (r[idxUnit] || '').trim(),
+      batch: (r[idxBatch] || '').trim(),
+      status,
+      done: /done|complete/i.test(status),
+      cycleDays: toNum(r[idxCycle]),
+      maxDelay: toNum(r[idxDelay]),
+      completedOn: iso(last),
+      completedLabel: last ? shortDate(last) : '',
+      ws,
+    };
+  });
+}
+
 // ── Calc tab: pre-computed by the spreadsheet itself — a workshop-status
 // table (rows) followed by a flat label/value KPI dump (one pair per row,
 // grouped under blank-valued section headers like "OVERALL / OBJECTIVE 1").
@@ -257,7 +330,7 @@ export function parseTargetsKv(grid) {
 // Actual | Cum. Plan | Cum. Act. | Gap. Read directly rather than re-derived
 // from the Tracker grid.
 export function parseDailyOutput(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && (r[1] || '').trim() === 'Planned');
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && (r[1] || '').trim() === 'Planned');
   if (hIdx === -1) return [];
   const out = [];
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -280,7 +353,7 @@ export function parseDailyOutput(grid) {
 // M1-M7 totals come from Calc, but this drives the monthly downtime-hours
 // trend chart, which needs the full dated history Calc doesn't keep.
 export function parseDowntimeMonthly(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /reason/i.test(r[3] || ''));
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /reason/i.test(r[3] || ''));
   if (hIdx === -1) return [];
   const byMonth = new Map();
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -305,7 +378,7 @@ export function parseDowntimeMonthly(grid) {
 // rows exist yet to confirm the exact dropdown wording, so this degrades
 // gracefully (empty trend) rather than guessing wrong silently.
 export function parseQualityMonthly(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Date' && /inspection result/i.test(r[2] || ''));
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /inspection result/i.test(r[2] || ''));
   if (hIdx === -1) return [];
   const byMonth = new Map();
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -331,7 +404,7 @@ export function parseQualityMonthly(grid) {
 // Energy per Unit / vs Baseline are already computed by Calc from this same
 // tab; this is only for the NEW cost calculation, not those existing KPIs.
 export function parseEnvironmentLatestKwh(grid) {
-  const hIdx = grid.findIndex(r => (r[0] || '').trim() === 'Month Start');
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Month Start'));
   if (hIdx === -1) return 0;
   let latestDate = null, latestKwh = 0;
   for (let i = hIdx + 1; i < grid.length; i++) {
@@ -557,13 +630,14 @@ export function useScoreboardData() {
       const downtimeTrend = parseDowntimeMonthly(downtimeGrid);
       const fpyTrend = parseQualityMonthly(qualityGrid);
       const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
-      const bottlenecks = parseRegisterRows(bottlenecksGrid, r => (r[0] || '').trim() === 'Date Raised');
-      const ecr = parseRegisterRows(ecrGrid, r => (r[0] || '').trim().toUpperCase().startsWith('ECR NO'));
-      const waste = parseRegisterRows(wasteGrid, r => (r[0] || '').trim() === 'Date' && /waste type/i.test(r[1] || ''));
-      const kaizen = parseRegisterRows(kaizenGrid, r => (r[0] || '').trim() === 'Date' && /kaizen idea/i.test(r[1] || ''));
+      const bottlenecks = parseRegisterRows(bottlenecksGrid, r => headerCellIs(r[0], 'Date Raised'));
+      const ecr = parseRegisterRows(ecrGrid, r => /^ecr no/i.test(String(r[0] || '').trim()) || /^description$/i.test(String(r[1] || '').trim()));
+      const waste = parseRegisterRows(wasteGrid, r => headerCellIs(r[0], 'Date') && /waste type/i.test(r[1] || ''));
+      const kaizen = parseRegisterRows(kaizenGrid, r => /kaizen idea/i.test(r[1] || ''));
       const costKv = parseCost(costGrid);
       const lineMonthly = parseLineMonthly(trackerGrid);
       const lineCompletion = parseLineCompletion(trackerGrid);
+      const busUnits = parseBusUnits(trackerGrid);
 
       // ── Cost model: Labour + Energy + Machine, all from time-bounded rate
       // history (Cost Estimation module) instead of a flat un-dated value.
@@ -631,6 +705,7 @@ export function useScoreboardData() {
         },
         workshops,
         lineCompletion,
+        busUnits,
         machineCostRows: machineCostRowsK,
         daily,
         bottlenecks,

@@ -1,31 +1,78 @@
-import { useState, useRef, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, createContext, useContext, Children } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData } from '../hooks/useScoreboardData';
+import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
+import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
 
 // ── Theme-aware palettes ──────────────────────────────────────────────────
 // Scoreboard keeps its own theme state (separate from the rest of the app —
 // this is a standalone wall-display/export module) but follows the same
 // toggle pattern as App.jsx: persisted choice, defaulting to dark.
+//
+// The token set mirrors the cockpit design language: a ground the backdrop
+// photo shows through, translucent `glass`/`stat` card fills that float on
+// it, an ink/ink2/muted text ramp, hairline `line`/`lineSoft` rules instead
+// of hard borders, and every semantic colour paired with a low-saturation
+// `…Wash` for chips and callouts.
+//
+// Deliberately NO color-mix() or backdrop-filter in the *fills* — html2canvas
+// ignores both, and these pages are captured for the PNG/PDF/report exports.
+// The fills are plain rgba/gradients so an export looks like the screen;
+// blur and shadow are layered on top as screen-only polish.
 const PALETTES = {
   dark: {
-    bg: '#05070a', panel: '#0d1117', border: '#1c2330', red: '#e0292b',
-    navy: '#101623', green: '#2ecc71', amber: '#f2a900', blue: '#3498db',
-    grey: '#8a93a3', text: '#eef1f6', rowAlt: '#0a0f16',
-    header: '#000000', track: '#1c2330', rowBorder: '#131a24',
-    overlay: 'linear-gradient(rgba(5,7,10,0.90), rgba(5,7,10,0.96))',
-    shadow: '0 2px 6px rgba(0,0,0,0.3)', shadowLg: '0 20px 60px rgba(0,0,0,0.5)',
+    bg: '#080d18', panel: '#111a2e', surface2: '#18233c', border: '#22314f',
+    glass: 'linear-gradient(150deg, rgba(28,40,66,0.90), rgba(15,23,42,0.76))',
+    stat: 'linear-gradient(150deg, rgba(34,48,78,0.86), rgba(17,26,46,0.62))',
+    glassBorder: 'rgba(130,150,190,0.22)',
+    red: '#e0392c', green: '#3ddc84', amber: '#f2b134', blue: '#5aa9e6',
+    redWash: '#341a1a', greenWash: '#123021', amberWash: '#312611', blueWash: '#112438',
+    ink: '#e9eff8', ink2: '#b6c4dc', muted: '#8291ae',
+    line: '#22314f', lineSoft: '#1a2743',
+    grey: '#8291ae', text: '#e9eff8', navy: '#18233c', rowAlt: 'transparent',
+    header: '#0b1424', headerAlt: '#16233d', track: '#1b2740', rowBorder: '#1a2743',
+    greenDeep: '#0f5c37', greenLite: '#8ff0bb', blueDeep: '#1d4f7c',
+    gridline: 'rgba(146,166,200,0.16)', progressText: '#04210f',
+    logo: '/kmc logo 2.png',
+    overlay: 'linear-gradient(rgba(8,13,24,0.66), rgba(8,13,24,0.90))',
+    pageWash: 'linear-gradient(rgba(8,13,24,0.87), rgba(8,13,24,0.95))',
+    shadow: '0 1px 2px rgba(0,0,0,0.34), 0 10px 30px -14px rgba(0,0,0,0.72)',
+    shadowLg: '0 2px 6px rgba(0,0,0,0.4), 0 26px 60px -22px rgba(0,0,0,0.8)',
   },
   light: {
-    bg: '#eef0f3', panel: '#ffffff', border: '#d8dce2', red: '#c81e20',
-    navy: '#eef1f5', green: '#1e8449', amber: '#b8790a', blue: '#2563a8',
-    grey: '#5c6572', text: '#12161c', rowAlt: '#f6f7f9',
-    header: '#14181f', track: '#dfe3e8', rowBorder: '#e6e9ee',
-    overlay: 'linear-gradient(rgba(238,240,243,0.90), rgba(238,240,243,0.96))',
-    shadow: '0 2px 6px rgba(0,0,0,0.08)', shadowLg: '0 16px 40px rgba(0,0,0,0.12)',
+    bg: '#e9edf1', panel: '#ffffff', surface2: '#eff2f6', border: '#dde2ea',
+    glass: 'linear-gradient(150deg, rgba(255,255,255,0.90), rgba(255,255,255,0.72))',
+    stat: 'linear-gradient(150deg, rgba(255,255,255,0.92), rgba(255,255,255,0.68))',
+    glassBorder: 'rgba(255,255,255,0.78)',
+    red: '#c81e20', green: '#1e8449', amber: '#b0701f', blue: '#2563a8',
+    redWash: '#f9e8e8', greenWash: '#e3f1e8', amberWash: '#f7eddd', blueWash: '#e3ebf6',
+    ink: '#000000', ink2: '#000000', muted: '#000000',
+    line: '#dde2ea', lineSoft: '#eaedf3',
+    grey: '#000000', text: '#000000', navy: '#eff2f6', rowAlt: 'transparent',
+    header: '#ffffff', headerAlt: '#f4f6fa', track: '#dfe4ec', rowBorder: '#eaedf3',
+    greenDeep: '#10502f', greenLite: '#5fcf92', blueDeep: '#17466f',
+    gridline: 'rgba(22,32,58,0.10)', progressText: '#ffffff',
+    // light mode uses the red-and-black lockup, so it needs no plate
+    logo: '/kmc logo.png',
+    overlay: 'linear-gradient(rgba(233,237,241,0.62), rgba(233,237,241,0.90))',
+    pageWash: 'linear-gradient(rgba(233,237,241,0.87), rgba(233,237,241,0.95))',
+    shadow: '0 1px 2px rgba(22,32,58,0.05), 0 10px 30px -14px rgba(22,32,58,0.24)',
+    shadowLg: '0 2px 6px rgba(22,32,58,0.07), 0 24px 54px -20px rgba(22,32,58,0.30)',
   },
 };
+
+// One typeface across the whole board — Inter. (The reference splits UI and
+// tabular text between Inter and IBM Plex Mono; per request this board stays
+// on Inter, so figures get `font-variant-numeric: tabular-nums` for column
+// alignment instead of a monospaced face.)
+const UI_FONT = "'Inter', system-ui, sans-serif";
+// Reference width of a board page: the layout the exports always reproduce,
+// and the widest the board ever grows on screen. Declared up here because the
+// responsive layout context below defaults to it.
+const PAGE_WIDTH = 1320;
+const BG_IMAGE = "url('/Bus background 5.png')";
 
 const ThemeCtx = createContext(PALETTES.dark);
 const useC = () => useContext(ThemeCtx);
@@ -153,6 +200,38 @@ const SAMPLE = {
     { date: 'Thu 9 Jul', planned: 1, actual: 1, cumPlan: 10, cumAct: 4, gap: -6 },
     { date: 'Fri 10 Jul', planned: 1, actual: 0, cumPlan: 11, cumAct: 4, gap: -7 },
   ],
+  busUnits: [
+    {
+      no: 1, vin: 'BUKBHZ6A8TJ000029', unit: '7m KEV 01', batch: '1', status: 'Done', done: true,
+      cycleDays: 34, maxDelay: 2, completedOn: '2026-07-24', completedLabel: '24 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-01', actualEnd: '2026-07-09' },
+        'Paint Shop': { actualStart: '2026-07-10', actualEnd: '2026-07-17' },
+        'Chassis Production Line 02': { actualStart: '2026-07-20', actualEnd: '2026-07-20' },
+        'Trim & Final Assembly': { actualStart: '2026-07-21', actualEnd: '2026-07-24' },
+      },
+    },
+    {
+      no: 2, vin: 'BUKBHZ6A8TJ000030', unit: '7m KEV 02', batch: '1', status: 'Done', done: true,
+      cycleDays: 31, maxDelay: 0, completedOn: '2026-07-31', completedLabel: '31 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-06', actualEnd: '2026-07-14' },
+        'Paint Shop': { actualStart: '2026-07-15', actualEnd: '2026-07-21' },
+        'Chassis Production Line 02': { actualStart: '2026-07-22', actualEnd: '2026-07-23' },
+        'Trim & Final Assembly': { actualStart: '2026-07-24', actualEnd: '2026-07-31' },
+      },
+    },
+    {
+      no: 3, vin: 'BUKBHZ6A8TJ000031', unit: '7m KEV 03', batch: '1', status: 'In Production', done: false,
+      cycleDays: null, maxDelay: 5, completedOn: '2026-07-28', completedLabel: '28 Jul 2026',
+      ws: {
+        'Frame & Body Welding': { actualStart: '2026-07-13', actualEnd: '2026-07-24' },
+        'Paint Shop': { actualStart: '2026-07-27', actualEnd: '2026-07-28' },
+        'Chassis Production Line 02': {},
+        'Trim & Final Assembly': {},
+      },
+    },
+  ],
   bottlenecks: [], kaizen: [], ecr: [], waste: [],
   fpyTrend: [
     { label: 'May 26', value: 0.68 }, { label: 'Jun 26', value: 0.71 }, { label: 'Jul 26', value: 0 },
@@ -189,65 +268,184 @@ function Donut({ pct, color, size = 58, thickness = 14 }) {
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.track} strokeWidth={thickness} />
-      <circle
-        cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={thickness}
-        strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`}
-      />
+      {/* at 0% the rounded cap would still paint a stray dot at 12 o'clock,
+          so the arc is simply not drawn */}
+      {p > 0 && (
+        <circle
+          cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={thickness}
+          strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+      )}
       <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle"
-        fontSize={size * 0.24} fontWeight="800" fill={C.text}>{p}%</text>
+        fontSize={size * 0.25} fontWeight="700" fill={C.ink}
+        style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{p}%</text>
     </svg>
   );
 }
 
-// Red accent banner — used for section dividers and panel titles alike, so
-// the page reads as a wall of clearly-bordered sections like the original.
-function SectionLabel({ children }) {
+// Small pill badge — the reference's `.chip`, used for period/shift/status
+// metadata that used to be spelled out in label:value rows.
+function Chip({ children, tone }) {
   const C = useC();
+  const tones = {
+    ok: [C.greenWash, C.green], warn: [C.amberWash, C.amber],
+    crit: [C.redWash, C.red], info: [C.blueWash, C.blue],
+  };
+  const [bg, fg] = tones[tone] || [C.surface2, C.ink2];
   return (
-    <div style={{
-      background: C.red, color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'center',
-      textTransform: 'uppercase', letterSpacing: '0.07em', padding: '7px 10px', borderRadius: 5,
-    }}>{children}</div>
+    <span style={{
+      fontFamily: UI_FONT, fontSize: 10.5, fontWeight: 600, padding: '3.5px 9px',
+      borderRadius: 999, background: bg, color: fg, whiteSpace: 'nowrap',
+      letterSpacing: '0.02em',
+    }}>{children}</span>
   );
 }
 
-// The reusable KPI tile — value first, no target/status clutter. Title is
-// white + centred to match the red banners.
-function ScoreCard({ label, value, valueColor }) {
+// Section divider. Was a solid red banner; now an eyebrow label with a red
+// leading tick and a hairline rule running out to the edge — the same
+// low-chrome treatment the cockpit uses, with KMC red kept as the accent.
+function SectionLabel({ children, right }) {
   const C = useC();
   return (
-    <div style={{
-      background: C.panel, border: `1px solid ${C.border}`, borderTop: `4px solid ${C.border}`,
-      borderRadius: 7, padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: 4,
-      alignItems: 'center', textAlign: 'center',
-      boxShadow: C.shadow, minHeight: 58,
-    }}>
-      <div style={{ fontSize: 9, color: C.text, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ fontSize: 19, fontWeight: 800, color: valueColor || C.text, lineHeight: 1.1 }}>{value}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '3px 0 1px' }}>
+      <span style={{ width: 3.5, height: 15, background: C.red, borderRadius: 2, flex: '0 0 auto' }} />
+      <span style={{
+        fontFamily: UI_FONT, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: C.ink, whiteSpace: 'nowrap',
+      }}>{children}</span>
+      <span style={{ flex: 1, height: 1, background: C.line }} />
+      {right}
     </div>
   );
 }
 
-function CardGrid({ cols = 4, children }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 7 }}>{children}</div>
-  );
-}
-
-function Panel({ title, children, style }) {
+// The reusable KPI tile — the reference's `.stat`: translucent gradient glass
+// on a hairline highlight border, label above, one large tabular figure below.
+function ScoreCard({ label, value, valueColor }) {
   const C = useC();
   return (
     <div style={{
-      background: C.panel, border: `1px solid ${C.border}`, borderRadius: 7,
-      overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      boxShadow: C.shadow, ...style,
+      background: C.stat, border: `1px solid ${C.glassBorder}`, borderRadius: 13,
+      padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 1,
+      alignItems: 'center', textAlign: 'center',
+      boxShadow: C.shadow, minHeight: 62,
     }}>
       <div style={{
-        background: C.red, color: '#fff', fontSize: 10.5, fontWeight: 800, textAlign: 'center',
-        textTransform: 'uppercase', letterSpacing: '0.05em', padding: '7px 11px',
-      }}>{title}</div>
-      <div style={{ padding: '8px 10px', flex: 1 }}>{children}</div>
+        fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: 'uppercase',
+        letterSpacing: '0.07em', lineHeight: 1.35, minHeight: '2.2em',
+      }}>{label}</div>
+      <div style={{
+        fontSize: 22, fontWeight: 700, color: valueColor || C.ink, lineHeight: 1.15,
+        letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', wordBreak: 'break-word',
+      }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Responsive layout ────────────────────────────────────────────────────
+// Breakpoints are driven by the PAGE's own measured width, never by the
+// viewport. That distinction is what makes exports device-independent: a
+// capture pins the page to PAGE_WIDTH, the observer below reports the new
+// width, and the board re-lays out as the full desktop grid even on a phone.
+// Viewport media queries would instead bake the phone layout into the PNG.
+//
+// `auto-fit`+`minmax` alone can't express this either — it ramps smoothly, so
+// eight KPI tiles would end up on one 1320px row instead of two rows of four.
+const PageWidthCtx = createContext(PAGE_WIDTH);
+const usePageWidth = () => useContext(PageWidthCtx);
+
+// Column count for `max` tiles at container width `w`.
+function colsFor(w, max) {
+  if (w >= 1120) return max;
+  if (w >= 880) return Math.min(max, 4);
+  if (w >= 640) return Math.min(max, 3);
+  if (w >= 330) return Math.min(max, 2);
+  return 1;
+}
+// Never leave a single tile stranded on its own last row — four line-status
+// cards in three columns reads as 3 + 1, which looks like a mistake.
+function noOrphan(cols, count) {
+  if (!count || cols <= 2 || count <= cols || count % cols !== 1) return cols;
+  for (let c = cols - 1; c >= 2; c--) if (count % c !== 1) return c;
+  return cols;
+}
+
+// Charts need far more room per tile than a stat tile does.
+function chartCols(w) { return w >= 1140 ? 4 : w >= 600 ? 2 : 1; }
+// The four line-status cards carry a 90px donut plus a photo.
+function lineCols(w) { return w >= 1040 ? 4 : w >= 700 ? 3 : w >= 440 ? 2 : 1; }
+
+const grid = (cols, gap = 8) => ({
+  display: 'grid',
+  gridTemplateColumns: typeof cols === 'string' ? cols : `repeat(${cols}, minmax(0, 1fr))`,
+  gap,
+});
+
+function CardGrid({ cols = 4, children }) {
+  const w = usePageWidth();
+  return <div style={grid(noOrphan(colsFor(w, cols), Children.count(children)))}>{children}</div>;
+}
+
+// A page-level grid row. `cols` is either a tile count or a function of the
+// measured page width; either way it is resolved INSIDE the page, where the
+// width context lives.
+function Row({ cols, gap = 8, children }) {
+  const w = usePageWidth();
+  const resolved = typeof cols === 'function' ? cols(w) : colsFor(w, cols);
+  const tracks = typeof resolved === 'number' ? noOrphan(resolved, Children.count(children)) : resolved;
+  return <div style={grid(tracks, gap)}>{children}</div>;
+}
+
+// Glass card. The red title bar is gone — the title now sits as a plain
+// heading on the card itself with an optional chip on the right, so the eye
+// lands on the data rather than on a wall of red.
+function Panel({ title, chip, children, style }) {
+  const C = useC();
+  return (
+    <div style={{
+      background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14,
+      display: 'flex', flexDirection: 'column', padding: '11px 13px 12px',
+      boxShadow: C.shadow, minWidth: 0, ...style,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+        gap: 8, marginBottom: 9,
+      }}>
+        <div style={{
+          fontSize: 13.5, fontWeight: 700, color: C.ink, letterSpacing: '-0.008em',
+          lineHeight: 1.28,
+        }}>{title}</div>
+        {chip}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+// Shared table chrome: mono uppercase column heads over a hairline rule, no
+// zebra fill, figures set in tabular mono and the label column in Inter — the
+// cockpit's table treatment.
+const thStyle = (C, align = 'left') => ({
+  fontFamily: UI_FONT, fontSize: 10, fontWeight: 700, letterSpacing: '0.07em',
+  textTransform: 'uppercase', color: C.ink, padding: '0 6px 6px',
+  textAlign: align, borderBottom: `1px solid ${C.line}`, whiteSpace: 'nowrap',
+});
+const tdStyle = (C, { first = false, align = 'left', strong = false } = {}) => ({
+  padding: '5px 6px', textAlign: align,
+  borderBottom: `1px solid ${C.lineSoft}`,
+  color: strong ? C.ink : first ? C.ink : C.ink2,
+  fontFamily: first ? 'inherit' : UI_FONT,
+  fontVariantNumeric: 'tabular-nums',
+  fontWeight: strong ? 700 : 400,
+});
+
+// Tables get their own horizontal scroller: on a phone a six-column register
+// would otherwise stretch its card and blow out the whole grid.
+function TableScroll({ children, min = 380 }) {
+  return (
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ minWidth: min }}>{children}</div>
     </div>
   );
 }
@@ -255,29 +453,24 @@ function Panel({ title, children, style }) {
 function MiniTable({ headers, rows, empty }) {
   const C = useC();
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+    <TableScroll min={Math.max(300, headers.length * 78)}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
       <thead>
-        <tr>
-          {headers.map(h => (
-            <th key={h} style={{
-              background: C.navy, color: C.grey, fontSize: 8.5, textTransform: 'uppercase',
-              padding: '4px 5px', textAlign: 'left', borderBottom: `1px solid ${C.border}`,
-            }}>{h}</th>
-          ))}
-        </tr>
+        <tr>{headers.map(h => <th key={h} style={thStyle(C)}>{h}</th>)}</tr>
       </thead>
       <tbody>
         {rows.length === 0 ? (
-          <tr><td colSpan={headers.length} style={{ padding: '8px 6px', color: C.grey, fontStyle: 'italic' }}>{empty}</td></tr>
+          <tr><td colSpan={headers.length} style={{ padding: '9px 6px', color: C.muted }}>{empty}</td></tr>
         ) : rows.map((r, i) => (
-          <tr key={i} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
+          <tr key={i}>
             {r.map((c, j) => (
-              <td key={j} style={{ padding: '4px 5px', color: j === 0 ? C.text : C.grey, borderBottom: `1px solid ${C.rowBorder}` }}>{c}</td>
+              <td key={j} style={tdStyle(C, { first: j === 0 })}>{c}</td>
             ))}
           </tr>
         ))}
       </tbody>
     </table>
+    </TableScroll>
   );
 }
 
@@ -294,32 +487,38 @@ function DowntimeTable({ kv }) {
     ...DT_REASONS.map(r => [`— ${r}`, f1(num(r)), avail ? fpct1((num(r) || 0) / avail) : '—']),
   ];
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+    <TableScroll min={320}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
       <thead>
         <tr>
-          {['Description', 'Hours', '%'].map(h => (
-            <th key={h} style={{
-              background: C.navy, color: C.grey, fontSize: 8.5, textTransform: 'uppercase',
-              padding: '4px 5px', textAlign: h === 'Description' ? 'left' : 'center', borderBottom: `1px solid ${C.border}`,
-            }}>{h}</th>
-          ))}
+          <th style={thStyle(C)}>Description</th>
+          <th style={thStyle(C, 'right')}>Hours</th>
+          <th style={thStyle(C, 'right')}>%</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((r, i) => (
-          <tr key={i} style={{ background: i % 2 ? C.rowAlt : 'transparent' }}>
-            <td style={{ padding: '4px 5px', color: C.text, borderBottom: `1px solid ${C.rowBorder}` }}>{r[0]}</td>
-            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: `1px solid ${C.rowBorder}` }}>{r[1]}</td>
-            <td style={{ padding: '4px 5px', color: C.grey, textAlign: 'center', borderBottom: `1px solid ${C.rowBorder}` }}>{r[2]}</td>
+          <tr key={i}>
+            <td style={tdStyle(C, { first: true })}>{r[0]}</td>
+            <td style={tdStyle(C, { align: 'right' })}>{r[1]}</td>
+            <td style={tdStyle(C, { align: 'right' })}>{r[2]}</td>
           </tr>
         ))}
-        <tr style={{ background: C.navy, fontWeight: 800 }}>
-          <td style={{ padding: '5px', color: C.text }}>Total Production Hours Lost</td>
-          <td style={{ padding: '5px', color: C.text, textAlign: 'center' }}>{f1(num('Total Hours Lost'))}</td>
-          <td style={{ padding: '5px', color: C.text, textAlign: 'center' }}>{fpct1(num('Downtime % of Available'))}</td>
+        {/* total row: a top rule and full-ink figures, no fill */}
+        <tr>
+          <td style={{ ...tdStyle(C, { first: true, strong: true }), borderTop: `1px solid ${C.line}`, borderBottom: 'none' }}>
+            Total Production Hours Lost
+          </td>
+          <td style={{ ...tdStyle(C, { align: 'right', strong: true }), borderTop: `1px solid ${C.line}`, borderBottom: 'none' }}>
+            {f1(num('Total Hours Lost'))}
+          </td>
+          <td style={{ ...tdStyle(C, { align: 'right', strong: true }), borderTop: `1px solid ${C.line}`, borderBottom: 'none' }}>
+            {fpct1(num('Downtime % of Available'))}
+          </td>
         </tr>
       </tbody>
     </table>
+    </TableScroll>
   );
 }
 
@@ -360,16 +559,55 @@ function barPath(x, y, w, h, r = 4) {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 }
 
+// Vertical bar gradient (solid at the cap, fading toward the baseline) and the
+// matching area-under-line wash. Both live in one <defs> helper so every chart
+// gets the same treatment, and both are plain SVG gradients — html2canvas
+// serialises inline SVG faithfully, unlike the CSS gradients it drops.
+function BarGradient({ id, color }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={color} stopOpacity="1" />
+      <stop offset="100%" stopColor={color} stopOpacity="0.42" />
+    </linearGradient>
+  );
+}
+function AreaGradient({ id, color }) {
+  return (
+    <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stopColor={color} stopOpacity="0.34" />
+      <stop offset="100%" stopColor={color} stopOpacity="0" />
+    </linearGradient>
+  );
+}
+
 // Solid baseline + a small circle marker per category, evoking a timeline —
 // used by the monthly bar charts (Downtime, Planned vs Actual, Output by Line).
 function AxisTimeline({ C, y0, padL, padR, w, positions }) {
   return (
     <>
-      <line x1={padL} y1={y0} x2={w - padR} y2={y0} stroke={C.grey} strokeWidth="1.5" />
+      <line x1={padL} y1={y0} x2={w - padR} y2={y0} stroke={C.line} strokeWidth="1.2" />
       {positions.map((cx, i) => (
-        <circle key={i} cx={cx} cy={y0} r="3" fill={C.panel} stroke={C.grey} strokeWidth="1.5" />
+        <circle key={i} cx={cx} cy={y0} r="2.6" fill={C.panel} stroke={C.muted} strokeWidth="1.2" />
       ))}
     </>
+  );
+}
+
+// Legend row shared by the charts — the reference's `.legend`/`.lg`/`.sw`:
+// a 9px rounded swatch beside 11.5px label text.
+function Legend({ items }) {
+  const C = useC();
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 5 }}>
+      {items.map(it => (
+        <span key={it.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9.5, color: C.ink2 }}>
+          <span style={{
+            width: 9, height: 9, borderRadius: 2.5, background: it.color, flex: '0 0 auto',
+          }} />
+          {it.name}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -382,13 +620,15 @@ function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = 
         const val = step * i, yy = yFor(val);
         return (
           <g key={i}>
-            <line x1={padL} y1={yy} x2={w - 12} y2={yy} stroke={C.border} strokeDasharray="2,3" />
-            <text x={padL - 6} y={yy + 3} fontSize="7.5" fill={C.grey} textAnchor="end">{fmt(val)}</text>
+            {/* solid hairline gridlines, no dashes — quieter behind the marks */}
+            <line x1={padL} y1={yy} x2={w - 12} y2={yy} stroke={C.gridline} strokeWidth="1" />
+            <text x={padL - 6} y={yy + 3} fontSize="7.5" fill={C.muted} textAnchor="end"
+              fontFamily={UI_FONT}>{fmt(val)}</text>
           </g>
         );
       })}
-      <line x1={padL} y1={padT - 4} x2={padL} y2={h - padB} stroke={C.border} />
-      <text x={10} y={(h - padB + padT) / 2} fontSize="8" fill={C.grey} textAnchor="middle"
+      <text x={10} y={(h - padB + padT) / 2} fontSize="8" fill={C.muted} textAnchor="middle"
+        fontFamily={UI_FONT} letterSpacing="0.06em"
         transform={`rotate(-90 10 ${(h - padB + padT) / 2})`}>{title}</text>
     </>
   );
@@ -400,33 +640,42 @@ function YAxis({ niceMax, step, tickCount, padL, padT, padB, h, w, title, fmt = 
 // caller wants (e.g. the selected range).
 function CumChart({ daily }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   const w = 460, h = 190, padL = 34, padR = 12, padT = 12, padB = 26;
   const pts = daily.filter(d => d.cumAct != null);
-  if (pts.length < 2) return <div style={{ color: C.grey, fontSize: 10, padding: 20 }}>No output data yet in this range.</div>;
+  if (pts.length < 2) return <div style={{ color: C.muted, fontSize: 10, padding: 20, textAlign: 'center' }}>No output data yet in this range.</div>;
   const dataMax = Math.max(...pts.map(d => d.cumAct), 1);
   const { niceMax, step, tickCount } = niceAxis(dataMax, 4, true);
   const x = i => padL + i * ((w - padL - padR) / (pts.length - 1));
   const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.cumAct).toFixed(1)}`).join(' ');
+  const area = `${path} L${x(pts.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
   const showEvery = Math.max(1, Math.ceil(pts.length / 8));
+  const last = pts.length - 1;
   return (
     <div>
-      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 2, background: C.green, marginRight: 4, verticalAlign: 'middle' }} />Actual (cum.)</span>
-      </div>
+      <Legend items={[{ name: 'Actual (cum.)', color: C.green }]} />
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <defs><AreaGradient id={`ca${uid}`} color={C.green} /></defs>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title="Vehicles (cum.)" />
-        <path d={path} fill="none" stroke={C.green} strokeWidth="2.5" />
+        <path d={area} fill={`url(#ca${uid})`} stroke="none" />
+        <path d={path} fill="none" stroke={C.green} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <g key={i}>
-            {(i % showEvery === 0 || i === pts.length - 1) && <circle cx={x(i)} cy={y(p.cumAct)} r="3" fill={C.green} />}
+            {(i % showEvery === 0 || i === last) && <circle cx={x(i)} cy={y(p.cumAct)} r="3" fill={C.panel} stroke={C.green} strokeWidth="2" />}
             {i % showEvery === 0 && (
-              <text x={x(i)} y={h - 8} fontSize="7.5" fill={C.grey} textAnchor="middle">
+              <text x={x(i)} y={h - 8} fontSize="7.5" fill={C.muted} textAnchor="middle" fontFamily={UI_FONT}>
                 {String(p.date).split(' ').slice(-2).join(' ')}
               </text>
             )}
           </g>
         ))}
+        {/* the running total is the number that matters — call out the last point */}
+        <circle cx={x(last)} cy={y(pts[last].cumAct)} r="5.5" fill={C.green} opacity="0.22" />
+        <circle cx={x(last)} cy={y(pts[last].cumAct)} r="3.2" fill={C.green} />
+        <text x={x(last)} y={y(pts[last].cumAct) - 9} fontSize="9.5" fill={C.ink} textAnchor="middle" fontWeight="600" fontFamily={UI_FONT}>
+          {pts[last].cumAct}
+        </text>
       </svg>
     </div>
   );
@@ -437,8 +686,9 @@ function CumChart({ daily }) {
 // it's a bar chart, not a line, per request.
 function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   if (!points || points.length === 0) {
-    return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet — add rows to the Monthly Downtime Log tab.</div>;
+    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet — add rows to the Monthly Downtime Log tab.</div>;
   }
   const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const dataMax = Math.max(...points.map(p => p.value), 0.0001);
@@ -448,19 +698,23 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const y0 = yFor(0);
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <defs><BarGradient id={`mb${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} />
       {points.map((p, i) => {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
           <g key={i}>
-            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))} fill={color} />
-            <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="9" fill={C.text} textAnchor="middle" fontWeight="800">{fmt(p.value)}</text>
+            {/* faint full-height ghost so short bars still read against the scale */}
+            <path d={barPath(x0 + bw * 0.25, padT, pw, Math.max(0, y0 - padT))} fill={C.gridline} />
+            <path d={barPath(x0 + bw * 0.25, yFor(p.value), pw, Math.max(0, y0 - yFor(p.value)))}
+              fill={`url(#mb${uid})`} stroke={color} strokeWidth="0.6" />
+            <text x={x0 + bw / 2} y={yFor(p.value) - 6} fontSize="8.5" fill={C.ink} textAnchor="middle" fontWeight="600" fontFamily={UI_FONT}>{fmt(p.value)}</text>
           </g>
         );
       })}
       <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={points.map((_, i) => padL + i * bw + bw / 2)} />
       {points.map((p, i) => (
-        <text key={p.label} x={padL + i * bw + bw / 2} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
+        <text key={p.label} x={padL + i * bw + bw / 2} y={h - 6} fontSize="7.5" fill={C.muted} textAnchor="middle" fontFamily={UI_FONT}>{p.label}</text>
       ))}
     </svg>
   );
@@ -470,9 +724,10 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
 // production timeline (no slicing to a recent window).
 function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   const pts = (points || []).filter(p => p.planned != null || p.actual != null);
   if (pts.length === 0) {
-    return <div style={{ color: C.grey, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly data yet.</div>;
+    return <div style={{ color: C.muted, fontSize: 10, padding: '20px 0', textAlign: 'center' }}>No monthly data yet.</div>;
   }
   const w = 460, h = 160, padL = 30, padR = 10, padT = 10, padB = 22;
   const dataMax = Math.max(...pts.map(d => d.planned || 0), ...pts.map(d => d.actual ?? 0), 1);
@@ -482,23 +737,26 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
   const y0 = yFor(0);
   return (
     <div>
-      <div style={{ display: 'flex', gap: 14, fontSize: 9, color: C.grey, marginBottom: 4 }}>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.blue, marginRight: 4 }} />Planned</span>
-        <span><span style={{ display: 'inline-block', width: 9, height: 8, background: C.green, marginRight: 4 }} />Actual</span>
-      </div>
+      <Legend items={[{ name: 'Planned', color: C.blue }, { name: 'Actual', color: C.green }]} />
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+        <defs>
+          <BarGradient id={`pp${uid}`} color={C.blue} />
+          <BarGradient id={`pa${uid}`} color={C.green} />
+        </defs>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle} />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
           const planned = d.planned || 0;
           return (
             <g key={i}>
-              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))} fill={C.blue} />
-              {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{planned}</text>}
+              <path d={barPath(x0 + bw * 0.1, yFor(planned), pw, Math.max(0, y0 - yFor(planned)))}
+                fill={`url(#pp${uid})`} stroke={C.blue} strokeWidth="0.6" />
+              {planned > 0 && <text x={x0 + bw * 0.1 + pw / 2} y={yFor(planned) - 4} fontSize="7" fill={C.ink2} textAnchor="middle" fontWeight="600" fontFamily={UI_FONT}>{planned}</text>}
               {d.actual != null && (
                 <>
-                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))} fill={C.green} />
-                  {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.text} textAnchor="middle" fontWeight="700">{d.actual}</text>}
+                  <path d={barPath(x0 + bw * 0.5, yFor(d.actual), pw, Math.max(0, y0 - yFor(d.actual)))}
+                    fill={`url(#pa${uid})`} stroke={C.green} strokeWidth="0.6" />
+                  {d.actual > 0 && <text x={x0 + bw * 0.5 + pw / 2} y={yFor(d.actual) - 4} fontSize="7" fill={C.ink2} textAnchor="middle" fontWeight="600" fontFamily={UI_FONT}>{d.actual}</text>}
                 </>
               )}
             </g>
@@ -509,45 +767,25 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
             off-center between the two bars */}
         <AxisTimeline C={C} y0={y0} padL={padL} padR={padR} w={w} positions={pts.map((_, i) => padL + i * bw + bw * 0.46)} />
         {pts.map((d, i) => (
-          <text key={d.label} x={padL + i * bw + bw * 0.46} y={h - 6} fontSize="7" fill={C.grey} textAnchor="middle">{d.label}</text>
+          <text key={d.label} x={padL + i * bw + bw * 0.46} y={h - 6} fontSize="7" fill={C.muted} textAnchor="middle" fontFamily={UI_FONT}>{d.label}</text>
         ))}
       </svg>
     </div>
   );
 }
 
-// Date helpers — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
-// Date parsing is needed here. `rangesOverlap` asks whether a unit's plan
-// window touches the range; `inRange` whether a single dated event falls in it.
+// Date helper — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
+// Date parsing is needed here. Asks whether a unit's plan window touches the
+// selected range.
 const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
   !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
-const inRange = (iso, start, end) => !!iso && (!start || iso >= start) && (!end || iso <= end);
-
-// Planned vs Actual for the scheduled period, drawn exactly like the
-// by-shop line cards: buses-done / planned-total above, a % ring below.
-// The ring saturates at full, so beating plan reads as a complete ring and
-// the real figure is spelled out underneath rather than silently clipped.
-function PlannedActualPie({ planned, actual, caption, size = 110 }) {
-  const C = useC();
-  const pct = planned ? actual / planned : 0;
-  const color = pct >= 0.9 ? C.green : pct >= 0.6 ? C.amber : C.red;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0' }}>
-      <div style={{ fontSize: 17, fontWeight: 800, color: C.text }}>{actual} / {planned}</div>
-      <Donut pct={pct} color={color} size={size} />
-      <div style={{ fontSize: 9, color: C.grey, textAlign: 'center', lineHeight: 1.45 }}>
-        {caption}
-        {pct > 1 && <><br /><b style={{ color: C.green }}>{Math.round(pct * 100)}% of plan</b></>}
-      </div>
-    </div>
-  );
-}
 
 // Generic monthly trend line — used for FPY%.
 function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const C = useC();
+  const uid = useId().replace(/[:]/g, '');
   if (!points || points.length < 2) {
-    return <div style={{ color: C.grey, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
+    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
   }
   const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const vals = points.map(p => p.value);
@@ -556,15 +794,18 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const x = i => padL + i * ((w - padL - padR) / (points.length - 1));
   const y = v => h - padB - (v / niceMax) * (h - padB - padT);
   const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ');
+  const area = `${path} L${x(points.length - 1).toFixed(1)},${y(0).toFixed(1)} L${x(0).toFixed(1)},${y(0).toFixed(1)} Z`;
   return (
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
+      <defs><AreaGradient id={`tr${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" />
+      <path d={area} fill={`url(#tr${uid})`} stroke="none" />
+      <path d={path} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
       {points.map((p, i) => (
         <g key={i}>
-          <circle cx={x(i)} cy={y(p.value)} r="3" fill={color} />
-          <text x={x(i)} y={h - 6} fontSize="8" fill={C.grey} textAnchor="middle">{p.label}</text>
-          <text x={x(i)} y={y(p.value) - 8} fontSize="8.5" fill={C.text} textAnchor="middle" fontWeight="700">{fmt(p.value)}</text>
+          <circle cx={x(i)} cy={y(p.value)} r="3.2" fill={C.panel} stroke={color} strokeWidth="2" />
+          <text x={x(i)} y={h - 6} fontSize="7.5" fill={C.muted} textAnchor="middle" fontFamily={UI_FONT}>{p.label}</text>
+          <text x={x(i)} y={y(p.value) - 8} fontSize="8.5" fill={C.ink} textAnchor="middle" fontWeight="600" fontFamily={UI_FONT}>{fmt(p.value)}</text>
         </g>
       ))}
     </svg>
@@ -608,13 +849,13 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
     }
   }
 
-  const field = { width: '100%', background: C.navy, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: '7px 9px', fontSize: 12, fontFamily: 'inherit' };
-  const label = { fontSize: 9, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' };
+  const field = { width: '100%', boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit' };
+  const label = { fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5, display: 'block' };
 
   return createPortal(
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, width: 'min(440px, 92vw)', padding: 18, color: C.text, fontFamily: "'Inter', Arial, sans-serif" }}>
-        <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,16,30,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.glassBorder}`, borderRadius: 16, width: 'min(440px, 92vw)', padding: 20, color: C.ink, boxShadow: C.shadowLg, fontFamily: "'Inter', Arial, sans-serif" }}>
+        <div style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.014em', marginBottom: 15 }}>
           Email Scoreboard
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -645,12 +886,112 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
             )}
           </div>
           {status && (
-            <div style={{ fontSize: 11, color: status.ok ? C.green : C.red }}>{status.msg}</div>
+            <div style={{ fontSize: 11.5, color: status.ok ? C.green : C.red }}>{status.msg}</div>
           )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-            <button onClick={onClose} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.grey, borderRadius: 4, padding: '7px 14px', fontSize: 11, cursor: 'pointer' }}>Close</button>
-            <button onClick={send} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', borderRadius: 4, padding: '7px 16px', fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+            <button onClick={onClose} style={{ background: C.surface2, border: 'none', color: C.ink2, borderRadius: 10, padding: '9px 15px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+            <button onClick={send} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', borderRadius: 10, padding: '9px 17px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
               {busy ? 'Capturing…' : schedule === 'now' ? 'Send' : 'Schedule'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Production Report modal ───────────────────────────────────────────────
+// The preliminary form for the monthly Production Report. Everything the
+// template leaves blank is filled here up front: the reporting month (which
+// is all that appears on the cover, and what Annex A is sliced to) plus the
+// three empty Document Version History cells — Reference No., Issue Date and
+// Last Review Date.
+//
+// Choosing a month also moves the board's own selected range to that month
+// before the pages are captured, so the embedded screenshots report the same
+// period as Annex A.
+function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, applyMonthRange }) {
+  const C = useC();
+  const [referenceNo, setReferenceNo] = useState(() => defaultReference(month));
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [lastReviewDate, setLastReviewDate] = useState('');
+  const [versionNo, setVersionNo] = useState('00');
+  const [nextReview, setNextReview] = useState('AS REQUIRED');
+  const [refTouched, setRefTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  // The reference number tracks the month until the preparer overrides it.
+  useEffect(() => { if (!refTouched) setReferenceNo(defaultReference(month)); }, [month, refTouched]);
+
+  const model = buildReportModel({ buses, month });
+
+  async function generate() {
+    setBusy(true); setStatus(null);
+    try {
+      applyMonthRange(month);
+      // Let the board re-render against the month before it is captured. A
+      // plain timer, not requestAnimationFrame — rAF is suspended while the
+      // tab is in the background, which would hang the export the moment the
+      // operator switched away.
+      await new Promise(r => setTimeout(r, 450));
+      const pageCanvases = await capturePages();
+      const pdf = await buildProductionReport({
+        meta: { month, referenceNo, issueDate, lastReviewDate, versionNo, nextReview },
+        buses,
+        pageCanvases,
+      });
+      pdf.save(`KMC_Production_Report_${month}.pdf`);
+      setStatus({ ok: true, msg: `Report generated for ${monthName(month)}.` });
+    } catch (e) {
+      setStatus({ ok: false, msg: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const field = { width: '100%', boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit' };
+  const label = { fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5, display: 'block' };
+
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,16,30,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.glassBorder}`, borderRadius: 16, width: 'min(500px, 92vw)', padding: 20, color: C.ink, boxShadow: C.shadowLg, fontFamily: "'Inter', Arial, sans-serif" }}>
+        <div style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.014em', marginBottom: 15 }}>
+          Production Report (PDF)
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div><span style={label}>Reporting Month</span>
+            <input type="month" style={field} value={month} onChange={e => e.target.value && setMonth(e.target.value)} /></div>
+
+          <div style={{ fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 4 }}>
+            Document Version History
+          </div>
+          <div><span style={label}>Reference No.</span>
+            <input style={field} value={referenceNo}
+              onChange={e => { setRefTouched(true); setReferenceNo(e.target.value); }} /></div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}><span style={label}>Issue Date</span>
+              <input type="date" style={field} value={issueDate} onChange={e => setIssueDate(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><span style={label}>Last Review Date</span>
+              <input type="date" style={field} value={lastReviewDate} onChange={e => setLastReviewDate(e.target.value)} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}><span style={label}>Version No.</span>
+              <input style={field} value={versionNo} onChange={e => setVersionNo(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><span style={label}>Next Review Date</span>
+              <input style={field} value={nextReview} onChange={e => setNextReview(e.target.value)} /></div>
+          </div>
+
+          <div style={{ fontSize: 11.5, color: C.ink2 }}>
+            Annex A will list the {model.completedCount} bus{model.completedCount === 1 ? '' : 'es'} completed
+            in {monthName(month)}.
+          </div>
+          {status && <div style={{ fontSize: 11.5, color: status.ok ? C.green : C.red }}>{status.msg}</div>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <button onClick={onClose} style={{ background: C.surface2, border: 'none', color: C.ink2, borderRadius: 10, padding: '9px 15px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+            <button onClick={generate} disabled={busy} style={{ background: C.red, border: 'none', color: '#fff', borderRadius: 10, padding: '9px 17px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: busy ? 0.6 : 1 }}>
+              {busy ? 'Building…' : 'Generate PDF'}
             </button>
           </div>
         </div>
@@ -667,14 +1008,14 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
 // Tracker). Not captured in exports — rendered outside the Page refs.
 function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
   const C = useC();
-  const field = { background: C.navy, border: `1px solid ${C.border}`, color: C.text, borderRadius: 4, padding: '6px 9px', fontSize: 12, fontFamily: 'inherit' };
-  const label = { fontSize: 9, color: C.grey, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, display: 'block' };
+  const field = { background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit' };
+  const label = { fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5, display: 'block' };
   return (
     <div style={{
-      maxWidth: PAGE_WIDTH, margin: '0 auto 10px', background: C.panel, border: `1px solid ${C.border}`,
-      borderRadius: 8, padding: 14, boxShadow: C.shadow,
+      maxWidth: PAGE_WIDTH, margin: '0 auto 10px', background: C.glass, border: `1px solid ${C.glassBorder}`,
+      borderRadius: 14, padding: 16, boxShadow: C.shadow,
     }}>
-      <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, color: C.text }}>
+      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.014em', marginBottom: 12, color: C.ink }}>
         Selected Range &amp; Line Targets
       </div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12, alignItems: 'flex-end' }}>
@@ -686,10 +1027,10 @@ function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
         </div>
         <button
           onClick={() => setLineTargets({})}
-          style={{ background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey, borderRadius: 4, padding: '7px 12px', fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit' }}
+          style={{ background: C.surface2, border: 'none', color: C.ink2, borderRadius: 10, padding: '8px 14px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
         >Clear Targets</button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
         {LINE_WORKSHOPS.map(lw => (
           <div key={lw.dataName}>
             <span style={label}>{lw.display} target</span>
@@ -706,40 +1047,140 @@ function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
   );
 }
 
-// ── Header (shared by all pages) ─────────────────────────────────
-function BoardHeader({ raw }) {
+// ── Masthead (shared by all pages) ───────────────────────────────
+// A glass card in the same family as every other card, rather than a black
+// bar with hard dividers: logo on a plate (needed in light mode — the lockup
+// is white-on-transparent), the title as an h1, and the period / shift / ref
+// metadata as chips instead of label:value rows. Nothing is dropped, it is
+// just carried in less chrome.
+function BoardHeader({ raw, referenceNo }) {
   const C = useC();
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', background: C.header, border: `1px solid ${C.border}`, borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 20px', minWidth: 260 }}>
-        <img src="/kmc logo 2.png" alt="KMC" style={{ height: 60, objectFit: 'contain' }} crossOrigin="anonymous" />
-      </div>
-      <div style={{ flex: 1, textAlign: 'center', padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff' }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap',
+      background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 16,
+      padding: '13px 18px', boxShadow: C.shadow,
+    }}>
+      <img src={C.logo} alt="Kiira Motors Corporation" crossOrigin="anonymous"
+        style={{ height: 50, width: 'auto', display: 'block', objectFit: 'contain', flex: '0 0 auto' }} />
+      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+        <div style={{
+          fontSize: 28, fontWeight: 800, lineHeight: 1.12, letterSpacing: '-0.018em', color: C.ink,
+        }}>
           Department of Production Scoreboard
         </div>
-      </div>
-      <div style={{ minWidth: 210, borderLeft: `1px solid ${C.border}`, padding: '6px 16px', fontSize: 10.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>PERIOD</span><b>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</b></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>SHIFT</span><b>{raw('Shift Label') || 'DAY SHIFT'}</b></div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: C.grey }}>REF</span><b style={{ fontSize: 8.5 }}>KMC.DPN.07/26-REG004</b></div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 7 }}>
+          <Chip>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</Chip>
+          <Chip>{raw('Shift Label') || 'DAY SHIFT'}</Chip>
+          <Chip tone="crit">{referenceNo}</Chip>
+        </div>
       </div>
     </div>
   );
 }
 
+// Overall achievement, as a single wide meter, on its own glass strip: the
+// figure and the "n of N buses" reading sit above a fully-rounded track with
+// quarter ticks. Same information as before, less hard chrome.
+function ProgressBar({ pct, target, done }) {
+  const C = useC();
+  const p = Math.max(0, Math.min(1, pct || 0));
+  return (
+    <div style={{
+      background: C.stat, border: `1px solid ${C.glassBorder}`, borderRadius: 13,
+      padding: '11px 14px 12px', boxShadow: C.shadow,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+        <span style={{
+          fontFamily: UI_FONT, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+          textTransform: 'uppercase', color: C.ink,
+        }}>Programme Completion</span>
+        <span style={{
+          fontSize: 21, fontWeight: 700, color: C.green, letterSpacing: '-0.02em',
+          fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+        }}>{fpct(pct)}</span>
+      </div>
+      <div style={{ position: 'relative', height: 12, borderRadius: 999, overflow: 'hidden', background: C.track }}>
+        <div style={{
+          width: `${p * 100}%`, height: '100%', borderRadius: 999,
+          background: `linear-gradient(90deg, ${C.greenDeep} 0%, ${C.green} 72%, ${C.greenLite} 100%)`,
+        }} />
+        {[1, 2, 3].map(i => (
+          <div key={i} style={{
+            position: 'absolute', left: `${i * 25}%`, top: 0, bottom: 0,
+            width: 1, background: C.gridline,
+          }} />
+        ))}
+      </div>
+      {/* tick labels sit on the same 25% grid as the marks above them, so they
+          are absolutely placed rather than space-between'd (which spaces by
+          label width, not by position) */}
+      <div style={{
+        position: 'relative', height: 12, marginTop: 5, fontSize: 8.5,
+        color: C.muted, fontFamily: UI_FONT,
+      }}>
+        <span style={{ position: 'absolute', left: 0 }}>0</span>
+        {[1, 2, 3].map(i => (
+          <span key={i} style={{ position: 'absolute', left: `${i * 25}%`, transform: 'translateX(-50%)' }}>{i * 25}%</span>
+        ))}
+        <span style={{ position: 'absolute', right: 0 }}>{fint(done)} / {fint(target)} buses</span>
+      </div>
+    </div>
+  );
+}
+
+// One board page. The backdrop photo is painted on the page itself rather
+// than only on the outer shell, so the cards float on it in the PNG/PDF
+// captures exactly as they do on screen.
 function Page({ innerRef, children }) {
   const C = useC();
+  const [width, setWidth] = useState(PAGE_WIDTH);
+  const el = useRef(null);
+  // one node, two refs: the parent needs it for html2canvas, we need it to measure
+  const attach = useCallback(node => {
+    el.current = node;
+    if (innerRef) innerRef.current = node;
+  }, [innerRef]);
+
+  useEffect(() => {
+    const node = el.current;
+    if (!node) return;
+    const read = () => setWidth(node.clientWidth || PAGE_WIDTH);
+    read();
+    // A window resize listener is the reliable signal — ResizeObserver is
+    // missing or inert in some embedded/webview browsers. RO is added on top
+    // where it works, since it also catches layout changes that move the page
+    // without resizing the window (the sidebar/selector opening, say).
+    window.addEventListener('resize', read);
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(read);
+      ro.observe(node);
+    }
+    return () => {
+      window.removeEventListener('resize', read);
+      if (ro) ro.disconnect();
+    };
+  }, []);
+
   return (
-    <div ref={innerRef} style={{
-      width: PAGE_WIDTH, margin: '10px auto 0', display: 'flex', flexDirection: 'column', gap: 9, padding: 12,
-      background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: C.shadowLg,
-    }}>{children}</div>
+    <PageWidthCtx.Provider value={width}>
+      <div ref={attach} style={{
+        width: '100%', maxWidth: PAGE_WIDTH, margin: '14px auto 0', display: 'flex',
+        flexDirection: 'column', gap: 10, padding: 12, borderRadius: 18, boxShadow: C.shadowLg,
+        backgroundColor: C.bg,
+        backgroundImage: `${C.pageWash}, ${BG_IMAGE}`,
+        backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+      }}>{children}</div>
+    </PageWidthCtx.Provider>
   );
 }
 
 // ── Main component ──────────────────────────────────────────────
-const PAGE_WIDTH = 1320;
+const SB_TABS = [
+  { id: 'dashboard', label: 'Live Dashboard' },
+  { id: 'workbook',  label: 'Workbook View' },
+];
 
 function defaultRange() {
   const now = new Date();
@@ -747,10 +1188,11 @@ function defaultRange() {
   return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
 }
 
-function ScoreboardInner() {
+function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const C = useC();
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [range, setRange] = useState(() => {
@@ -763,6 +1205,10 @@ function ScoreboardInner() {
   const [lineTargets, setLineTargets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kmc_scoreboard_targets') || '{}'); } catch { return {}; }
   });
+  // The Production Report is month-scoped; the picker seeds from whatever
+  // month the board's selected range currently ends in.
+  const [reportMonth, setReportMonth] = useState(() => range.end.slice(0, 7));
+  const applyMonthRange = useCallback(m => setRange(monthBounds(m)), []);
   useEffect(() => { localStorage.setItem('kmc_scoreboard_range', JSON.stringify(range)); }, [range]);
   useEffect(() => { localStorage.setItem('kmc_scoreboard_targets', JSON.stringify(lineTargets)); }, [lineTargets]);
   const pageRefs = [useRef(null), useRef(null), useRef(null)];
@@ -774,13 +1220,33 @@ function ScoreboardInner() {
   const num = (key) => g(key).num ?? null;
   const raw = (key) => g(key).raw ?? '';
 
+  // Every export — PNG, PDF and the Production Report's embedded board pages —
+  // must look the same whatever device triggered it. The board itself is fluid,
+  // so each page is pinned to the reference width for the duration of the
+  // capture and released afterwards. Because the layout reflows on container
+  // width (see `fit`) rather than on viewport media queries, pinning is enough
+  // to restore the full desktop board even on a phone.
   const capturePages = useCallback(async () => {
     const opts = { backgroundColor: C.bg, scale: 2, useCORS: true, logging: false };
-    const canvases = [];
-    for (const ref of pageRefs) {
-      if (ref.current) canvases.push(await html2canvas(ref.current, opts));
+    const pinned = pageRefs.map(r => r.current).filter(Boolean);
+    const previous = pinned.map(el => [el.style.width, el.style.maxWidth]);
+    pinned.forEach(el => {
+      el.style.width = `${PAGE_WIDTH}px`;
+      el.style.maxWidth = `${PAGE_WIDTH}px`;
+      void el.offsetWidth;                 // force reflow before the capture
+    });
+    // Nudge every Page to re-measure and re-render at the pinned width, then
+    // let React commit, so the capture sees the desktop grid rather than
+    // whatever the device was showing.
+    window.dispatchEvent(new Event('resize'));
+    await new Promise(r => setTimeout(r, 120));
+    try {
+      const canvases = [];
+      for (const el of pinned) canvases.push(await html2canvas(el, opts));
+      return canvases;
+    } finally {
+      pinned.forEach((el, i) => { [el.style.width, el.style.maxWidth] = previous[i]; });
     }
-    return canvases;
   }, [C.bg]);
 
   // One stacked PNG (all pages, one file) — separate downloads were easy to
@@ -820,6 +1286,10 @@ function ScoreboardInner() {
       pdf.save(`KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.pdf`);
     } finally { setExporting(false); }
   }
+
+  // Document reference shown on the board header and pre-filled into the
+  // report's version-history table, so both always agree.
+  const referenceNo = defaultReference(range.end);
 
   const target = num('Program Target (vehicles)') ?? 45;
   const achievement = num('Achievement %') ?? 0;
@@ -902,28 +1372,6 @@ function ScoreboardInner() {
     return { name: lw.dataName, display: lw.display, done, target, pct, status, constraint: calcRow?.constraint || '—' };
   });
 
-  // Planned vs Actual for the scheduled period, as a pie — summed straight
-  // off the per-line cards above ("progress made per part"), so the total
-  // always agrees with the four line pies instead of being derived twice.
-  const periodPartsTotals = lineWorkshops.reduce(
-    (acc, w) => ({ planned: acc.planned + w.target, actual: acc.actual + w.done }),
-    { planned: 0, actual: 0 },
-  );
-
-  // Throughput for the same window — deliveries actually dated inside it,
-  // against the deliveries the plan called for. Deliberately a different
-  // question from the cohort pie above: this counts buses finished during
-  // the window no matter when they were scheduled, so units that ran late
-  // land here in the period they were really completed. It can exceed 100%
-  // when a backlog is cleared (live data: 46 delivered vs 17 due Jul-Aug).
-  const periodThroughput = LINE_WORKSHOPS.reduce((acc, lw) => {
-    (d.lineCompletion?.[lw.dataName]?.tasks || []).forEach(t => {
-      if (inRange(t.planEnd, range.start, range.end)) acc.planned += 1;
-      if (t.done && inRange(t.actualEnd, range.start, range.end)) acc.actual += 1;
-    });
-    return acc;
-  }, { planned: 0, actual: 0 });
-
   // Cumulative throughput (whole program, never range-sliced) — a running
   // sum of buses actually built. Built off the monthly Planned vs Actual
   // series (d.overallMonthly) rather than the Daily Output tab: that tab is
@@ -936,306 +1384,295 @@ function ScoreboardInner() {
     return { date: m.label, cumAct: cumRunning };
   });
 
+  // Soft-filled pill buttons rather than outlined uppercase ones — the
+  // reference's `.btn.ghost`.
   const btn = {
-    background: 'transparent', border: `1px solid ${C.grey}`, color: C.grey,
-    borderRadius: 5, padding: '6px 12px', fontSize: 10, fontWeight: 700,
-    letterSpacing: '0.07em', textTransform: 'uppercase', cursor: 'pointer',
-    fontFamily: 'inherit', whiteSpace: 'nowrap',
+    background: C.surface2, border: 'none', color: C.ink2,
+    borderRadius: 10, padding: '8px 14px', fontSize: 11.5, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
   };
 
   return (
     <div style={{
-      minHeight: '100vh', padding: '12px 12px 40px', fontFamily: "'Inter', Arial, sans-serif", color: C.text,
+      minHeight: '100vh', padding: '14px clamp(6px, 1.4vw, 14px) 40px', overflowX: 'hidden',
+      fontFamily: "'Inter', Arial, sans-serif", color: C.ink,
       backgroundColor: C.bg,
-      backgroundImage: `${C.overlay}, url('/Bus background 3.png')`,
+      backgroundImage: `${C.overlay}, ${BG_IMAGE}`,
       backgroundSize: 'cover', backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
     }}>
       {/* toolbar + range/target selector (neither captured in exports) */}
       <ScoreboardToolbar
         live={live} loading={loading} error={error} lastUpdated={lastUpdated}
         refresh={refresh} exportPNG={exportPNG} exportPDF={exportPDF}
-        exporting={exporting} setEmailOpen={setEmailOpen} btn={btn}
+        exporting={exporting} setEmailOpen={setEmailOpen} setReportOpen={setReportOpen} btn={btn}
         selectorOpen={selectorOpen} setSelectorOpen={setSelectorOpen}
+        view={view} setView={setView} onHome={onHome} onLogout={onLogout} hideHome={hideHome}
       />
       {selectorOpen && (
         <RangeTargetPanel range={range} setRange={setRange} lineTargets={lineTargets} setLineTargets={setLineTargets} />
       )}
 
-      {/* ═══════════ PAGE 1 — Overview ═══════════ */}
-      <Page innerRef={pageRefs[0]}>
-        <BoardHeader raw={raw} />
+      {view === 'workbook' ? <WorkbookView /> : (
+        <>
+        {/* ═══════════ PAGE 1 — Overview ═══════════ */}
+        <Page innerRef={pageRefs[0]}>
+          <BoardHeader raw={raw} referenceNo={referenceNo} />
 
-        {/* Overall Progress — first, and exempt from any period slicing */}
-        <SectionLabel>Overall Progress</SectionLabel>
-        <CardGrid cols={6}>
-          {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
-        </CardGrid>
-        <div>
-          <div style={{ background: C.track, borderRadius: 9, height: 32, overflow: 'hidden' }}>
-            <div style={{
-              width: `${Math.round(achievement * 100)}%`, height: '100%',
-              background: `linear-gradient(90deg, #1e8449, ${C.green})`,
-              fontSize: 15, fontWeight: 900, fontFamily: "'Arial Black', 'Inter', sans-serif",
-              letterSpacing: '0.02em', color: '#04210f', display: 'flex',
-              alignItems: 'center', justifyContent: 'center', minWidth: 44,
-            }}>{fpct(achievement)}</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8.5, color: C.grey, marginTop: 2 }}>
-            <span>0</span><span>{fint(target)} buses</span>
-          </div>
-        </div>
+          {/* Overall Progress — first, and exempt from any period slicing */}
+          <SectionLabel>Overall Progress</SectionLabel>
+          <CardGrid cols={6}>
+            {overallCards.map(c => <ScoreCard key={c.label} {...c} />)}
+          </CardGrid>
+          <ProgressBar pct={achievement} target={target} done={num('Completed')} />
 
-        {/* Production Line Status — 4 core assembly-line workshops as
-            scorecards, scoped to the selected range (labelled so a reader
-            never mistakes a period figure for a program-to-date one) */}
-        <SectionLabel>Production Line Status — {range.start} to {range.end}</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-          {lineWorkshops.map(w => (
-            <div key={w.name} style={{
-              background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${wsColor(w.status)}`,
-              borderRadius: 8, padding: 8, textAlign: 'center', boxShadow: C.shadow,
-            }}>
-              <div style={{ height: 52, borderRadius: 5, overflow: 'hidden', marginBottom: 6, background: C.navy }}>
-                {WORKSHOP_IMG[w.name] && (
-                  <img src={WORKSHOP_IMG[w.name]} alt="" crossOrigin="anonymous"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
-                )}
+          {/* Production Line Status — 4 core assembly-line workshops as
+              scorecards, scoped to the selected range (labelled so a reader
+              never mistakes a period figure for a program-to-date one) */}
+          <SectionLabel right={<Chip>{range.start} → {range.end}</Chip>}>Production Line Status</SectionLabel>
+          <Row cols={lineCols}>
+            {lineWorkshops.map(w => (
+              <div key={w.name} style={{
+                background: C.stat, border: `1px solid ${C.glassBorder}`,
+                borderRadius: 13, padding: 9, textAlign: 'center', boxShadow: C.shadow,
+              }}>
+                <div style={{ height: 52, borderRadius: 9, overflow: 'hidden', marginBottom: 7, background: C.surface2 }}>
+                  {WORKSHOP_IMG[w.name] && (
+                    <img src={WORKSHOP_IMG[w.name]} alt="" crossOrigin="anonymous"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                </div>
+                <div style={{
+                  fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+                  minHeight: 24, lineHeight: 1.25, color: C.muted,
+                }}>{w.display}</div>
+                <div style={{
+                  fontSize: 18, fontWeight: 700, color: C.ink, margin: '2px 0 6px',
+                  letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums',
+                }}>{w.done} / {w.target}</div>
+                <Donut pct={w.pct} color={wsColor(w.status)} size={90} thickness={11} />
               </div>
-              <div style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', minHeight: 22, lineHeight: 1.2 }}>{w.display}</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: C.text, margin: '2px 0 6px' }}>{w.done} / {w.target}</div>
-              <Donut pct={w.pct} color={wsColor(w.status)} size={92} />
-            </div>
-          ))}
-        </div>
+            ))}
+          </Row>
 
-        {/* Key Performance Indicators — the 8 big rocks */}
-        <SectionLabel>Key Performance Indicators</SectionLabel>
-        <CardGrid cols={4}>
-          {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
-        </CardGrid>
-      </Page>
+          {/* Key Performance Indicators — the 8 big rocks */}
+          <SectionLabel>Key Performance Indicators</SectionLabel>
+          <CardGrid cols={4}>
+            {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
+          </CardGrid>
+        </Page>
 
-      {/* ═══════════ PAGE 2 — Performance ═══════════ */}
-      <Page innerRef={pageRefs[1]}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="First Pass Yield — by Month">
-            <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
-          </Panel>
-          <Panel title="Downtime — by Month (hours)">
-            <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
-          </Panel>
-        </div>
-
-        {/* Two whole-program charts plus the two selected-range pies. The
-            range picker drives both pies (and the line-status cards on page
-            1); the first two charts are deliberately program-wide. The pies
-            answer different questions — see their captions. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-          <Panel title="Planned vs Actual — by Month (whole program)">
-            <MonthlyPlanActualChart points={d.overallMonthly} />
-          </Panel>
-          <Panel title="Cumulative Throughput (whole program)">
-            <CumChart daily={cumulativeMonthly} />
-          </Panel>
-          <Panel title={`Planned vs Actual — Selected Range (${range.start} to ${range.end})`}>
-            <PlannedActualPie
-              planned={periodPartsTotals.planned} actual={periodPartsTotals.actual}
-              caption="of the buses scheduled in this range, how many are done"
-            />
-          </Panel>
-          <Panel title={`Throughput — Selected Range (${range.start} to ${range.end})`}>
-            <PlannedActualPie
-              planned={periodThroughput.planned} actual={periodThroughput.actual}
-              caption="buses finished in this range / due in this range"
-            />
-          </Panel>
-        </div>
-
-        <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-          {LINE_WORKSHOPS.map(lw => (
-            <Panel key={lw.dataName} title={lw.display}>
-              <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} />
+        {/* ═══════════ PAGE 2 — Performance ═══════════ */}
+        <Page innerRef={pageRefs[1]}>
+          {/* One row of four whole-program trends. The two selected-range pies
+              that used to sit here are gone (removed per request); the range
+              picker still drives the line-status cards on page 1. */}
+          <Row cols={chartCols}>
+            <Panel title="First Pass Yield — by Month">
+              <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
             </Panel>
-          ))}
-        </div>
-      </Page>
+            <Panel title="Downtime — by Month (hours)">
+              <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
+            </Panel>
+            <Panel title="Planned vs Actual — by Month (whole program)">
+              <MonthlyPlanActualChart points={d.overallMonthly} />
+            </Panel>
+            <Panel title="Cumulative Throughput (whole program)">
+              <CumChart daily={cumulativeMonthly} />
+            </Panel>
+          </Row>
 
-      {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
-      <Page innerRef={pageRefs[2]}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 8 }}>
-          <Panel title="Production Downtime — Full Breakdown (Period)">
-            <DowntimeTable kv={kv} />
-          </Panel>
-          <Panel title="Safety">
-            <CardGrid cols={2}>
-              {[
-                { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')) },
-                { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')) },
-                { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')) },
-                { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')) },
-              ].map(c => <ScoreCard key={c.label} {...c} />)}
-            </CardGrid>
-          </Panel>
-          <Panel title="Environment">
-            <CardGrid cols={2}>
-              {[
-                { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')) },
-                { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')) },
-                { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")) },
-              ].map(c => <ScoreCard key={c.label} {...c} />)}
-            </CardGrid>
-          </Panel>
-        </div>
+          <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
+          <Row cols={chartCols}>
+            {LINE_WORKSHOPS.map(lw => (
+              <Panel key={lw.dataName} title={lw.display}>
+                <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} />
+              </Panel>
+            ))}
+          </Row>
+        </Page>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Production Operational Cost">
-            <ScoreCard label="Total (UGX '000)" value={productionOperationalCost} />
-          </Panel>
-          <Panel title="Schedule">
-            <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-          </Panel>
-        </div>
+        {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
+        <Page innerRef={pageRefs[2]}>
+          <Row cols={w => (w >= 1040 ? '1.4fr 1fr 1fr' : w >= 700 ? '1fr 1fr' : '1fr')}>
+            <Panel title="Production Downtime — Full Breakdown (Period)">
+              <DowntimeTable kv={kv} />
+            </Panel>
+            <Panel title="Safety">
+              <CardGrid cols={2}>
+                {[
+                  { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')) },
+                  { label: 'PPE Misuse', value: fint(num('PPE Misuse Incidents')) },
+                  { label: 'Unsafe Conditions', value: fint(num('Unsafe Conditions')) },
+                  { label: 'Inspection Compliance', value: fpct(num('Safety Inspection Compliance')) },
+                ].map(c => <ScoreCard key={c.label} {...c} />)}
+              </CardGrid>
+            </Panel>
+            <Panel title="Environment">
+              <CardGrid cols={2}>
+                {[
+                  { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')) },
+                  { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')) },
+                  { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")) },
+                ].map(c => <ScoreCard key={c.label} {...c} />)}
+              </CardGrid>
+            </Panel>
+          </Row>
 
-        <Panel title="Operational Cost per Line">
-          <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-        </Panel>
+          <Row cols={w => (w >= 700 ? 2 : 1)}>
+            <Panel title="Production Operational Cost">
+              <ScoreCard label="Total (UGX '000)" value={productionOperationalCost} />
+            </Panel>
+            <Panel title="Schedule">
+              <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+            </Panel>
+          </Row>
 
-        {/* Cost Estimations Engineer's own per-machine ranking (same figures
-            as CostEstimation.jsx's Report tab — rate × Available Hours),
-            surfaced here so the CEE's costing is visible on the scoreboard
-            itself, not just inside the CEE module. */}
-        <Panel title="Machine Cost Ranking (Cost Estimations Engineer)">
-          <MiniTable
-            headers={['Machine', 'Station', 'Activity', 'Rate (UGX/hr)', "Cost (UGX '000)"]}
-            rows={(d.machineCostRows || []).slice(0, 8).map(r => [
-              r.machineName || r.id, r.stationCode || '—', r.activity || '—', fint(r.rate), fint(r.costK),
-            ])}
-            empty="No machine rates set yet — add them in Cost Estimation."
-          />
-        </Panel>
+          <Panel title="Operational Cost per Line">
+            <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Open Bottlenecks">
-            <MiniTable
-              headers={['Raised', 'Bottleneck', 'Workshop', 'Impact', 'Owner', 'Recovery']}
-              rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').slice(0, 6).map(r => r.slice(0, 6))}
-              empty="No open bottlenecks."
-            />
-          </Panel>
-          <Panel title="Engineering Change Control (ECR)">
-            <MiniTable
-              headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
-              rows={d.ecr.slice(-6).map(r => [r[0], r[1], r[2], r[4], r[5]])}
-              empty="No ECRs logged."
-            />
-          </Panel>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <Panel title="Kaizen / Improvement Ideas">
-            <MiniTable
-              headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
-              rows={d.kaizen.slice(-6).map(r => [r[1], r[2], r[3], r[4], r[5]])}
-              empty="No kaizen ideas yet."
-            />
-          </Panel>
-          <Panel title="Production Waste (Period)">
-            <MiniTable
-              headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
-              rows={d.waste.slice(-6).map(r => r.slice(0, 6))}
-              empty="No waste entries this period."
-            />
-          </Panel>
-        </div>
+          <Row cols={w => (w >= 700 ? 2 : 1)}>
+            <Panel title="Open Bottlenecks">
+              <MiniTable
+                headers={['Raised', 'Bottleneck', 'Workshop', 'Impact', 'Owner', 'Recovery']}
+                rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').slice(0, 6).map(r => r.slice(0, 6))}
+                empty="No open bottlenecks."
+              />
+            </Panel>
+            <Panel title="Engineering Change Control (ECR)">
+              <MiniTable
+                headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
+                rows={d.ecr.slice(-6).map(r => [r[0], r[1], r[2], r[4], r[5]])}
+                empty="No ECRs logged."
+              />
+            </Panel>
+          </Row>
+          <Row cols={w => (w >= 700 ? 2 : 1)}>
+            <Panel title="Kaizen / Improvement Ideas">
+              <MiniTable
+                headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
+                rows={d.kaizen.slice(-6).map(r => [r[1], r[2], r[3], r[4], r[5]])}
+                empty="No kaizen ideas yet."
+              />
+            </Panel>
+            <Panel title="Production Waste (Period)">
+              <MiniTable
+                headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
+                rows={d.waste.slice(-6).map(r => r.slice(0, 6))}
+                empty="No waste entries this period."
+              />
+            </Panel>
+          </Row>
 
-        {/* footer */}
-        <div style={{
-          display: 'flex', justifyContent: 'center', alignItems: 'center',
-          background: C.panel, border: `1px solid ${C.border}`, borderRadius: 4,
-          padding: '7px 14px', fontSize: 10,
-        }}>
-          <div style={{ fontWeight: 800, letterSpacing: '0.25em', color: C.red, fontSize: 10 }}>
-            FOCUS · PLAN · EXECUTE · DELIVER
+          {/* Footer — one card, centred inside the page rather than a motto strip
+              plus a loose full-bleed note underneath (which sat 14px wider than
+              the page's own content on each side and read as misaligned).
+              Note: this reads the full IMS-objectives master workbook (Targets,
+              Tracker, Daily Output, Downtime, Bottlenecks, Quality, Safety,
+              Environment, ECR, Cost, Waste, Kaizen, Calc) plus our own Cost
+              Inputs tab — see useScoreboardData.js. */}
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14,
+            padding: '12px 20px', boxShadow: C.shadow, textAlign: 'center',
+          }}>
+            <div style={{
+              fontFamily: UI_FONT, fontWeight: 700, letterSpacing: '0.26em',
+              color: C.red, fontSize: 11.5,
+            }}>
+              FOCUS · PLAN · EXECUTE · DELIVER
+            </div>
+            <div style={{ width: '100%', height: 1, background: C.line }} />
+            <div style={{ fontSize: 9.5, lineHeight: 1.65, color: C.muted, maxWidth: 1080 }}>
+              Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role) — a rate change never rewrites past costing. Cost figures show 0 until real rates are set.
+            </div>
           </div>
-        </div>
-      </Page>
-
-      {/* Note: this reads the full IMS-objectives master workbook (Targets,
-          Tracker, Daily Output, Downtime, Bottlenecks, Quality, Safety,
-          Environment, ECR, Cost, Waste, Kaizen, Calc) plus our own Cost
-          Inputs tab — see useScoreboardData.js. Calc is pre-computed by the
-          spreadsheet itself, so most KPIs are a direct lookup, not derived
-          here. Labour cost is a cross-sheet read of the Travel Card's
-          operators+submissions tabs, not this workbook. */}
-      <div style={{ maxWidth: PAGE_WIDTH, margin: '8px auto 0', fontSize: 9.5, color: C.grey, textAlign: 'center' }}>
-        Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role) — a rate change never rewrites past costing. Cost figures show 0 until real rates are set. Safety/Quality/Environment/Bottlenecks/ECR/Waste all have real registers now — they'll populate as rows are logged in those tabs.
-      </div>
+        </Page>
+        </>
+      )}
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
+      {reportOpen && (
+        <ProductionReportModal
+          onClose={() => setReportOpen(false)}
+          capturePages={capturePages}
+          buses={d.busUnits || []}
+          month={reportMonth}
+          setMonth={setReportMonth}
+          applyMonthRange={applyMonthRange}
+        />
+      )}
     </div>
   );
 }
 
-function ScoreboardToolbar({ live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting, setEmailOpen, btn, selectorOpen, setSelectorOpen }) {
+// Single control line: view tabs, live-status, every action, and Sign Out.
+// The tabs and the Sign Out button used to live on two separate bars above
+// this one (Sign Out came from App.jsx's standalone wrapper) — they are all
+// on this row now.
+function ScoreboardToolbar({
+  live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting,
+  setEmailOpen, setReportOpen, btn, selectorOpen, setSelectorOpen,
+  view, setView, onHome, onLogout, hideHome,
+}) {
   const C = useC();
   const { theme, toggleTheme } = useContext(ThemeToggleCtx);
+  const tab = active => ({
+    ...btn,
+    background: active ? C.red : C.surface2,
+    color: active ? '#fff' : C.ink2,
+    fontWeight: 700,
+  });
   return (
-    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 10, color: C.grey }}>
+    <div style={{
+      maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 8,
+      alignItems: 'center', flexWrap: 'wrap',
+    }}>
+      {!hideHome && onHome && (
+        <button style={btn} onClick={onHome} title="Back to home">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
+          Home
+        </button>
+      )}
+      {SB_TABS.map(t => (
+        <button key={t.id} style={tab(view === t.id)} onClick={() => setView(t.id)}>{t.label}</button>
+      ))}
+      <span style={{ fontFamily: UI_FONT, fontSize: 10, color: C.muted, marginLeft: 4 }}>
         {live
           ? `Live · updated ${lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
           : `Showing sample data${error ? ` — ${error}` : ''}`}
       </span>
       <div style={{ flex: 1 }} />
       <button
-        style={{ ...btn, borderColor: selectorOpen ? C.red : C.grey, color: selectorOpen ? C.red : C.grey }}
+        style={{ ...btn, background: selectorOpen ? C.redWash : C.surface2, color: selectorOpen ? C.red : C.ink2 }}
         onClick={() => setSelectorOpen(o => !o)}
       >⚙ {selectorOpen ? 'Hide' : 'Set'} Range &amp; Targets</button>
       <button style={btn} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-        <span style={{ marginLeft: 6 }}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+        <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
       </button>
       <button style={btn} onClick={refresh} disabled={loading}>{loading ? 'Syncing…' : 'Refresh'}</button>
       <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
       <button style={btn} onClick={exportPDF} disabled={exporting}>Export PDF</button>
-      <button style={{ ...btn, borderColor: C.red, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
+      <button style={{ ...btn, background: C.redWash, color: C.red }} onClick={() => setReportOpen(true)}>Production Report</button>
+      <button style={{ ...btn, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
+      {onLogout && (
+        <button style={{ ...btn, background: C.redWash, color: C.red }} onClick={onLogout}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+          </svg>
+          Sign Out
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Theme provider wrapper ────────────────────────────────────────
 const ThemeToggleCtx = createContext({ theme: 'dark', toggleTheme: () => {} });
-
-const SB_TABS = [
-  { id: 'dashboard', label: 'Live Dashboard' },
-  { id: 'workbook',  label: 'Workbook View' },
-];
-
-function ScoreboardTabs({ view, setView }) {
-  const C = useC();
-  return (
-    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto 10px', display: 'flex', gap: 6 }}>
-      {SB_TABS.map(t => {
-        const active = view === t.id;
-        return (
-          <button
-            key={t.id}
-            onClick={() => setView(t.id)}
-            style={{
-              padding: '7px 16px', fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-              textTransform: 'uppercase', fontFamily: 'inherit', cursor: 'pointer',
-              borderRadius: 6, border: `1px solid ${active ? C.red : C.border}`,
-              background: active ? C.red : 'transparent',
-              color: active ? '#fff' : C.grey,
-            }}
-          >
-            {t.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // The uploaded standalone workbook dashboard (public/dpn-scoreboard-workbook.html) is a
 // separate, self-contained vanilla-JS app (its own Excel parser, live-file watcher, and
@@ -1244,7 +1681,7 @@ function ScoreboardTabs({ view, setView }) {
 function WorkbookView() {
   const C = useC();
   return (
-    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto', borderRadius: 8, overflow: 'hidden', border: `1px solid ${C.border}`, boxShadow: C.shadowLg }}>
+    <div style={{ maxWidth: PAGE_WIDTH, margin: '0 auto', borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.glassBorder}`, boxShadow: C.shadowLg }}>
       <iframe
         src="/dpn-scoreboard-workbook.html"
         title="DPN Scoreboard Workbook"
@@ -1254,7 +1691,7 @@ function WorkbookView() {
   );
 }
 
-export default function Scoreboard() {
+export default function Scoreboard({ onHome, onLogout, hideHome }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('kmc_scoreboard_theme') || 'dark');
   const [view, setView] = useState('dashboard');
 
@@ -1267,8 +1704,10 @@ export default function Scoreboard() {
   return (
     <ThemeToggleCtx.Provider value={{ theme, toggleTheme }}>
       <ThemeCtx.Provider value={PALETTES[theme]}>
-        <ScoreboardTabs view={view} setView={setView} />
-        {view === 'dashboard' ? <ScoreboardInner /> : <WorkbookView />}
+        <ScoreboardInner
+          view={view} setView={setView}
+          onHome={onHome} onLogout={onLogout} hideHome={hideHome}
+        />
       </ThemeCtx.Provider>
     </ThemeToggleCtx.Provider>
   );
