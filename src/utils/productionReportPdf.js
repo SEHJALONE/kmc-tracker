@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import {
   REPORT_WORKSHOPS, buildReportModel, busLabel, longDate, shortDate,
 } from './productionReportModel';
+import { addCanvasPaged } from './pdfImagePager';
 
 // ── KMC Production Report (PDF) ──────────────────────────────────────────
 // Renders "Poduction Report Template.docx" as a landscape A4 PDF:
@@ -149,16 +150,14 @@ class Flow {
     return this;
   }
 
-  // A captured scoreboard page, given a page of its own and fitted to the
-  // print area so all three land at the same scale.
+  // A captured scoreboard page. Scaled to the full print width and split
+  // across as many PDF pages as it needs, so every page is filled instead of
+  // a tall capture being squeezed onto one page with wide side margins. All
+  // three board pages land at the same scale (contentW / canvas.width).
   boardPage(canvas) {
     if (!canvas) return this;
-    this.newPage();
-    const maxW = PAGE.w - 20, maxH = PAGE.h - 26;
-    const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
-    const w = canvas.width * ratio, h = canvas.height * ratio;
-    this.pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG',
-      (PAGE.w - w) / 2, 10 + (maxH - h) / 2, w, h);
+    addCanvasPaged(this.pdf, canvas, { margin: 10, top: 10, bottom: 16, newPageFirst: true });
+    this.y = BOTTOM;                       // force the next block onto a fresh page
     return this;
   }
 }
