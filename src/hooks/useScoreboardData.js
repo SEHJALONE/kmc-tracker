@@ -212,12 +212,58 @@ export function parseLineCompletion(grid) {
       entry.tasks.push({
         planStart: iso(parseTrackerDate(planStart)),
         planEnd: iso(parseTrackerDate(planEnd)),
+        // actualStart as well as actualEnd: a unit still on the line has an
+        // actual start and no end, and the range cards have to be able to see
+        // that it was worked on inside the selected period (see
+        // Scoreboard.jsx's lineWorkshops cohort).
+        actualStart: iso(parseTrackerDate(r[w.base + 2])),
         actualEnd: iso(parseTrackerDate(r[w.base + 3])),
         done,
       });
     });
   });
   return out;
+}
+
+// Two ISO-date windows overlap? Blank ends read as open (−∞ / +∞).
+export const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
+  !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
+
+// ── One Production Line Status card, scoped to the selected date range.
+//
+// `comp` is a parseLineCompletion entry (`{ done, target, tasks }`), `calcRow`
+// the matching Calc workshop row (or undefined), `range` `{ start, end }` ISO
+// strings, `overrideTarget` the manual per-line target from the ⚙ panel (0 or
+// NaN = auto).
+//
+// Cohort = every unit this line actually had ON it during the range: one the
+// line was SCHEDULED for (plan window overlaps the range) OR one it actually
+// WORKED ON in the range (actual window overlaps — a unit still on the line
+// has an actual start and no end yet, so it counts from its start onward).
+// The plan half alone is not enough: the Tracker's plan schedule ends mid-Jul
+// while the lines keep running, so from August on "plan window overlaps the
+// range" matches nothing and every card reads 0 / 0 · 0% — which is exactly
+// why a bus completed on 7 Sep never showed up when the board was filtered to
+// September. `done` is counted from that same cohort and only when the unit's
+// Actual End falls inside the range, so a bus finished in June can't re-count
+// against September and the card can't exceed 100%.
+export function computeLineCard(comp, calcRow, range, overrideTarget) {
+  const tasks = (comp && comp.tasks) || [];
+  const inRange = t =>
+    rangesOverlap(t.planStart, t.planEnd, range.start, range.end) ||
+    rangesOverlap(t.actualStart, t.actualEnd || range.end, range.start, range.end);
+  const cohort = tasks.length > 0 ? tasks.filter(inRange) : null;
+  const doneInRange = t => t.done && (!t.actualEnd
+    || (t.actualEnd >= range.start && t.actualEnd <= range.end));
+  const done = cohort ? cohort.filter(doneInRange).length : (comp ? comp.done : 0);
+  const plannedInRange = cohort ? cohort.length : (comp ? comp.target : 0);
+  const ovr = Number(overrideTarget);
+  const target = ovr > 0 ? ovr : plannedInRange;
+  const pct = target ? done / target : 0;
+  // Status (and the donut colour) come from the SAME range-scoped figure the
+  // card prints, not from Calc's program-to-date Line Status.
+  const status = pct >= 0.9 ? 'ON TRACK' : pct >= 0.6 ? 'AT RISK' : 'DELAYED';
+  return { done, target, pct, status, constraint: (calcRow && calcRow.constraint) || '—' };
 }
 
 // ── Tracker tab → one record per bus, for the Production Report's "buses
@@ -291,9 +337,23 @@ export function parseCalc(grid) {
   for (let i = 0; i < grid.length; i++) {
     const row = grid[i];
     const c0 = (row[0] || '').trim();
-    if (c0 === 'Workshop' && (row[1] || '').trim() === 'Done') {
+    // `headerCellIs`, not `=== 'Workshop'`: gviz folds the tab's leading
+    // instruction banner into the SAME cell as the first column heading, so
+    // cell A of Calc's header row arrives as "CALCULATION ENGINE — feeds
+    // Dashboard + web scoreboard. Do not edit. Workshop". The exact test
+    // silently matched nothing, so `workshops` came back empty and every
+    // line card fell back to a pct-guessed status with a "—" constraint.
+    if (headerCellIs(c0, 'Workshop') && (row[1] || '').trim() === 'Done') {
+      // Stop on the first row that isn't shaped like a workshop row —
+      // name + numeric "Due by Today" + a Line Status. The blank spacer row
+      // the sheet puts between this table and the KPI dump below it is NOT
+      // available to lean on: gviz omits fully-empty rows entirely, so
+      // "keep going while column A is non-empty" ran straight through the
+      // whole KPI dump and left `kv` empty.
+      const isWorkshopRow = r =>
+        (r[0] || '').trim() && toNum(r[5]) != null && (r[7] || '').trim();
       let j = i + 1;
-      while (j < grid.length && (grid[j][0] || '').trim()) {
+      while (j < grid.length && isWorkshopRow(grid[j])) {
         const r = grid[j];
         workshops.push({
           name: r[0].trim(),
@@ -311,6 +371,19 @@ export function parseCalc(grid) {
       kv[c0] = { raw: String(row[1]), num: toNum(row[1]) };
     }
   }
+  // gviz types each column from its majority value and returns anything that
+  // doesn't match as blank. Calc's value column is overwhelmingly numeric, so
+  // the one text KPI in it — "Critical Activity", the worst-performing
+  // workshop — arrives empty and the board printed "—" for it. It is a pure
+  // function of the workshop table above (the sheet's own formula is
+  // INDEX(A4:A11, MATCH(MIN(rank), rank))), so recover it here rather than
+  // depending on a value gviz will never hand over.
+  if (!kv['Critical Activity'] && workshops.length) {
+    const ranked = workshops.filter(w => w.due > 0);
+    const pool = ranked.length ? ranked : workshops;
+    const worst = pool.reduce((a, b) => (b.pct < a.pct ? b : a));
+    if (worst) kv['Critical Activity'] = { raw: worst.name, num: null };
+  }
   return { kv, workshops };
 }
 
@@ -320,8 +393,15 @@ export function parseTargetsKv(grid) {
   const kv = {};
   for (const row of grid) {
     const label = (row[0] || '').trim();
-    if (!label || row[1] == null || String(row[1]).trim() === '') continue;
-    kv[label] = { raw: String(row[1]), num: toNum(row[1]) };
+    // Column C is the sheet's text-mirror column, and it is not decoration:
+    // gviz types a column from its majority value and returns anything else
+    // blank, so the text settings sitting in the otherwise-numeric column B
+    // (Program / Project Name, Shift Label) never arrive at all — the board
+    // was falling back to a hard-coded "DAY SHIFT". Column C carries only
+    // text, so it types as text and comes through; read it when B is empty.
+    const value = row[1] != null && String(row[1]).trim() !== '' ? row[1] : row[2];
+    if (!label || value == null || String(value).trim() === '') continue;
+    kv[label] = { raw: String(value), num: toNum(value) };
   }
   return kv;
 }
@@ -641,7 +721,11 @@ export function useScoreboardData() {
 
       // ── Cost model: Labour + Energy + Machine, all from time-bounded rate
       // history (Cost Estimation module) instead of a flat un-dated value.
-      const asOf = new Date().toISOString().slice(0, 10);
+      // Local calendar date, not toISOString() — in Kampala (UTC+3) the UTC
+      // form reads back a day early, which can resolve a rate one day out at
+      // a valid_from/valid_to boundary.
+      const now = new Date();
+      const asOf = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const machines = parseMachines(machinesGrid);
       const machineRates = parseRateHistory(machineRatesGrid, 'rate_ugx_per_hour');
       const staffRateRows = parseRateHistory(staffRatesGrid, 'rate_ugx_per_hour');
