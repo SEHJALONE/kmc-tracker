@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useId, createContext, useCont
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { useScoreboardData } from '../hooks/useScoreboardData';
+import { useScoreboardData, computeLineCard } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
 import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
 
@@ -775,11 +775,6 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
 }
 
 // Date helper — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
-// Date parsing is needed here. Asks whether a unit's plan window touches the
-// selected range.
-const rangesOverlap = (aStart, aEnd, bStart, bEnd) =>
-  !!aStart && !!aEnd && aStart <= (bEnd || '9999-12-31') && aEnd >= (bStart || '0000-01-01');
-
 // Generic monthly trend line — used for FPY%.
 function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const C = useC();
@@ -828,7 +823,7 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
     setBusy(true); setStatus(null);
     try {
       const canvases = await capturePages();
-      const stamp = new Date().toISOString().slice(0, 10);
+      const stamp = localISODate();
       const attachments = canvases.map((cv, i) => ({
         filename: `KMC_Scoreboard_p${i + 1}_${stamp}.png`,
         dataUrl: cv.toDataURL('image/png'),
@@ -914,7 +909,7 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
 function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, applyMonthRange }) {
   const C = useC();
   const [referenceNo, setReferenceNo] = useState(() => defaultReference(month));
-  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [issueDate, setIssueDate] = useState(() => localISODate());
   const [lastReviewDate, setLastReviewDate] = useState('');
   const [versionNo, setVersionNo] = useState('00');
   const [nextReview, setNextReview] = useState('AS REQUIRED');
@@ -1182,10 +1177,18 @@ const SB_TABS = [
   { id: 'workbook',  label: 'Workbook View' },
 ];
 
+// Local calendar date as YYYY-MM-DD. NOT toISOString(): that converts to UTC
+// first, so in Kampala (UTC+3) every local midnight reads back as the previous
+// day — the default "this month" range opened as 31-Aug → 08-Sep rather than
+// 01-Sep → 08-Sep, silently pulling a day of the previous month into every
+// period figure (and mislabelling the range chip on the board).
+export function localISODate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function defaultRange() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  return { start: start.toISOString().slice(0, 10), end: now.toISOString().slice(0, 10) };
+  return { start: localISODate(new Date(now.getFullYear(), now.getMonth(), 1)), end: localISODate(now) };
 }
 
 function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
@@ -1265,7 +1268,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
       let yOff = 0;
       canvases.forEach(cv => { ctx.drawImage(cv, (width - cv.width) / 2, yOff); yOff += cv.height + gap; });
       const a = document.createElement('a');
-      a.download = `KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.png`;
+      a.download = `KMC_Scoreboard_${localISODate()}.png`;
       a.href = combined.toDataURL('image/png');
       a.click();
     } finally { setExporting(false); }
@@ -1283,7 +1286,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
         const iw = cv.width * ratio, ih = cv.height * ratio;
         pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - iw) / 2, (ph - ih) / 2, iw, ih);
       });
-      pdf.save(`KMC_Scoreboard_${new Date().toISOString().slice(0, 10)}.pdf`);
+      pdf.save(`KMC_Scoreboard_${localISODate()}.pdf`);
     } finally { setExporting(false); }
   }
 
@@ -1337,39 +1340,14 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
   // Done/target come straight from the Tracker (d.lineCompletion), not the
   // Calc tab's workshop table — Calc's rows for these 4 lines can drift out
-  // of sync with the sheet's own formulas (seen live: 0/45 for all four
-  // while Achievement % read 56%). Status/constraint still come from Calc
-  // when available since those are more free-form ("ON TRACK"/"AT RISK"/
-  // "DELAYED" + a constraint note), falling back to a pct-based guess.
-  //
-  // The selected range ALWAYS drives these pies — they report the period,
-  // not program-to-date. Per line: actual = units completed with an Actual
-  // End inside the range; planned = units whose Plan Start–Plan End window
-  // overlaps the range. A manual target (Range & Line Targets panel) only
-  // overrides the denominator; it is NOT what switches on period-slicing.
-  // Falls back to cumulative totals only when per-unit task dates aren't
-  // available (sample data, or a Tracker parse that yielded no dates).
+  // of sync with the sheet's own formulas. The selected range ALWAYS drives
+  // these pies; see computeLineCard for the cohort rule (why a bus completed
+  // on 7 Sep now shows when the board is filtered to September).
   const lineWorkshops = LINE_WORKSHOPS.map(lw => {
     const calcRow = d.workshops.find(x => x.name === lw.dataName);
     const comp = d.lineCompletion?.[lw.dataName] || { done: 0, target: 0, tasks: [] };
-    const tasks = comp.tasks || [];
-    // Cohort = the units this line was SCHEDULED to work on in the range
-    // (its plan window overlaps the range); actual = how many of that same
-    // cohort are Done. Holding numerator and denominator to one cohort is
-    // what keeps the card inside 0-100%: counting "completed in the window"
-    // against "planned in the window" mixes two different populations and
-    // overshoots, because units planned earlier finish late — on live data
-    // that read 12 / 1 (1200%) for Chassis Line 02 over Jul-Aug.
-    const cohort = tasks.length > 0
-      ? tasks.filter(t => rangesOverlap(t.planStart, t.planEnd, range.start, range.end))
-      : null;
-    const done = cohort ? cohort.filter(t => t.done).length : comp.done;
-    const plannedInRange = cohort ? cohort.length : comp.target;
-    const overrideTarget = Number(lineTargets[lw.dataName]);
-    const target = overrideTarget > 0 ? overrideTarget : plannedInRange;
-    const pct = target ? done / target : 0;
-    const status = calcRow?.status || (pct >= 0.9 ? 'ON TRACK' : pct >= 0.6 ? 'AT RISK' : 'DELAYED');
-    return { name: lw.dataName, display: lw.display, done, target, pct, status, constraint: calcRow?.constraint || '—' };
+    const card = computeLineCard(comp, calcRow, range, lineTargets[lw.dataName]);
+    return { name: lw.dataName, display: lw.display, ...card };
   });
 
   // Cumulative throughput (whole program, never range-sliced) — a running
