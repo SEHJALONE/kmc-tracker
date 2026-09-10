@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData, computeLineCard } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
+import { addCanvasPaged } from '../utils/pdfImagePager';
 import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
 
 // ── Theme-aware palettes ──────────────────────────────────────────────────
@@ -1089,7 +1090,7 @@ function ProgressBar({ pct, target, done }) {
         <span style={{
           fontFamily: UI_FONT, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
           textTransform: 'uppercase', color: C.ink,
-        }}>Programme Completion</span>
+        }}>Cumulative Throughput</span>
         <span style={{
           fontSize: 21, fontWeight: 700, color: C.green, letterSpacing: '-0.02em',
           fontVariantNumeric: 'tabular-nums', lineHeight: 1,
@@ -1279,13 +1280,11 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
     try {
       const canvases = await capturePages();
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-      canvases.forEach((cv, i) => {
-        if (i > 0) pdf.addPage();
-        const ratio = Math.min(pw / cv.width, ph / cv.height);
-        const iw = cv.width * ratio, ih = cv.height * ratio;
-        pdf.addImage(cv.toDataURL('image/jpeg', 0.95), 'JPEG', (pw - iw) / 2, (ph - ih) / 2, iw, ih);
-      });
+      // Each board page is scaled to the full page width and split across as
+      // many PDF pages as it needs, so every page is filled edge-to-edge
+      // instead of a tall capture being crushed onto one page with wide
+      // side margins. See utils/pdfImagePager.js.
+      canvases.forEach((cv, i) => addCanvasPaged(pdf, cv, { margin: 8, newPageFirst: i > 0 }));
       pdf.save(`KMC_Scoreboard_${localISODate()}.pdf`);
     } finally { setExporting(false); }
   }
@@ -1468,11 +1467,27 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               </Panel>
             ))}
           </Row>
+
+          {/* Schedule + cost roll-ups moved here from page 3: they are small
+              card panels that left page 3 overcrowded and this page short, so
+              the PDF export packed unevenly. */}
+          <SectionLabel>Schedule &amp; Cost</SectionLabel>
+          <Row cols={w => (w >= 700 ? 2 : 1)}>
+            <Panel title="Schedule">
+              <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+            </Panel>
+            <Panel title="Production Operational Cost">
+              <ScoreCard label="Total (UGX '000)" value={productionOperationalCost} />
+            </Panel>
+          </Row>
+          <Panel title="Operational Cost per Line">
+            <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
+          </Panel>
         </Page>
 
         {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
         <Page innerRef={pageRefs[2]}>
-          <Row cols={w => (w >= 1040 ? '1.4fr 1fr 1fr' : w >= 700 ? '1fr 1fr' : '1fr')}>
+          <Row cols={w => (w >= 1040 ? '1.6fr 1fr 1fr' : w >= 700 ? '1fr 1fr' : '1fr')}>
             <Panel title="Production Downtime — Full Breakdown (Period)">
               <DowntimeTable kv={kv} />
             </Panel>
@@ -1496,19 +1511,6 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               </CardGrid>
             </Panel>
           </Row>
-
-          <Row cols={w => (w >= 700 ? 2 : 1)}>
-            <Panel title="Production Operational Cost">
-              <ScoreCard label="Total (UGX '000)" value={productionOperationalCost} />
-            </Panel>
-            <Panel title="Schedule">
-              <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-            </Panel>
-          </Row>
-
-          <Panel title="Operational Cost per Line">
-            <CardGrid cols={4}>{lineCostCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
-          </Panel>
 
           <Row cols={w => (w >= 700 ? 2 : 1)}>
             <Panel title="Open Bottlenecks">
