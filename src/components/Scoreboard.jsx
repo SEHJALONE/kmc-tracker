@@ -73,6 +73,13 @@ const UI_FONT = "'Inter', system-ui, sans-serif";
 // and the widest the board ever grows on screen. Declared up here because the
 // responsive layout context below defaults to it.
 const PAGE_WIDTH = 1320;
+// The printable area of a landscape A4 page in the Production Report is
+// 277 x 184mm (297x210 less the 10mm side and 10/16mm top/bottom margins
+// productionReportPdf.js's boardPage passes to addCanvasPaged). Holding the
+// board page to that same aspect ratio is what makes each capture land on
+// exactly one PDF page instead of spilling onto a second: floor, not round,
+// so rounding can never push it a fraction over.
+const PAGE_HEIGHT = Math.floor(PAGE_WIDTH * (184 / 277));   // 876
 const BG_IMAGE = "url('/Bus background 5.png')";
 
 const ThemeCtx = createContext(PALETTES.dark);
@@ -393,11 +400,22 @@ function CardGrid({ cols = 4, children }) {
 // A page-level grid row. `cols` is either a tile count or a function of the
 // measured page width; either way it is resolved INSIDE the page, where the
 // width context lives.
-function Row({ cols, gap = 8, children }) {
+// `grow` lets a row share out whatever vertical space is left on a page that
+// has been fixed to PAGE_HEIGHT, so the three report pages always come out
+// exactly full and evenly packed however much data the sheet holds. Rows that
+// grow pair with `fill` on the table inside them, which takes the extra
+// height and scrolls its own rows rather than pushing the page over.
+function Row({ cols, gap = 8, grow = false, children }) {
   const w = usePageWidth();
   const resolved = typeof cols === 'function' ? cols(w) : colsFor(w, cols);
   const tracks = typeof resolved === 'number' ? noOrphan(resolved, Children.count(children)) : resolved;
-  return <div style={grid(tracks, gap)}>{children}</div>;
+  // gridAutoRows minmax(0,1fr): a grid track is content-sized by default, so
+  // without it the panels inside a height-capped row would size to their own
+  // content and spill out of it rather than scrolling within it.
+  const growth = grow
+    ? { flex: 1, minHeight: 0, gridAutoRows: 'minmax(0, 1fr)' }
+    : null;
+  return <div style={{ ...grid(tracks, gap), ...growth }}>{children}</div>;
 }
 
 // Glass card. The red title bar is gone — the title now sits as a plain
@@ -409,7 +427,7 @@ function Panel({ title, chip, children, style }) {
     <div style={{
       background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14,
       display: 'flex', flexDirection: 'column', padding: '11px 13px 12px',
-      boxShadow: C.shadow, minWidth: 0, ...style,
+      boxShadow: C.shadow, minWidth: 0, minHeight: 0, ...style,
     }}>
       <div style={{
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
@@ -421,7 +439,11 @@ function Panel({ title, chip, children, style }) {
         }}>{title}</div>
         {chip}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+      {/* flex column, not a plain block: a `fill` table inside needs a
+          definite height to scroll against when the page is fixed-height */}
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -445,18 +467,21 @@ const tdStyle = (C, { first = false, align = 'left', strong = false } = {}) => (
 
 // Tables get their own horizontal scroller: on a phone a six-column register
 // would otherwise stretch its card and blow out the whole grid.
-function TableScroll({ children, min = 380 }) {
+function TableScroll({ children, min = 380, fill = false }) {
+  const outer = fill ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : null;
   return (
-    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      <div style={{ minWidth: min }}>{children}</div>
+    <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', ...outer }}>
+      <div style={{ minWidth: min, ...outer }}>{children}</div>
     </div>
   );
 }
 
 // `maxHeight` caps the table's own height with a vertical scrollbar (rows
 // only — the panel and its header stay put) instead of a hard slice, for a
-// register that can grow past what a card should show at once.
-function MiniTable({ headers, rows, empty, maxHeight }) {
+// register that can grow past what a card should show at once. `fill` does
+// the same against whatever height its (growing) row was given, which is how
+// a fixed-height report page stays exactly full without hand-tuned caps.
+function MiniTable({ headers, rows, empty, maxHeight, fill = false }) {
   const C = useC();
   const table = (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -476,9 +501,12 @@ function MiniTable({ headers, rows, empty, maxHeight }) {
       </tbody>
     </table>
   );
+  const scroller = fill
+    ? { flex: 1, minHeight: 0, overflowY: 'auto' }
+    : maxHeight ? { maxHeight, overflowY: 'auto' } : null;
   return (
-    <TableScroll min={Math.max(300, headers.length * 78)}>
-      {maxHeight ? <div style={{ maxHeight, overflowY: 'auto' }}>{table}</div> : table}
+    <TableScroll min={Math.max(300, headers.length * 78)} fill={fill}>
+      {scroller ? <div style={scroller}>{table}</div> : table}
     </TableScroll>
   );
 }
@@ -1173,6 +1201,13 @@ function Page({ innerRef, children }) {
     };
   }, []);
 
+  // At the reference width the page takes the FIXED height a landscape-A4
+  // print page can hold (see PAGE_HEIGHT), so what the board shows is exactly
+  // what the PDF gets — one capture, one whole page, all three at the same
+  // scale. Below that width the board is a responsive web page again and the
+  // height floats, otherwise a phone would clip its own content.
+  const fixed = width >= PAGE_WIDTH;
+
   return (
     <PageWidthCtx.Provider value={width}>
       <div ref={attach} style={{
@@ -1181,6 +1216,7 @@ function Page({ innerRef, children }) {
         backgroundColor: C.bg,
         backgroundImage: `${C.pageWash}, ${BG_IMAGE}`,
         backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+        ...(fixed ? { height: PAGE_HEIGHT, overflow: 'hidden' } : null),
       }}>{children}</div>
     </PageWidthCtx.Provider>
   );
@@ -1363,6 +1399,17 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   // or any other non-final status) surfacing first since that's what needs
   // attention; the table itself scrolls once the list runs long. Array.sort
   // is stable, so each status group keeps the sheet's own chronological order.
+  // Bus Projects registry (Targets sheet, column Z). Active projects first —
+  // a finished project is history, the ones still running are the report.
+  const projects = d.projects || [];
+  const projectRows = [...projects]
+    .sort((a, b) => {
+      const openA = !/^(complete|cancelled)/i.test(a.status || '');
+      const openB = !/^(complete|cancelled)/i.test(b.status || '');
+      return openA === openB ? 0 : openA ? -1 : 1;
+    })
+    .map(p => [p.id, p.name, p.model, fint(p.unitsPlanned), fint(p.vinsAttached), p.status || '-']);
+
   const kaizenSorted = [...d.kaizen].sort((a, b) => {
     const openA = !/^implemented$/i.test((a[4] || '').trim());
     const openB = !/^implemented$/i.test((b[4] || '').trim());
@@ -1470,6 +1517,19 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           <CardGrid cols={4}>
             {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
           </CardGrid>
+
+          {/* Bus Projects — the Targets sheet's registry. Takes whatever is
+              left of the page, so page 1 always ends flush. */}
+          <Row cols={1} grow>
+            <Panel title="Bus Projects" chip={<Chip>{projects.length} REGISTERED</Chip>}>
+              <MiniTable
+                headers={['Project', 'Name', 'Model', 'Units', 'VINs', 'Status']}
+                rows={projectRows}
+                empty="No projects in the Targets registry yet."
+                fill
+              />
+            </Panel>
+          </Row>
         </Page>
 
         {/* ═══════════ PAGE 2 — Performance ═══════════ */}
@@ -1477,7 +1537,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           {/* One row of four whole-program trends. The two selected-range pies
               that used to sit here are gone (removed per request); the range
               picker still drives the line-status cards on page 1. */}
-          <Row cols={chartCols}>
+          <Row cols={chartCols} grow>
             <Panel title="First Pass Yield by Month">
               <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
             </Panel>
@@ -1493,7 +1553,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           </Row>
 
           <SectionLabel>Planned vs Actual by Month, per Line</SectionLabel>
-          <Row cols={chartCols}>
+          <Row cols={chartCols} grow>
             {LINE_WORKSHOPS.map(lw => (
               <Panel key={lw.dataName} title={lw.display}>
                 <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} />
@@ -1549,6 +1609,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               breakdown it complements: that panel answers "how much downtime
               this period", this one answers "what's actually stopped as of
               this refresh", full history regardless of the selected period. */}
+          <Row cols={1} grow>
           <Panel title="Active Downtime Events" chip={
             <Chip tone={activeDowntime.length ? 'crit' : 'ok'}>
               {activeDowntime.length ? `${activeDowntime.length} OPEN` : 'ALL CLEAR'}
@@ -1558,39 +1619,44 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               headers={['Workshop', 'Machine', 'Fault', 'Started', 'Hours Open', 'Reason']}
               rows={activeDowntimeRows}
               empty="No open breakdowns right now."
+              fill
             />
           </Panel>
+          </Row>
 
-          <Row cols={w => (w >= 700 ? 2 : 1)}>
+          <Row cols={w => (w >= 700 ? 2 : 1)} grow>
             <Panel title="Open Bottlenecks">
               <MiniTable
                 headers={['Raised', 'Bottleneck', 'Workshop', 'Impact', 'Owner', 'Recovery']}
-                rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').slice(0, 6).map(r => r.slice(0, 6))}
+                rows={d.bottlenecks.filter(r => (r[6] || '').toLowerCase() === 'open').map(r => r.slice(0, 6))}
                 empty="No open bottlenecks."
+                fill
               />
             </Panel>
             <Panel title="Engineering Change Control (ECR)">
               <MiniTable
                 headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
-                rows={d.ecr.slice(-6).map(r => [r[0], r[1], r[2], r[4], r[5]])}
+                rows={d.ecr.map(r => [r[0], r[1], r[2], r[4], r[5]])}
                 empty="No ECRs logged."
+                fill
               />
             </Panel>
           </Row>
-          <Row cols={w => (w >= 700 ? 2 : 1)}>
+          <Row cols={w => (w >= 700 ? 2 : 1)} grow>
             <Panel title="Kaizen / Improvement Ideas">
               <MiniTable
                 headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
                 rows={kaizenSorted.map(r => [r[1], r[2], r[3], r[4], r[5]])}
                 empty="No kaizen ideas yet."
-                maxHeight={260}
+                fill
               />
             </Panel>
             <Panel title="Production Waste (Period)">
               <MiniTable
                 headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
-                rows={d.waste.slice(-6).map(r => r.slice(0, 6))}
+                rows={d.waste.map(r => r.slice(0, 6))}
                 empty="No waste entries this period."
+                fill
               />
             </Panel>
           </Row>
@@ -1616,7 +1682,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
             </div>
             <div style={{ width: '100%', height: 1, background: C.line }} />
             <div style={{ fontSize: 9.5, lineHeight: 1.65, color: C.muted, maxWidth: 1080 }}>
-              Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role); a rate change never rewrites past costing. Cost figures show 0 until real rates are set.
+              KPIs read live from the <b>Calc</b>/<b>Targets</b> tabs; Planned figures from the Targets sheet's <b>Monthly Workshop Plan</b>; downtime and kaizen from their own logs. Production Operational Cost = Labour + Energy + Machine, each priced off the Cost Estimation module's time-bounded rate history, so a rate change never rewrites past costing.
             </div>
           </div>
         </Page>

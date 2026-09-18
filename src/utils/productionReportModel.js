@@ -53,11 +53,15 @@ export const busLabel = b => [b.unit, b.vin].filter(Boolean).join(' – ') || `B
  * @param {Array}  opts.buses  parseBusUnits output (needs `ws` per line)
  * @param {string} opts.month  'YYYY-MM' reporting month
  */
-// Two ISO-date windows overlap? A blank end reads as still open (running to
-// the far future) — matches useScoreboardData.js's rangesOverlap, kept local
-// since this module is deliberately not coupled to the hook.
-const overlapsMonth = (start, end, bounds) =>
-  !!start && start <= bounds.end && (end || '9999-12-31') >= bounds.start;
+// Did this workshop record an actual INPUT inside the month — a start or an
+// end dated within it? Deliberately not an overlap test: a unit that began in
+// an earlier month and simply sat on the line, with no start and no end
+// falling inside the reporting month, has no progress to report and is left
+// off the annex entirely.
+const workedInMonth = (ws, bounds) => {
+  const within = iso => !!iso && iso >= bounds.start && iso <= bounds.end;
+  return within(ws.actualStart) || within(ws.actualEnd);
+};
 
 export function buildReportModel({ buses = [], month }) {
   const bounds = monthBounds(month);
@@ -80,22 +84,26 @@ export function buildReportModel({ buses = [], month }) {
     .map(x => x.bus);
   const completedSet = new Set(completed);
 
-  // A bus that didn't complete this month still belongs on the annex if it
-  // had any actual work in a reported workshop overlapping the month —
-  // started this month, still running from an earlier one, or both — so the
-  // report shows what's on the line, not only what rolled off it. Sorted by
-  // the earliest such start, so it reads chronologically like `completed`.
-  const earliestActiveStart = x => REPORT_WORKSHOPS
-    .map(w => x.bus.ws?.[w.key]?.actualStart)
-    .filter(Boolean)
+  // A bus that didn't complete this month still belongs on the annex if a
+  // reported workshop actually recorded something for it INSIDE the month —
+  // a start, an end, or both. A unit that merely carried over, with no dated
+  // input in the month, is left out: the annex is a record of what moved,
+  // not of what was sitting on the line. Sorted by the earliest such input,
+  // so it reads chronologically like `completed`.
+  const earliestInputInMonth = x => REPORT_WORKSHOPS
+    .flatMap(w => {
+      const ws = x.bus.ws?.[w.key] || {};
+      return [ws.actualStart, ws.actualEnd];
+    })
+    .filter(iso => iso && iso >= bounds.start && iso <= bounds.end)
     .sort()[0] || '';
   const inProgress = withFinish
     .filter(x => !completedSet.has(x.bus))
     .filter(x => REPORT_WORKSHOPS.some(w => {
       const ws = x.bus.ws?.[w.key];
-      return ws && overlapsMonth(ws.actualStart, ws.actualEnd, bounds);
+      return ws && workedInMonth(ws, bounds);
     }))
-    .sort((a, b) => (earliestActiveStart(a) < earliestActiveStart(b) ? -1 : 1))
+    .sort((a, b) => (earliestInputInMonth(a) < earliestInputInMonth(b) ? -1 : 1))
     .map(x => x.bus);
 
   return {

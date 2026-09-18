@@ -170,7 +170,14 @@ const WORKSHOP_COLS = [
 // ── Per-line monthly Plan vs Actual, for the 4 reported lines — bucketed by
 // calendar month per-line (Calc/Daily Output only give current totals, not
 // a monthly-history breakdown, so this still needs the raw Tracker grid).
-export function parseLineMonthly(grid) {
+// `plan` is parseMonthlyPlan's output. Where it carries a figure for a
+// month and workshop, that is the Planned bar — the Targets sheet's Monthly
+// Workshop Plan is the stated source of the plan. Months the plan covers but
+// the Tracker doesn't are included too (so a plan typed for a future month
+// shows up immediately), except all-zero ones, which would only add empty
+// columns to every chart. Without a plan table it falls back to the old
+// behaviour: count units whose Plan End lands in the month.
+export function parseLineMonthly(grid, plan = new Map()) {
   const rows = grid.slice(1).filter(r => r[1]);
   const relevantCols = WORKSHOP_COLS.filter(w => LINE_WORKSHOP_NAMES.includes(w.name));
 
@@ -197,12 +204,22 @@ export function parseLineMonthly(grid) {
     });
   });
 
+  plan.forEach((entry, key) => {
+    const anyUnits = relevantCols.some(w => (entry.units[w.name] || 0) > 0);
+    if (anyUnits && !labelByKey.has(key)) labelByKey.set(key, entry.label);
+  });
+
   const sortedKeys = sortMonthKeys(labelByKey.keys());
   const byLine = {};
   relevantCols.forEach(w => {
     byLine[w.name] = sortedKeys.map(k => {
       const e = perLine[w.name].get(k);
-      return { label: labelByKey.get(k), planned: e?.planned || 0, actual: e?.hasActual ? e.actual : null };
+      const planned = plan.get(k)?.units?.[w.name];
+      return {
+        label: labelByKey.get(k),
+        planned: planned != null ? planned : (e?.planned || 0),
+        actual: e?.hasActual ? e.actual : null,
+      };
     });
   });
 
@@ -324,6 +341,9 @@ export function parseBusUnits(grid) {
   const idxStatus = col(/^bus status$/, 54);
   const idxCycle = col(/^cycle/, 55);
   const idxDelay = col(/^max delay/, 53);
+  // Appended after the sheet's own roll-ups rather than inserted, so none of
+  // the workshop block offsets move; found by name for the same reason.
+  const idxProject = col(/^project$/, 56);
   const iso = d => d
     ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     : null;
@@ -350,6 +370,7 @@ export function parseBusUnits(grid) {
       vin: (r[idxVin] || '').trim(),
       unit: (r[idxUnit] || '').trim(),
       batch: (r[idxBatch] || '').trim(),
+      project: (r[idxProject] || '').trim(),
       status,
       done: /done|complete/i.test(status),
       cycleDays: toNum(r[idxCycle]),
@@ -439,6 +460,81 @@ export function parseTargetsKv(grid) {
     kv[label] = { raw: String(value), num: toNum(value) };
   }
   return kv;
+}
+
+// ── Targets tab, BUS PROJECTS registry (columns Z..AH, header on row 3) ──
+// One row per bus project, unlimited: the board reads every row that has a
+// Project ID and stops at the first blank one. Each Tracker row carries its
+// project's ID in the Tracker's own "Project" column (BE), which is what
+// attaches a specific full VIN to a project.
+//
+// Anchored on column Z because it is all text (header included), so gviz
+// types it as text and the header survives. Everything to its right is read
+// positionally: a column mixing a text header with numbers or dates (Units
+// Planned, Start Date, Target End) gets typed from its data and has its
+// header blanked — the same gviz behaviour documented at DOWNTIME_LOG_URL.
+const PROJECTS_COL = 25;   // Z, 0-indexed
+
+export function parseProjects(grid) {
+  const hIdx = grid.findIndex(r => (r[PROJECTS_COL] || '').trim().toLowerCase() === 'project id');
+  if (hIdx === -1) return [];
+  const out = [];
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    const id = (r[PROJECTS_COL] || '').trim();
+    // Stop at the first row with no Project ID: the registry's pre-styled
+    // blank rows, and the usage note below them, both sit there.
+    if (!id) break;
+    out.push({
+      id,
+      name: (r[PROJECTS_COL + 1] || '').trim(),
+      customer: (r[PROJECTS_COL + 2] || '').trim(),
+      model: (r[PROJECTS_COL + 3] || '').trim(),
+      unitsPlanned: toNum(r[PROJECTS_COL + 4]) || 0,
+      startDate: parseTrackerDate(r[PROJECTS_COL + 5]),
+      targetEnd: parseTrackerDate(r[PROJECTS_COL + 6]),
+      status: (r[PROJECTS_COL + 7] || '').trim(),
+      vinsAttached: toNum(r[PROJECTS_COL + 8]) || 0,
+    });
+  }
+  return out;
+}
+
+// ── Targets tab, MONTHLY WORKSHOP PLAN (columns AJ..AR, header on row 3) ──
+// Month down the left, one column per workshop, units planned in the cell.
+// This is the scoreboard's source for "Planned" — it lets the plan run past
+// the Tracker's own schedule (which stops mid-July) without anyone having to
+// back-fill plan dates onto 45 bus rows.
+//
+// The workshop columns are read in the Tracker's own block order, because
+// their header names sit in otherwise-numeric columns and gviz blanks them;
+// the names are read from the header row when they do survive, and fall back
+// to that fixed order when they don't.
+const PLAN_COL = 35;   // AJ, 0-indexed
+const PLAN_WORKSHOPS = WORKSHOP_COLS.map(w => w.name);
+
+export function parseMonthlyPlan(grid) {
+  const hIdx = grid.findIndex(r => (r[PLAN_COL] || '').trim().toLowerCase() === 'month');
+  if (hIdx === -1) return new Map();
+  const header = grid[hIdx];
+  const names = PLAN_WORKSHOPS.map((fallback, i) =>
+    (header[PLAN_COL + 1 + i] || '').trim() || fallback);
+
+  const byMonth = new Map();
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    const label = (r[PLAN_COL] || '').trim();
+    if (!label) break;
+    const d = parseTrackerDate(label);
+    if (!d) continue;
+    const perWorkshop = {};
+    names.forEach((name, j) => {
+      const n = toNum(r[PLAN_COL + 1 + j]);
+      if (n != null) perWorkshop[name] = n;
+    });
+    byMonth.set(monthKey(d), { label: monthLabel(d), units: perWorkshop });
+  }
+  return byMonth;
 }
 
 // ── Daily Output tab: fully formula-driven in the sheet — Date | Planned |
@@ -893,7 +989,9 @@ export function useScoreboardData() {
       const waste = parseRegisterRows(wasteGrid, r => headerCellIs(r[0], 'Date') && /waste type/i.test(r[1] || ''));
       const kaizen = parseRegisterRows(kaizenGrid, r => /kaizen idea/i.test(r[1] || ''));
       const costKv = parseCost(costGrid);
-      const lineMonthly = parseLineMonthly(trackerGrid);
+      const projects = parseProjects(targetsGrid);
+      const monthlyPlan = parseMonthlyPlan(targetsGrid);
+      const lineMonthly = parseLineMonthly(trackerGrid, monthlyPlan);
       const lineCompletion = parseLineCompletion(trackerGrid);
       const busUnits = parseBusUnits(trackerGrid);
 
@@ -1012,6 +1110,7 @@ export function useScoreboardData() {
         workshops,
         lineCompletion,
         busUnits,
+        projects,
         machineCostRows: machineCostRowsK,
         daily,
         bottlenecks,

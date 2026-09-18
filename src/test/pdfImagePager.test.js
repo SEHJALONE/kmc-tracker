@@ -79,3 +79,38 @@ describe('addCanvasPaged', () => {
     expect(pdf.calls).toHaveLength(0);
   });
 });
+
+// The board pages are cut to the printable area's aspect ratio so each
+// capture lands on exactly one PDF page (Scoreboard.jsx's PAGE_HEIGHT). This
+// pins that contract from the pager's side: the geometry is a hair under a
+// full page, and must not round up into a second, near-empty one.
+describe('a board page cut to the print aspect ratio', () => {
+  const PAGE_WIDTH = 1320;
+  const PAGE_HEIGHT = Math.floor(PAGE_WIDTH * (184 / 277));
+  const capture = () => fakeCanvas(PAGE_WIDTH * 2, PAGE_HEIGHT * 2);
+
+  it('is 876 CSS px tall', () => {
+    expect(PAGE_HEIGHT).toBe(876);
+  });
+
+  it('occupies exactly one page in the Production Report', () => {
+    const pdf = fakePdf(...A4_LANDSCAPE);
+    // the margins productionReportPdf.js's boardPage passes
+    expect(addCanvasPaged(pdf, capture(), { margin: 10, top: 10, bottom: 16 })).toBe(1);
+    expect(pdf.calls).toHaveLength(1);
+    // and very nearly fills the 184mm of printable height it was cut for
+    expect(pdf.calls[0].ih).toBeGreaterThan(183);
+    expect(pdf.calls[0].ih).toBeLessThanOrEqual(184);
+  });
+
+  it('occupies exactly one page in the board\'s own PDF export', () => {
+    const pdf = fakePdf(...A4_LANDSCAPE);
+    expect(addCanvasPaged(pdf, capture(), { margin: 8 })).toBe(1);
+  });
+
+  it('still splits a capture that genuinely overruns the page', () => {
+    const pdf = fakePdf(...A4_LANDSCAPE);
+    // 1.7 pages' worth of height — the tolerance must not swallow that
+    expect(addCanvasPaged(pdf, fakeCanvas(2640, 3000), { margin: 10, top: 10, bottom: 16 })).toBe(2);
+  });
+});

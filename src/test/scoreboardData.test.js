@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   parseGrid, parseCalc, parseLineCompletion, parseDowntimeLog, downtimeMonthlyTrend,
   summarizeDowntimeLog, activeDowntimeEvents, parseTargetsKv, computeLineCard,
+  parseProjects, parseMonthlyPlan, parseLineMonthly,
 } from '../hooks/useScoreboardData.js';
+import { buildReportModel } from '../utils/productionReportModel.js';
 
 // gviz folds a tab's leading instruction banner into the SAME cell as the
 // first column heading, and omits fully-blank rows. Both shapes are
@@ -237,5 +239,124 @@ describe('computeLineCard — range filter', () => {
   it('falls back to cumulative totals when the parse yielded no task dates', () => {
     const card = computeLineCard({ done: 37, target: 45, tasks: [] }, undefined, range, undefined);
     expect(card).toMatchObject({ done: 37, target: 45 });
+  });
+});
+
+// ── Targets sheet, the two new tables ────────────────────────────────────
+// Both live out at columns Z and AJ, past the workbook's dropdown lists, and
+// are anchored on their all-text first column because gviz types a column
+// from its data and blanks a text header sitting over numbers or dates.
+describe('parseProjects / parseMonthlyPlan', () => {
+  const row = (start, cells) => {
+    const r = Array(46).fill('');
+    cells.forEach((v, i) => { r[start + i] = v; });
+    return r;
+  };
+  const Z = 25, AJ = 35;
+
+  const grid = [
+    ['TARGETS, BASELINES & LISTS'],
+    [],
+    // header row carries both blocks, as on the real sheet
+    (() => {
+      const r = Array(46).fill('');
+      r[0] = 'Period Start Override';
+      ['Project ID', 'Project Name', 'Customer', 'Model / Variant', 'Units Planned',
+       'Start Date', 'Target End', 'Status', 'VINs Attached'].forEach((h, i) => { r[Z + i] = h; });
+      // the workshop headers gviz would blank are left empty on purpose
+      r[AJ] = 'Month';
+      return r;
+    })(),
+    (() => {
+      const r = row(Z, ['PRJ-01', '10x7m KEV (01-10)', 'KMC', '7m KEV', '10',
+                        '18-May-2026', '11-Jun-2026', 'Active', '10']);
+      ['May-2026', '4', '5', '6', '7', '8', '9', '10', '11'].forEach((v, i) => { r[AJ + i] = v; });
+      return r;
+    })(),
+    (() => {
+      const r = row(Z, ['PRJ-02', '2x12m KDC (01-02)', 'KMC', '12m KDC', '2',
+                        '11-May-2026', '13-Jun-2026', 'Complete', '2']);
+      ['Jun-2026', '0', '0', '0', '3', '0', '0', '12', '0'].forEach((v, i) => { r[AJ + i] = v; });
+      return r;
+    })(),
+    // blank registry row, then the usage note - neither may be read as data
+    Array(46).fill(''),
+    row(Z, ['BUS PROJECTS: one row per project, add as many as you like...']),
+  ];
+
+  it('reads the registry and stops before the blank rows and the note under them', () => {
+    const projects = parseProjects(grid);
+    expect(projects).toHaveLength(2);
+    expect(projects[0]).toMatchObject({
+      id: 'PRJ-01', name: '10x7m KEV (01-10)', model: '7m KEV',
+      unitsPlanned: 10, status: 'Active', vinsAttached: 10,
+    });
+    expect(projects[1].id).toBe('PRJ-02');
+  });
+
+  it('reads the monthly plan per workshop, falling back to the Tracker column order', () => {
+    const plan = parseMonthlyPlan(grid);
+    const may = [...plan.values()].find(v => v.label === 'May 26');
+    expect(may.units['Machine Shop']).toBe(4);
+    expect(may.units['Trim & Final Assembly']).toBe(10);
+    const jun = [...plan.values()].find(v => v.label === 'Jun 26');
+    expect(jun.units['Trim & Final Assembly']).toBe(12);
+    expect(jun.units['Frame & Body Welding']).toBe(3);
+  });
+
+  it('makes the Monthly Plan the source of Planned, not the Tracker plan dates', () => {
+    const tracker = parseGrid(trackerCsv([
+      unit(1, 'VIN1', ['01-Jun', '05-Jun', '01-Jun', '05-Jun', 'Done']),
+      unit(2, 'VIN2', ['02-Jun', '06-Jun', '02-Jun', '06-Jun', 'Done']),
+    ]));
+    // Tracker alone would call June's plan 2; the plan table says 12
+    const withoutPlan = parseLineMonthly(tracker);
+    expect(withoutPlan.byLine['Trim & Final Assembly'][0]).toMatchObject({ planned: 2, actual: 2 });
+
+    const plan = parseMonthlyPlan(grid);
+    const withPlan = parseLineMonthly(tracker, plan);
+    const june = withPlan.byLine['Trim & Final Assembly'].find(p => p.label === 'Jun 26');
+    expect(june).toMatchObject({ planned: 12, actual: 2 });
+  });
+});
+
+// ── Annex A's cohort ─────────────────────────────────────────────────────
+// The annex is a record of what MOVED in the reporting month. A unit that
+// started on a line in an earlier month and simply sat there, with nothing
+// dated inside the month, has no progress to report and is left off.
+describe('buildReportModel — Annex A only lists units worked on in the month', () => {
+  const bus = (no, ws) => ({ no, unit: `Unit ${no}`, vin: `VIN${no}`, done: false, ws });
+  const TF = 'Trim & Final Assembly';
+  const PAINT = 'Paint Shop';
+
+  const buses = [
+    // started in August, still on the line, nothing dated in September
+    bus(1, { [PAINT]: { actualStart: '2026-08-10', actualEnd: null } }),
+    // started in August but finished that line in September - real progress
+    bus(2, { [PAINT]: { actualStart: '2026-08-28', actualEnd: '2026-09-04' } }),
+    // started fresh in September
+    bus(3, { [TF]: { actualStart: '2026-09-09', actualEnd: null } }),
+    // touched neither month
+    bus(4, { [TF]: { actualStart: '2026-07-01', actualEnd: '2026-07-20' } }),
+  ];
+  const model = buildReportModel({ buses, month: '2026-09' });
+  const listed = model.inProgress.map(b => b.no);
+
+  it('drops the carry-over unit that made no progress in the month', () => {
+    expect(listed).not.toContain(1);
+  });
+
+  it('keeps units that started or finished a workshop inside the month', () => {
+    expect(listed).toContain(2);
+    expect(listed).toContain(3);
+  });
+
+  it('ignores units whose work sits entirely in other months', () => {
+    expect(listed).not.toContain(4);
+  });
+
+  it('orders by the earliest input that actually falls in the month', () => {
+    expect(listed).toEqual([2, 3]);
+    expect(model.inProgressCount).toBe(2);
   });
 });

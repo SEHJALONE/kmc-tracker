@@ -38,7 +38,11 @@ export function addCanvasPaged(pdf, canvas, opts = {}) {
 
   const scale = contentW / canvas.width;              // mm per source pixel
   const fullH = canvas.height * scale;                // mm the canvas wants
-  const pages = Math.max(1, Math.ceil(fullH / contentH));
+  // The board pages are cut to this page's exact aspect ratio (Scoreboard
+  // .jsx's PAGE_HEIGHT), so fullH lands a hair under contentH by design.
+  // Without the tolerance a sub-millimetre rounding error would read as
+  // "needs a second page" and split a page-perfect capture in half.
+  const pages = Math.max(1, Math.ceil(fullH / contentH - 0.02));
   const sliceH = Math.ceil(canvas.height / pages);    // equal source-px slices
 
   for (let i = 0; i < pages; i++) {
