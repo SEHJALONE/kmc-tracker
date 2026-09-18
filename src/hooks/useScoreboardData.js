@@ -298,7 +298,7 @@ export function computeLineCard(comp, calcRow, range, overrideTarget) {
   // Status (and the donut colour) come from the SAME range-scoped figure the
   // card prints, not from Calc's program-to-date Line Status.
   const status = pct >= 0.9 ? 'ON TRACK' : pct >= 0.6 ? 'AT RISK' : 'DELAYED';
-  return { done, target, pct, status, constraint: (calcRow && calcRow.constraint) || '—' };
+  return { done, target, pct, status, constraint: (calcRow && calcRow.constraint) || '-' };
 }
 
 // ── Tracker tab → one record per bus, for the Production Report's "buses

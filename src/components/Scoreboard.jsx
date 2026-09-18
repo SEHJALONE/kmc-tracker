@@ -254,11 +254,11 @@ const SAMPLE = {
 };
 
 // ── formatting helpers ──────────────────────────────────────────
-const fpct  = v => (v == null ? '—' : `${Math.round(v * 100)}%`);
-const fpct1 = v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
-const f1    = v => (v == null ? '—' : Number(v).toFixed(1));
-const f2    = v => (v == null ? '—' : Number(v).toFixed(2));
-const fint  = v => (v == null ? '—' : Math.round(v).toLocaleString());
+const fpct  = v => (v == null ? '-' : `${Math.round(v * 100)}%`);
+const fpct1 = v => (v == null ? '-' : `${(v * 100).toFixed(1)}%`);
+const f1    = v => (v == null ? '-' : Number(v).toFixed(1));
+const f2    = v => (v == null ? '-' : Number(v).toFixed(2));
+const fint  = v => (v == null ? '-' : Math.round(v).toLocaleString());
 
 // SVG-only donut (CSS conic-gradient is silently blank in html2canvas exports —
 // this renders as plain circles/text so PNG/PDF capture keeps the ring).
@@ -453,10 +453,12 @@ function TableScroll({ children, min = 380 }) {
   );
 }
 
-function MiniTable({ headers, rows, empty }) {
+// `maxHeight` caps the table's own height with a vertical scrollbar (rows
+// only — the panel and its header stay put) instead of a hard slice, for a
+// register that can grow past what a card should show at once.
+function MiniTable({ headers, rows, empty, maxHeight }) {
   const C = useC();
-  return (
-    <TableScroll min={Math.max(300, headers.length * 78)}>
+  const table = (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
       <thead>
         <tr>{headers.map(h => <th key={h} style={thStyle(C)}>{h}</th>)}</tr>
@@ -473,6 +475,10 @@ function MiniTable({ headers, rows, empty }) {
         ))}
       </tbody>
     </table>
+  );
+  return (
+    <TableScroll min={Math.max(300, headers.length * 78)}>
+      {maxHeight ? <div style={{ maxHeight, overflowY: 'auto' }}>{table}</div> : table}
     </TableScroll>
   );
 }
@@ -485,14 +491,14 @@ function DowntimeTable({ kv }) {
   const avail = num('Available Hours') || 0;
   const rows = [
     ['Total Available Production Hours', fint(avail), '100%'],
-    ['Planned Downtime', f1(num('Planned Downtime (hrs)')), avail ? fpct1((num('Planned Downtime (hrs)') || 0) / avail) : '—'],
-    ['Unplanned Downtime', f1(num('Unplanned Downtime (hrs)')), avail ? fpct1((num('Unplanned Downtime (hrs)') || 0) / avail) : '—'],
-    ...DT_REASONS.map(r => [`— ${r}`, f1(num(r)), avail ? fpct1((num(r) || 0) / avail) : '—']),
+    ['Planned Downtime', f1(num('Planned Downtime (hrs)')), avail ? fpct1((num('Planned Downtime (hrs)') || 0) / avail) : '-'],
+    ['Unplanned Downtime', f1(num('Unplanned Downtime (hrs)')), avail ? fpct1((num('Unplanned Downtime (hrs)') || 0) / avail) : '-'],
+    ...DT_REASONS.map(r => [`- ${r}`, f1(num(r)), avail ? fpct1((num(r) || 0) / avail) : '-']),
     // Only shown when the log actually holds hours against a blank or
     // off-dropdown Reason Code — otherwise the rows above already account
     // for the whole Unplanned figure.
     ...(num('Uncategorised')
-      ? [['— Uncategorised', f1(num('Uncategorised')), avail ? fpct1(num('Uncategorised') / avail) : '—']]
+      ? [['- Uncategorised', f1(num('Uncategorised')), avail ? fpct1(num('Uncategorised') / avail) : '-']]
       : []),
   ];
   return (
@@ -697,7 +703,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
   const C = useC();
   const uid = useId().replace(/[:]/g, '');
   if (!points || points.length === 0) {
-    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet — add rows to the Monthly Downtime Log tab.</div>;
+    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>No monthly entries logged yet. Add rows to the Monthly Downtime Log tab.</div>;
   }
   const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const dataMax = Math.max(...points.map(p => p.value), 0.0001);
@@ -789,7 +795,7 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
   const C = useC();
   const uid = useId().replace(/[:]/g, '');
   if (!points || points.length < 2) {
-    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet — needs at least two months of logged rows.</div>;
+    return <div style={{ color: C.muted, fontSize: 10, padding: '26px 0', textAlign: 'center' }}>Not enough monthly history yet. Needs at least two months of logged rows.</div>;
   }
   const w = 460, h = 160, padL = 34, padR = 12, padT = 18, padB = 26;
   const vals = points.map(p => p.value);
@@ -1340,7 +1346,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const schedCards = [
     { label: 'Activities On Time', value: fpct(num('On-Time %')) },
     { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')) },
-    { label: 'Critical Activity', value: raw('Critical Activity') || '—' },
+    { label: 'Critical Activity', value: raw('Critical Activity') || '-' },
     { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')) },
   ];
 
@@ -1348,9 +1354,20 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   // hook, so the longest-running fault reads at the top of the table.
   const activeDowntime = d.activeDowntimeEvents || [];
   const activeDowntimeRows = activeDowntime.map(e => [
-    e.workshop, e.machineName || '—', e.description || '—',
-    e.startedLabel, `${f1(e.hours)} h`, e.reasonCode || '—',
+    e.workshop, e.machineName || '-', e.description || '-',
+    e.startedLabel, `${f1(e.hours)} h`, e.reasonCode || '-',
   ]);
+
+  // Kaizen: show every idea (a hard 6-row slice was hiding real entries —
+  // the sheet already has 15+), with anything not yet Implemented (Proposed,
+  // or any other non-final status) surfacing first since that's what needs
+  // attention; the table itself scrolls once the list runs long. Array.sort
+  // is stable, so each status group keeps the sheet's own chronological order.
+  const kaizenSorted = [...d.kaizen].sort((a, b) => {
+    const openA = !/^implemented$/i.test((a[4] || '').trim());
+    const openB = !/^implemented$/i.test((b[4] || '').trim());
+    return openA === openB ? 0 : openA ? -1 : 1;
+  });
 
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
   // Done/target come straight from the Tracker (d.lineCompletion), not the
@@ -1461,13 +1478,13 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               that used to sit here are gone (removed per request); the range
               picker still drives the line-status cards on page 1. */}
           <Row cols={chartCols}>
-            <Panel title="First Pass Yield — by Month">
+            <Panel title="First Pass Yield by Month">
               <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
             </Panel>
-            <Panel title="Downtime — by Month (hours)">
+            <Panel title="Downtime by Month (hours)">
               <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
             </Panel>
-            <Panel title="Planned vs Actual — by Month (whole program)">
+            <Panel title="Planned vs Actual by Month (whole program)">
               <MonthlyPlanActualChart points={d.overallMonthly} />
             </Panel>
             <Panel title="Cumulative Throughput (whole program)">
@@ -1475,7 +1492,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
             </Panel>
           </Row>
 
-          <SectionLabel>Planned vs Actual — by Month, per Line</SectionLabel>
+          <SectionLabel>Planned vs Actual by Month, per Line</SectionLabel>
           <Row cols={chartCols}>
             {LINE_WORKSHOPS.map(lw => (
               <Panel key={lw.dataName} title={lw.display}>
@@ -1504,7 +1521,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
         {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
         <Page innerRef={pageRefs[2]}>
           <Row cols={w => (w >= 1040 ? '1.6fr 1fr 1fr' : w >= 700 ? '1fr 1fr' : '1fr')}>
-            <Panel title="Production Downtime — Full Breakdown (Period)">
+            <Panel title="Production Downtime: Full Breakdown (Period)">
               <DowntimeTable kv={kv} />
             </Panel>
             <Panel title="Safety">
@@ -1564,8 +1581,9 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
             <Panel title="Kaizen / Improvement Ideas">
               <MiniTable
                 headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
-                rows={d.kaizen.slice(-6).map(r => [r[1], r[2], r[3], r[4], r[5]])}
+                rows={kaizenSorted.map(r => [r[1], r[2], r[3], r[4], r[5]])}
                 empty="No kaizen ideas yet."
+                maxHeight={260}
               />
             </Panel>
             <Panel title="Production Waste (Period)">
@@ -1598,7 +1616,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
             </div>
             <div style={{ width: '100%', height: 1, background: C.line }} />
             <div style={{ fontSize: 9.5, lineHeight: 1.65, color: C.muted, maxWidth: 1080 }}>
-              Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role) — a rate change never rewrites past costing. Cost figures show 0 until real rates are set.
+              Most KPIs are read live from the <b>Calc</b>/<b>Targets</b> tabs, pre-computed by the sheet itself. Production Operational Cost = Labour + Energy + Machine: Labour from Travel Card staff-on-duty records × the current Staff Hourly Rate; Energy from the <b>Environment</b> tab's latest logged month × the current Energy Tariff Rate; Machine from every registered machine's rate × Available Hours for the period. All three rates come from the Cost Estimation module's time-bounded rate history (Cost Estimations Engineer role); a rate change never rewrites past costing. Cost figures show 0 until real rates are set.
             </div>
           </div>
         </Page>
@@ -1656,7 +1674,7 @@ function ScoreboardToolbar({
       <span style={{ fontFamily: UI_FONT, fontSize: 10, color: C.muted, marginLeft: 4 }}>
         {live
           ? `Live · updated ${lastUpdated?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-          : `Showing sample data${error ? ` — ${error}` : ''}`}
+          : `Showing sample data${error ? `: ${error}` : ''}`}
       </span>
       <div style={{ flex: 1 }} />
       <button
