@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseGrid, parseCalc, parseLineCompletion, parseDowntimeMonthly, parseTargetsKv,
-  computeLineCard,
+  parseGrid, parseCalc, parseLineCompletion, parseDowntimeLog, downtimeMonthlyTrend,
+  summarizeDowntimeLog, parseTargetsKv, computeLineCard,
 } from '../hooks/useScoreboardData.js';
 
 // gviz folds a tab's leading instruction banner into the SAME cell as the
@@ -74,17 +74,54 @@ describe('parseLineCompletion', () => {
   });
 });
 
-describe('parseDowntimeMonthly', () => {
-  it('reads events past the reporting period, banner-glued header and all', () => {
-    const csv = [
-      '"PRODUCTION DOWNTIME LOG — one row per event (drives OEE / MTBF / MTTR) Date","Workshop","Equipment","Reason Code","Downtime (min)","Description"',
-      '"02-Jul-2026","Frame & Body Welding","Welding Robot","M1 - Machine breakdown","42","x"',
-      '"02-Sep-2026","","foaming machine","M1 - Machine breakdown","1200","y"',
-    ].join('\n');
-    expect(parseDowntimeMonthly(parseGrid(csv))).toEqual([
+describe('parseDowntimeLog / downtimeMonthlyTrend / summarizeDowntimeLog', () => {
+  // Mirrors the external Production Downtime Log sheet's real column layout:
+  // blank A, Workshop=B, blank C/D, Start Date=E, Start Time=F, End Date=G,
+  // End Time=H, Status=I, Downtime (min)=J, Description=K, Remark=L, Month=M.
+  // Rows are filled in manually below the header with no fixed end row, so
+  // the fixture includes the header itself, a blank line marking the end of
+  // real entries, and — past that — a day-of-week helper row from the
+  // sheet's own calculation engine, to prove both stop the read.
+  function downtimeLogCsv(rows) {
+    const blankTitleRow = Array(13).fill('');
+    const header = Array(13).fill(''); header[1] = 'Workshop'; header[4] = 'Start Date';
+    const blank = Array(13).fill('');
+    const dayEngineRow = Array(13).fill(''); dayEngineRow[1] = 'Thu'; dayEngineRow[4] = '2026-01-01';
+    const line = r => r.map(c => `"${c}"`).join(',');
+    return [line(blankTitleRow), line(header), ...rows.map(line), line(blank), line(dayEngineRow)].join('\n');
+  }
+  function event(workshop, startDate, status, minutes) {
+    const r = Array(13).fill('');
+    r[1] = workshop; r[4] = startDate; r[8] = status; r[9] = String(minutes);
+    return r;
+  }
+
+  const grid = parseGrid(downtimeLogCsv([
+    event('Frame & Body Welding', '02-Jul-2026', 'Closed', 42),
+    event('Paint Shop', '02-Sep-2026', 'Closed', 1200),
+    event('Machine Shop', '05-Sep-2026', 'Open', 300),
+    event('Trim & Final Assembly', '', 'Open', 0), // no Start Date — draft row, skipped
+  ]));
+  const events = parseDowntimeLog(grid);
+
+  it('reads sequentially from just below the header, skipping draft rows with no Start Date, and stops at the blank line before the engine rows', () => {
+    expect(events).toHaveLength(3);
+    expect(events[0]).toMatchObject({ workshop: 'Frame & Body Welding', status: 'Closed', minutes: 42 });
+    expect(events.some(e => e.workshop === 'Thu')).toBe(false);
+  });
+
+  it('trends by month across full history regardless of any period', () => {
+    expect(downtimeMonthlyTrend(events)).toEqual([
       { label: 'Jul 26', value: 0.7 },
-      { label: 'Sep 26', value: 20 },
+      { label: 'Sep 26', value: 25 }, // (1200 + 300) / 60
     ]);
+  });
+
+  it('scopes Unplanned Downtime + event count to the given period, and MTTR to CLOSED events only', () => {
+    const summary = summarizeDowntimeLog(events, '2026-09-01', '2026-09-30');
+    expect(summary.eventCount).toBe(2);
+    expect(summary.hours).toBe(25);
+    expect(summary.mttrHours).toBe(20); // only the Closed Paint Shop event: 1200 / 60
   });
 });
 

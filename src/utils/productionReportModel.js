@@ -1,8 +1,10 @@
 // ── Monthly Production Report — data model ───────────────────────────────
 // The report is a cover, the Document Version History, the three scoreboard
 // pages, and Annex A. Annex A is the only table, and it lists the workshop
-// start/end dates of the buses COMPLETED in the reporting month — so all this
-// module has to decide is which buses those are.
+// start/end dates of the buses COMPLETED in the reporting month, plus the
+// buses still IN PROGRESS that month (started or still running in a reported
+// workshop, but not yet cleared all four) — so all this module has to decide
+// is which buses fall into each bucket.
 //
 // Kept separate from the PDF renderer so the selection rule is testable on
 // its own and the renderer stays a layout concern.
@@ -51,6 +53,12 @@ export const busLabel = b => [b.unit, b.vin].filter(Boolean).join(' – ') || `B
  * @param {Array}  opts.buses  parseBusUnits output (needs `ws` per line)
  * @param {string} opts.month  'YYYY-MM' reporting month
  */
+// Two ISO-date windows overlap? A blank end reads as still open (running to
+// the far future) — matches useScoreboardData.js's rangesOverlap, kept local
+// since this module is deliberately not coupled to the hook.
+const overlapsMonth = (start, end, bounds) =>
+  !!start && start <= bounds.end && (end || '9999-12-31') >= bounds.start;
+
 export function buildReportModel({ buses = [], month }) {
   const bounds = monthBounds(month);
 
@@ -58,16 +66,36 @@ export function buildReportModel({ buses = [], month }) {
   // workshops, or once the tracker's own Bus Status says so. It belongs to
   // this month's report when the last of those workshop end dates falls
   // inside the month — that is the date it actually rolled off.
-  const completed = buses
-    .map(b => {
-      const ends = REPORT_WORKSHOPS.map(w => b.ws?.[w.key]?.actualEnd).filter(Boolean);
-      const clearedAll = ends.length === REPORT_WORKSHOPS.length;
-      const finishedOn = ends.length ? ends.slice().sort().pop() : b.completedOn;
-      return { bus: b, clearedAll, finishedOn };
-    })
+  const withFinish = buses.map(b => {
+    const ends = REPORT_WORKSHOPS.map(w => b.ws?.[w.key]?.actualEnd).filter(Boolean);
+    const clearedAll = ends.length === REPORT_WORKSHOPS.length;
+    const finishedOn = ends.length ? ends.slice().sort().pop() : b.completedOn;
+    return { bus: b, clearedAll, finishedOn };
+  });
+
+  const completed = withFinish
     .filter(x => (x.clearedAll || x.bus.done)
       && x.finishedOn && x.finishedOn >= bounds.start && x.finishedOn <= bounds.end)
     .sort((a, b) => (a.finishedOn < b.finishedOn ? -1 : 1))
+    .map(x => x.bus);
+  const completedSet = new Set(completed);
+
+  // A bus that didn't complete this month still belongs on the annex if it
+  // had any actual work in a reported workshop overlapping the month —
+  // started this month, still running from an earlier one, or both — so the
+  // report shows what's on the line, not only what rolled off it. Sorted by
+  // the earliest such start, so it reads chronologically like `completed`.
+  const earliestActiveStart = x => REPORT_WORKSHOPS
+    .map(w => x.bus.ws?.[w.key]?.actualStart)
+    .filter(Boolean)
+    .sort()[0] || '';
+  const inProgress = withFinish
+    .filter(x => !completedSet.has(x.bus))
+    .filter(x => REPORT_WORKSHOPS.some(w => {
+      const ws = x.bus.ws?.[w.key];
+      return ws && overlapsMonth(ws.actualStart, ws.actualEnd, bounds);
+    }))
+    .sort((a, b) => (earliestActiveStart(a) < earliestActiveStart(b) ? -1 : 1))
     .map(x => x.bus);
 
   return {
@@ -76,5 +104,7 @@ export function buildReportModel({ buses = [], month }) {
     monthUpper: monthName(month).toUpperCase(),
     completed,
     completedCount: completed.length,
+    inProgress,
+    inProgressCount: inProgress.length,
   };
 }

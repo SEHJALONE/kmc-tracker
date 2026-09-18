@@ -981,7 +981,7 @@ function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, 
 
           <div style={{ fontSize: 11.5, color: C.ink2 }}>
             Annex A will list the {model.completedCount} bus{model.completedCount === 1 ? '' : 'es'} completed
-            in {monthName(month)}.
+            and {model.inProgressCount} in progress in {monthName(month)}.
           </div>
           {status && <div style={{ fontSize: 11.5, color: status.ok ? C.green : C.red }}>{status.msg}</div>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
@@ -1549,9 +1549,10 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               plus a loose full-bleed note underneath (which sat 14px wider than
               the page's own content on each side and read as misaligned).
               Note: this reads the full IMS-objectives master workbook (Targets,
-              Tracker, Daily Output, Downtime, Bottlenecks, Quality, Safety,
-              Environment, ECR, Cost, Waste, Kaizen, Calc) plus our own Cost
-              Inputs tab — see useScoreboardData.js. */}
+              Tracker, Daily Output, Bottlenecks, Quality, Safety, Environment,
+              ECR, Cost, Waste, Kaizen, Calc) plus our own Cost Inputs tab,
+              and breakdown downtime from a separate external Production
+              Downtime Log sheet — see useScoreboardData.js. */}
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
             background: C.glass, border: `1px solid ${C.glassBorder}`, borderRadius: 14,

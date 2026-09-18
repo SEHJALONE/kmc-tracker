@@ -3,12 +3,17 @@ import { STATIONS } from '../data/stations.js';
 
 // DPN Scoreboard — reads the REAL "KMC_Department_Monthly_Scoreboard" workbook,
 // which as of 2026-07-27 is the full IMS-objectives master workbook (README /
-// Dashboard / Targets / Tracker / Daily Output / Downtime / Bottlenecks /
-// Quality / Safety / Environment / ECR / Cost / Waste / Kaizen / Calc), plus
-// our own "Cost Inputs" tab. The Calc tab is a pre-computed label/value +
+// Dashboard / Targets / Tracker / Daily Output / Bottlenecks / Quality /
+// Safety / Environment / ECR / Cost / Waste / Kaizen / Calc), plus our own
+// "Cost Inputs" tab. The Calc tab is a pre-computed label/value +
 // workshop-status dump driven by spreadsheet formulas — most KPIs are just a
 // lookup into it, not something this hook needs to derive itself. Requires
 // the sheet to be shared "Anyone with the link can view".
+//
+// Breakdown-downtime data (2026-09-13) comes from a SEPARATE external
+// "Production Downtime Log" sheet instead of this workbook's own Downtime
+// tab — see DOWNTIME_LOG_URL and parseDowntimeLog/summarizeDowntimeLog below.
+// We don't own that sheet (view-only), so all reads are soft-fail.
 const SHEET_ID = '1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs';
 const TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
@@ -18,6 +23,14 @@ const TAB_URL = (tab) =>
 const TRAVEL_SHEET_ID = '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es';
 const TRAVEL_TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${TRAVEL_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
+// External "Production Downtime Log" — a separate, view-only Google Sheet
+// (2026-09-13) that has replaced the master workbook's own "Downtime" tab as
+// the source of breakdown events. We don't own this sheet (can't edit it, no
+// tab-name control), so it's addressed by gid rather than sheet name.
+const DOWNTIME_LOG_SHEET_ID = '13r7mWWeQl1KEgPQh0QUOQsWsUON4RjC4';
+const DOWNTIME_LOG_GID = '618630713';
+const DOWNTIME_LOG_URL =
+  `https://docs.google.com/spreadsheets/d/${DOWNTIME_LOG_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${DOWNTIME_LOG_GID}`;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 // The 4 core assembly lines the scoreboard reports per-line figures for —
@@ -428,27 +441,97 @@ export function parseDailyOutput(grid) {
   return out;
 }
 
-// ── Downtime tab: one row per breakdown event (Date | Workshop | Equipment |
-// Reason Code | Downtime (min) | Description | Reported By) — the period
-// M1-M7 totals come from Calc, but this drives the monthly downtime-hours
-// trend chart, which needs the full dated history Calc doesn't keep.
-export function parseDowntimeMonthly(grid) {
-  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /reason/i.test(r[3] || ''));
-  if (hIdx === -1) return [];
-  const byMonth = new Map();
-  for (let i = hIdx + 1; i < grid.length; i++) {
+// ── External Production Downtime Log (separate sheet, view-only — see
+// DOWNTIME_LOG_URL): one row per breakdown event. Columns verified against
+// the live gviz feed on 2026-09-13 — B=Workshop, E=Start Date, F=Start Time,
+// G=End Date, H=End Time, I=Status (Open/Closed/Closed (legacy)), J=Downtime
+// (min, already business-hours-adjusted by the sheet's own formulas — an
+// "Open" event's minutes keep growing to "now" as of the sheet's last
+// recalculation), K=Description, L=Remark, M=Month. C/D and F/G/H/J carry no
+// header text of their own (merged cells in the sheet), which is why this
+// reads by fixed position rather than header lookup.
+//
+// Rows are filled in manually, one at a time, straight down from the header
+// — so this reads sequentially starting just below it, with no fixed end
+// row, and stops at the first genuinely blank line. That stop matters: lower
+// down the same sheet sits a month-split/business-hours calculation engine
+// that reuses these same columns for unrelated day-of-week helper rows (e.g.
+// "Thu" in column B) — reading past the blank gap ahead of it would start
+// counting those as fake events. `DAY_NAMES` is a second guard for the same
+// case, in case that blank gap is ever typed over.
+const DAY_NAMES = new Set(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
+
+export function parseDowntimeLog(grid) {
+  const headerIdx = grid.findIndex(r => (r[1] || '').trim().toLowerCase() === 'workshop');
+  if (headerIdx === -1) return [];
+  const events = [];
+  for (let i = headerIdx + 1; i < grid.length; i++) {
     const r = grid[i];
-    if (!r[0] || !r[0].trim()) continue;
-    const d = parseTrackerDate(r[0]);
-    const mins = toNum(r[4]);
-    if (!d || mins == null) continue;
-    const key = monthKey(d);
-    if (!byMonth.has(key)) byMonth.set(key, { label: monthLabel(d), value: 0 });
-    byMonth.get(key).value += mins / 60;
+    const workshop = (r[1] || '').trim();
+    const startDateCell = (r[4] || '').trim();
+    if (!workshop && !startDateCell) break;
+    if (DAY_NAMES.has(workshop.toLowerCase())) break;
+    const startDate = parseTrackerDate(r[4]);
+    // A row can have a Workshop typed in with no Start Date yet (an
+    // in-progress draft entry) — skip it rather than counting it with an
+    // undated, unsortable event, but keep reading past it: more rows get
+    // filled in below the header as new events happen.
+    if (!workshop || !startDate) continue;
+    events.push({
+      workshop,
+      startDate,
+      startTime: (r[5] || '').trim(),
+      endDate: parseTrackerDate(r[6]),
+      endTime: (r[7] || '').trim(),
+      status: (r[8] || '').trim(),
+      minutes: toNum(r[9]) || 0,
+      description: (r[10] || '').trim(),
+      remark: (r[11] || '').trim(),
+      month: (r[12] || '').trim(),
+    });
   }
+  return events;
+}
+
+// Monthly hours trend for the board's "Downtime — by Month" chart — replaces
+// the old in-workbook Downtime tab as the source, full history regardless of
+// the selected reporting period (same behaviour the old tab-based version had).
+export function downtimeMonthlyTrend(events) {
+  const byMonth = new Map();
+  events.forEach(e => {
+    const key = monthKey(e.startDate);
+    if (!byMonth.has(key)) byMonth.set(key, { label: monthLabel(e.startDate), value: 0 });
+    byMonth.get(key).value += e.minutes / 60;
+  });
   return sortMonthKeys(byMonth.keys()).map(k => ({
     label: byMonth.get(k).label, value: Math.round(byMonth.get(k).value * 100) / 100,
   }));
+}
+
+// Period-scoped downtime KPIs (Unplanned Downtime hours, event count, MTTR)
+// computed directly from the log — replaces the master workbook's Calc tab as
+// the source for these, since Calc derives them from its own internal
+// Downtime tab, which is a different (and, per SCOREBOARD-SEPTEMBER-DIAGNOSIS
+// .md, currently broken/stale) tab from this external log. `start`/`end` are
+// ISO YYYY-MM-DD, inclusive; either may be null for an open-ended bound.
+// MTTR only counts CLOSED events — an Open event hasn't finished being
+// repaired yet, so its running minutes aren't a "time to repair" figure.
+export function summarizeDowntimeLog(events, start, end) {
+  const iso = d =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const inPeriod = events.filter(e => {
+    const s = iso(e.startDate);
+    return (!start || s >= start) && (!end || s <= end);
+  });
+  const hours = inPeriod.reduce((sum, e) => sum + e.minutes, 0) / 60;
+  const closed = inPeriod.filter(e => /^closed/i.test(e.status));
+  const closedHours = closed.reduce((sum, e) => sum + e.minutes, 0) / 60;
+  return {
+    events: inPeriod,
+    hours,
+    eventCount: inPeriod.length,
+    mttrHours: closed.length ? closedHours / closed.length : null,
+  };
 }
 
 // ── Quality tab: one row per vehicle inspection (Date | Unit | First
@@ -560,6 +643,20 @@ async function fetchTab(tab) {
 async function fetchTabSoft(urlFn, tab) {
   try {
     const res = await fetch(urlFn(tab));
+    const text = await res.text();
+    if (!res.ok || text.trimStart().startsWith('<')) return [];
+    return parseGrid(text);
+  } catch {
+    return [];
+  }
+}
+
+// Same soft-fail contract as fetchTabSoft: this is a sheet we don't own, so a
+// sharing-permission change or a rename shouldn't take the whole board down —
+// it degrades to "no downtime data" instead.
+async function fetchDowntimeLog() {
+  try {
+    const res = await fetch(DOWNTIME_LOG_URL);
     const text = await res.text();
     if (!res.ok || text.trimStart().startsWith('<')) return [];
     return parseGrid(text);
@@ -685,12 +782,12 @@ export function useScoreboardData() {
     setLoading(true);
     try {
       const [
-        targetsGrid, trackerGrid, dailyOutputGrid, downtimeGrid, bottlenecksGrid,
+        targetsGrid, trackerGrid, dailyOutputGrid, bottlenecksGrid,
         qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, kaizenGrid, calcGrid,
         machinesGrid, machineRatesGrid, staffRatesGrid, energyRatesGrid,
-        operatorsGrid, submissionsGrid,
+        operatorsGrid, submissionsGrid, downtimeLogGrid,
       ] = await Promise.all([
-        fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'), fetchTab('Downtime'),
+        fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'),
         fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'), fetchTab('ECR'),
         fetchTab('Cost'), fetchTab('Waste'), fetchTab('Kaizen'), fetchTab('Calc'),
         // Machine Cost Database — lives on the main sheet (Cost Estimation
@@ -702,12 +799,18 @@ export function useScoreboardData() {
         fetchTabSoft(TRAVEL_TAB_URL, 'energy_rates'),
         fetchTabSoft(TRAVEL_TAB_URL, 'operators'),
         fetchTabSoft(TRAVEL_TAB_URL, 'submissions'),
+        // Breakdown events — the external Production Downtime Log sheet, not
+        // this workbook's own (stale) Downtime tab. Soft-fetched: it's a
+        // sheet we don't own, so a permission or layout change there
+        // shouldn't take the rest of the board down with it.
+        fetchDowntimeLog(),
       ]);
 
       const targetsKv = parseTargetsKv(targetsGrid);
       const { kv: calcKv, workshops } = parseCalc(calcGrid);
       const daily = parseDailyOutput(dailyOutputGrid);
-      const downtimeTrend = parseDowntimeMonthly(downtimeGrid);
+      const downtimeEvents = parseDowntimeLog(downtimeLogGrid);
+      const downtimeTrend = downtimeMonthlyTrend(downtimeEvents);
       const fpyTrend = parseQualityMonthly(qualityGrid);
       const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
       const bottlenecks = parseRegisterRows(bottlenecksGrid, r => headerCellIs(r[0], 'Date Raised'));
@@ -733,6 +836,35 @@ export function useScoreboardData() {
       const staffHourlyRate = resolveRateAsOf(staffRateRows, asOf) || 0;
       const energyTariffRate = resolveRateAsOf(energyRateRows, asOf) || 0;
       const availableHours = calcKv['Available Hours']?.num || targetsKv['Total Available Production Hours (period)']?.num || 0;
+
+      // ── Downtime KPIs — Unplanned Downtime / Total Hours Lost / Downtime %
+      // / MTTR, all recomputed from the external log rather than read off
+      // Calc, since Calc derives them from the workbook's own (currently
+      // stale) Downtime tab. Planned Downtime is a shift/maintenance
+      // schedule figure the external log has no equivalent for, so that one
+      // KPI still comes from Calc/Targets. Scoped to the same "Scoreboard
+      // Period Start/End" window every other period-labelled KPI on the
+      // board uses, for consistency.
+      const periodStart = parseTrackerDate(targetsKv['Scoreboard Period Start']?.raw);
+      const periodEnd = parseTrackerDate(targetsKv['Scoreboard Period End']?.raw);
+      const isoOrNull = d => d
+        ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        : null;
+      const downtimeSummary = summarizeDowntimeLog(downtimeEvents, isoOrNull(periodStart), isoOrNull(periodEnd));
+      const plannedDowntimeHours = calcKv['Planned Downtime (hrs)']?.num || 0;
+      const unplannedDowntimeHours = downtimeSummary.hours;
+      const totalHoursLost = plannedDowntimeHours + unplannedDowntimeHours;
+      const downtimeKvExtra = {
+        'Unplanned Downtime (hrs)': { raw: String(unplannedDowntimeHours), num: unplannedDowntimeHours },
+        'Total Hours Lost': { raw: String(totalHoursLost), num: totalHoursLost },
+        'Downtime % of Available': {
+          raw: String(availableHours ? totalHoursLost / availableHours : 0),
+          num: availableHours ? totalHoursLost / availableHours : null,
+        },
+        ...(downtimeSummary.mttrHours != null
+          ? { 'MTTR (hrs)': { raw: String(downtimeSummary.mttrHours), num: downtimeSummary.mttrHours } }
+          : {}),
+      };
 
       const labour = parseLabourCost(operatorsGrid, submissionsGrid, staffHourlyRate);
 
@@ -786,6 +918,7 @@ export function useScoreboardData() {
           ...calcKv,
           ...costKv,
           ...costKvExtra,
+          ...downtimeKvExtra,
         },
         workshops,
         lineCompletion,
@@ -798,6 +931,7 @@ export function useScoreboardData() {
         waste,
         fpyTrend,
         downtimeTrend,
+        downtimeEvents: downtimeSummary.events,
         linePlannedVsActual: lineMonthly.byLine,    // per-line monthly Plan vs Actual, the 4 reported lines
         overallMonthly: lineMonthly.overallMonthly, // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
       });

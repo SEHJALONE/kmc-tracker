@@ -257,29 +257,35 @@ function drawVersionHistory(flow, logoImg, meta) {
 }
 
 // ── Annex A ─────────────────────────────────────────────────────────────
-// Actual start and end date per workshop, one row per bus completed in the
-// reporting month. A dash means the bus has no recorded date for that shop.
+// Actual start and end date per workshop, one row per bus either completed
+// in the reporting month or still in progress during it (a STATUS column
+// tells them apart — an in-progress row's later End cells are naturally
+// blank). A dash means the bus has no recorded date for that shop.
 function drawAnnexure(flow, model) {
   flow.newPage();
   flow.heading('ANNEXURE');
   flow.para('Annex A: Completion Dates for the Different Kayoola Buses in the Different Workshops',
     { bold: true });
 
-  const head = ['BUS'];
+  const head = ['BUS', 'STATUS'];
   REPORT_WORKSHOPS.forEach(w => { head.push(`${w.short} – Start`, `${w.short} – End`); });
-  const rows = model.completed.map(b => {
-    const cells = [busLabel(b)];
+  const rowFor = (b, status) => {
+    const cells = [busLabel(b), status];
     REPORT_WORKSHOPS.forEach(w => {
       const ws = b.ws?.[w.key] || {};
       cells.push(shortDate(ws.actualStart), shortDate(ws.actualEnd));
     });
     return cells;
-  });
+  };
+  const rows = [
+    ...model.completed.map(b => rowFor(b, 'Completed')),
+    ...model.inProgress.map(b => rowFor(b, 'In Progress')),
+  ];
 
   flow.table(head,
-    rows.length ? rows : [[`No buses were completed in ${model.monthName}.`, '', '', '', '', '', '', '', '']],
-    [3, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
-    ['left', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'],
+    rows.length ? rows : [[`No buses were completed or in progress in ${model.monthName}.`, '', '', '', '', '', '', '', '', '']],
+    [2.4, 1.1, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05],
+    ['left', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'],
     { bodyPt: 10 });
 }
 
