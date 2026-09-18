@@ -247,59 +247,57 @@ describe('computeLineCard — range filter', () => {
 // are anchored on their all-text first column because gviz types a column
 // from its data and blanks a text header sitting over numbers or dates.
 describe('parseProjects / parseMonthlyPlan', () => {
-  const row = (start, cells) => {
-    const r = Array(46).fill('');
-    cells.forEach((v, i) => { r[start + i] = v; });
+  const Z = 25, AD = 29;
+  const row = (cells) => {
+    const r = Array(40).fill('');
+    Object.entries(cells).forEach(([k, v]) => { r[Number(k)] = v; });
     return r;
   };
-  const Z = 25, AJ = 35;
+  const reg = (name, model, vin) => row({ [Z]: name, [Z + 1]: model, [Z + 2]: vin });
+  const plan = (month, units) => {
+    const cells = { [AD]: month };
+    units.forEach((u, i) => { cells[AD + 1 + i] = String(u); });
+    return row(cells);
+  };
+  const merge = (a, b) => a.map((v, i) => v || b[i]);
 
   const grid = [
     ['TARGETS, BASELINES & LISTS'],
     [],
-    // header row carries both blocks, as on the real sheet
-    (() => {
-      const r = Array(46).fill('');
-      r[0] = 'Period Start Override';
-      ['Project ID', 'Project Name', 'Customer', 'Model / Variant', 'Units Planned',
-       'Start Date', 'Target End', 'Status', 'VINs Attached'].forEach((h, i) => { r[Z + i] = h; });
-      // the workshop headers gviz would blank are left empty on purpose
-      r[AJ] = 'Month';
-      return r;
-    })(),
-    (() => {
-      const r = row(Z, ['PRJ-01', '10x7m KEV (01-10)', 'KMC', '7m KEV', '10',
-                        '18-May-2026', '11-Jun-2026', 'Active', '10']);
-      ['May-2026', '4', '5', '6', '7', '8', '9', '10', '11'].forEach((v, i) => { r[AJ + i] = v; });
-      return r;
-    })(),
-    (() => {
-      const r = row(Z, ['PRJ-02', '2x12m KDC (01-02)', 'KMC', '12m KDC', '2',
-                        '11-May-2026', '13-Jun-2026', 'Complete', '2']);
-      ['Jun-2026', '0', '0', '0', '3', '0', '0', '12', '0'].forEach((v, i) => { r[AJ + i] = v; });
-      return r;
-    })(),
-    // blank registry row, then the usage note - neither may be read as data
-    Array(46).fill(''),
-    row(Z, ['BUS PROJECTS: one row per project, add as many as you like...']),
+    merge(row({ 0: 'Period Start Override', [Z]: 'Project Name', [Z + 1]: 'Model', [Z + 2]: 'Full VIN' }),
+          row({ [AD]: 'Month' })),
+    // the workshop header names sit in otherwise-numeric columns, so gviz
+    // blanks them - left empty here on purpose, to prove the fallback order
+    merge(reg('45-Bus Project', '7m KEV', 'VIN-A'), plan('May-2026', [4, 5, 6, 7, 8, 9, 10, 11])),
+    merge(reg('45-Bus Project', '7m KEV', 'VIN-B'), plan('Jun-2026', [0, 0, 0, 3, 0, 0, 12, 0])),
+    merge(reg('45-Bus Project', '12m KDC', 'VIN-C'), Array(40).fill('')),
+    reg('Depot Retrofit', '10m KEV', 'VIN-D'),
+    // blank row, then the usage note - neither may be read as data
+    Array(40).fill(''),
+    row({ [Z]: 'BUS PROJECTS: one row per bus - Project Name, Model, Full VIN...' }),
   ];
 
-  it('reads the registry and stops before the blank rows and the note under them', () => {
+  it('groups the one-row-per-bus registry into projects, and stops at the blank row', () => {
     const projects = parseProjects(grid);
     expect(projects).toHaveLength(2);
     expect(projects[0]).toMatchObject({
-      id: 'PRJ-01', name: '10x7m KEV (01-10)', model: '7m KEV',
-      unitsPlanned: 10, status: 'Active', vinsAttached: 10,
+      name: '45-Bus Project', model: '7m KEV, 12m KDC', units: 3,
     });
-    expect(projects[1].id).toBe('PRJ-02');
+    expect(projects[0].vins).toEqual(['VIN-A', 'VIN-B', 'VIN-C']);
+    expect(projects[1]).toMatchObject({ name: 'Depot Retrofit', model: '10m KEV', units: 1 });
+  });
+
+  it('takes more units on a project from nothing more than extra rows', () => {
+    const more = parseProjects([...grid.slice(0, 7), reg('Depot Retrofit', '10m KEV', 'VIN-E'), ...grid.slice(7)]);
+    expect(more.find(p => p.name === 'Depot Retrofit')).toMatchObject({ units: 2 });
   });
 
   it('reads the monthly plan per workshop, falling back to the Tracker column order', () => {
-    const plan = parseMonthlyPlan(grid);
-    const may = [...plan.values()].find(v => v.label === 'May 26');
+    const p = parseMonthlyPlan(grid);
+    const may = [...p.values()].find(v => v.label === 'May 26');
     expect(may.units['Machine Shop']).toBe(4);
     expect(may.units['Trim & Final Assembly']).toBe(10);
-    const jun = [...plan.values()].find(v => v.label === 'Jun 26');
+    const jun = [...p.values()].find(v => v.label === 'Jun 26');
     expect(jun.units['Trim & Final Assembly']).toBe(12);
     expect(jun.units['Frame & Body Welding']).toBe(3);
   });
@@ -313,9 +311,8 @@ describe('parseProjects / parseMonthlyPlan', () => {
     const withoutPlan = parseLineMonthly(tracker);
     expect(withoutPlan.byLine['Trim & Final Assembly'][0]).toMatchObject({ planned: 2, actual: 2 });
 
-    const plan = parseMonthlyPlan(grid);
-    const withPlan = parseLineMonthly(tracker, plan);
-    const june = withPlan.byLine['Trim & Final Assembly'].find(p => p.label === 'Jun 26');
+    const withPlan = parseLineMonthly(tracker, parseMonthlyPlan(grid));
+    const june = withPlan.byLine['Trim & Final Assembly'].find(x => x.label === 'Jun 26');
     expect(june).toMatchObject({ planned: 12, actual: 2 });
   });
 });

@@ -462,45 +462,46 @@ export function parseTargetsKv(grid) {
   return kv;
 }
 
-// ── Targets tab, BUS PROJECTS registry (columns Z..AH, header on row 3) ──
-// One row per bus project, unlimited: the board reads every row that has a
-// Project ID and stops at the first blank one. Each Tracker row carries its
-// project's ID in the Tracker's own "Project" column (BE), which is what
-// attaches a specific full VIN to a project.
+// ── Targets tab, BUS PROJECTS registry (columns Z..AB, header on row 3) ──
+// Three columns, one row per bus: Project Name | Model | Full VIN. A project
+// gains units by gaining rows, so both the number of projects and the number
+// of units in each are open-ended. The Tracker's own "Project" column (BE)
+// looks a bus up here by VIN, which is what ties a specific full VIN to its
+// project without anyone keying the link twice.
 //
-// Anchored on column Z because it is all text (header included), so gviz
-// types it as text and the header survives. Everything to its right is read
-// positionally: a column mixing a text header with numbers or dates (Units
-// Planned, Start Date, Target End) gets typed from its data and has its
-// header blanked — the same gviz behaviour documented at DOWNTIME_LOG_URL.
+// Returned grouped by project — one entry per project, carrying its VINs —
+// because that is what the board reports on.
+//
+// All three columns are text (headers included), so gviz types them as text
+// and the headers survive; column Z is the anchor.
 const PROJECTS_COL = 25;   // Z, 0-indexed
 
 export function parseProjects(grid) {
-  const hIdx = grid.findIndex(r => (r[PROJECTS_COL] || '').trim().toLowerCase() === 'project id');
+  const hIdx = grid.findIndex(r => (r[PROJECTS_COL] || '').trim().toLowerCase() === 'project name');
   if (hIdx === -1) return [];
-  const out = [];
+  const byName = new Map();
   for (let i = hIdx + 1; i < grid.length; i++) {
     const r = grid[i];
-    const id = (r[PROJECTS_COL] || '').trim();
-    // Stop at the first row with no Project ID: the registry's pre-styled
-    // blank rows, and the usage note below them, both sit there.
-    if (!id) break;
-    out.push({
-      id,
-      name: (r[PROJECTS_COL + 1] || '').trim(),
-      customer: (r[PROJECTS_COL + 2] || '').trim(),
-      model: (r[PROJECTS_COL + 3] || '').trim(),
-      unitsPlanned: toNum(r[PROJECTS_COL + 4]) || 0,
-      startDate: parseTrackerDate(r[PROJECTS_COL + 5]),
-      targetEnd: parseTrackerDate(r[PROJECTS_COL + 6]),
-      status: (r[PROJECTS_COL + 7] || '').trim(),
-      vinsAttached: toNum(r[PROJECTS_COL + 8]) || 0,
-    });
+    const name = (r[PROJECTS_COL] || '').trim();
+    const model = (r[PROJECTS_COL + 1] || '').trim();
+    const vin = (r[PROJECTS_COL + 2] || '').trim();
+    // Stop at the first blank row: the registry's pre-styled blank rows, and
+    // the usage note below them, both sit there.
+    if (!name && !vin) break;
+    if (!name) continue;
+    if (!byName.has(name)) byName.set(name, { name, models: [], vins: [] });
+    const p = byName.get(name);
+    if (model && !p.models.includes(model)) p.models.push(model);
+    if (vin) p.vins.push(vin);
   }
-  return out;
+  return [...byName.values()].map(p => ({
+    ...p,
+    model: p.models.join(', '),
+    units: p.vins.length,
+  }));
 }
 
-// ── Targets tab, MONTHLY WORKSHOP PLAN (columns AJ..AR, header on row 3) ──
+// ── Targets tab, MONTHLY WORKSHOP PLAN (columns AD..AL, header on row 3) ──
 // Month down the left, one column per workshop, units planned in the cell.
 // This is the scoreboard's source for "Planned" — it lets the plan run past
 // the Tracker's own schedule (which stops mid-July) without anyone having to
@@ -510,7 +511,7 @@ export function parseProjects(grid) {
 // their header names sit in otherwise-numeric columns and gviz blanks them;
 // the names are read from the header row when they do survive, and fall back
 // to that fixed order when they don't.
-const PLAN_COL = 35;   // AJ, 0-indexed
+const PLAN_COL = 29;   // AD, 0-indexed
 const PLAN_WORKSHOPS = WORKSHOP_COLS.map(w => w.name);
 
 export function parseMonthlyPlan(grid) {

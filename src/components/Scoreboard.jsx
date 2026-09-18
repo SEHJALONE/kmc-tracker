@@ -1399,16 +1399,17 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   // or any other non-final status) surfacing first since that's what needs
   // attention; the table itself scrolls once the list runs long. Array.sort
   // is stable, so each status group keeps the sheet's own chronological order.
-  // Bus Projects registry (Targets sheet, column Z). Active projects first —
-  // a finished project is history, the ones still running are the report.
+  // Bus Projects registry (Targets sheet, column Z) — one row per bus there,
+  // grouped per project here. Completed counts the project's own VINs that
+  // the Tracker reports Done, so a project reads as progress, not just a list.
   const projects = d.projects || [];
-  const projectRows = [...projects]
-    .sort((a, b) => {
-      const openA = !/^(complete|cancelled)/i.test(a.status || '');
-      const openB = !/^(complete|cancelled)/i.test(b.status || '');
-      return openA === openB ? 0 : openA ? -1 : 1;
-    })
-    .map(p => [p.id, p.name, p.model, fint(p.unitsPlanned), fint(p.vinsAttached), p.status || '-']);
+  const doneVins = new Set((d.busUnits || []).filter(b => b.done).map(b => b.vin));
+  const projectRows = projects.map(p => [
+    p.name,
+    p.model || '-',
+    fint(p.units),
+    `${fint(p.vins.filter(v => doneVins.has(v)).length)} / ${fint(p.units)}`,
+  ]);
 
   const kaizenSorted = [...d.kaizen].sort((a, b) => {
     const openA = !/^implemented$/i.test((a[4] || '').trim());
@@ -1521,9 +1522,11 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           {/* Bus Projects — the Targets sheet's registry. Takes whatever is
               left of the page, so page 1 always ends flush. */}
           <Row cols={1} grow>
-            <Panel title="Bus Projects" chip={<Chip>{projects.length} REGISTERED</Chip>}>
+            <Panel title="Bus Projects" chip={
+              <Chip>{projects.length} {projects.length === 1 ? 'PROJECT' : 'PROJECTS'}</Chip>
+            }>
               <MiniTable
-                headers={['Project', 'Name', 'Model', 'Units', 'VINs', 'Status']}
+                headers={['Project', 'Model', 'Units', 'Completed']}
                 rows={projectRows}
                 empty="No projects in the Targets registry yet."
                 fill
