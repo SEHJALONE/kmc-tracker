@@ -83,45 +83,71 @@ describe('parseDowntimeLog / downtimeMonthlyTrend / summarizeDowntimeLog', () =>
   // real entries, and — past that — a day-of-week helper row from the
   // sheet's own calculation engine, to prove both stop the read.
   function downtimeLogCsv(rows) {
-    const blankTitleRow = Array(13).fill('');
-    const header = Array(13).fill(''); header[1] = 'Workshop'; header[4] = 'Start Date';
-    const blank = Array(13).fill('');
-    const dayEngineRow = Array(13).fill(''); dayEngineRow[1] = 'Thu'; dayEngineRow[4] = '2026-01-01';
+    const header = Array(13).fill('');
+    header[0] = '#'; header[1] = 'Workshop'; header[2] = 'Machine Name';
+    header[3] = 'Reason Code'; header[4] = 'Start Date';
     const line = r => r.map(c => `"${c}"`).join(',');
-    return [line(blankTitleRow), line(header), ...rows.map(line), line(blank), line(dayEngineRow)].join('\n');
+    return [line(header), ...rows.map(line)].join('\n');
   }
-  function event(workshop, startDate, status, minutes) {
+  // `no` is the sheet's own auto-numbered # column; the template's worked
+  // example row carries "ex" there instead, and gviz hands that back blank.
+  function event(no, workshop, startDate, status, minutes, reasonCode = 'D1-Equipment Breakdown') {
     const r = Array(13).fill('');
-    r[1] = workshop; r[4] = startDate; r[8] = status; r[9] = String(minutes);
+    r[0] = no; r[1] = workshop; r[2] = 'Some Machine'; r[3] = reasonCode;
+    r[4] = startDate; r[8] = status; r[9] = String(minutes);
     return r;
   }
 
   const grid = parseGrid(downtimeLogCsv([
-    event('Frame & Body Welding', '02-Jul-2026', 'Closed', 42),
-    event('Paint Shop', '02-Sep-2026', 'Closed', 1200),
-    event('Machine Shop', '05-Sep-2026', 'Open', 300),
-    event('Trim & Final Assembly', '', 'Open', 0), // no Start Date — draft row, skipped
+    event('', 'Paint Shop', '09-Sep-2026', 'Closed', 210),   // the "ex" example row
+    event('1', 'Frame & Body Welding', '02-Jul-2026', 'Closed', 42),
+    event('2', 'Paint Shop', '02-Sep-2026', 'Closed', 1200),
+    event('3', 'Machine Shop', '05-Sep-2026', 'Open', 300),
+    event('4', 'All workshops', '06-Sep-2026', 'Closed', 60, 'D2-Power outage'),
+    event('', 'Trim & Final Assembly', '', 'Open', 0),       // unfilled row
   ]));
   const events = parseDowntimeLog(grid);
 
-  it('reads sequentially from just below the header, skipping draft rows with no Start Date, and stops at the blank line before the engine rows', () => {
-    expect(events).toHaveLength(3);
-    expect(events[0]).toMatchObject({ workshop: 'Frame & Body Welding', status: 'Closed', minutes: 42 });
-    expect(events.some(e => e.workshop === 'Thu')).toBe(false);
+  it('skips the template example row and unfilled rows, keyed on the sheet-numbered # column', () => {
+    expect(events).toHaveLength(4);
+    expect(events.some(e => e.minutes === 210)).toBe(false);
+    expect(events[0]).toMatchObject({
+      workshop: 'Frame & Body Welding', status: 'Closed', minutes: 42,
+      reasonCode: 'D1-Equipment Breakdown', machineName: 'Some Machine',
+    });
   });
 
   it('trends by month across full history regardless of any period', () => {
     expect(downtimeMonthlyTrend(events)).toEqual([
       { label: 'Jul 26', value: 0.7 },
-      { label: 'Sep 26', value: 25 }, // (1200 + 300) / 60
+      { label: 'Sep 26', value: 26 }, // (1200 + 300 + 60) / 60
     ]);
   });
 
   it('scopes Unplanned Downtime + event count to the given period, and MTTR to CLOSED events only', () => {
     const summary = summarizeDowntimeLog(events, '2026-09-01', '2026-09-30');
-    expect(summary.eventCount).toBe(2);
-    expect(summary.hours).toBe(25);
-    expect(summary.mttrHours).toBe(20); // only the Closed Paint Shop event: 1200 / 60
+    expect(summary.eventCount).toBe(3);
+    expect(summary.hours).toBe(26);
+    expect(summary.mttrHours).toBe(10.5); // the two Closed events: (1200 + 60) / 60 / 2
+  });
+
+  it('splits the period by Reason Code so the breakdown rows add up to the total', () => {
+    const summary = summarizeDowntimeLog(events, '2026-09-01', '2026-09-30');
+    expect(summary.byReason['D1-Equipment Breakdown']).toBe(25);
+    expect(summary.byReason['D2-Power outage']).toBe(1);
+    expect(summary.byReason['D4-Safety Incident']).toBe(0);
+    expect(summary.uncategorisedHours).toBe(0);
+    const summed = Object.values(summary.byReason).reduce((a, b) => a + b, 0);
+    expect(summed + summary.uncategorisedHours).toBe(summary.hours);
+  });
+
+  it('parks hours with a blank or off-dropdown Reason Code in uncategorised rather than losing them', () => {
+    const odd = parseDowntimeLog(parseGrid(downtimeLogCsv([
+      event('1', 'Paint Shop', '02-Sep-2026', 'Closed', 120, ''),
+    ])));
+    const summary = summarizeDowntimeLog(odd, '2026-09-01', '2026-09-30');
+    expect(summary.uncategorisedHours).toBe(2);
+    expect(summary.hours).toBe(2);
   });
 });
 

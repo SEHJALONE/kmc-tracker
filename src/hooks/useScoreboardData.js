@@ -29,8 +29,18 @@ const TRAVEL_TAB_URL = (tab) =>
 // tab-name control), so it's addressed by gid rather than sheet name.
 const DOWNTIME_LOG_SHEET_ID = '13r7mWWeQl1KEgPQh0QUOQsWsUON4RjC4';
 const DOWNTIME_LOG_GID = '618630713';
+// `range` is load-bearing, not a tidy-up. gviz infers ONE type per column
+// across the WHOLE sheet and returns null for every cell that disagrees with
+// it. This tab keeps a calendar engine below the log (row 108 onward) whose
+// columns A/C/D hold dates, so an unclipped feed types A (#), C (Machine
+// Name) and D (Reason Code) as date/datetime and hands all three back
+// completely EMPTY — the reason codes were invisible to this app until
+// 2026-09-18 because of it. Clipping to the log region alone makes gviz see
+// those columns as text. A3:M106 = the header row plus the log's full
+// designed capacity (the sheet's own Workshop/Reason dropdowns are bound to
+// rows 4-106), stopping short of the engine.
 const DOWNTIME_LOG_URL =
-  `https://docs.google.com/spreadsheets/d/${DOWNTIME_LOG_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${DOWNTIME_LOG_GID}`;
+  `https://docs.google.com/spreadsheets/d/${DOWNTIME_LOG_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${DOWNTIME_LOG_GID}&range=A3:M106`;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 // The 4 core assembly lines the scoreboard reports per-line figures for —
@@ -451,15 +461,20 @@ export function parseDailyOutput(grid) {
 // header text of their own (merged cells in the sheet), which is why this
 // reads by fixed position rather than header lookup.
 //
-// Rows are filled in manually, one at a time, straight down from the header
-// — so this reads sequentially starting just below it, with no fixed end
-// row, and stops at the first genuinely blank line. That stop matters: lower
-// down the same sheet sits a month-split/business-hours calculation engine
-// that reuses these same columns for unrelated day-of-week helper rows (e.g.
-// "Thu" in column B) — reading past the blank gap ahead of it would start
-// counting those as fake events. `DAY_NAMES` is a second guard for the same
-// case, in case that blank gap is ever typed over.
-const DAY_NAMES = new Set(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
+// Rows are filled in manually, one at a time, straight down from the header,
+// so this reads every row below it rather than assuming a fixed end row.
+//
+// The log's own Reason Code dropdown (data validation on D4:D106), in sheet
+// order. This is what drives the downtime breakdown table — the master
+// workbook's legacy M1-M7 codes describe a scheme this log doesn't use.
+export const DOWNTIME_REASON_CODES = [
+  'D1-Equipment Breakdown',
+  'D2-Power outage',
+  'D3-Material Shortage',
+  'D4-Safety Incident',
+  'D5-Planned Maintenance',
+  'D6-Quality Rework stoppage',
+];
 
 export function parseDowntimeLog(grid) {
   const headerIdx = grid.findIndex(r => (r[1] || '').trim().toLowerCase() === 'workshop');
@@ -467,18 +482,19 @@ export function parseDowntimeLog(grid) {
   const events = [];
   for (let i = headerIdx + 1; i < grid.length; i++) {
     const r = grid[i];
+    // Column A (#) is auto-numbered by the sheet itself — =IF(E5="","",
+    // ROW()-4) — so "# is a number" means precisely "a real, dated entry".
+    // It also excludes the template's worked example on row 4, which is
+    // labelled "ex" rather than numbered: that row reads as a live 210-minute
+    // Paint Shop fault and was being counted as one.
+    if (toNum(r[0]) == null) continue;
     const workshop = (r[1] || '').trim();
-    const startDateCell = (r[4] || '').trim();
-    if (!workshop && !startDateCell) break;
-    if (DAY_NAMES.has(workshop.toLowerCase())) break;
     const startDate = parseTrackerDate(r[4]);
-    // A row can have a Workshop typed in with no Start Date yet (an
-    // in-progress draft entry) — skip it rather than counting it with an
-    // undated, unsortable event, but keep reading past it: more rows get
-    // filled in below the header as new events happen.
     if (!workshop || !startDate) continue;
     events.push({
       workshop,
+      machineName: (r[2] || '').trim(),
+      reasonCode: (r[3] || '').trim(),
       startDate,
       startTime: (r[5] || '').trim(),
       endDate: parseTrackerDate(r[6]),
@@ -526,11 +542,26 @@ export function summarizeDowntimeLog(events, start, end) {
   const hours = inPeriod.reduce((sum, e) => sum + e.minutes, 0) / 60;
   const closed = inPeriod.filter(e => /^closed/i.test(e.status));
   const closedHours = closed.reduce((sum, e) => sum + e.minutes, 0) / 60;
+
+  // Hours per Reason Code, so the breakdown table adds up to the total above
+  // it. Anything with a blank or off-dropdown code lands in `uncategorised`
+  // rather than being dropped, which would leave the rows silently short of
+  // the total they sit under.
+  const byReason = {};
+  DOWNTIME_REASON_CODES.forEach(c => { byReason[c] = 0; });
+  let uncategorisedHours = 0;
+  inPeriod.forEach(e => {
+    if (Object.prototype.hasOwnProperty.call(byReason, e.reasonCode)) byReason[e.reasonCode] += e.minutes / 60;
+    else uncategorisedHours += e.minutes / 60;
+  });
+
   return {
     events: inPeriod,
     hours,
     eventCount: inPeriod.length,
     mttrHours: closed.length ? closedHours / closed.length : null,
+    byReason,
+    uncategorisedHours,
   };
 }
 
@@ -865,6 +896,20 @@ export function useScoreboardData() {
           ? { 'MTTR (hrs)': { raw: String(downtimeSummary.mttrHours), num: downtimeSummary.mttrHours } }
           : {}),
       };
+      // Per-reason rows. These replace Calc's M1-M7 figures, which describe
+      // the master workbook's own (stale) Downtime tab and its different
+      // coding scheme — leaving them in place is what made the breakdown
+      // rows contradict the Unplanned Downtime total sitting above them.
+      DOWNTIME_REASON_CODES.forEach(code => {
+        const h = downtimeSummary.byReason[code] || 0;
+        downtimeKvExtra[code] = { raw: String(h), num: h };
+      });
+      if (downtimeSummary.uncategorisedHours > 0) {
+        downtimeKvExtra['Uncategorised'] = {
+          raw: String(downtimeSummary.uncategorisedHours),
+          num: downtimeSummary.uncategorisedHours,
+        };
+      }
 
       const labour = parseLabourCost(operatorsGrid, submissionsGrid, staffHourlyRate);
 

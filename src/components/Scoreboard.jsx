@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useId, createContext, useCont
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { useScoreboardData, computeLineCard } from '../hooks/useScoreboardData';
+import { useScoreboardData, computeLineCard, DOWNTIME_REASON_CODES } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
 import { addCanvasPaged } from '../utils/pdfImagePager';
 import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
@@ -114,8 +114,11 @@ const WORKSHOP_IMG = {
   'Frame & Body Welding': '/Frame & Body Welding.png',
 };
 
-const DT_REASONS = ['M1 - Machine breakdown', 'M2 - Material shortage', 'M3 - Power/Energy',
-  'M4 - Tooling/jig failure', 'M5 - Operator/skill gap', 'M6 - Quality rework stoppage', 'M7 - Other'];
+// The Production Downtime Log's own Reason Code set — the breakdown rows are
+// driven by the same sheet the Unplanned Downtime total comes from, so they
+// add up to it. (Previously the legacy M1-M7 codes off the master workbook's
+// Calc tab, which described a different sheet entirely.)
+const DT_REASONS = DOWNTIME_REASON_CODES;
 
 // Sample data so the layout renders before the sheet is shared publicly.
 const SAMPLE = {
@@ -132,13 +135,12 @@ const SAMPLE = {
     'Critical Activity': { raw: 'Frame & Body Parts Making' },
     'Available Hours': { num: 480 }, 'Planned Downtime (hrs)': { num: 40 },
     'Unplanned Downtime (hrs)': { num: 0.7 }, 'Total Hours Lost': { num: 40.7 },
-    'Downtime % of Available': { num: 0.085 }, 'Breakdown Events (M1)': { num: 1 },
+    'Downtime % of Available': { num: 0.085 }, 'Breakdown Events': { num: 1 },
     'MTTR (hrs)': { num: 0.7 }, 'MTBF (hrs)': { num: 439 }, 'Downtime vs Baseline': { num: -0.99 },
     'OEE': { num: 0.33 }, 'Availability': { num: 0.92 }, 'Performance': { num: 0.36 },
-    'M1 - Machine breakdown': { num: 0.7 }, 'M2 - Material shortage': { num: 0 },
-    'M3 - Power/Energy': { num: 0 }, 'M4 - Tooling/jig failure': { num: 0 },
-    'M5 - Operator/skill gap': { num: 0 }, 'M6 - Quality rework stoppage': { num: 0 },
-    'M7 - Other': { num: 0 },
+    'D1-Equipment Breakdown': { num: 0.7 }, 'D2-Power outage': { num: 0 },
+    'D3-Material Shortage': { num: 0 }, 'D4-Safety Incident': { num: 0 },
+    'D5-Planned Maintenance': { num: 0 }, 'D6-Quality Rework stoppage': { num: 0 },
     'Vehicles Inspected': { num: 0, ytdNum: 0 }, 'First Pass Yield': { num: 0, ytdNum: 0 },
     'Rework Hours per Unit': { num: 0, ytdNum: 0 }, 'Critical Defects': { num: 0, ytdNum: 0 },
     'Defects Found': { num: 0, ytdNum: 0 }, 'Defects Closed': { num: 0, ytdNum: 0 },
@@ -486,6 +488,12 @@ function DowntimeTable({ kv }) {
     ['Planned Downtime', f1(num('Planned Downtime (hrs)')), avail ? fpct1((num('Planned Downtime (hrs)') || 0) / avail) : '—'],
     ['Unplanned Downtime', f1(num('Unplanned Downtime (hrs)')), avail ? fpct1((num('Unplanned Downtime (hrs)') || 0) / avail) : '—'],
     ...DT_REASONS.map(r => [`— ${r}`, f1(num(r)), avail ? fpct1((num(r) || 0) / avail) : '—']),
+    // Only shown when the log actually holds hours against a blank or
+    // off-dropdown Reason Code — otherwise the rows above already account
+    // for the whole Unplanned figure.
+    ...(num('Uncategorised')
+      ? [['— Uncategorised', f1(num('Uncategorised')), avail ? fpct1(num('Uncategorised') / avail) : '—']]
+      : []),
   ];
   return (
     <TableScroll min={320}>
