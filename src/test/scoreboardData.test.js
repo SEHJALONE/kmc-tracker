@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseGrid, parseCalc, parseLineCompletion, parseDowntimeLog, downtimeMonthlyTrend,
-  summarizeDowntimeLog, parseTargetsKv, computeLineCard,
+  summarizeDowntimeLog, activeDowntimeEvents, parseTargetsKv, computeLineCard,
 } from '../hooks/useScoreboardData.js';
 
 // gviz folds a tab's leading instruction banner into the SAME cell as the
@@ -148,6 +148,18 @@ describe('parseDowntimeLog / downtimeMonthlyTrend / summarizeDowntimeLog', () =>
     const summary = summarizeDowntimeLog(odd, '2026-09-01', '2026-09-30');
     expect(summary.uncategorisedHours).toBe(2);
     expect(summary.hours).toBe(2);
+  });
+
+  it('activeDowntimeEvents lists only OPEN events, oldest-start first, regardless of any period', () => {
+    const multi = parseDowntimeLog(parseGrid(downtimeLogCsv([
+      event('1', 'Paint Shop', '05-Sep-2026', 'Open', 100),
+      event('2', 'Machine Shop', '01-Sep-2026', 'Open', 200),   // earlier start — should sort first
+      event('3', 'Body Shop', '01-Jan-2026', 'Closed', 999),    // closed — excluded even though oldest
+    ])));
+    const active = activeDowntimeEvents(multi);
+    expect(active.map(e => e.workshop)).toEqual(['Machine Shop', 'Paint Shop']);
+    expect(active[0]).toMatchObject({ hours: 200 / 60 });
+    expect(active[0].startedLabel).toMatch(/2026/);
   });
 });
 

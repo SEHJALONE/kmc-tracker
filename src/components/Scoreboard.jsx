@@ -235,7 +235,7 @@ const SAMPLE = {
       },
     },
   ],
-  bottlenecks: [], kaizen: [], ecr: [], waste: [],
+  bottlenecks: [], kaizen: [], ecr: [], waste: [], activeDowntimeEvents: [],
   fpyTrend: [
     { label: 'May 26', value: 0.68 }, { label: 'Jun 26', value: 0.71 }, { label: 'Jul 26', value: 0 },
   ],
@@ -1344,6 +1344,14 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
     { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')) },
   ];
 
+  // Currently-open breakdowns — already sorted oldest-start-first by the
+  // hook, so the longest-running fault reads at the top of the table.
+  const activeDowntime = d.activeDowntimeEvents || [];
+  const activeDowntimeRows = activeDowntime.map(e => [
+    e.workshop, e.machineName || '—', e.description || '—',
+    e.startedLabel, `${f1(e.hours)} h`, e.reasonCode || '—',
+  ]);
+
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
   // Done/target come straight from the Tracker (d.lineCompletion), not the
   // Calc tab's workshop table — Calc's rows for these 4 lines can drift out
@@ -1519,6 +1527,22 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               </CardGrid>
             </Panel>
           </Row>
+
+          {/* Live "what's down right now" — sits directly under the period
+              breakdown it complements: that panel answers "how much downtime
+              this period", this one answers "what's actually stopped as of
+              this refresh", full history regardless of the selected period. */}
+          <Panel title="Active Downtime Events" chip={
+            <Chip tone={activeDowntime.length ? 'crit' : 'ok'}>
+              {activeDowntime.length ? `${activeDowntime.length} OPEN` : 'ALL CLEAR'}
+            </Chip>
+          }>
+            <MiniTable
+              headers={['Workshop', 'Machine', 'Fault', 'Started', 'Hours Open', 'Reason']}
+              rows={activeDowntimeRows}
+              empty="No open breakdowns right now."
+            />
+          </Panel>
 
           <Row cols={w => (w >= 700 ? 2 : 1)}>
             <Panel title="Open Bottlenecks">

@@ -4,16 +4,17 @@ import { STATIONS } from '../data/stations.js';
 // DPN Scoreboard — reads the REAL "KMC_Department_Monthly_Scoreboard" workbook,
 // which as of 2026-07-27 is the full IMS-objectives master workbook (README /
 // Dashboard / Targets / Tracker / Daily Output / Bottlenecks / Quality /
-// Safety / Environment / ECR / Cost / Waste / Kaizen / Calc), plus our own
-// "Cost Inputs" tab. The Calc tab is a pre-computed label/value +
-// workshop-status dump driven by spreadsheet formulas — most KPIs are just a
-// lookup into it, not something this hook needs to derive itself. Requires
-// the sheet to be shared "Anyone with the link can view".
+// Safety / Environment / ECR / Cost / Waste / Calc), plus our own "Cost
+// Inputs" tab. The Calc tab is a pre-computed label/value + workshop-status
+// dump driven by spreadsheet formulas — most KPIs are just a lookup into it,
+// not something this hook needs to derive itself. Requires the sheet to be
+// shared "Anyone with the link can view".
 //
-// Breakdown-downtime data (2026-09-13) comes from a SEPARATE external
-// "Production Downtime Log" sheet instead of this workbook's own Downtime
-// tab — see DOWNTIME_LOG_URL and parseDowntimeLog/summarizeDowntimeLog below.
-// We don't own that sheet (view-only), so all reads are soft-fail.
+// Two tabs have been peeled off into separate, view-only sheets we don't
+// own, each with its own reasoning documented at its URL constant below:
+// breakdown-downtime (2026-09-13, DOWNTIME_LOG_URL, replaces the workbook's
+// own Downtime tab) and Kaizen ideas (2026-09-18, KAIZEN_LOG_URL, replaces
+// the workbook's own Kaizen tab). Both are soft-fail reads.
 const SHEET_ID = '1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs';
 const TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
@@ -41,6 +42,17 @@ const DOWNTIME_LOG_GID = '618630713';
 // rows 4-106), stopping short of the engine.
 const DOWNTIME_LOG_URL =
   `https://docs.google.com/spreadsheets/d/${DOWNTIME_LOG_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${DOWNTIME_LOG_GID}&range=A3:M106`;
+// External "Kaizen / Improvement Ideas" — a separate, view-only Google Sheet
+// (2026-09-18) that has replaced the master workbook's own Kaizen tab, same
+// column layout (Date | Kaizen Idea | Workshop | Proposed By | Status |
+// Impact | Notes). Read via /export?format=csv rather than gviz: this sheet
+// mixes real date cells with hand-typed strings in the same Date column
+// ("17-Sept-2026", a bare "2026") — gviz infers ONE type per column and
+// blanks every cell that disagrees with the majority, which would silently
+// drop those rows (same failure mode as DOWNTIME_LOG_URL, different cause).
+// /export returns literal cell text, so parseTrackerDate sees them as typed.
+const KAIZEN_SHEET_ID = '1MYyIqRxpFu6wGrdvFUXk4VwacmJmsuJ2';
+const KAIZEN_LOG_URL = `https://docs.google.com/spreadsheets/d/${KAIZEN_SHEET_ID}/export?format=csv`;
 const REFRESH_INTERVAL = 5 * 60 * 1000;
 
 // The 4 core assembly lines the scoreboard reports per-line figures for —
@@ -565,6 +577,21 @@ export function summarizeDowntimeLog(events, start, end) {
   };
 }
 
+// ── Currently-open breakdowns, for the board's own "what's down right now"
+// panel — deliberately ignores the reporting period entirely (unlike
+// summarizeDowntimeLog above): a fault that's still open is relevant no
+// matter which month it started in. Sorted oldest-start-first, so the
+// longest-running (most overdue) fault sits at the top. `hours` reuses the
+// sheet's own business-hours-adjusted minutes — it keeps climbing toward
+// "now" as of the sheet's last recalculation, same as the total.
+export function activeDowntimeEvents(events) {
+  return events
+    .filter(e => /^open/i.test(e.status))
+    .slice()
+    .sort((a, b) => a.startDate - b.startDate)
+    .map(e => ({ ...e, hours: e.minutes / 60, startedLabel: shortDate(e.startDate) }));
+}
+
 // ── Quality tab: one row per vehicle inspection (Date | Unit | First
 // Inspection Result | ...). "Pass" in the result column counts toward First
 // Pass Yield; bucketed by month for the FPY trend chart. Assumes the result
@@ -696,6 +723,19 @@ async function fetchDowntimeLog() {
   }
 }
 
+// Generic soft-fail fetch for an /export?format=csv URL — same contract as
+// fetchDowntimeLog above, reused by KAIZEN_LOG_URL.
+async function fetchCsvExport(url) {
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    if (!res.ok || text.trimStart().startsWith('<')) return [];
+    return parseGrid(text);
+  } catch {
+    return [];
+  }
+}
+
 function headerIndex(grid, name) {
   if (!grid.length) return -1;
   return grid[0].findIndex(h => h.trim().toLowerCase() === name);
@@ -814,13 +854,13 @@ export function useScoreboardData() {
     try {
       const [
         targetsGrid, trackerGrid, dailyOutputGrid, bottlenecksGrid,
-        qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, kaizenGrid, calcGrid,
+        qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, calcGrid,
         machinesGrid, machineRatesGrid, staffRatesGrid, energyRatesGrid,
-        operatorsGrid, submissionsGrid, downtimeLogGrid,
+        operatorsGrid, submissionsGrid, downtimeLogGrid, kaizenGrid,
       ] = await Promise.all([
         fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'),
         fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'), fetchTab('ECR'),
-        fetchTab('Cost'), fetchTab('Waste'), fetchTab('Kaizen'), fetchTab('Calc'),
+        fetchTab('Cost'), fetchTab('Waste'), fetchTab('Calc'),
         // Machine Cost Database — lives on the main sheet (Cost Estimation
         // module writes here via Apps Script), soft-fetched since it may not
         // exist yet on a given deployment.
@@ -835,6 +875,9 @@ export function useScoreboardData() {
         // sheet we don't own, so a permission or layout change there
         // shouldn't take the rest of the board down with it.
         fetchDowntimeLog(),
+        // Kaizen ideas — the external Kaizen sheet, not this workbook's own
+        // (stale) Kaizen tab. Also soft-fetched, same reasoning.
+        fetchCsvExport(KAIZEN_LOG_URL),
       ]);
 
       const targetsKv = parseTargetsKv(targetsGrid);
@@ -842,6 +885,7 @@ export function useScoreboardData() {
       const daily = parseDailyOutput(dailyOutputGrid);
       const downtimeEvents = parseDowntimeLog(downtimeLogGrid);
       const downtimeTrend = downtimeMonthlyTrend(downtimeEvents);
+      const activeEvents = activeDowntimeEvents(downtimeEvents);
       const fpyTrend = parseQualityMonthly(qualityGrid);
       const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
       const bottlenecks = parseRegisterRows(bottlenecksGrid, r => headerCellIs(r[0], 'Date Raised'));
@@ -977,6 +1021,7 @@ export function useScoreboardData() {
         fpyTrend,
         downtimeTrend,
         downtimeEvents: downtimeSummary.events,
+        activeDowntimeEvents: activeEvents,
         linePlannedVsActual: lineMonthly.byLine,    // per-line monthly Plan vs Actual, the 4 reported lines
         overallMonthly: lineMonthly.overallMonthly, // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
       });
