@@ -9,17 +9,28 @@ import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from './TravelCard';
 // so the merge over the built-in seed is deterministic, and the bus tracker +
 // travel card both reflect the change.
 
+// Every combination of the three model families, so whatever a line/station
+// already has (e.g. KDC + KEC for the U-hoop cells) round-trips unchanged —
+// the old KDC / EVS / BOTH picker silently rewrote those on save.
+const ALL_MODELS = ['KDC', 'EVS', 'KEC'];
 const MODEL_OPTS = [
-  { v: 'BOTH', label: 'KDC + EVS' },
-  { v: 'KDC',  label: 'KDC only' },
-  { v: 'EVS',  label: 'EVS only' },
+  { v: 'EVS,KDC,KEC', label: 'All models' },
+  { v: 'EVS,KDC', label: 'KDC + EVS' },
+  { v: 'KDC,KEC', label: 'KDC + KEC (coaches)' },
+  { v: 'EVS,KEC', label: 'EVS + KEC (electric)' },
+  { v: 'KDC', label: 'KDC only' },
+  { v: 'EVS', label: 'EVS only' },
+  { v: 'KEC', label: 'KEC only' },
 ];
 const modelsToOpt = (m) => {
-  const a = Array.isArray(m) ? m : ['KDC', 'EVS'];
-  if (a.length >= 2) return 'BOTH';
-  return a[0] || 'BOTH';
+  const a = Array.isArray(m) && m.length ? m : ALL_MODELS;
+  return [...new Set(a)].filter(x => ALL_MODELS.includes(x)).sort().join(',') || 'EVS,KDC,KEC';
 };
-const optToModels = (v) => (v === 'BOTH' ? ['KDC', 'EVS'] : [v]);
+const optToModels = (v) => v.split(',').sort((a, b) => ALL_MODELS.indexOf(a) - ALL_MODELS.indexOf(b));
+// Projects keep their original single-string values ('BOTH' = mixed fleet).
+const PROJECT_MODEL_OPTS = [
+  { v: 'BOTH', label: 'Mixed' }, { v: 'KDC', label: 'KDC' }, { v: 'EVS', label: 'EVS' }, { v: 'KEC', label: 'KEC' },
+];
 
 const TABS = ['Projects', 'Vehicles', 'Lines', 'Stations', 'Activities', 'Resources', 'Work Instructions', 'Backups'];
 
@@ -179,7 +190,7 @@ function ProjectsTab({ draft, touch }) {
               <td style={td}><input style={inp} value={p.name} onChange={e => upd(i, 'name', e.target.value)} placeholder="Project name" /></td>
               <td style={{ ...td, width: 110 }}>
                 <select style={inp} value={p.model || 'BOTH'} onChange={e => upd(i, 'model', e.target.value)}>
-                  {MODEL_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+                  {PROJECT_MODEL_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
               </td>
               <td style={{ ...td, width: 130 }}><input style={inp} type="date" value={p.startDate || ''} onChange={e => upd(i, 'startDate', e.target.value)} /></td>
@@ -330,7 +341,7 @@ function VehiclesTab({ draft, touch }) {
 
 // ── Tracker lines ───────────────────────────────────────────────────────────
 function LinesTab({ draft, touch }) {
-  const add = () => touch(d => { d.lines.push({ id: uid('L').toUpperCase(), label: '', models: ['KDC', 'EVS'], active: true }); return d; });
+  const add = () => touch(d => { d.lines.push({ id: uid('L').toUpperCase(), label: '', models: [...ALL_MODELS], active: true }); return d; });
   const upd = (i, k, v) => touch(d => { d.lines[i][k] = v; return d; });
   return (
     <div>
@@ -381,7 +392,7 @@ function StationsTab({ draft, touch, lineOptions }) {
       if (!d.stations[code]) {
         d.stations[code] = {
           name: '', line: lineFilter !== 'ALL' ? lineFilter : (lineOptions[0]?.id || ''),
-          order: Object.keys(d.stations).length + 1, models: ['KDC', 'EVS'],
+          order: Object.keys(d.stations).length + 1, models: [...ALL_MODELS],
           active: true, effectiveFrom: '', effectiveTo: '', projects: [],
         };
       }

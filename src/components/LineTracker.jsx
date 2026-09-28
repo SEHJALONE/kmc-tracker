@@ -1,16 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel } from '../data/stations';
+import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel, modelFamilyOf } from '../data/stations';
 import { isActive, stationMatchesProject } from '../data/catalogConfig';
 import { useNCRData } from '../hooks/useNCRData';
 
-// Normalise a free-text model string to 'KDC' | 'EVS' | null.
-function modelKindOf(model = '') {
-  const m = model.toUpperCase();
-  if (m.includes('KDC')) return 'KDC';
-  if (m.includes('EVS')) return 'EVS';
-  return null;
-}
+// Tooltip label colour per model family.
+const FAMILY_TINT = { EVS: '#7dd3fc', KDC: '#fca5a5', KEC: '#fcd34d' };
 
 const BUS_IMAGES = {
   '7m EVS':    '/7m EVS.png',
@@ -39,6 +34,10 @@ function getColors(model = '') {
   if (model.toUpperCase().includes('KDC')) return {
     bg: 'rgba(220,38,38,0.10)', border: '#dc2626',
     badgeBg: 'rgba(220,38,38,0.18)', badgeText: '#fca5a5', glow: 'rgba(220,38,38,0.25)',
+  };
+  if (model.toUpperCase().includes('KEC')) return {
+    bg: 'rgba(245,158,11,0.10)', border: '#f59e0b',
+    badgeBg: 'rgba(245,158,11,0.18)', badgeText: '#fcd34d', glow: 'rgba(245,158,11,0.25)',
   };
   return {
     bg: 'rgba(56,189,248,0.10)', border: '#38bdf8',
@@ -193,11 +192,19 @@ function StationDot({ station, code, buses, filter, ncrCounts }) {
   // different work for each; resolve which name(s) to show in the callout:
   //   • model filter active  → that model's name
   //   • single model parked  → that model's name
-  //   • otherwise (homogenous view) → show EVS and KDC names distinctly
+  //   • otherwise (homogenous view) → show each family's name distinctly
   const names = stationDisplayNames(station);
-  const filterModel = filter === 'KDC' || filter === 'EVS' ? filter : null;
-  const hereModels = [...new Set(busesHere.map(b => modelKindOf(b.model)).filter(Boolean))];
+  const filterModel = filter && filter !== 'ALL' ? modelFamilyOf(filter) : null;
+  const hereModels = [...new Set(busesHere.map(b => modelFamilyOf(b.model)).filter(Boolean))];
   const ctxModel = filterModel || (hereModels.length === 1 ? hereModels[0] : null);
+  // One row per family that uses this station, merging families whose name
+  // is identical (e.g. "EVS · KEC  Speed Test").
+  const familyRows = [];
+  for (const fam of (station.models && station.models.length ? station.models : ['EVS', 'KDC', 'KEC'])) {
+    const name = names[fam.toLowerCase()];
+    const row = familyRows.find(r => r.name === name);
+    if (row) row.fams.push(fam); else familyRows.push({ name, fams: [fam] });
+  }
 
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: archived ? 0.55 : 1 }}>
@@ -237,18 +244,16 @@ function StationDot({ station, code, buses, filter, ncrCounts }) {
           </div>
           {names.differs && !ctxModel ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 10.5, color: '#7dd3fc', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
-                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '0.08em', opacity: 0.85 }}>EVS </span>
-                {names.evs}
-              </div>
-              <div style={{ fontSize: 10.5, color: '#fca5a5', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
-                <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '0.08em', opacity: 0.85 }}>KDC </span>
-                {names.kdc}
-              </div>
+              {familyRows.map(r => (
+                <div key={r.fams.join()} style={{ fontSize: 10.5, color: FAMILY_TINT[r.fams[0]] || '#f1f5f9', fontWeight: 600, lineHeight: 1.35, wordBreak: 'break-word' }}>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8.5, letterSpacing: '0.08em', opacity: 0.85 }}>{r.fams.join(' · ')} </span>
+                  {r.name}
+                </div>
+              ))}
             </div>
           ) : (
             <div style={{ fontSize: 11, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4, wordBreak: 'break-word' }}>
-              {ctxModel ? (ctxModel === 'KDC' ? names.kdc : names.evs) : station.name}
+              {ctxModel ? names[ctxModel.toLowerCase()] : station.name}
             </div>
           )}
           {busesHere.length > 0 && (

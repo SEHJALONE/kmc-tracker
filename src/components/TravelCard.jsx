@@ -162,6 +162,11 @@ export const TC_LINES = {
     "B09-04: Installation of Frame Accessories",
     "B09-05: Grinding and Alignment of Frame Assembly",
     "B09-06: Inspection and Storage of Frame Assembly",
+    // B10 replaces the roof/side-wall cells (B04/B05/B06) on U-hoop coaches
+    "B10-01a: Inverted U-Hoop Web Frame Welding (A)",
+    "B10-01b: Inverted U-Hoop Web Frame Welding (B)",
+    "B10-02: Top Roof Brackets & Inverted U-Hoop Web Frame Uprighting",
+    "B10-03: U-Hoop Web Frame Alignment, Aisle Floor Frames & A/C Top Brackets",
   ],
   "Electrophoresis": [
     "E01-01: Pre-degreasing",
@@ -184,9 +189,9 @@ export const TC_LINES = {
   // ── Frame & Body Welding — model-specific ───────────────────────────────────
   "Frame & Body Welding — EVS": [
     "WQ-01: Quality Gate",
-    "WQ-02: Quality Gate",
     "W01-01: Six Parts Merging and Alignment",
     "W01-02: Passenger Door Step & Additional Chassis Infuse Profiles",
+    "WQ-02: Quality Gate",
     "W01-03: Full Welding, Grinding & Weld Bead Protection",
     "W01-04: Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates",
     "W01-05: Exterior Sealing Plate & Additional Brackets",
@@ -219,6 +224,28 @@ export const TC_LINES = {
     "W01-13: Rectification",
     "W01-14: Quality Gate (WQ-03)",
   ],
+  // 13m KEC (electric coach) — from the KEC build process drawing, mapped onto
+  // the 2026 plant: the U-hoop web frame is welded in the shared B10 cell and
+  // integrated here at W01-01a/b (as on the KDC), then the KEC's own W01 flow.
+  "Frame & Body Welding — KEC": [
+    "W01-01a: Fasciae & Floor Frame Integration to U-Hoop Web Frame",
+    "WQ-01: Quality Gate",
+    "W01-01b: Special Integration of Coach Frame to Chassis",
+    "WQ-02: Quality Gate",
+    "W01-02: Full Welding",
+    "W01-03: Alignment and Grinding",
+    "W01-04: Welding of Chassis Frame Profiles and Brackets",
+    "W01-05: Welding of Inner Sealing Plate and Additional Brackets",
+    "W01-06: Installation of Fibre Roof",
+    "W01-07: Transfer",
+    "W01-08: Side Panel Extension",
+    "W01-09: Trimming and Repairs",
+    "W01-10: Underbody Welding, Sealant Application & Surface Protection",
+    "W01-11: Front & Rear Bumpers, Door Brackets and Seal Plates",
+    "W01-12: Installation of Passenger Door",
+    "W01-13: Installation of Compartment Door",
+    "W01-14: Quality Gate and Rectification (WQ-03)",
+  ],
 
   // ── Chassis Line 01 — model-specific ────────────────────────────────────────
   "Chassis Line 01 — EVS": [
@@ -236,9 +263,19 @@ export const TC_LINES = {
     "C01-01: VIN Engraving",
     "C01-02: Chassis Air Tanks, Air Pipes, Braking, Nylon, Gear Selector & Hydraulic",
     "C01-02-01: Air Tanks Sub-Assembly",
-    "C01-03: Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket",
-    "C01-01-01: Radiator-Fan Assembly",
+    "C01-03: Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket",
+    "C01-03-01: Radiator-Fan Assembly",
     "C01-04: Low Voltage Underbody Wiring Harness",
+    "C01-04-01: Wiring Harness Sub-Assembly",
+    "CQ-02: Quality Gate",
+  ],
+  "Chassis Line 01 — KEC": [
+    "CQ-01: Chassis Frame Buffer & Pre-Chassis Assembly Quality Gate",
+    "C01-01: VIN Engraving",
+    "C01-02: Chassis Air Tanks, Air Pipes & Braking Systems",
+    "C01-02-01: Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly",
+    "C01-03: Steering and Cooling Systems",
+    "C01-04: LV and HV Underbody Wiring Harnesses",
     "C01-04-01: Wiring Harness Sub-Assembly",
     "CQ-02: Quality Gate",
   ],
@@ -259,13 +296,28 @@ export const TC_LINES = {
   "Chassis Line 02 — KDC": [
     "C02-01: TPMS, Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing",
     "C02-02: Diesel Engine, Gear Box & Engine Accessories Termination",
+    "C02-02-01: Engine and Gear Box Sub-Assembly",
     "C02-03: Engine Cooling and Fuel System",
     "C02-04-01: Axles Sub-Assembly",
     "C02-04: Front & Rear Axles, Suspensions & Shock Absorbers",
     "C02-05: Pneumatic & Steering Completion, Driver Floorboard, Clutch & Sensors",
+    "C02-05-01: Clutch Sub-Assembly",
     "C02-06: Air Cleaner, Air Intake, Emissions System & Silencer",
     "C02-07-01: Tires Sub-Assembly",
     "C02-07: Installation of Tyres",
+    "CQ-02: Quality Gate",
+  ],
+  // The KEC drawing labels BOTH of its first two stations "C02-01"; they are
+  // split a/b here so each keeps its own travel-card history and station time.
+  "Chassis Line 02 — KEC": [
+    "C02-01a: Installation of HV Harnesses",
+    "C02-01b: Air Compressor, Radiator and Air Dryer",
+    "C02-02: Front & Rear Axles, Suspensions, Air Bellows & Shock Absorbers",
+    "C02-02-01: Axles Sub-Assembly",
+    "C02-03: Installation of Motor and Batteries",
+    "C02-04: Installation of Tyres",
+    "C02-04-01: Tyres Sub-Assembly",
+    "C02-05: Termination of HV Battery Accessories",
     "CQ-02: Quality Gate",
   ],
 
@@ -357,7 +409,39 @@ export const TC_LINES = {
     "T01-10 EE: Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination",
     "T01-10-01: Electrical System Sub-Assembly",
     "T01-11 EE: First Start, Testing, Debugging & Camera Calibration",
-    "T01-11: A/C Refilling, Rubber from Aluminium, Door Fine-Tuning & Quality Inspection",
+    "T01-11: A/C Refilling, Rubber for Aluminium, Door Fine-Tuning & Quality Inspection",
+    "T01-11-01: Seat and Armrest Assembly (sub-assembly)",
+  ],
+  // 13m KEC — EE work is drawn inside each trim station on the KEC drawing;
+  // it is split out as "EE" sub-stations here, the same way the 2026 EVS/KDC
+  // lines do it.
+  "Trim Line & Final Assembly — KEC": [
+    "T01-01: Installation of Floor Boards & Heat Shield",
+    "T01-01 EE: Rear HV Components, Exterior Side Lights & Turn Signals",
+    "T01-01-01: Floorboard Sub-Assembly",
+    "T01-02: Carpet Installation",
+    "T01-02 EE: Termination of HV Components",
+    "T01-02-01: Carpets Preparation (sub-assembly)",
+    "T01-03: Carpet Welding, A/C & Accessories, Side Board Profiles, Escape Hatch",
+    "T01-03 EE: Height Marker Lights, Ceiling, Fire Wall & Dashboard Harnesses",
+    "T01-03-01: A/C Sub-Assembly",
+    "T01-04: Dashboard, Roof Boards/Fabric, Side Boards, Airduct/Cargo Racks, Moulds & Panels",
+    "T01-04 EE: Wiper Motor, Defroster, Rear & Front Side Compartments",
+    "T01-04-01: Dashboard and Roof Sub-Assemblies",
+    "T01-05: Side Glass, Front & Rear Windshields, Water Rails",
+    "T01-06: Steps Aluminium Floor Profiles, Airduct Doors, Waist Beam Cover & Rear Side Panels",
+    "T01-06 EE: Final Rear & Front Side Compartments Routing and Termination",
+    "T01-07: Poles, Column Covers, Curtain Rails, E-Hammers, A/C Grille & Curtains, Rubber for Aluminium",
+    "T01-08: Driver Seat & Cabin, Sunvisor, Fridge, Inspection & Steering Column Covers, Fire Extinguisher",
+    "T01-09: Passenger Door & Locks, Exterior Accessories, Mirrors, Dampers, Wipers, Sealant & Aluminium Strips",
+    "T01-09 EE: Final Dashboard Components, Interior Cameras & Interior Lights",
+    "T01-09-01: Passenger Doors Sub-Assembly",
+    "T01-10: Electrical Systems (VCUs), Steering Column, TVs, Side Cameras, USB & Underbody Termination",
+    "T01-10-01: Electrical System Sub-Assembly",
+    "T01-11: Filling Oils, Coolant, ECAS, A/C Refilling & Mechanical Checks",
+    "T01-12: Installation of Seats and Armrests",
+    "T01-12-01: Passenger Seats Sub-Assembly",
+    "TQ-01: Debugging, Quality Inspection and Rectification",
   ],
 
   // ── Quality Inspection & Testing (shared; Q01-02 differs) ───────────────────
@@ -393,10 +477,24 @@ export const LINE_MODELS = {
   "Chassis Line 02 — KDC": ["KDC"],
   "Trim Line & Final Assembly — EVS": ["EVS"],
   "Trim Line & Final Assembly — KDC": ["KDC"],
+  "Frame & Body Welding — KEC": ["KEC"],
+  "Chassis Line 01 — KEC": ["KEC"],
+  "Chassis Line 02 — KEC": ["KEC"],
+  "Trim Line & Final Assembly — KEC": ["KEC"],
 };
 
-// Individual stations restricted to one model (within an otherwise-shared line).
+// Individual stations restricted to some models (within an otherwise-shared
+// line). Anything not listed applies to every model.
 export const STATION_MODELS = {
+  // Roof & side-wall framework cells feed the EVS "six parts" merge only. U-hoop
+  // coaches (KDC, KEC) have no roof/side-wall framework — per the 2026 KDC
+  // drawing their Frame Parts Making is B07/B08/B09 + the B10 U-hoop cell.
+  // (B04-05 Top Panel Stretcher is used by every model.)
+  "B04-01": ["EVS"], "B04-02": ["EVS"], "B04-03": ["EVS"], "B04-04": ["EVS"],
+  "B04-06": ["EVS"], "B04-07": ["EVS"],
+  "B05-01": ["EVS"], "B05-02": ["EVS"], "B05-03": ["EVS"], "B05-04": ["EVS"],
+  "B06-01": ["EVS"], "B06-02": ["EVS"], "B06-03": ["EVS"], "B06-04": ["EVS"],
+  "B10-01a": ["KDC", "KEC"], "B10-01b": ["KDC", "KEC"], "B10-02": ["KDC", "KEC"], "B10-03": ["KDC", "KEC"],
   "P07-03": ["KDC"], // KDC has an extra TopCoat drying stage (clear-coat process)
 };
 
@@ -454,6 +552,10 @@ export const ACTS = {
   "B09-04": ["Install frame accessories (brackets, inserts, plates)", "Torque and fit check"],
   "B09-05": ["Grind frame assembly welds", "Alignment measurement and correction"],
   "B09-06": ["Final inspection of frame assembly", "Defect logging", "Storage and labelling"],
+  "B10-01a": ["Jig setup", "Inverted U-hoop web frame tack & full welding", "Weld inspection"],
+  "B10-01b": ["Jig setup", "Inverted U-hoop web frame tack & full welding", "Weld inspection"],
+  "B10-02": ["Installation of top roof brackets", "Uprighting of inverted U-hoop web frame"],
+  "B10-03": ["U-hoop web frame alignment", "Installation of aisle floor frames", "Installation of A/C top brackets"],
   // ── Electrophoresis (shared) ────────────────────────────────────────────────
   "E01-01": ["Pre-degreasing dip", "Bath concentration & temperature check"],
   "E01-02": ["Degreasing dip", "Bath concentration & temperature check"],
@@ -521,8 +623,8 @@ export const ACTS = {
   "KDC:C01-01": ["VIN engraving"],
   "KDC:C01-02": ["Installation of chassis air tanks, air pipes and braking systems", "Installation of nylon pipes", "Installation of gear selector cable", "Installation of hydraulic pipes"],
   "KDC:C01-02-01": ["Air tanks sub-assembly build", "Quality check"],
-  "KDC:C01-03": ["Installation of steering system", "Installation of gear lever cables", "Installation of clutch radiator", "Installation of tyre bracket"],
-  "KDC:C01-01-01": ["Radiator-fan assembly build", "Mounting hardware check"],
+  "KDC:C01-03": ["Installation of steering system", "Installation of gear lever cables", "Installation of clutch", "Installation of radiator", "Installation of spare tyre bracket"],
+  "KDC:C01-03-01": ["Radiator-fan assembly build", "Mounting hardware check"],
   "KDC:C01-04": ["Installation of low voltage underbody wiring harness"],
   "KDC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
   "KDC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
@@ -540,10 +642,12 @@ export const ACTS = {
   // ── Chassis Line 02 — KDC ───────────────────────────────────────────────────
   "KDC:C02-01": ["Installation of TPMS modules and fire extinguisher", "Installation of rear LV", "Installation of A/C", "Installation of starter motor", "Wiring harness routing"],
   "KDC:C02-02": ["Installation of diesel engine and gear box", "Termination of engine accessories"],
+  "KDC:C02-02-01": ["Engine and gear box sub-assembly build", "Quality check"],
   "KDC:C02-03": ["Installation of engine cooling and fuel system"],
   "KDC:C02-04-01": ["Axles sub-assembly build", "Axle oil filling"],
   "KDC:C02-04": ["Installation of front and rear axles", "Installation of suspensions", "Installation of shock absorbers"],
   "KDC:C02-05": ["Pneumatic system and steering system completion", "Installation of driver floor board", "Bleeding of clutch system", "Routing and termination of ABS", "Routing and termination of speed and brake-wear sensors"],
+  "KDC:C02-05-01": ["Clutch sub-assembly build", "Quality check"],
   "KDC:C02-06": ["Installation of air cleaner", "Installation of air intake", "Installation of emissions system and silencer"],
   "KDC:C02-07-01": ["Tyre sub-assembly build", "Wheel balancing"],
   "KDC:C02-07": ["Installation of tyres"],
@@ -633,11 +737,80 @@ export const ACTS = {
   "KDC:T01-10 EE": ["Installation of accelerator pedal", "Installation of USB harness", "Steering column assembly", "Installation of exterior camera", "Underbody routing and termination"],
   "KDC:T01-10-01": ["Electrical system sub-assembly"],
   "KDC:T01-11 EE": ["First start, testing and debugging", "Calibration of the camera"],
-  "KDC:T01-11": ["A/C refilling", "Rubber from aluminium", "Fine tuning passenger doors", "Quality inspection and rectification"],
+  "KDC:T01-11": ["A/C refilling", "Rubber for aluminium", "Fine tuning passenger doors", "Quality inspection and rectification"],
+  "KDC:T01-11-01": ["Assembly of seats and armrests (sub-assembly)"],
+
+  // ── 13m KEC — Frame & Body Welding ──────────────────────────────────────────
+  "KEC:W01-01a": ["Integration of front and rear fasciae to U-hoop web frame", "Integration of floor frame to U-hoop web frame"],
+  "KEC:WQ-01": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
+  "KEC:W01-01b": ["Special integration of coach frame to chassis frame", "Structural fit checks"],
+  "KEC:WQ-02": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
+  "KEC:W01-02": ["Full welding", "Weld inspection"],
+  "KEC:W01-03": ["Alignment", "Grinding"],
+  "KEC:W01-04": ["Welding of chassis frame profiles", "Welding of brackets"],
+  "KEC:W01-05": ["Welding of inner sealing plate", "Welding of additional brackets"],
+  "KEC:W01-06": ["Installation of fibre roof"],
+  "KEC:W01-07": ["Transfer to next station"],
+  "KEC:W01-08": ["Side panel extension"],
+  "KEC:W01-09": ["Trimming", "Repairs"],
+  "KEC:W01-10": ["Underbody welding", "Sealant application", "Surface protection"],
+  "KEC:W01-11": ["Installation of front and rear bumpers", "Welding of door brackets", "Welding of seal plates"],
+  "KEC:W01-12": ["Installation of passenger door"],
+  "KEC:W01-13": ["Installation of compartment doors"],
+  "KEC:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
+  // ── 13m KEC — Chassis Line 01 ───────────────────────────────────────────────
+  "KEC:CQ-01": ["Chassis frame buffer", "Pre-chassis assembly", "Quality gate inspection"],
+  "KEC:C01-01": ["VIN engraving"],
+  "KEC:C01-02": ["Installation of chassis air tanks", "Installation of air pipes", "Installation of braking systems"],
+  "KEC:C01-02-01": ["Air tanks, valves, brake pedals, ABS valves and pipes sub-assembly", "Quality check"],
+  "KEC:C01-03": ["Installation of steering system", "Installation of cooling system"],
+  "KEC:C01-04": ["Installation of LV underbody wiring harnesses", "Installation of HV underbody wiring harnesses"],
+  "KEC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
+  "KEC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
+  // ── 13m KEC — Chassis Line 02 ───────────────────────────────────────────────
+  "KEC:C02-01a": ["Installation of HV harnesses"],
+  "KEC:C02-01b": ["Installation of air compressor", "Installation of radiator", "Installation of air dryer"],
+  "KEC:C02-02": ["Installation of front and rear axles", "Installation of suspensions", "Installation of air bellows", "Installation of shock absorbers"],
+  "KEC:C02-02-01": ["Axles sub-assembly build", "Axle oil filling"],
+  "KEC:C02-03": ["Installation of motor", "Installation of batteries"],
+  "KEC:C02-04": ["Installation of tyres"],
+  "KEC:C02-04-01": ["Tyre sub-assembly build", "Wheel balancing"],
+  "KEC:C02-05": ["Termination of HV battery accessories"],
+  // ── 13m KEC — Trim Line ─────────────────────────────────────────────────────
+  "KEC:T01-01": ["Installation of floor boards", "Installation of heat shield"],
+  "KEC:T01-01 EE": ["Installation of rear HV components", "Installation of exterior side lights", "Installation of turn signals"],
+  "KEC:T01-01-01": ["Floorboard sub-assembly"],
+  "KEC:T01-02": ["Carpet installation"],
+  "KEC:T01-02 EE": ["Termination of HV components"],
+  "KEC:T01-02-01": ["Carpets preparation (sub-assembly)"],
+  "KEC:T01-03": ["Carpet welding", "A/C installation", "A/C accessories installation", "Side board aluminium profiles", "Escape hatch installation"],
+  "KEC:T01-03 EE": ["Installation of height marker lights", "Installation of ceiling harness", "Installation of fire wall harness", "Installation of dashboard harness"],
+  "KEC:T01-03-01": ["A/C sub-assembly"],
+  "KEC:T01-04": ["Installation of dashboard", "Installation of roof boards / fabric", "Installation of side boards", "Installation of airduct / cargo racks", "Installation of front and rear mould", "Installation of left/right panel"],
+  "KEC:T01-04 EE": ["Installation of wiper motor", "Installation of defroster", "Installation of rear and front side compartments"],
+  "KEC:T01-04-01": ["Dashboard and roof sub-assemblies"],
+  "KEC:T01-05": ["Installation of side glass", "Installation of front and rear windshields", "Installation of water rails"],
+  "KEC:T01-06": ["Installation of steps aluminium floor profiles", "Installation of airduct doors", "Installation of waist beam cover", "Installation of rear side panels"],
+  "KEC:T01-06 EE": ["Final rear and front side compartments routing", "Final rear and front side compartments termination"],
+  "KEC:T01-07": ["Installation of poles", "Installation of column covers", "Installation of curtain rails", "Installation of E-hammers", "Installation of A/C air grille and curtains", "Installation of rubber for aluminium"],
+  "KEC:T01-08": ["Installation of driver seat", "Installation of driver cabin", "Installation of sunvisor", "Installation of fridge", "Installation of inspection cover", "Installation of steering column cover", "Placement of fire extinguisher"],
+  "KEC:T01-09": ["Installation of passenger door and locks", "Installation of exterior body accessories", "Installation of side mirrors, dampers and wipers", "Sealant application", "Installation of aluminium strips"],
+  "KEC:T01-09 EE": ["Final dashboard components routing and termination", "Installation of interior cameras", "Installation of interior lights"],
+  "KEC:T01-09-01": ["Passenger doors sub-assembly"],
+  "KEC:T01-10": ["Installation of electrical systems (VCUs)", "Installation of steering column", "Installation of televisions", "Installation of side cameras", "Installation of USB harnesses", "Underbody routing and termination"],
+  "KEC:T01-10-01": ["Electrical system sub-assembly"],
+  "KEC:T01-11": ["Filling oils and coolant", "ECAS", "A/C refilling", "Mechanical system checks"],
+  "KEC:T01-12": ["Installation of seats", "Installation of armrests"],
+  "KEC:T01-12-01": ["Passenger seats sub-assembly"],
+  "KEC:TQ-01": ["Debugging", "Quality inspection", "Rectification"],
+  // 13m KEC on shared lines: electric, so EVS-style topcoat drying (no clear
+  // coat stage) and a speed test with no exhaust test.
+  "KEC:P07-02": ["AutoCryl topcoat paint-drying"],
 
   // ── Quality Inspection & Testing (shared, with model-specific Q01-02) ───────
   "Q01-01": ["Test registration", "Pre-test checklist"],
   "EVS:Q01-02": ["Speed test on rollers", "Pass/fail recording"],
+  "KEC:Q01-02": ["Speed test on rollers", "Pass/fail recording"],
   "KDC:Q01-02": ["Vehicle exhaust emission test", "Speed test on rollers", "Pass/fail recording"],
   "Q01-03": ["Wheel alignment measurement", "Adjustment if required"],
   "Q01-04": ["Sound level inspection", "Pass/fail recording"],
@@ -674,6 +847,8 @@ export const RES = {
     "B07-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
     "B08-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
     "B09-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
+    "B10-01a": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
+    "B10-01b": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
   },
   "Frame & Body Welding — EVS": {
     "W01-03": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm", "Weld Bead Protection Compound (L)"],
@@ -691,6 +866,36 @@ export const RES = {
     "W01-06": ["Fibre Roof", "A/C Bolts", "Silicon Sealant (ml)", "Rivets (pcs)"],
     "W01-12": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)"],
   },
+  "Frame & Body Welding — KEC": {
+    "W01-01a": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)"],
+    "W01-01b": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Infuse Profiles"],
+    "W01-02": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)"],
+    "W01-03": ["Grinding Disc 115mm", "Flap Disc 115mm"],
+    "W01-04": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Frame Profiles", "Brackets (pcs)"],
+    "W01-05": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Sealing Plates (pcs)", "Brackets (pcs)"],
+    "W01-06": ["Fibre Roof", "Silicon Sealant (ml)", "Rivets (pcs)"],
+    "W01-10": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Weld Bead Protection Compound (L)"],
+    "W01-11": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)"],
+  },
+  "Chassis Line 01 — KEC": {
+    "C01-01": ["VIN Engraving Tool Tip"],
+    "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
+    "C01-03": ["Steering Components", "Coolant Pipe (m)", "Mounting Bolts M12", "Thread Lock (ml)"],
+    "C01-04": ["LV Underbody Wiring Harness", "HV Underbody Wiring Harness", "Cable Ties (pack)", "Split Loom 20mm (m)"],
+  },
+  "Chassis Line 02 — KEC": {
+    "C02-01a": ["HV Harness Set", "Cable Ties (pack)"],
+    "C02-01b": ["Air Compressor", "Radiator", "Air Dryer"],
+    "C02-02": ["Front & Rear Axles", "Suspensions", "Air Bellows", "Shock Absorbers", "Thread Lock (ml)"],
+    "C02-03": ["Motor Mounting Hardware", "HV Batteries", "Thread Lock (ml)"],
+    "C02-04": ["Customer Tyres", "Valve Cores"],
+    "C02-05": ["Connector Pins", "Cable Ties (pack)"],
+  },
+  "Trim Line & Final Assembly — KEC": {
+    "T01-01 EE": ["HV Component Set", "Exterior Side Lights", "Turn Signals", "Cable Ties (pack)"],
+    "T01-02 EE": ["Connector Pins", "Cable Ties (pack)"],
+    "T01-10": ["VCU", "USB Harness", "Side Cameras", "Cable Ties (pack)"],
+  },
   "Chassis Line 01 — EVS": {
     "C01-01": ["VIN Engraving Tool Tip", "Cable Ties (pack)", "Split Loom 20mm (m)"],
     "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
@@ -700,8 +905,8 @@ export const RES = {
   "Chassis Line 01 — KDC": {
     "C01-01": ["VIN Engraving Tool Tip"],
     "C01-02": ["Air Tanks", "Nylon Pipe 8mm (m)", "Nylon Pipe 10mm (m)", "Gear Selector Cable", "Hydraulic Pipe (m)", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Gear Lever Cables", "Clutch Radiator", "Tyre Bracket", "Mounting Bolts M12"],
-    "C01-01-01": ["Radiator Unit", "Fan Blade Set", "Mounting Hardware"],
+    "C01-03": ["Steering Components", "Gear Lever Cables", "Clutch", "Radiator", "Spare Tyre Bracket", "Mounting Bolts M12"],
+    "C01-03-01": ["Radiator Unit", "Fan Blade Set", "Mounting Hardware"],
     "C01-04": ["LV Underbody Wiring Harness", "Cable Ties (pack)"],
   },
   "Chassis Line 02 — EVS": {
@@ -745,6 +950,43 @@ export const RES = {
   },
 };
 
+// Local custom-consumable memory ([{ name, qty }]) plus the station's shared
+// names — shared ones this device hasn't used yet join with a blank quantity.
+export function mergeConsumables(local, sharedNames) {
+  const out = (local || []).filter(r => r && r.name);
+  const have = new Set(out.map(r => r.name.trim().toLowerCase()));
+  for (const name of sharedNames || []) {
+    if (!have.has(name.trim().toLowerCase())) { out.push({ name, qty: "" }); have.add(name.trim().toLowerCase()); }
+  }
+  return out;
+}
+
+// This device's own copy of the cards it filed per VIN — a fallback for the
+// Full Bus Report while the sheet catches up. The evidence photo (base64,
+// often megabytes) is left out: storing it used to fill the ~5 MB browser
+// quota, after which every later save here failed silently.
+function appendBusLog(vin, sub) {
+  const key = `kmc_bus_log_${vin}`;
+  const slim = sub.downtime ? { ...sub, downtime: { ...sub.downtime, attachmentB64: null } } : sub;
+  LS.set(key, [...LS.get(key, []), slim].slice(-200));
+}
+
+// Persisted consumables show on every fill-in; only the ones actually used
+// (quantity > 0) belong on the submitted card.
+export function usedOtherRes(list) {
+  return (list || []).filter(r => r && r.name && Number(r.qty) > 0);
+}
+
+// Shared-line station labels can carry both families' wording, e.g.
+// "Q01-02: Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)". Show only
+// the selected family's half (KEC is electric, so it takes the EVS wording).
+// Display-only: the stored station value keeps the full label.
+export function stationLabelForModel(label, kind) {
+  const m = /^([^:]+:\s*)(.+?) \(EVS\) \/ (.+?) \(KDC\)$/.exec(label);
+  if (m) return m[1] + (kind === "KDC" ? m[3] : m[2]);
+  return label.replace(/\s*\(KDC only\)$/, "");
+}
+
 const SIX = [
   { m: "Man", icon: "👤", d: "Operator skill, fatigue, attendance", subs: ["Skill gap / lack of training","Fatigue or health issue","Absenteeism / understaffing","Incorrect method used","Communication failure"] },
   { m: "Machine", icon: "🔧", d: "Equipment, tooling, fixtures", subs: ["Machine breakdown","Tooling failure","Fixture misalignment","Calibration issue","Machine setup delay"] },
@@ -755,9 +997,10 @@ const SIX = [
 ];
 
 import { useState, useEffect } from "react";
-import { buildStationReportPDF, buildBusReportPDF } from '../export/buildTravelCardPDF';
-import { fetchLogoBase64 } from '../export/exportHelpers';
+import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
+import { fetchSubmissions } from '../hooks/useSubmissionsData';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { useStationConsumables } from '../hooks/useStationConsumables';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const R = "#dc2626";
@@ -990,6 +1233,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [otherRes, setOtherRes] = useState([]);
   const [otherResName, setOtherResName] = useState("");
   const [otherResQty, setOtherResQty] = useState("");
+  const stationCons = useStationConsumables();
   const [ohs, setOhs] = useState(false);
   const [ohsTxt, setOhsTxt] = useState("");
   const [waste, setWaste] = useState("");
@@ -1156,7 +1400,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => {
     if (!lockedCodes.length) return;
     const LINES_L = { ...TC_LINES, ...(catalog.tcLines || {}) };
-    const kind = busModel.includes("KDC") ? "KDC" : "EVS";
+    const kind = busModel.includes("KDC") ? "KDC" : busModel.includes("KEC") ? "KEC" : "EVS";
 
     function resolveCode(code) {
       // 1) Look for the code in the travel-card line lists, preferring the
@@ -1165,7 +1409,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       for (const [lineName, stns] of Object.entries(LINES_L)) {
         const match = stns.find(s => s.split(":")[0].trim() === code);
         if (!match) continue;
-        const suffixed = lineName.includes("— EVS") || lineName.includes("— KDC");
+        const suffixed = /— (EVS|KDC|KEC)$/.test(lineName);
         if (!suffixed || lineName.endsWith(`— ${kind}`)) { found = { lineName, station: match }; break; }
         if (!found) found = { lineName, station: match };
       }
@@ -1220,10 +1464,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserName]);
 
-  // KEC templates are not yet available (documents cover EVS and KDC only).
-  const isKEC = busModel.includes("KEC");
-  // Which model template applies. KEC is gated out before this matters.
-  const modelKind = busModel.includes("KDC") ? "KDC" : "EVS";
+  // Which model family's template applies (EVS city bus, KDC diesel coach, KEC
+  // electric coach). Lines, stations and "<family>:<code>" activities key off it.
+  const modelKind = busModel.includes("KDC") ? "KDC" : busModel.includes("KEC") ? "KEC" : "EVS";
 
   // ── Merge the shared catalog over the built-in seed ──────────────────────────
   // Admin edits (lines/stations/activities/resources) live in the catalog and
@@ -1250,7 +1493,14 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const stations = curLine ? (LINES_[curLine] || []).filter(stationMatchesModel) : [];
   // Activities can differ by model for shared lines (e.g. Paint P07-02, QA Q01-02).
   // Look up the model-namespaced key first, then fall back to the bare code.
-  const acts = curCode ? (ACTS_[modelKind + ":" + curCode] || ACTS_[curCode] || []) : [];
+  // An activity ending in a bus-model tag, e.g. "… ladder bolts (7m EVS)", only
+  // applies to that exact model, so it's hidden for the other lengths.
+  const acts = curCode
+    ? (ACTS_[modelKind + ":" + curCode] || ACTS_[curCode] || []).filter(a => {
+        const tag = /\((\d+(?:\.\d+)?m [A-Z]{3})\)\s*$/.exec(a);
+        return !tag || tag[1] === busModel;
+      })
+    : [];
   const resList = (curLine && curCode && RES_[curLine]) ? RES_[curLine][curCode] || [] : [];
 
   // Bus projects offered in the dropdown: union of locally-remembered projects
@@ -1269,22 +1519,39 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const vinOptions = [...new Set([...catalogVinsForModel, ...localVins])];
   const revName = reviewer === "__other__" ? revOther : reviewer;
 
+  // The shared consumables list loads asynchronously — if it arrives (or
+  // changes) after a station was picked, fold any new names into the card.
+  const sharedConsForStation = curCode ? stationCons.namesFor(curCode).join("\n") : "";
+  useEffect(() => {
+    if (!curCode || isEditMode || !sharedConsForStation) return;
+    setOtherRes(prev => {
+      const merged = mergeConsumables(prev, sharedConsForStation.split("\n"));
+      return merged.length === prev.length ? prev : merged;
+    });
+  }, [curCode, isEditMode, sharedConsForStation]);
+
   function goTo(n) { setPage(n); window.scrollTo(0, 0); }
 
   function onStation(v) {
     setCurSt(v);
     const code = v.split(":")[0].trim();
     setCurCode(code);
-    const mins = stationTimesApi ? (stationTimesApi.getMinutes(code) ?? 0) : 0;
+    // A "KEC:T01-05"-style row in the Station Times sheet wins over the bare
+    // code, since the KEC reuses some codes for different work.
+    const mins = stationTimesApi
+      ? (stationTimesApi.getMinutes(`${modelKind}:${code}`) ?? stationTimesApi.getMinutes(code) ?? 0)
+      : 0;
     setDesignedTime(mins);
     setActStatuses({});
     setOtherActs([]); setOtherActName("");
 
-    // Load remembered quantities and custom consumables for this station
+    // Load remembered quantities and custom consumables for this station.
+    // Custom consumables = everything anyone has added at this station (shared,
+    // online) plus this device's own list; quantities come from this device.
     const savedQtys = LS.get(`kmc_qty_${code}`, {});
     setResQtys(savedQtys);
     setRemovedRes([]);
-    setOtherRes(LS.get(`kmc_other_res_${code}`, []));
+    setOtherRes(mergeConsumables(LS.get(`kmc_other_res_${code}`, []), stationCons.namesFor(code)));
 
     // Load station-specific operator pool and remembered selection
     const stationOps = LS.get(`kmc_station_ops_${code}`, []);
@@ -1311,7 +1578,6 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function p0next() {
     if (!curProj) { alert("Select or add a bus project."); return; }
     if (!busModel) { alert("Select a bus model."); return; }
-    if (isKEC) { alert("KEC travel cards not yet available."); return; }
     if (!vin) { alert("Select or add a Bus VIN."); return; }
     if (!curLine) { alert("Select a production line."); return; }
     if (!curSt) { alert("Select a station."); return; }
@@ -1354,7 +1620,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       activityStatuses: actStatuses,
       addedActivities: otherActs,
       resourcesUsed: resQtys,
-      otherResources: otherRes,
+      otherResources: usedOtherRes(otherRes),
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       generalComments: genComments.trim() || null,
@@ -1395,7 +1661,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       addedActivities: otherActs,
       resourcesUsed: resQtys,
       removedResources: removedRes,
-      otherResources: otherRes,
+      otherResources: usedOtherRes(otherRes),
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       downtime: null,
@@ -1411,8 +1677,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setSubmission(sub);
     goTo(4);
 
-    const logKey = `kmc_bus_log_${vin}`;
-    LS.set(logKey, [...LS.get(logKey, []), sub]);
+    appendBusLog(vin, sub);
 
     const pending = LS.get("kmc_pending_reviews", []);
     LS.set("kmc_pending_reviews", [...pending, { ...sub, id: Date.now().toString() }]);
@@ -1484,7 +1749,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       addedActivities: otherActs,
       resourcesUsed: resQtys,
       removedResources: removedRes,
-      otherResources: otherRes,
+      otherResources: usedOtherRes(otherRes),
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       downtime: hasDowntime ? { selMs, subCauses, causeTimes, customCauses, correctiveAction: corrAction, comments: orComments, rcaMethod, why1, why2, why3, why4, why5, category: fiveCategory, preventiveAction, attachmentName, attachmentMime, attachmentB64 } : null,
@@ -1495,9 +1760,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     goTo(4);
 
     // change 10: save to bus log in localStorage
-    const logKey = `kmc_bus_log_${vin}`;
-    const existing = LS.get(logKey, []);
-    LS.set(logKey, [...existing, sub]);
+    appendBusLog(vin, sub);
 
     setGsStatus("Saving to Google Sheets…");
     try {
@@ -1520,22 +1783,27 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!submission || dlBusy) return;
     setDlBusy("station");
     try {
-      const logo = await fetchLogoBase64('/kmc logo 2.png').catch(() => null);
-      const doc = await buildStationReportPDF(submission, logo);
-      doc.save(`station_report_${submission.stationCode}_${new Date(submission.timestamp).toISOString().slice(0,10)}.pdf`);
+      await downloadStationReport(submission, { theme });
     } catch (e) { console.error("PDF error:", e); alert("PDF generation failed. Check console."); }
     finally { setDlBusy(""); }
   }
 
+  // Every card filed for this VIN from ANY device (the sheet), plus this
+  // device's own recent cards the sheet hasn't caught up with yet (a card
+  // submitted seconds ago), de-duplicated by station + submit time.
   async function dlBusReport() {
     if (!submission || dlBusy) return;
     setDlBusy("bus");
     try {
-      const logKey = `kmc_bus_log_${submission.vin}`;
-      const log = LS.get(logKey, []);
-      const logo = await fetchLogoBase64('/kmc logo 2.png').catch(() => null);
-      const doc = await buildBusReportPDF(log, logo);
-      doc.save(`bus_report_${submission.vin}_${new Date().toISOString().slice(0,10)}.pdf`);
+      const vinKey = String(submission.vin).trim().toUpperCase();
+      let fromSheet = [];
+      try {
+        fromSheet = (await fetchSubmissions({ withDowntime: true })).filter(c => String(c.vin).trim().toUpperCase() === vinKey);
+      } catch (e) { console.warn("Bus report: sheet unavailable, using this device's cards only.", e); }
+      const local = LS.get(`kmc_bus_log_${submission.vin}`, []);
+      const seen = new Set(fromSheet.map(c => `${c.stationCode}|${c.timestamp}`));
+      const cards = [...fromSheet, ...local.filter(c => !seen.has(`${c.stationCode}|${c.timestamp}`))];
+      await downloadBusReport(cards, { theme, vin: submission.vin });
     } catch (e) { console.error("PDF error:", e); alert("PDF generation failed. Check console."); }
     finally { setDlBusy(""); }
   }
@@ -1550,9 +1818,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setRcaMethod(""); setWhy1(""); setWhy2(""); setWhy3(""); setWhy4(""); setWhy5(""); setFiveCategory(""); setPreventiveAction("");
     setReviewer(""); setRevOther("");
     setAppStatus(""); setRevComments(""); setSubmission(null); setGsStatus("");
-    setCurLine(""); setCurSt(""); setCurCode(""); setDesignedTime(0);
-    setSelOps([]); setOperators([]); // operators reload when station is selected
     setBusModel(km); setCurProj(kp); setVin(kv);
+    // Stay on the same line + station and reload its memory (operators,
+    // quantities, custom consumables) for the next fill-in. Clearing it used to
+    // strand station-locked users: their station box is disabled and the
+    // auto-select only re-runs when the bus model changes.
+    if (curSt) { onStation(curSt); }
+    else { setCurLine(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }
     if (onReset) onReset();
     goTo(0);
   }
@@ -1660,28 +1932,22 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.cardHd}>Bus identity</div>
           <Sel label="Bus model" value={busModel} onChange={e => { setBusModel(e.target.value); setCurLine(""); setCurSt(""); setCurCode(""); }}>
             <option value="">Select model…</option>
-            <optgroup label="KDC — available now">
+            <optgroup label="KDC — Diesel Coach">
               <option value="10.5m KDC">10.5m KDC</option>
               <option value="12m KDC">12m KDC</option>
             </optgroup>
-            <optgroup label="EVS — available now">
+            <optgroup label="EVS — Electric City Bus">
               <option value="7m EVS">7m EVS</option>
               <option value="8.5m EVS">8.5m EVS</option>
               <option value="10.5m EVS">10.5m EVS</option>
               <option value="12m EVS">12m EVS</option>
             </optgroup>
-            <optgroup label="KEC — coming soon">
+            <optgroup label="KEC — Electric Coach">
               <option value="13m KEC">13m KEC</option>
             </optgroup>
           </Sel>
 
-          {isKEC && <div style={css.evsBox}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>⚡</div>
-            <div style={{ fontWeight: 700, marginBottom: 4, letterSpacing: "0.08em" }}>KEC travel cards coming soon</div>
-            <div style={{ fontSize: 12, color: T.dim }}>Templates for this model are under development. Select a KDC or EVS model, or contact your supervisor.</div>
-          </div>}
-
-          {!isKEC && busModel && <>
+          {busModel && <>
             <div style={css.fld}>
               <label style={css.lbl_}>Bus VIN</label>
               <select style={css.inp} value={vin} onChange={e => setVin(e.target.value)}>
@@ -1697,7 +1963,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           </>}
         </div>
 
-        {!isKEC && busModel && <>
+        {busModel && <>
           <div style={css.card}>
             <div style={css.cardHd}>Station</div>
             <div className="tc-grid-2" style={css.g2}>
@@ -1713,7 +1979,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 onChange={e => onStation(e.target.value)}
               >
                 <option value="">Select station…</option>
-                {(isMultiLocked ? lockedStationOptions : stations).map(s => <option key={s}>{s}</option>)}
+                {(isMultiLocked ? lockedStationOptions : stations).map(s => <option key={s} value={s}>{stationLabelForModel(s, modelKind)}</option>)}
                 {curSt && !(isMultiLocked ? lockedStationOptions : stations).includes(curSt) && <option>{curSt}</option>}
               </Sel>
             </div>
@@ -1860,12 +2126,32 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             <div style={css.addRow}>
               <input style={css.addInp} value={otherResName} onChange={e => setOtherResName(e.target.value)} placeholder="Consumable or material name…" />
               <input type="number" style={{ ...css.qty, flexShrink: 0 }} value={otherResQty} onChange={e => setOtherResQty(e.target.value)} placeholder="Qty" />
-              <button style={css.addBtn} onClick={() => { if (!otherResName.trim()) return; const next = [...otherRes, { name: otherResName.trim(), qty: otherResQty || 0 }]; setOtherRes(next); saveOtherResMemory(next, curCode); setOtherResName(""); setOtherResQty(""); }}>+ ADD</button>
+              <button style={css.addBtn} onClick={() => {
+                const name = otherResName.trim();
+                if (!name) return;
+                // Same name again just updates the quantity rather than duplicating the row.
+                const exists = otherRes.some(r => r.name.toLowerCase() === name.toLowerCase());
+                const next = exists
+                  ? otherRes.map(r => r.name.toLowerCase() === name.toLowerCase() ? { ...r, qty: otherResQty || r.qty } : r)
+                  : [...otherRes, { name, qty: otherResQty || "" }];
+                setOtherRes(next); saveOtherResMemory(next, curCode);
+                stationCons.add(curCode, name, currentUserName || "");
+                setOtherResName(""); setOtherResQty("");
+              }}>+ ADD</button>
             </div>
-            {otherRes.map((r, i) => <div key={i} className="tc-res-row" style={{ ...css.resRow, borderBottom: "none" }}>
+            {otherRes.length > 0 && <div style={{ fontSize: 11, color: T.dim, margin: "4px 0 2px" }}>Added at this station — stays for every fill-in here until removed with ×. Leave the quantity empty if not used this time.</div>}
+            {otherRes.map((r, i) => <div key={r.name} className="tc-res-row" style={{ ...css.resRow, borderBottom: "none" }}>
               <div style={css.resName}>{r.name}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.muted }}>
-                ×{r.qty} <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 14 }} onClick={() => { const next = otherRes.filter((_, j) => j !== i); setOtherRes(next); saveOtherResMemory(next, curCode); }}>×</button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input type="number" min="0" style={css.qty} value={r.qty} placeholder="Qty"
+                  onChange={e => { const next = otherRes.map((x, j) => j === i ? { ...x, qty: e.target.value } : x); setOtherRes(next); saveOtherResMemory(next, curCode); }} />
+                <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 16, lineHeight: 1, padding: 0 }}
+                  title="Remove this consumable from the station for everyone"
+                  onClick={() => {
+                    if (!confirm(`Remove "${r.name}" from ${curCode} for everyone?`)) return;
+                    const next = otherRes.filter((_, j) => j !== i); setOtherRes(next); saveOtherResMemory(next, curCode);
+                    stationCons.remove(curCode, r.name);
+                  }}>×</button>
               </div>
             </div>)}
           </div>

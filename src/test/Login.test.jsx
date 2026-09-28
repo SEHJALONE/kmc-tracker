@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Login from '../components/Login'
 
 const defaultProps = {
@@ -9,6 +9,19 @@ const defaultProps = {
 }
 
 describe('Login', () => {
+  // Accounts that aren't built in are checked against the Apps Script; stub it
+  // so the suite never hits the network and "unknown user" is deterministic.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ status: 'error', message: 'invalid-credentials' }) })))
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('has a guidelines button that offers the user guide PDF', () => {
+    render(<Login {...defaultProps} />)
+    fireEvent.click(screen.getByRole('button', { name: /guidelines and user guide/i }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText(/download user guide/i).closest('a')).toHaveAttribute('href', '/docs/KMC-Production-Tracker-User-Guide.pdf')
+  })
   it('renders username and password fields', () => {
     render(<Login {...defaultProps} />)
     expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument()
@@ -38,7 +51,7 @@ describe('Login', () => {
     fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'kmc' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'kmc1234!' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('user'), { timeout: 2000 })
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('user', null, null), { timeout: 2000 })
   })
 
   it('calls onLogin with "useradmin" role for valid useradmin credentials', async () => {
@@ -47,7 +60,7 @@ describe('Login', () => {
     fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'kmcadmin' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'KMC1234!' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('useradmin'), { timeout: 2000 })
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('useradmin', null, null), { timeout: 2000 })
   })
 
   it('calls onLogin with "systemadmin" role for valid systemadmin credentials', async () => {
@@ -56,7 +69,7 @@ describe('Login', () => {
     fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'systemadmin' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'admin1234!' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('systemadmin'), { timeout: 2000 })
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('systemadmin', null, null), { timeout: 2000 })
   })
 
   it('login is case-insensitive for username', async () => {
@@ -65,6 +78,6 @@ describe('Login', () => {
     fireEvent.change(screen.getByPlaceholderText(/username/i), { target: { value: 'KMC' } })
     fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'kmc1234!' } })
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('user'), { timeout: 2000 })
+    await waitFor(() => expect(onLogin).toHaveBeenCalledWith('user', null, null), { timeout: 2000 })
   })
 })

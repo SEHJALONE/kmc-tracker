@@ -207,6 +207,11 @@ export default function FilterBar({ filters, onChange, busCount, totalBusCount, 
           border-color: var(--evs-border);
           color: var(--evs-text);
         }
+        .filter-model-btn.active-kec {
+          background: rgba(245,158,11,0.14);
+          border-color: rgba(245,158,11,0.55);
+          color: #d97706;
+        }
         .active-chip {
           display: inline-flex;
           align-items: center;
@@ -266,11 +271,13 @@ export default function FilterBar({ filters, onChange, busCount, totalBusCount, 
           { id: 'ALL', label: 'All' },
           { id: 'KDC', label: 'KDC' },
           { id: 'EVS', label: 'EVS' },
+          { id: 'KEC', label: 'KEC' },
         ].map(m => {
           const isActive = filters.model === m.id;
           const cls = isActive
             ? m.id === 'KDC' ? 'active-kdc'
             : m.id === 'EVS' ? 'active-evs'
+            : m.id === 'KEC' ? 'active-kec'
             : 'active-all'
             : '';
           return (

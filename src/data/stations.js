@@ -3,158 +3,171 @@
 // models: ['KDC'] | ['EVS'] | ['KDC','EVS']
 
 export const SEED_LINES = [
-  { id: 'MACHINE',  label: 'Machine Shop',                 models: ['KDC','EVS'] },
-  { id: 'BODY',     label: 'Frame Parts Making',           models: ['KDC','EVS'] },
-  { id: 'ELECTRO',  label: 'Electrophoresis',              models: ['KDC','EVS'] },
-  { id: 'FRAME',    label: 'Frame & Body Welding',         models: ['KDC','EVS'] },
-  { id: 'CHASSIS1', label: 'Chassis Line 01',              models: ['KDC','EVS'] },
-  { id: 'CHASSIS2', label: 'Chassis Line 02',              models: ['KDC','EVS'] },
-  { id: 'PAINT',    label: 'Paint Shop',                   models: ['KDC','EVS'] },
-  { id: 'TRIM',     label: 'Trim Line & Final Assembly',   models: ['KDC','EVS'] },
-  { id: 'QA',       label: 'Quality Inspection & Testing', models: ['KDC','EVS'] },
+  { id: 'MACHINE',  label: 'Machine Shop',                 models: ['KDC','EVS','KEC'] },
+  { id: 'BODY',     label: 'Frame Parts Making',           models: ['KDC','EVS','KEC'] },
+  { id: 'ELECTRO',  label: 'Electrophoresis',              models: ['KDC','EVS','KEC'] },
+  { id: 'FRAME',    label: 'Frame & Body Welding',         models: ['KDC','EVS','KEC'] },
+  { id: 'CHASSIS1', label: 'Chassis Line 01',              models: ['KDC','EVS','KEC'] },
+  { id: 'CHASSIS2', label: 'Chassis Line 02',              models: ['KDC','EVS','KEC'] },
+  { id: 'PAINT',    label: 'Paint Shop',                   models: ['KDC','EVS','KEC'] },
+  { id: 'TRIM',     label: 'Trim Line & Final Assembly',   models: ['KDC','EVS','KEC'] },
+  { id: 'QA',       label: 'Quality Inspection & Testing', models: ['KDC','EVS','KEC'] },
 ];
 
 export const SEED_STATIONS = {
   // ─── MACHINE SHOP ────────────────────────────────────────────────────────────
   // B01: Rectangular Tubes Making
-  'B01-01': { name: 'Rectangular Tubes & Steel Plate Storage',            line: 'MACHINE', order: 1,  models: ['KDC','EVS'] },
-  'B01-02': { name: 'Rectangular Tubes Cutting — Band Saw',               line: 'MACHINE', order: 2,  models: ['KDC','EVS'] },
-  'B01-03': { name: 'Rectangular Tube Cutting — Laser Cutting Machine',   line: 'MACHINE', order: 3,  models: ['KDC','EVS'] },
-  'B01-04': { name: 'Rectangular Tubes Cutting — Circular Saw',           line: 'MACHINE', order: 4,  models: ['KDC','EVS'] },
-  'B01-05': { name: 'Sheet Metal Punching',                               line: 'MACHINE', order: 5,  models: ['KDC','EVS'] },
-  'B01-06': { name: '3D CNC Pipe Bending',                                line: 'MACHINE', order: 6,  models: ['KDC','EVS'] },
-  'B01-07': { name: 'Table Type Drilling',                                line: 'MACHINE', order: 7,  models: ['KDC','EVS'] },
+  'B01-01': { name: 'Rectangular Tubes & Steel Plate Storage',            line: 'MACHINE', order: 1,  models: ['KDC','EVS','KEC'] },
+  'B01-02': { name: 'Rectangular Tubes Cutting — Band Saw',               line: 'MACHINE', order: 2,  models: ['KDC','EVS','KEC'] },
+  'B01-03': { name: 'Rectangular Tube Cutting — Laser Cutting Machine',   line: 'MACHINE', order: 3,  models: ['KDC','EVS','KEC'] },
+  'B01-04': { name: 'Rectangular Tubes Cutting — Circular Saw',           line: 'MACHINE', order: 4,  models: ['KDC','EVS','KEC'] },
+  'B01-05': { name: 'Sheet Metal Punching',                               line: 'MACHINE', order: 5,  models: ['KDC','EVS','KEC'] },
+  'B01-06': { name: '3D CNC Pipe Bending',                                line: 'MACHINE', order: 6,  models: ['KDC','EVS','KEC'] },
+  'B01-07': { name: 'Table Type Drilling',                                line: 'MACHINE', order: 7,  models: ['KDC','EVS','KEC'] },
   // B02: Metal Sheet Parts Making
-  'B02-01': { name: 'Plate Cutting — Laser Cutting Machine',              line: 'MACHINE', order: 8,  models: ['KDC','EVS'] },
-  'B02-02': { name: 'Plate Shearing — Shearing Machine',                  line: 'MACHINE', order: 9,  models: ['KDC','EVS'] },
-  'B02-03': { name: 'Plate Bending — Bending Machine',                    line: 'MACHINE', order: 10, models: ['KDC','EVS'] },
-  'B02-04': { name: 'Metal Sheet Processing — Hydraulic Press',           line: 'MACHINE', order: 11, models: ['KDC','EVS'] },
-  'B02-05': { name: 'Lathe, Milling and Drilling Machine',                line: 'MACHINE', order: 12, models: ['KDC','EVS'] },
-  'B02-06': { name: 'Sheet Metal Welding',                                line: 'MACHINE', order: 13, models: ['KDC','EVS'] },
-  'B02-07': { name: 'Storage of Finished Parts',                          line: 'MACHINE', order: 14, models: ['KDC','EVS'] },
+  'B02-01': { name: 'Plate Cutting — Laser Cutting Machine',              line: 'MACHINE', order: 8,  models: ['KDC','EVS','KEC'] },
+  'B02-02': { name: 'Plate Shearing — Shearing Machine',                  line: 'MACHINE', order: 9,  models: ['KDC','EVS','KEC'] },
+  'B02-03': { name: 'Plate Bending — Bending Machine',                    line: 'MACHINE', order: 10, models: ['KDC','EVS','KEC'] },
+  'B02-04': { name: 'Metal Sheet Processing — Hydraulic Press',           line: 'MACHINE', order: 11, models: ['KDC','EVS','KEC'] },
+  'B02-05': { name: 'Lathe, Milling and Drilling Machine',                line: 'MACHINE', order: 12, models: ['KDC','EVS','KEC'] },
+  'B02-06': { name: 'Sheet Metal Welding',                                line: 'MACHINE', order: 13, models: ['KDC','EVS','KEC'] },
+  'B02-07': { name: 'Storage of Finished Parts',                          line: 'MACHINE', order: 14, models: ['KDC','EVS','KEC'] },
   // B03: Steel Panel Rolling
-  'B03-01': { name: 'Uncoiling and Alignment',                            line: 'MACHINE', order: 15, models: ['KDC','EVS'] },
-  'B03-02': { name: 'Side Panel Roller Press',                            line: 'MACHINE', order: 16, models: ['KDC','EVS'] },
-  'B03-03': { name: 'Roof Middle Panel Roller Press',                     line: 'MACHINE', order: 17, models: ['KDC','EVS'] },
-  'B03-04': { name: 'Side Roof Panel Roller Press',                       line: 'MACHINE', order: 18, models: ['KDC','EVS'] },
-  'B03-05': { name: 'Storage of Finished Parts',                          line: 'MACHINE', order: 19, models: ['KDC','EVS'] },
+  'B03-01': { name: 'Uncoiling and Alignment',                            line: 'MACHINE', order: 15, models: ['KDC','EVS','KEC'] },
+  'B03-02': { name: 'Side Panel Roller Press',                            line: 'MACHINE', order: 16, models: ['KDC','EVS','KEC'] },
+  'B03-03': { name: 'Roof Middle Panel Roller Press',                     line: 'MACHINE', order: 17, models: ['KDC','EVS','KEC'] },
+  'B03-04': { name: 'Side Roof Panel Roller Press',                       line: 'MACHINE', order: 18, models: ['KDC','EVS','KEC'] },
+  'B03-05': { name: 'Storage of Finished Parts',                          line: 'MACHINE', order: 19, models: ['KDC','EVS','KEC'] },
 
   // ─── FRAME PARTS MAKING (B04–B09) — both KDC and EVS ────────────────────────
   // B04: Roof Frame
-  'B04-01': { name: 'Roof Frame Welding',                                 line: 'BODY', order: 1,  models: ['KDC','EVS'] },
-  'B04-02': { name: 'Repair Welding of Roof Panel Framework',             line: 'BODY', order: 2,  models: ['KDC','EVS'] },
-  'B04-03': { name: 'Turn-over Welding of Roof Panel Framework',          line: 'BODY', order: 3,  models: ['KDC','EVS'] },
-  'B04-04': { name: 'Grinding, Alignment and Cleaning of Roof Framework', line: 'BODY', order: 4,  models: ['KDC','EVS'] },
-  'B04-05': { name: 'Top Panel Stretcher',                                line: 'BODY', order: 5,  models: ['KDC','EVS'] },
-  'B04-06': { name: 'Escape Hatch Welding',                               line: 'BODY', order: 6,  models: ['KDC','EVS'] },
-  'B04-07': { name: 'Repair Welding, Grinding & Alignment of Roof Panel Assembly', line: 'BODY', order: 7, models: ['KDC','EVS'] },
+  'B04-01': { name: 'Roof Frame Welding',                                 line: 'BODY', order: 1,  models: ['EVS'] },
+  'B04-02': { name: 'Repair Welding of Roof Panel Framework',             line: 'BODY', order: 2,  models: ['EVS'] },
+  'B04-03': { name: 'Turn-over Welding of Roof Panel Framework',          line: 'BODY', order: 3,  models: ['EVS'] },
+  'B04-04': { name: 'Grinding, Alignment and Cleaning of Roof Framework', line: 'BODY', order: 4,  models: ['EVS'] },
+  'B04-05': { name: 'Top Panel Stretcher',                                line: 'BODY', order: 5,  models: ['KDC','EVS','KEC'] },
+  'B04-06': { name: 'Escape Hatch Welding',                               line: 'BODY', order: 6,  models: ['EVS'] },
+  'B04-07': { name: 'Repair Welding, Grinding & Alignment of Roof Panel Assembly', line: 'BODY', order: 7, models: ['EVS'] },
   // B05: Right Side Wall
-  'B05-01': { name: 'Welding of Right Side Wall Framework',               line: 'BODY', order: 8,  models: ['KDC','EVS'] },
-  'B05-02': { name: 'Repair Welding of Right Side Wall Framework',        line: 'BODY', order: 9,  models: ['KDC','EVS'] },
-  'B05-03': { name: 'Turn-over and Repair Welding — Right Side Wall',     line: 'BODY', order: 10, models: ['KDC','EVS'] },
-  'B05-04': { name: 'Grinding and Correction — Right Side Wall',          line: 'BODY', order: 11, models: ['KDC','EVS'] },
+  'B05-01': { name: 'Welding of Right Side Wall Framework',               line: 'BODY', order: 8,  models: ['EVS'] },
+  'B05-02': { name: 'Repair Welding of Right Side Wall Framework',        line: 'BODY', order: 9,  models: ['EVS'] },
+  'B05-03': { name: 'Turn-over and Repair Welding — Right Side Wall',     line: 'BODY', order: 10, models: ['EVS'] },
+  'B05-04': { name: 'Grinding and Correction — Right Side Wall',          line: 'BODY', order: 11, models: ['EVS'] },
   // B06: Left Side Wall
-  'B06-01': { name: 'Welding of Left Side Wall Framework',                line: 'BODY', order: 12, models: ['KDC','EVS'] },
-  'B06-02': { name: 'Repair Welding of Left Side Wall Framework',         line: 'BODY', order: 13, models: ['KDC','EVS'] },
-  'B06-03': { name: 'Turn-over and Repair Welding — Left Side Wall',      line: 'BODY', order: 14, models: ['KDC','EVS'] },
-  'B06-04': { name: 'Grinding and Correction — Left Side Wall',           line: 'BODY', order: 15, models: ['KDC','EVS'] },
+  'B06-01': { name: 'Welding of Left Side Wall Framework',                line: 'BODY', order: 12, models: ['EVS'] },
+  'B06-02': { name: 'Repair Welding of Left Side Wall Framework',         line: 'BODY', order: 13, models: ['EVS'] },
+  'B06-03': { name: 'Turn-over and Repair Welding — Left Side Wall',      line: 'BODY', order: 14, models: ['EVS'] },
+  'B06-04': { name: 'Grinding and Correction — Left Side Wall',           line: 'BODY', order: 15, models: ['EVS'] },
   // B07: Rear Face
-  'B07-01': { name: 'Welding of Rear Face Framework',                     line: 'BODY', order: 16, models: ['KDC','EVS'] },
-  'B07-02': { name: 'Repair Welding and Correction — Rear Face',          line: 'BODY', order: 17, models: ['KDC','EVS'] },
-  'B07-03': { name: 'Welding of Rear Panel',                              line: 'BODY', order: 18, models: ['KDC','EVS'] },
-  'B07-04': { name: 'Repair, Grinding and Storage — Rear Face',           line: 'BODY', order: 19, models: ['KDC','EVS'] },
+  'B07-01': { name: 'Welding of Rear Face Framework',                     line: 'BODY', order: 16, models: ['KDC','EVS','KEC'] },
+  'B07-02': { name: 'Repair Welding and Correction — Rear Face',          line: 'BODY', order: 17, models: ['KDC','EVS','KEC'] },
+  'B07-03': { name: 'Welding of Rear Panel',                              line: 'BODY', order: 18, models: ['KDC','EVS','KEC'] },
+  'B07-04': { name: 'Repair, Grinding and Storage — Rear Face',           line: 'BODY', order: 19, models: ['KDC','EVS','KEC'] },
   // B08: Front Face
-  'B08-01': { name: 'Front Face Frame Welding',                           line: 'BODY', order: 20, models: ['KDC','EVS'] },
-  'B08-02': { name: 'Repair Welding and Correction — Front Face',         line: 'BODY', order: 21, models: ['KDC','EVS'] },
-  'B08-03': { name: 'Welding of Front Panel',                             line: 'BODY', order: 22, models: ['KDC','EVS'] },
-  'B08-04': { name: 'Repair, Grinding and Storage — Front Face',          line: 'BODY', order: 23, models: ['KDC','EVS'] },
+  'B08-01': { name: 'Front Face Frame Welding',                           line: 'BODY', order: 20, models: ['KDC','EVS','KEC'] },
+  'B08-02': { name: 'Repair Welding and Correction — Front Face',         line: 'BODY', order: 21, models: ['KDC','EVS','KEC'] },
+  'B08-03': { name: 'Welding of Front Panel',                             line: 'BODY', order: 22, models: ['KDC','EVS','KEC'] },
+  'B08-04': { name: 'Repair, Grinding and Storage — Front Face',          line: 'BODY', order: 23, models: ['KDC','EVS','KEC'] },
   // B09: Frame Assembly
-  'B09-01': { name: 'Frame Parts Welding',                                line: 'BODY', order: 24, models: ['KDC','EVS'] },
-  'B09-02': { name: 'Integration Welding of Frame Assembly',              line: 'BODY', order: 25, models: ['KDC','EVS'] },
-  'B09-03': { name: 'Repair Welding of Frame Assembly',                   line: 'BODY', order: 26, models: ['KDC','EVS'] },
-  'B09-04': { name: 'Installation of Frame Accessories',                  line: 'BODY', order: 27, models: ['KDC','EVS'] },
-  'B09-05': { name: 'Grinding and Alignment of Frame Assembly',           line: 'BODY', order: 28, models: ['KDC','EVS'] },
-  'B09-06': { name: 'Inspection and Storage of Frame Assembly',           line: 'BODY', order: 29, models: ['KDC','EVS'] },
+  'B09-01': { name: 'Frame Parts Welding',                                line: 'BODY', order: 24, models: ['KDC','EVS','KEC'] },
+  'B09-02': { name: 'Integration Welding of Frame Assembly',              line: 'BODY', order: 25, models: ['KDC','EVS','KEC'] },
+  'B09-03': { name: 'Repair Welding of Frame Assembly',                   line: 'BODY', order: 26, models: ['KDC','EVS','KEC'] },
+  'B09-04': { name: 'Installation of Frame Accessories',                  line: 'BODY', order: 27, models: ['KDC','EVS','KEC'] },
+  'B09-05': { name: 'Grinding and Alignment of Frame Assembly',           line: 'BODY', order: 28, models: ['KDC','EVS','KEC'] },
+  'B09-06': { name: 'Inspection and Storage of Frame Assembly',           line: 'BODY', order: 29, models: ['KDC','EVS','KEC'] },
+  // B10: Inverted U-Hoop Frame (U-hoop coaches only — replaces B04/B05/B06)
+  'B10-01A': { name: 'Inverted U-Hoop Web Frame Welding (A)',             line: 'BODY', order: 30, models: ['KDC','KEC'] },
+  'B10-01B': { name: 'Inverted U-Hoop Web Frame Welding (B)',             line: 'BODY', order: 31, models: ['KDC','KEC'] },
+  'B10-02': { name: 'Top Roof Brackets & Inverted U-Hoop Web Frame Uprighting', line: 'BODY', order: 32, models: ['KDC','KEC'] },
+  'B10-03': { name: 'U-Hoop Web Frame Alignment, Aisle Floor Frames & A/C Top Brackets', line: 'BODY', order: 33, models: ['KDC','KEC'] },
 
   // ─── ELECTROPHORESIS ─────────────────────────────────────────────────────────
-  'E01-01': { name: 'Pre-degreasing',          line: 'ELECTRO', order: 1,  models: ['KDC','EVS'] },
-  'E01-02': { name: 'Degreasing',              line: 'ELECTRO', order: 2,  models: ['KDC','EVS'] },
-  'E01-03': { name: 'Washing 1',               line: 'ELECTRO', order: 3,  models: ['KDC','EVS'] },
-  'E01-04': { name: 'Washing 2',               line: 'ELECTRO', order: 4,  models: ['KDC','EVS'] },
-  'E01-05': { name: 'Transfer',                line: 'ELECTRO', order: 5,  models: ['KDC','EVS'] },
-  'E01-06': { name: 'Pure Water Wash 1',       line: 'ELECTRO', order: 6,  models: ['KDC','EVS'] },
-  'E01-07': { name: 'Silane',                  line: 'ELECTRO', order: 7,  models: ['KDC','EVS'] },
-  'E01-08': { name: 'Pure Water Wash 2',       line: 'ELECTRO', order: 8,  models: ['KDC','EVS'] },
-  'E01-09': { name: 'Pure Water Washing 3',    line: 'ELECTRO', order: 9,  models: ['KDC','EVS'] },
-  'E01-10': { name: 'Transfer',                line: 'ELECTRO', order: 10, models: ['KDC','EVS'] },
-  'E02-01': { name: 'Electrophoresis',         line: 'ELECTRO', order: 11, models: ['KDC','EVS'] },
-  'E02-02': { name: 'UF1',                     line: 'ELECTRO', order: 12, models: ['KDC','EVS'] },
-  'E02-03': { name: 'UF2',                     line: 'ELECTRO', order: 13, models: ['KDC','EVS'] },
-  'E02-04': { name: 'Pure Water Wash 4',       line: 'ELECTRO', order: 14, models: ['KDC','EVS'] },
-  'E02-05': { name: 'Electrophoresis Drying',  line: 'ELECTRO', order: 15, models: ['KDC','EVS'] },
+  'E01-01': { name: 'Pre-degreasing',          line: 'ELECTRO', order: 1,  models: ['KDC','EVS','KEC'] },
+  'E01-02': { name: 'Degreasing',              line: 'ELECTRO', order: 2,  models: ['KDC','EVS','KEC'] },
+  'E01-03': { name: 'Washing 1',               line: 'ELECTRO', order: 3,  models: ['KDC','EVS','KEC'] },
+  'E01-04': { name: 'Washing 2',               line: 'ELECTRO', order: 4,  models: ['KDC','EVS','KEC'] },
+  'E01-05': { name: 'Transfer',                line: 'ELECTRO', order: 5,  models: ['KDC','EVS','KEC'] },
+  'E01-06': { name: 'Pure Water Wash 1',       line: 'ELECTRO', order: 6,  models: ['KDC','EVS','KEC'] },
+  'E01-07': { name: 'Silane',                  line: 'ELECTRO', order: 7,  models: ['KDC','EVS','KEC'] },
+  'E01-08': { name: 'Pure Water Wash 2',       line: 'ELECTRO', order: 8,  models: ['KDC','EVS','KEC'] },
+  'E01-09': { name: 'Pure Water Washing 3',    line: 'ELECTRO', order: 9,  models: ['KDC','EVS','KEC'] },
+  'E01-10': { name: 'Transfer',                line: 'ELECTRO', order: 10, models: ['KDC','EVS','KEC'] },
+  'E02-01': { name: 'Electrophoresis',         line: 'ELECTRO', order: 11, models: ['KDC','EVS','KEC'] },
+  'E02-02': { name: 'UF1',                     line: 'ELECTRO', order: 12, models: ['KDC','EVS','KEC'] },
+  'E02-03': { name: 'UF2',                     line: 'ELECTRO', order: 13, models: ['KDC','EVS','KEC'] },
+  'E02-04': { name: 'Pure Water Wash 4',       line: 'ELECTRO', order: 14, models: ['KDC','EVS','KEC'] },
+  'E02-05': { name: 'Electrophoresis Drying',  line: 'ELECTRO', order: 15, models: ['KDC','EVS','KEC'] },
 
   // ─── FRAME & BODY WELDING ─────────────────────────────────────────────────────
   // KDC-specific: W01-01a → WQ-01 → W01-01b → WQ-02 → W01-02…
   // EVS-specific: WQ-01 → WQ-02 → W01-01 → W01-02…
   // Shared from W01-02 onwards
-  'W01-01A': { name: 'Integration of Back Seat, Engine Heat Shield, Floor Sub-frame & Rear Fascia to U-Hoop Web Frame', line: 'FRAME', order: 1, models: ['KDC'] },
-  'WQ-01':   { name: 'Quality Gate',                                                                      line: 'FRAME', order: 2,  models: ['KDC','EVS'] },
-  'W01-01B': { name: 'Integration of U-Hoop Web Frame, Driver Cabin Floor & Chassis Infuses to Chassis Frame; Front Fascia Integration', line: 'FRAME', order: 3, models: ['KDC'] },
-  'WQ-02':   { name: 'Quality Gate',                                                                      line: 'FRAME', order: 4,  models: ['KDC','EVS'] },
+  'W01-01A': { name: 'Integration of Back Seat, Engine Heat Shield, Floor Sub-frame & Rear Fascia to U-Hoop Web Frame', line: 'FRAME', order: 1, models: ['KDC','KEC'] },
+  'WQ-01':   { name: 'Quality Gate',                                                                      line: 'FRAME', order: 2,  models: ['KDC','EVS','KEC'] },
+  'W01-01B': { name: 'Integration of U-Hoop Web Frame, Driver Cabin Floor & Chassis Infuses to Chassis Frame; Front Fascia Integration', line: 'FRAME', order: 3, models: ['KDC','KEC'] },
+  'WQ-02':   { name: 'Quality Gate',                                                                      line: 'FRAME', order: 4,  models: ['KDC','EVS','KEC'] },
   'W01-01':  { name: 'Six Parts Merging and Alignment',                                                   line: 'FRAME', order: 5,  models: ['EVS'] },
-  'W01-02':  { name: 'Coach Frame Alignment, Passenger Door Step & Additional Chassis Infuse Profiles',   line: 'FRAME', order: 6,  models: ['KDC','EVS'] },
-  'W01-03':  { name: 'Full Welding, Grinding and Weld Bead Protection',                                   line: 'FRAME', order: 7,  models: ['KDC','EVS'] },
-  'W01-04':  { name: 'Welding of Attachment Brackets, Chassis Frame Profiles & Inner Sealing Plates',    line: 'FRAME', order: 8,  models: ['KDC','EVS'] },
-  'W01-05':  { name: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant Application',    line: 'FRAME', order: 9,  models: ['KDC','EVS'] },
-  'W01-06':  { name: 'Installation of Fibre Roof & A/C Bolts; Cargo Rack & Ladder Bolts (EVS 7m)',       line: 'FRAME', order: 10, models: ['KDC','EVS'] },
-  'W01-07':  { name: 'Transfer',                                                                          line: 'FRAME', order: 11, models: ['KDC','EVS'] },
-  'W01-08':  { name: 'Side Panel Extension and Side Panel Trimming',                                      line: 'FRAME', order: 12, models: ['KDC','EVS'] },
-  'W01-09':  { name: 'Installation of Passenger Door Frames and Door Actuator',                           line: 'FRAME', order: 13, models: ['KDC','EVS'] },
-  'W01-10':  { name: 'External Side Frame, Side Fibre Strips & Side Marker Light Installation',           line: 'FRAME', order: 14, models: ['KDC','EVS'] },
-  'W01-11':  { name: 'Installation of Compartment Doors; Fascia Bumper Alignment',                        line: 'FRAME', order: 15, models: ['KDC','EVS'] },
-  'W01-12':  { name: 'Underbody Welding and Sealant Application',                                         line: 'FRAME', order: 16, models: ['KDC','EVS'] },
-  'W01-13':  { name: 'Rectification',                                                                     line: 'FRAME', order: 17, models: ['KDC','EVS'] },
-  'W01-14':  { name: 'Quality Gate (WQ-03)',                                                              line: 'FRAME', order: 18, models: ['KDC','EVS'] },
+  'W01-02':  { name: 'Coach Frame Alignment, Passenger Door Step & Additional Chassis Infuse Profiles',   line: 'FRAME', order: 6,  models: ['KDC','EVS','KEC'] },
+  'W01-03':  { name: 'Full Welding, Grinding and Weld Bead Protection',                                   line: 'FRAME', order: 7,  models: ['KDC','EVS','KEC'] },
+  'W01-04':  { name: 'Welding of Attachment Brackets, Chassis Frame Profiles & Inner Sealing Plates',    line: 'FRAME', order: 8,  models: ['KDC','EVS','KEC'] },
+  'W01-05':  { name: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant Application',    line: 'FRAME', order: 9,  models: ['KDC','EVS','KEC'] },
+  'W01-06':  { name: 'Installation of Fibre Roof & A/C Bolts; Cargo Rack & Ladder Bolts (EVS 7m)',       line: 'FRAME', order: 10, models: ['KDC','EVS','KEC'] },
+  'W01-07':  { name: 'Transfer',                                                                          line: 'FRAME', order: 11, models: ['KDC','EVS','KEC'] },
+  'W01-08':  { name: 'Side Panel Extension and Side Panel Trimming',                                      line: 'FRAME', order: 12, models: ['KDC','EVS','KEC'] },
+  'W01-09':  { name: 'Installation of Passenger Door Frames and Door Actuator',                           line: 'FRAME', order: 13, models: ['KDC','EVS','KEC'] },
+  'W01-10':  { name: 'External Side Frame, Side Fibre Strips & Side Marker Light Installation',           line: 'FRAME', order: 14, models: ['KDC','EVS','KEC'] },
+  'W01-11':  { name: 'Installation of Compartment Doors; Fascia Bumper Alignment',                        line: 'FRAME', order: 15, models: ['KDC','EVS','KEC'] },
+  'W01-12':  { name: 'Underbody Welding and Sealant Application',                                         line: 'FRAME', order: 16, models: ['KDC','EVS','KEC'] },
+  'W01-13':  { name: 'Rectification',                                                                     line: 'FRAME', order: 17, models: ['KDC','EVS','KEC'] },
+  'W01-14':  { name: 'Quality Gate (WQ-03)',                                                              line: 'FRAME', order: 18, models: ['KDC','EVS','KEC'] },
 
   // ─── CHASSIS LINE 01 ──────────────────────────────────────────────────────────
-  'CQ-01':    { name: 'Chassis Frame Defects Rectification Buffer & Pre-Chassis Assembly', line: 'CHASSIS1', order: 1, models: ['KDC','EVS'] },
+  'CQ-01':    { name: 'Chassis Frame Defects Rectification Buffer & Pre-Chassis Assembly', line: 'CHASSIS1', order: 1, models: ['KDC','EVS','KEC'] },
   // EVS C01-01: VIN Engraving + LV Underbody Wiring Harnesses
   // KDC C01-01: VIN Engraving only
-  'C01-01':    { name: 'VIN Engraving & LV Underbody Wiring Harness Installation',         line: 'CHASSIS1', order: 2, models: ['KDC','EVS'] },
+  'C01-01':    { name: 'VIN Engraving & LV Underbody Wiring Harness Installation',         line: 'CHASSIS1', order: 2, models: ['KDC','EVS','KEC'] },
   // EVS C01-02: Air Tanks, Air Pipes and Braking Systems
   // KDC C01-02: Air Tanks, Air Pipes, Braking Systems + Nylon Pipes, Gear Selector, Hydraulic Pipes
-  'C01-02':    { name: 'Chassis Air Tanks, Air Pipes, Braking & Hydraulic Systems',        line: 'CHASSIS1', order: 3, models: ['KDC','EVS'] },
-  'C01-02-01': { name: 'Air Tanks / Wiring Harness Sub-Assembly',                          line: 'CHASSIS1', order: 4, models: ['KDC','EVS'] },
+  'C01-02':    { name: 'Chassis Air Tanks, Air Pipes, Braking & Hydraulic Systems',        line: 'CHASSIS1', order: 3, models: ['KDC','EVS','KEC'] },
+  'C01-02-01': { name: 'Air Tanks / Wiring Harness Sub-Assembly',                          line: 'CHASSIS1', order: 4, models: ['KDC','EVS','KEC'] },
   // EVS C01-03: Steering System
   // KDC C01-03: Steering System + Gear Lever Cables, Clutch Radiator, Tyre Bracket
-  'C01-03':    { name: 'Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket', line: 'CHASSIS1', order: 5, models: ['KDC','EVS'] },
-  'C01-01-01': { name: 'Radiator-Fan Assembly',                                            line: 'CHASSIS1', order: 6, models: ['KDC'] },
+  'C01-03':    { name: 'Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket', line: 'CHASSIS1', order: 5, models: ['KDC','EVS','KEC'] },
+  'C01-03-01': { name: 'Radiator-Fan Assembly',                                            line: 'CHASSIS1', order: 6, models: ['KDC'] },
+  // Old (wrong) code for the radiator-fan sub-assembly — kept archived so any
+  // travel cards already filed under it still resolve.
+  'C01-01-01': { name: 'Radiator-Fan Assembly (old code — use C01-03-01)',                 line: 'CHASSIS1', order: 6, models: ['KDC'], active: false },
   // EVS C01-04: Air Tanks, Valves, Brake Pedals, ABS Valves and Pipes Sub-Assembly
   // KDC C01-04: Low Voltage Underbody Wiring Harness
-  'C01-04':    { name: 'Air Tanks, Valves, Brake Pedals & ABS Valves / LV Underbody Wiring Harness', line: 'CHASSIS1', order: 7, models: ['KDC','EVS'] },
-  'C01-04-01': { name: 'Wiring Harness Sub-Assembly',                                      line: 'CHASSIS1', order: 8, models: ['KDC','EVS'] },
-  'CQ-02':     { name: 'Quality Gate',                                                     line: 'CHASSIS1', order: 9, models: ['KDC','EVS'] },
+  'C01-04':    { name: 'Air Tanks, Valves, Brake Pedals & ABS Valves / LV Underbody Wiring Harness', line: 'CHASSIS1', order: 7, models: ['KDC','EVS','KEC'] },
+  'C01-04-01': { name: 'Wiring Harness Sub-Assembly',                                      line: 'CHASSIS1', order: 8, models: ['KDC','EVS','KEC'] },
+  'CQ-02':     { name: 'Quality Gate',                                                     line: 'CHASSIS1', order: 9, models: ['KDC','EVS','KEC'] },
 
   // ─── CHASSIS LINE 02 ──────────────────────────────────────────────────────────
   // EVS C02-01: HV Harnesses, TPMS Modules, Fire Extinguishers, LV Harness Routing
   // KDC C02-01: TPMS Modules, Fire Extinguisher, Rear LV, AC, Starter Motor, Wiring Harness Routing
   'C02-01':    { name: 'TPMS Modules, Fire Extinguisher, HV/LV Harnesses & Wiring Harness Routing', line: 'CHASSIS2', order: 1, models: ['KDC','EVS'] },
+  // KEC: its drawing labels two stations "C02-01"; split a/b.
+  'C02-01A':   { name: 'Installation of HV Harnesses',                                     line: 'CHASSIS2', order: 1, models: ['KEC'] },
+  'C02-01B':   { name: 'Air Compressor, Radiator and Air Dryer',                           line: 'CHASSIS2', order: 1.5, models: ['KEC'] },
+  'C02-02-01': { name: 'Engine & Gear Box Sub-Assembly (KDC) / Axles Sub-Assembly (KEC)',   line: 'CHASSIS2', order: 2.5, models: ['KDC','KEC'] },
   // EVS C02-02: Motor + HV Batteries
   // KDC C02-02: Diesel Engine and Gear Box + Engine Accessories Termination
-  'C02-02':    { name: 'Motor & HV Batteries (EVS) / Diesel Engine, Gear Box & Accessories (KDC)', line: 'CHASSIS2', order: 2, models: ['KDC','EVS'] },
+  'C02-02':    { name: 'Motor & HV Batteries (EVS) / Diesel Engine, Gear Box & Accessories (KDC)', line: 'CHASSIS2', order: 2, models: ['KDC','EVS','KEC'] },
   // EVS C02-03: Front and Rear Axles + Suspensions + Air Bellow Shock Absorbers
   // KDC C02-03: Engine Cooling and Fuel System
-  'C02-03':    { name: 'Front & Rear Axles & Suspensions (EVS) / Engine Cooling & Fuel System (KDC)', line: 'CHASSIS2', order: 3, models: ['KDC','EVS'] },
+  'C02-03':    { name: 'Front & Rear Axles & Suspensions (EVS) / Engine Cooling & Fuel System (KDC)', line: 'CHASSIS2', order: 3, models: ['KDC','EVS','KEC'] },
   'C02-03-01': { name: 'Axles Sub-Assembly',                                               line: 'CHASSIS2', order: 4, models: ['EVS'] },
   // EVS C02-04: Air Compressor, Radiator, Air Dryer, PDU, MCU
   // KDC C02-04: Front and Rear Axles, Suspensions, Shock Absorbers
-  'C02-04':    { name: 'Air Compressor, Radiator, Air Dryer, PDU & MCU (EVS) / Axles & Suspensions (KDC)', line: 'CHASSIS2', order: 5, models: ['KDC','EVS'] },
-  'C02-04-01': { name: 'Axles Sub-Assembly',                                               line: 'CHASSIS2', order: 6, models: ['KDC'] },
+  'C02-04':    { name: 'Air Compressor, Radiator, Air Dryer, PDU & MCU (EVS) / Axles & Suspensions (KDC)', line: 'CHASSIS2', order: 5, models: ['KDC','EVS','KEC'] },
+  'C02-04-01': { name: 'Axles Sub-Assembly',                                               line: 'CHASSIS2', order: 6, models: ['KDC','KEC'] },
   // EVS C02-05: HV Battery Accessories, ABS, Speed & Brake-wear Sensor Termination
   // KDC C02-05: Pneumatic & Steering System Completion, Driver Floorboard, Clutch Bleeding, ABS & Sensor Routing/Termination
-  'C02-05':    { name: 'HV Battery Accessories & Sensor Termination (EVS) / Pneumatic, Steering, Clutch & Sensor Systems (KDC)', line: 'CHASSIS2', order: 7, models: ['KDC','EVS'] },
+  'C02-05':    { name: 'HV Battery Accessories & Sensor Termination (EVS) / Pneumatic, Steering, Clutch & Sensor Systems (KDC)', line: 'CHASSIS2', order: 7, models: ['KDC','EVS','KEC'] },
   // EVS C02-06: Wheel Arch Profile + Customer Tyres
   // KDC C02-06: Air Cleaner, Air Intake, Emissions System & Silencer
+  'C02-05-01': { name: 'Clutch Sub-Assembly',                                              line: 'CHASSIS2', order: 7.5, models: ['KDC'] },
   'C02-06':    { name: 'Wheel Arch Profile & Tyres (EVS) / Air Cleaner, Air Intake, Emissions & Silencer (KDC)', line: 'CHASSIS2', order: 8, models: ['KDC','EVS'] },
   'C02-06-01': { name: 'Tires Sub-Assembly',                                               line: 'CHASSIS2', order: 9, models: ['EVS'] },
   // EVS C02-07: Torquing + Pressure Balancing
@@ -164,89 +177,92 @@ export const SEED_STATIONS = {
 
   // ─── PAINT SHOP ───────────────────────────────────────────────────────────────
   // Order follows the document sequence exactly
-  'P01-01': { name: 'Bus Body Panel Masking',                             line: 'PAINT', order: 1,  models: ['KDC','EVS'] },
-  'P01-02': { name: 'Foaming Application and Trimming',                   line: 'PAINT', order: 2,  models: ['KDC','EVS'] },
-  'P01-03': { name: 'Underbody Anti-Corrosion Painting',                  line: 'PAINT', order: 3,  models: ['KDC','EVS'] },
-  'P02-01': { name: 'Body Panel Surface Grinding and Sanding',            line: 'PAINT', order: 4,  models: ['KDC','EVS'] },
-  'P02-02': { name: 'Ground Body Manual Surface-Cleaning',                line: 'PAINT', order: 5,  models: ['KDC','EVS'] },
-  'P02-03': { name: 'Epoxy Primer Painting',                              line: 'PAINT', order: 6,  models: ['KDC','EVS'] },
-  'P02-04': { name: 'Epoxy Primer Drying',                                line: 'PAINT', order: 7,  models: ['KDC','EVS'] },
-  'P02-05': { name: 'Epoxy Primer Polishing',                             line: 'PAINT', order: 8,  models: ['KDC','EVS'] },
-  'P03-01': { name: 'Panel Beating; Filler and Fibre Application',        line: 'PAINT', order: 9,  models: ['KDC','EVS'] },
-  'P03-02': { name: 'Filler and Fibre Polishing',                         line: 'PAINT', order: 10, models: ['KDC','EVS'] },
-  'P03-03': { name: 'Filler Polish Manual Surface-Cleaning',              line: 'PAINT', order: 11, models: ['KDC','EVS'] },
-  'P04-01': { name: 'NC Primer Painting',                                 line: 'PAINT', order: 12, models: ['KDC','EVS'] },
-  'P04-02': { name: 'NC Primer Drying',                                   line: 'PAINT', order: 13, models: ['KDC','EVS'] },
-  'P05-01': { name: 'Defects Rectification',                              line: 'PAINT', order: 14, models: ['KDC','EVS'] },
-  'P05-02': { name: 'Putty Application and Drying',                       line: 'PAINT', order: 15, models: ['KDC','EVS'] },
-  'P05-03': { name: 'Putty Polishing',                                    line: 'PAINT', order: 16, models: ['KDC','EVS'] },
-  'P05-04': { name: 'Putty Polish Manual Surface-Cleaning',               line: 'PAINT', order: 17, models: ['KDC','EVS'] },
-  'PQ-01':  { name: 'Paint Inspection',                                   line: 'PAINT', order: 18, models: ['KDC','EVS'] },
-  'P06-01': { name: 'Intermediate Coat Painting',                         line: 'PAINT', order: 19, models: ['KDC','EVS'] },
-  'P06-02': { name: 'Intermediate Coat Paint-Drying',                     line: 'PAINT', order: 20, models: ['KDC','EVS'] },
-  'P06-03': { name: 'Intermediate Coat Polishing',                        line: 'PAINT', order: 21, models: ['KDC','EVS'] },
-  'P07-01': { name: 'AutoCryl TopCoat Painting',                          line: 'PAINT', order: 22, models: ['KDC','EVS'] },
+  'P01-01': { name: 'Bus Body Panel Masking',                             line: 'PAINT', order: 1,  models: ['KDC','EVS','KEC'] },
+  'P01-02': { name: 'Foaming Application and Trimming',                   line: 'PAINT', order: 2,  models: ['KDC','EVS','KEC'] },
+  'P01-03': { name: 'Underbody Anti-Corrosion Painting',                  line: 'PAINT', order: 3,  models: ['KDC','EVS','KEC'] },
+  'P02-01': { name: 'Body Panel Surface Grinding and Sanding',            line: 'PAINT', order: 4,  models: ['KDC','EVS','KEC'] },
+  'P02-02': { name: 'Ground Body Manual Surface-Cleaning',                line: 'PAINT', order: 5,  models: ['KDC','EVS','KEC'] },
+  'P02-03': { name: 'Epoxy Primer Painting',                              line: 'PAINT', order: 6,  models: ['KDC','EVS','KEC'] },
+  'P02-04': { name: 'Epoxy Primer Drying',                                line: 'PAINT', order: 7,  models: ['KDC','EVS','KEC'] },
+  'P02-05': { name: 'Epoxy Primer Polishing',                             line: 'PAINT', order: 8,  models: ['KDC','EVS','KEC'] },
+  'P03-01': { name: 'Panel Beating; Filler and Fibre Application',        line: 'PAINT', order: 9,  models: ['KDC','EVS','KEC'] },
+  'P03-02': { name: 'Filler and Fibre Polishing',                         line: 'PAINT', order: 10, models: ['KDC','EVS','KEC'] },
+  'P03-03': { name: 'Filler Polish Manual Surface-Cleaning',              line: 'PAINT', order: 11, models: ['KDC','EVS','KEC'] },
+  'P04-01': { name: 'NC Primer Painting',                                 line: 'PAINT', order: 12, models: ['KDC','EVS','KEC'] },
+  'P04-02': { name: 'NC Primer Drying',                                   line: 'PAINT', order: 13, models: ['KDC','EVS','KEC'] },
+  'P05-01': { name: 'Defects Rectification',                              line: 'PAINT', order: 14, models: ['KDC','EVS','KEC'] },
+  'P05-02': { name: 'Putty Application and Drying',                       line: 'PAINT', order: 15, models: ['KDC','EVS','KEC'] },
+  'P05-03': { name: 'Putty Polishing',                                    line: 'PAINT', order: 16, models: ['KDC','EVS','KEC'] },
+  'P05-04': { name: 'Putty Polish Manual Surface-Cleaning',               line: 'PAINT', order: 17, models: ['KDC','EVS','KEC'] },
+  'PQ-01':  { name: 'Paint Inspection',                                   line: 'PAINT', order: 18, models: ['KDC','EVS','KEC'] },
+  'P06-01': { name: 'Intermediate Coat Painting',                         line: 'PAINT', order: 19, models: ['KDC','EVS','KEC'] },
+  'P06-02': { name: 'Intermediate Coat Paint-Drying',                     line: 'PAINT', order: 20, models: ['KDC','EVS','KEC'] },
+  'P06-03': { name: 'Intermediate Coat Polishing',                        line: 'PAINT', order: 21, models: ['KDC','EVS','KEC'] },
+  'P07-01': { name: 'AutoCryl TopCoat Painting',                          line: 'PAINT', order: 22, models: ['KDC','EVS','KEC'] },
   // EVS: P07-02 = AutoCryl TopCoat Paint-Drying (no P07-03)
   // KDC: P07-02 = Clear Coat Painting, P07-03 = TopCoat Paint-Drying
-  'P07-02': { name: 'AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)', line: 'PAINT', order: 23, models: ['KDC','EVS'] },
+  'P07-02': { name: 'AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)', line: 'PAINT', order: 23, models: ['KDC','EVS','KEC'] },
   'P07-03': { name: 'TopCoat Paint-Drying',                               line: 'PAINT', order: 24, models: ['KDC'] },
-  'P08-01': { name: 'Color Strip and Pattern Masking',                    line: 'PAINT', order: 25, models: ['KDC','EVS'] },
-  'P08-02': { name: 'Color Strip and Pattern Painting',                   line: 'PAINT', order: 26, models: ['KDC','EVS'] },
-  'P08-03': { name: 'Color Strip and Pattern Drying',                     line: 'PAINT', order: 27, models: ['KDC','EVS'] },
-  'P08-04': { name: 'Color Strip and Pattern Unmasking',                  line: 'PAINT', order: 28, models: ['KDC','EVS'] },
-  'PQ-02':  { name: 'Finishing and Inspection',                           line: 'PAINT', order: 29, models: ['KDC','EVS'] },
+  'P08-01': { name: 'Color Strip and Pattern Masking',                    line: 'PAINT', order: 25, models: ['KDC','EVS','KEC'] },
+  'P08-02': { name: 'Color Strip and Pattern Painting',                   line: 'PAINT', order: 26, models: ['KDC','EVS','KEC'] },
+  'P08-03': { name: 'Color Strip and Pattern Drying',                     line: 'PAINT', order: 27, models: ['KDC','EVS','KEC'] },
+  'P08-04': { name: 'Color Strip and Pattern Unmasking',                  line: 'PAINT', order: 28, models: ['KDC','EVS','KEC'] },
+  'PQ-02':  { name: 'Finishing and Inspection',                           line: 'PAINT', order: 29, models: ['KDC','EVS','KEC'] },
 
   // ─── TRIM LINE & FINAL ASSEMBLY ───────────────────────────────────────────────
   // Stations follow document station codes. "EE" suffix = electrical sub-station at same physical station.
-  'T01-01':    { name: 'Installation of Floor Boards, A/C & Heat Shield',                       line: 'TRIM', order: 1,  models: ['KDC','EVS'] },
-  'T01-01-EE': { name: 'Rear Wall & Rear Side Compartment Components (KDC) / — (EVS)',          line: 'TRIM', order: 2,  models: ['KDC'] },
-  'T01-01-01': { name: 'Floorboard Preparation (Sub-Assembly)',                                  line: 'TRIM', order: 3,  models: ['KDC','EVS'] },
-  'T01-02':    { name: 'Carpet Installation',                                                    line: 'TRIM', order: 4,  models: ['KDC','EVS'] },
-  'T01-02-EE': { name: 'Installation and Termination of HV Components',                         line: 'TRIM', order: 5,  models: ['EVS'] },
-  'T01-02-01': { name: 'Carpets Preparation (Sub-Assembly)',                                     line: 'TRIM', order: 6,  models: ['KDC','EVS'] },
-  'T01-03':    { name: 'Carpet Welding; A/C Installation & Accessories; Side Board Aluminium Profiles; Escape Hatch', line: 'TRIM', order: 7, models: ['KDC','EVS'] },
-  'T01-03-EE': { name: 'Cooling Pipes; Antenna; Height Marker Lights; Ceiling, Front Wall & Dashboard Harness; A/C Terminations', line: 'TRIM', order: 8, models: ['KDC','EVS'] },
-  'T01-03-01': { name: 'A/C Sub-Assembly',                                                      line: 'TRIM', order: 9,  models: ['KDC','EVS'] },
-  'T01-04':    { name: 'Roof Boards, Side Boards, Airducts, Pneumatic Pipes, Front & Rear Mould, L/R Panel, Latch Cable Preparation', line: 'TRIM', order: 10, models: ['KDC','EVS'] },
-  'T01-04-EE': { name: 'Front Wall & Front Compartment Components; Routing and Termination',    line: 'TRIM', order: 11, models: ['KDC','EVS'] },
-  'T01-04-01': { name: 'Dashboard, Roof and Air Duct Preparation (Sub-Assembly)',               line: 'TRIM', order: 12, models: ['KDC','EVS'] },
-  'T01-05':    { name: 'Installation of Side Glass',                                            line: 'TRIM', order: 13, models: ['KDC','EVS'] },
-  'T01-06':    { name: 'Dashboard; Front & Rear Windshields; Steps Aluminium Floor Profiles; Airduct Doors; Rear Side Panels', line: 'TRIM', order: 14, models: ['KDC','EVS'] },
-  'T01-06-EE': { name: 'Exterior Lights Installation and Termination; Front Camera & Step Decorative Lights', line: 'TRIM', order: 15, models: ['KDC','EVS'] },
-  'T01-07':    { name: 'Step Poles; Column Covers; Curtain Rails; E-Valves; A/C Air Grille & Curtains; Rubber for Aluminium; Side Glass Sealant', line: 'TRIM', order: 16, models: ['KDC','EVS'] },
+  'T01-01':    { name: 'Installation of Floor Boards, A/C & Heat Shield',                       line: 'TRIM', order: 1,  models: ['KDC','EVS','KEC'] },
+  'T01-01-EE': { name: 'Rear Wall & Rear Side Compartment Components (KDC) / — (EVS)',          line: 'TRIM', order: 2,  models: ['KDC','KEC'] },
+  'T01-01-01': { name: 'Floorboard Preparation (Sub-Assembly)',                                  line: 'TRIM', order: 3,  models: ['KDC','EVS','KEC'] },
+  'T01-02':    { name: 'Carpet Installation',                                                    line: 'TRIM', order: 4,  models: ['KDC','EVS','KEC'] },
+  'T01-02-EE': { name: 'Installation and Termination of HV Components',                         line: 'TRIM', order: 5,  models: ['EVS','KEC'] },
+  'T01-02-01': { name: 'Carpets Preparation (Sub-Assembly)',                                     line: 'TRIM', order: 6,  models: ['KDC','EVS','KEC'] },
+  'T01-03':    { name: 'Carpet Welding; A/C Installation & Accessories; Side Board Aluminium Profiles; Escape Hatch', line: 'TRIM', order: 7, models: ['KDC','EVS','KEC'] },
+  'T01-03-EE': { name: 'Cooling Pipes; Antenna; Height Marker Lights; Ceiling, Front Wall & Dashboard Harness; A/C Terminations', line: 'TRIM', order: 8, models: ['KDC','EVS','KEC'] },
+  'T01-03-01': { name: 'A/C Sub-Assembly',                                                      line: 'TRIM', order: 9,  models: ['KDC','EVS','KEC'] },
+  'T01-04':    { name: 'Roof Boards, Side Boards, Airducts, Pneumatic Pipes, Front & Rear Mould, L/R Panel, Latch Cable Preparation', line: 'TRIM', order: 10, models: ['KDC','EVS','KEC'] },
+  'T01-04-EE': { name: 'Front Wall & Front Compartment Components; Routing and Termination',    line: 'TRIM', order: 11, models: ['KDC','EVS','KEC'] },
+  'T01-04-01': { name: 'Dashboard, Roof and Air Duct Preparation (Sub-Assembly)',               line: 'TRIM', order: 12, models: ['KDC','EVS','KEC'] },
+  'T01-05':    { name: 'Installation of Side Glass',                                            line: 'TRIM', order: 13, models: ['KDC','EVS','KEC'] },
+  'T01-06':    { name: 'Dashboard; Front & Rear Windshields; Steps Aluminium Floor Profiles; Airduct Doors; Rear Side Panels', line: 'TRIM', order: 14, models: ['KDC','EVS','KEC'] },
+  'T01-06-EE': { name: 'Exterior Lights Installation and Termination; Front Camera & Step Decorative Lights', line: 'TRIM', order: 15, models: ['KDC','EVS','KEC'] },
+  'T01-07':    { name: 'Step Poles; Column Covers; Curtain Rails; E-Valves; A/C Air Grille & Curtains; Rubber for Aluminium; Side Glass Sealant', line: 'TRIM', order: 16, models: ['KDC','EVS','KEC'] },
   'T01-07-EE': { name: 'Final Dashboard Components & Display Screens',                          line: 'TRIM', order: 17, models: ['KDC','EVS'] },
-  'T01-08':    { name: 'Driver Seat, Driver Cabins, Guard Rail, Barriers, Sun Visor Rods, Seat Brackets, Inspection Cover, Steering Column Cover, False Roof Panel, Rear Seats', line: 'TRIM', order: 18, models: ['KDC','EVS'] },
+  'T01-08':    { name: 'Driver Seat, Driver Cabins, Guard Rail, Barriers, Sun Visor Rods, Seat Brackets, Inspection Cover, Steering Column Cover, False Roof Panel, Rear Seats', line: 'TRIM', order: 18, models: ['KDC','EVS','KEC'] },
   'T01-08-EE': { name: 'Interior Cameras & Speakers / Reading Lights',                          line: 'TRIM', order: 19, models: ['KDC','EVS'] },
-  'T01-09':    { name: 'Passenger Door & Locks; Exterior Body Accessories; Side Mirrors, Dampers & Wipers; Compartment Door Sealant & Aluminium Strips', line: 'TRIM', order: 20, models: ['KDC','EVS'] },
-  'T01-09-EE': { name: 'Interior EE Components and Lighting Systems',                           line: 'TRIM', order: 21, models: ['KDC'] },
-  'T01-09-01': { name: 'Passenger Doors Sub-Assembly',                                          line: 'TRIM', order: 22, models: ['KDC','EVS'] },
-  'T01-10':    { name: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks', line: 'TRIM', order: 23, models: ['KDC','EVS'] },
+  'T01-09':    { name: 'Passenger Door & Locks; Exterior Body Accessories; Side Mirrors, Dampers & Wipers; Compartment Door Sealant & Aluminium Strips', line: 'TRIM', order: 20, models: ['KDC','EVS','KEC'] },
+  'T01-09-EE': { name: 'Interior EE Components and Lighting Systems',                           line: 'TRIM', order: 21, models: ['KDC','KEC'] },
+  'T01-09-01': { name: 'Passenger Doors Sub-Assembly',                                          line: 'TRIM', order: 22, models: ['KDC','EVS','KEC'] },
+  'T01-10':    { name: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks', line: 'TRIM', order: 23, models: ['KDC','EVS','KEC'] },
   'T01-10-EE': { name: 'BMS, USB, Steering Column, Exterior & Side Cameras; Underbody Routing & Termination', line: 'TRIM', order: 24, models: ['KDC','EVS'] },
-  'T01-10-01': { name: 'Electrical System Sub-Assembly',                                        line: 'TRIM', order: 25, models: ['KDC','EVS'] },
+  'T01-10-01': { name: 'Electrical System Sub-Assembly',                                        line: 'TRIM', order: 25, models: ['KDC','EVS','KEC'] },
   'T01-11-EE': { name: 'First Start, Testing and Debugging; Camera Calibration',                line: 'TRIM', order: 26, models: ['KDC','EVS'] },
-  'T01-11':    { name: 'ECAS & Fine Tuning of Passenger Doors (EVS) / A/C Refilling, Fine Tuning & Quality Inspection (KDC)', line: 'TRIM', order: 27, models: ['KDC','EVS'] },
-  'T01-12':    { name: 'Quality Inspection and Rectification (TQ-01)',                          line: 'TRIM', order: 28, models: ['EVS'] },
+  'T01-11':    { name: 'ECAS & Fine Tuning of Passenger Doors (EVS) / A/C Refilling, Fine Tuning & Quality Inspection (KDC)', line: 'TRIM', order: 27, models: ['KDC','EVS','KEC'] },
+  'T01-11-01': { name: 'Seat and Armrest Assembly (Sub-Assembly)',                             line: 'TRIM', order: 27.5, models: ['KDC'] },
+  'T01-12':    { name: 'Quality Inspection and Rectification (TQ-01)',                          line: 'TRIM', order: 28, models: ['EVS','KEC'] },
+  'T01-12-01': { name: 'Passenger Seats Sub-Assembly',                                          line: 'TRIM', order: 28.5, models: ['KEC'] },
+  'TQ-01':     { name: 'Debugging, Quality Inspection and Rectification',                       line: 'TRIM', order: 29, models: ['KEC'] },
 
   // ─── QUALITY INSPECTION & TESTING ────────────────────────────────────────────
-  'Q01-01': { name: 'Test Registration',                                  line: 'QA', order: 1,  models: ['KDC','EVS'] },
+  'Q01-01': { name: 'Test Registration',                                  line: 'QA', order: 1,  models: ['KDC','EVS','KEC'] },
   // EVS: Speed Test (electric — no exhaust); KDC: Vehicle Exhaust & Speed Test
-  'Q01-02': { name: 'Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)', line: 'QA', order: 2,  models: ['KDC','EVS'] },
-  'Q01-03': { name: 'Wheel Alignment',                                    line: 'QA', order: 3,  models: ['KDC','EVS'] },
-  'Q01-04': { name: 'Sound Level Inspection',                             line: 'QA', order: 4,  models: ['KDC','EVS'] },
-  'Q01-05': { name: 'Head Lamp Aim Alignment',                            line: 'QA', order: 5,  models: ['KDC','EVS'] },
-  'Q01-06': { name: 'Side Slip Test',                                     line: 'QA', order: 6,  models: ['KDC','EVS'] },
-  'Q01-07': { name: 'Axle Load and Brake Test',                           line: 'QA', order: 7,  models: ['KDC','EVS'] },
-  'Q01-08': { name: 'Test Report Generation',                             line: 'QA', order: 8,  models: ['KDC','EVS'] },
-  'Q01-09': { name: 'Defects Rectification',                              line: 'QA', order: 9,  models: ['KDC','EVS'] },
-  'Q01-10': { name: 'Chassis Anti-Corrosion & Underbody Plastic Primer',  line: 'QA', order: 10, models: ['KDC','EVS'] },
-  'Q01-11': { name: 'Paint Inspection',                                   line: 'QA', order: 11, models: ['KDC','EVS'] },
-  'Q01-12': { name: 'Paint Repair and Drying',                            line: 'QA', order: 12, models: ['KDC','EVS'] },
-  'Q01-13': { name: 'Rain Test / Water Intrusion',                        line: 'QA', order: 13, models: ['KDC','EVS'] },
-  'Q01-14': { name: 'Defects Rectification',                              line: 'QA', order: 14, models: ['KDC','EVS'] },
-  'Q01-15': { name: 'Road Test / Whole Vehicle Dynamic Test',             line: 'QA', order: 15, models: ['KDC','EVS'] },
-  'Q01-16': { name: 'Inspection / Decision Gate & Underbody Inspection',  line: 'QA', order: 16, models: ['KDC','EVS'] },
-  'Q01-17': { name: 'Defects Rectification',                              line: 'QA', order: 17, models: ['KDC','EVS'] },
-  'WASHING': { name: 'Washing Bay — Washing and Cleaning',               line: 'QA', order: 18, models: ['KDC','EVS'] },
+  'Q01-02': { name: 'Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)', line: 'QA', order: 2,  models: ['KDC','EVS','KEC'] },
+  'Q01-03': { name: 'Wheel Alignment',                                    line: 'QA', order: 3,  models: ['KDC','EVS','KEC'] },
+  'Q01-04': { name: 'Sound Level Inspection',                             line: 'QA', order: 4,  models: ['KDC','EVS','KEC'] },
+  'Q01-05': { name: 'Head Lamp Aim Alignment',                            line: 'QA', order: 5,  models: ['KDC','EVS','KEC'] },
+  'Q01-06': { name: 'Side Slip Test',                                     line: 'QA', order: 6,  models: ['KDC','EVS','KEC'] },
+  'Q01-07': { name: 'Axle Load and Brake Test',                           line: 'QA', order: 7,  models: ['KDC','EVS','KEC'] },
+  'Q01-08': { name: 'Test Report Generation',                             line: 'QA', order: 8,  models: ['KDC','EVS','KEC'] },
+  'Q01-09': { name: 'Defects Rectification',                              line: 'QA', order: 9,  models: ['KDC','EVS','KEC'] },
+  'Q01-10': { name: 'Chassis Anti-Corrosion & Underbody Plastic Primer',  line: 'QA', order: 10, models: ['KDC','EVS','KEC'] },
+  'Q01-11': { name: 'Paint Inspection',                                   line: 'QA', order: 11, models: ['KDC','EVS','KEC'] },
+  'Q01-12': { name: 'Paint Repair and Drying',                            line: 'QA', order: 12, models: ['KDC','EVS','KEC'] },
+  'Q01-13': { name: 'Rain Test / Water Intrusion',                        line: 'QA', order: 13, models: ['KDC','EVS','KEC'] },
+  'Q01-14': { name: 'Defects Rectification',                              line: 'QA', order: 14, models: ['KDC','EVS','KEC'] },
+  'Q01-15': { name: 'Road Test / Whole Vehicle Dynamic Test',             line: 'QA', order: 15, models: ['KDC','EVS','KEC'] },
+  'Q01-16': { name: 'Inspection / Decision Gate & Underbody Inspection',  line: 'QA', order: 16, models: ['KDC','EVS','KEC'] },
+  'Q01-17': { name: 'Defects Rectification',                              line: 'QA', order: 17, models: ['KDC','EVS','KEC'] },
+  'WASHING': { name: 'Washing Bay — Washing and Cleaning',               line: 'QA', order: 18, models: ['KDC','EVS','KEC'] },
 };
 
 // ── Live, catalog-aware bindings ────────────────────────────────────────────
@@ -295,67 +311,97 @@ export function lookupStation(rawCode) {
 }
 
 // ── Per-model station names ───────────────────────────────────────────────────
-// Some shared codes (models: ['KDC','EVS']) describe DIFFERENT work for each
-// model in the Build Process Summary documents. The seed `name` is a neutral
-// fallback; this map gives the model-specific name so the line-tracker callout
-// can show the correct one for the bus actually parked at the station (and both,
-// distinctly, when no single model is in context). Codes not listed are
-// identical for both models.
+// Some shared codes describe DIFFERENT work for each model family in the build
+// process drawings (EVS city bus, KDC diesel coach, KEC electric coach). The
+// seed `name` is a neutral fallback; this map gives the family-specific name so
+// the line-tracker callout can show the correct one for the bus actually parked
+// at the station (and each, distinctly, when no single model is in context).
+// Codes not listed are identical for every model that uses them.
 export const STATION_MODEL_NAMES = {
   // FRAME & BODY WELDING
-  'W01-02': { evs: 'Passenger Door Step & Additional Chassis Infuse Profiles', kdc: 'Coach Frame Alignment, Door Step & Chassis Infuse Profiles' },
-  'W01-04': { evs: 'Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates', kdc: 'Welding of Attachment Brackets & Sealing Plates' },
-  'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant' },
-  'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts' },
-  'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light' },
+  'W01-01A': { kdc: 'Back Seat, Heat Shield, Floor Sub-frame Plates & Rear Fascia to U-Hoop', kec: 'Fasciae & Floor Frame Integration to U-Hoop Web Frame' },
+  'W01-01B': { kdc: 'U-Hoop, Driver Cabin Floor, Chassis Infuses & Front Fascia to Chassis', kec: 'Special Integration of Coach Frame to Chassis' },
+  'W01-02': { evs: 'Passenger Door Step & Additional Chassis Infuse Profiles', kdc: 'Coach Frame Alignment, Door Step & Chassis Infuse Profiles', kec: 'Full Welding' },
+  'W01-03': { kec: 'Alignment and Grinding' },
+  'W01-04': { evs: 'Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates', kdc: 'Welding of Attachment Brackets & Sealing Plates', kec: 'Welding of Chassis Frame Profiles and Brackets' },
+  'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant', kec: 'Welding of Inner Sealing Plate & Additional Brackets' },
+  'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts', kec: 'Installation of Fibre Roof' },
+  'W01-08': { kec: 'Side Panel Extension' },
+  'W01-09': { kec: 'Trimming and Repairs' },
+  'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light', kec: 'Underbody Welding, Sealant & Surface Protection' },
+  'W01-11': { kec: 'Front & Rear Bumpers, Door Brackets & Seal Plates' },
+  'W01-12': { kec: 'Installation of Passenger Door' },
+  'W01-13': { kec: 'Installation of Compartment Door' },
+  'W01-14': { kec: 'Quality Gate and Rectification (WQ-03)' },
   // CHASSIS LINE 01
-  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving' },
-  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes' },
-  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly' },
-  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket' },
-  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness' },
+  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving', kec: 'VIN Engraving' },
+  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes', kec: 'Chassis Air Tanks, Air Pipes & Braking Systems' },
+  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly', kec: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly' },
+  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket', kec: 'Steering and Cooling Systems' },
+  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness', kec: 'LV and HV Underbody Wiring Harnesses' },
   // CHASSIS LINE 02
   'C02-01': { evs: 'HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing', kdc: 'TPMS & Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing' },
-  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination' },
-  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System' },
-  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers' },
-  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors' },
+  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination', kec: 'Front & Rear Axles, Suspensions, Air Bellows & Shock Absorbers' },
+  'C02-02-01': { kdc: 'Engine & Gear Box Sub-Assembly', kec: 'Axles Sub-Assembly' },
+  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System', kec: 'Installation of Motor and Batteries' },
+  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers', kec: 'Installation of Tyres' },
+  'C02-04-01': { kdc: 'Axles Sub-Assembly', kec: 'Tyres Sub-Assembly' },
+  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors', kec: 'Termination of HV Battery Accessories' },
   'C02-06': { evs: 'Wheel Arch Profile & Customer Tyres', kdc: 'Air Cleaner, Air Intake, Emissions System & Silencer' },
   'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
   // PAINT SHOP
-  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting' },
+  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting', kec: 'AutoCryl TopCoat Paint-Drying' },
   // TRIM LINE & FINAL ASSEMBLY
-  'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels' },
-  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights' },
-  'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant' },
+  'T01-01': { kec: 'Installation of Floor Boards & Heat Shield' },
+  'T01-01-EE': { kdc: 'Rear Wall & Rear Side Compartment Components', kec: 'Rear HV Components, Exterior Side Lights & Turn Signals' },
+  'T01-02-EE': { evs: 'Installation and Termination of HV Components', kec: 'Termination of HV Components' },
+  'T01-03-EE': { kec: 'Height Marker Lights, Ceiling, Fire Wall & Dashboard Harnesses' },
+  'T01-04': { kec: 'Dashboard, Roof Boards/Fabric, Side Boards, Airduct/Cargo Racks, Moulds & Panels' },
+  'T01-04-EE': { kec: 'Wiper Motor, Defroster, Rear & Front Side Compartments' },
+  'T01-04-01': { kec: 'Dashboard and Roof Sub-Assemblies' },
+  'T01-05': { kec: 'Side Glass, Front & Rear Windshields, Water Rails' },
+  'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels', kec: 'Steps Floor Profiles, Airduct Doors, Waist Beam Cover & Rear Side Panels' },
+  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights', kec: 'Final Rear & Front Side Compartments Routing & Termination' },
+  'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant', kec: 'Poles, Column Covers, Curtain Rails, E-Hammers, A/C Grille & Curtains' },
   'T01-07-EE': { evs: 'Final Dashboard Components & Display Screens', kdc: 'Dashboard Accessories & Display Screens' },
-  'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats' },
+  'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats', kec: 'Driver Seat & Cabin, Sunvisor, Fridge, Covers & Fire Extinguisher' },
   'T01-08-EE': { evs: 'Interior Cameras & Speakers', kdc: 'Speakers/Reading Lights & Interior Cameras' },
-  'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks' },
+  'T01-09': { kec: 'Passenger Door & Locks, Exterior Accessories, Mirrors, Wipers, Sealant & Aluminium Strips' },
+  'T01-09-EE': { kdc: 'Interior EE Components and Lighting Systems', kec: 'Final Dashboard Components, Interior Cameras & Interior Lights' },
+  'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks', kec: 'Electrical Systems (VCUs), Steering Column, TVs, Side Cameras, USB & Underbody' },
   'T01-10-EE': { evs: 'BMS, USB, Steering Column & Side Cameras', kdc: 'Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination' },
-  'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection' },
+  'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection', kec: 'Filling Oils, Coolant, ECAS, A/C Refilling & Mechanical Checks' },
+  'T01-12': { evs: 'Quality Inspection and Rectification (TQ-01)', kec: 'Installation of Seats and Armrests' },
   // QUALITY INSPECTION & TESTING
-  'Q01-02': { evs: 'Speed Test', kdc: 'Vehicle Exhaust & Speed Test' },
+  'Q01-02': { evs: 'Speed Test', kdc: 'Vehicle Exhaust & Speed Test', kec: 'Speed Test' },
 };
 
-// Returns { evs, kdc, differs } display names for a station ({ code, name, ... }).
-// Falls back to the neutral seed name when no per-model override exists.
-export function stationDisplayNames(station) {
-  const base = station?.name || '';
-  const m = station?.code ? STATION_MODEL_NAMES[station.code] : null;
-  if (!m) return { evs: base, kdc: base, differs: false };
-  const evs = m.evs || base;
-  const kdc = m.kdc || base;
-  return { evs, kdc, differs: evs !== kdc };
+const FAMILIES = ['EVS', 'KDC', 'KEC'];
+
+// Normalise a free-text bus model ("12m KDC", "13m KEC", "EVS") to its family.
+export function modelFamilyOf(model = '') {
+  const m = String(model).toUpperCase();
+  return FAMILIES.find(f => m.includes(f)) || null;
 }
 
-// Resolves the single name to show for a given bus model ('KDC' / 'EVS' / mixed).
+// Returns { evs, kdc, kec, differs } display names for a station ({ code, name,
+// models, ... }). Falls back to the neutral seed name when no per-model override
+// exists. `differs` is true when the families that actually USE this station
+// would see different names.
+export function stationDisplayNames(station) {
+  const base = station?.name || '';
+  const m = (station?.code && STATION_MODEL_NAMES[station.code]) || {};
+  const names = { evs: m.evs || base, kdc: m.kdc || base, kec: m.kec || base };
+  const used = (Array.isArray(station?.models) && station.models.length ? station.models : FAMILIES)
+    .map(f => names[f.toLowerCase()]).filter(Boolean);
+  return { ...names, differs: new Set(used).size > 1 };
+}
+
+// Resolves the single name to show for a given bus model ('12m KDC', 'KEC', …).
 export function stationNameForModel(station, model) {
-  const { evs, kdc } = stationDisplayNames(station);
-  const M = (model || '').toUpperCase();
-  if (M.includes('KDC')) return kdc;
-  if (M.includes('EVS')) return evs;
-  return station?.name || evs;
+  const names = stationDisplayNames(station);
+  const fam = modelFamilyOf(model);
+  return fam ? names[fam.toLowerCase()] : (station?.name || names.evs);
 }
 
 // ── Critical-path classification ──────────────────────────────────────────────

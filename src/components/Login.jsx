@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import SignUpModal from './SignUpModal';
+import LoginHelp from './LoginHelp';
 import { CATALOG_WRITE_URL } from '../data/catalogConfig';
 
 // Credential sets → role + NCR domain + optional landing module.
@@ -29,6 +30,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
@@ -212,8 +214,21 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           animation: spin 0.7s linear infinite;
           display: inline-block;
         }
+        .login-corner {
+          position: fixed; top: 16px; right: 16px; z-index: 10;
+          display: flex; gap: 8px; align-items: center;
+        }
+        .help-btn-login {
+          width: 30px; height: 30px; border-radius: 50%;
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-muted);
+          font-size: 15px; font-weight: 800; line-height: 1;
+          font-family: 'Inter', system-ui, sans-serif;
+          cursor: pointer; transition: all 0.15s;
+        }
+        .help-btn-login:hover { border-color: var(--accent-border); color: var(--accent); }
         .theme-toggle-login {
-          position: fixed; top: 16px; right: 16px;
           background: var(--bg-surface);
           border: 1px solid var(--border-subtle);
           color: var(--text-muted);
@@ -237,16 +252,19 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
       <div className="login-bg-glow" />
       <div className="login-top-line" />
 
-      {/* Theme toggle */}
-      {toggleTheme && (
-        <button className="theme-toggle-login" onClick={toggleTheme}>
-          {theme === 'dark'
-            ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-          }
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-      )}
+      {/* Help + theme toggle */}
+      <div className="login-corner">
+        <button className="help-btn-login" onClick={() => setShowHelp(true)} title="Guidelines & user guide" aria-label="Guidelines and user guide">?</button>
+        {toggleTheme && (
+          <button className="theme-toggle-login" onClick={toggleTheme}>
+            {theme === 'dark'
+              ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            }
+            {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
+        )}
+      </div>
 
       {/* Card */}
       <div style={{
@@ -431,6 +449,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
     </div>
 
     {showSignUp && <SignUpModal theme={theme} onClose={() => setShowSignUp(false)} />}
+    {showHelp && <LoginHelp theme={theme} onClose={() => setShowHelp(false)} />}
   </>
   );
 }

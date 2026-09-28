@@ -190,6 +190,15 @@ function doPost(e) {
       return updateNCR_(e.parameter.payload);
     }
 
+    // ── Station consumables (src/hooks/useStationConsumables.js) — plain form
+    // params, no payload, so an older deployment rejects them harmlessly ────
+    if (e && e.parameter && e.parameter.action === "addStationConsumable") {
+      return addStationConsumable_(e.parameter);
+    }
+    if (e && e.parameter && e.parameter.action === "deleteStationConsumable") {
+      return deleteStationConsumable_(e.parameter);
+    }
+
     // Every other write (MOC, Handover, and future modules) sends its action
     // *inside* the payload JSON rather than as a top-level form param — parse
     // once and route on it before assuming this is a travel-card submission.
@@ -909,6 +918,40 @@ function deleteBusSighting_(d) {
   return response({ status: "error", message: "not-found" });
 }
 function today_() { return new Date().toISOString().slice(0, 10); }
+
+// ── Station consumables ────────────────────────────────────────────────────
+// Custom consumables added on a travel card stay on that station for every
+// later fill-in, on any device, until someone deletes them. One row per
+// station + name; adding an existing name is a no-op.
+const STATION_CONSUMABLES_HEADERS = ["station_code", "name", "added_by", "added_at"];
+function normStationCode_(c) { return String(c || "").trim().toUpperCase().replace(/\s+/g, "-"); }
+function addStationConsumable_(p) {
+  const code = normStationCode_(p.code), name = String(p.name || "").trim();
+  if (!code || !name) return response({ status: "error", message: "missing-code-or-name" });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), "station_consumables", STATION_CONSUMABLES_HEADERS);
+    const data = sh.getDataRange().getValues();
+    const exists = data.slice(1).some(r => normStationCode_(r[0]) === code && String(r[1]).trim().toLowerCase() === name.toLowerCase());
+    if (!exists) sh.appendRow([code, name, String(p.by || ""), new Date().toISOString()]);
+    return response({ status: "ok", added: !exists });
+  } finally { lock.releaseLock(); }
+}
+function deleteStationConsumable_(p) {
+  const code = normStationCode_(p.code), name = String(p.name || "").trim().toLowerCase();
+  if (!code || !name) return response({ status: "error", message: "missing-code-or-name" });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName("station_consumables");
+    if (!sh) return response({ status: "ok", removed: 0 });
+    const data = sh.getDataRange().getValues();
+    let removed = 0;
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (normStationCode_(data[i][0]) === code && String(data[i][1]).trim().toLowerCase() === name) { sh.deleteRow(i + 1); removed++; }
+    }
+    return response({ status: "ok", removed });
+  } finally { lock.releaseLock(); }
+}
 
 // ── Password hashing (DynamicUsers only — AccessRequests intentionally stays
 // plaintext, since the approval UI reads it once to relay the password to
