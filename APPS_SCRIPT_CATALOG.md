@@ -49,6 +49,19 @@ password untouched server-side.
 > Reads use the public gviz CSV of the `Catalog` tab; the front-end reassembles
 > the chunked rows. Writes are token-checked here.
 
+## 2026-09-29 update — downtime was not being saved
+- The app sends `hasDowntime` / `downtime`, but the script only read
+  `hasOverrun` / `overrun`, so from 2026-06-25 every downtime analysis was
+  dropped and `has_overrun` was written `NO`. The script now accepts both, and
+  also stores the RCA method, 5 whys, preventive action and evidence file name.
+- Travel-card rows are now written **by column name**, not position. Older
+  script versions had left the live tabs with data under blank headings
+  (`activities` column H, `overruns` M/N). `repairLegacyColumns()` fixes those
+  once — it runs automatically on the first submission after deploying (or run
+  it by hand from the editor).
+- Removed preset consumables fill the existing `resources.is_removed` column.
+- Shared station consumables: `addStationConsumable` / `deleteStationConsumable`.
+
 ## Recovering a bad catalog save
 Every `saveCatalog` call backs up the *previous* catalog first, so a bad write
 is always one restore away — no need to dig through Sheets Version History.
@@ -234,10 +247,11 @@ function doPost(e) {
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const id        = Utilities.getUuid();
 
+    ensureLegacyRepair_(); // one-time: label/move columns older versions left unlabelled
     writeSubmission(ss, data, id);
     writeActivities(ss, data, id);
     writeResources(ss, data, id);
-    if (data.hasOverrun) {
+    if (downtimeOf_(data).has) {
       writeOverrun(ss, data, id);
       writeOverrunCauses(ss, data, id);
     }
@@ -678,114 +692,213 @@ function writeTrackerLog(trackerSs, d, id) {
   sh.appendRow(row);
 }
 
-function writeSubmission(ss, d, id) {
-  const sh = getOrCreate(ss, "submissions", [
-    "record_id","timestamp","bus_model","project","vin",
-    "production_line","station","station_code",
-    "hse_resources","clock_in","clock_out",
-    "actual_time_min","gross_time_min","break_min","designed_time_min",
-    "overrun_min","has_overrun",
-    "ohs_issue","waste_generated",
-    "reviewer","approval_status","review_date","review_comments",
-    // Optional general-user pre-submit fields (comments + a rough delay-time
-    // range) — see the "Additional notes" card in TravelCard.jsx page 1.
-    // Appended at the end so column positions for existing rows don't shift.
-    "general_comments","unexpected_delay",
-    // Who submitted it — was sent in the payload all along but never
-    // actually persisted anywhere until the "My Submissions"/edit feature
-    // needed a reliable way to filter a general user's own cards.
-    "submitted_by",
-  ]);
-  sh.appendRow([
-    id, d.timestamp, d.busModel, d.project, d.vin,
-    d.line, d.station, d.stationCode,
-    d.hseResources || 0, d.clockIn, d.clockOut,
-    d.actualTime, Number(d.grossTime) || "", Number(d.breakMinutes) || 0, d.designedTime,
-    d.hasOverrun ? (d.actualTime - d.designedTime) : 0,
-    d.hasOverrun ? "YES" : "NO",
-    d.ohsIssue || "", d.wasteGenerated || "",
-    d.reviewer, d.approvalStatus, d.reviewDate, d.reviewComments || "",
-    d.generalComments || "",
-    d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "",
-    d.submittedBy || "",
-  ]);
+// ── Header-aware writes ───────────────────────────────────────────────────────
+// Rows are written by COLUMN NAME, not position. The live tabs were created by
+// several script versions over time and their columns don't all match (e.g.
+// "overruns" has no cause_delays/custom_causes, "activities" had no is_added),
+// so positional appendRow() was landing values under the wrong headings. Any
+// column a writer needs that the tab lacks is added to the end of row 1;
+// columns the tab has but the writer doesn't fill are left blank.
+function headerIndex_(sh, wanted) {
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h).trim().toLowerCase());
+  const missing = wanted.filter(w => headers.indexOf(w) === -1);
+  if (missing.length) {
+    // Never put a heading on an unlabelled column that already holds data —
+    // that data came from an older layout and would be mislabelled (see
+    // repairLegacyColumns). New columns go after the last used column instead.
+    const lastRow = sh.getLastRow();
+    let start = lastCol + 1;
+    const firstBlank = headers.findIndex(h => h === "");
+    if (firstBlank > -1) {
+      const tail = lastRow > 1 ? sh.getRange(2, firstBlank + 1, lastRow - 1, lastCol - firstBlank).getValues() : [];
+      const tailHasData = tail.some(r => r.some(v => v !== "" && v !== null));
+      if (!tailHasData) start = firstBlank + 1;
+    }
+    sh.getRange(1, start, 1, missing.length).setValues([missing])
+      .setBackground("#1D9E75").setFontColor("#ffffff").setFontWeight("bold");
+    missing.forEach((m, i) => { headers[start - 1 + i] = m; });
+  }
+  return headers;
 }
 
+// One-time fix-up of columns earlier script versions wrote without headings.
+// Runs automatically on the first submission after deploying (guarded by a
+// script property) and is safe to run again by hand from the editor.
+//  - activities: column H holds the is_added flag (8-column layout) under a
+//    blank heading -> label it.
+//  - overruns: the 14-column layout wrote corrective_action / comments into
+//    unlabelled M / N while K / L are headed corrective_action / comments ->
+//    move them under their headings (only where K / L are empty).
+function repairLegacyColumns() {
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const log = [];
+
+  const act = ss.getSheetByName("activities");
+  if (act && act.getLastColumn() >= 8 && String(act.getRange(1, 8).getValue()).trim() === ""
+      && String(act.getRange(1, 7).getValue()).trim().toLowerCase() === "status") {
+    act.getRange(1, 8).setValue("is_added").setBackground("#1D9E75").setFontColor("#ffffff").setFontWeight("bold");
+    log.push("activities: labelled column H is_added");
+  }
+
+  const ov = ss.getSheetByName("overruns");
+  if (ov && ov.getLastColumn() >= 14 && ov.getLastRow() > 1) {
+    const hdr = ov.getRange(1, 1, 1, 14).getValues()[0].map(h => String(h).trim().toLowerCase());
+    if (hdr[10] === "corrective_action" && hdr[11] === "comments" && hdr[12] === "" && hdr[13] === "") {
+      const rng = ov.getRange(2, 11, ov.getLastRow() - 1, 4);
+      const vals = rng.getValues();
+      let moved = 0;
+      vals.forEach(r => {
+        if (r[0] === "" && r[1] === "" && (r[2] !== "" || r[3] !== "")) { r[0] = r[2]; r[1] = r[3]; moved++; }
+        r[2] = ""; r[3] = "";
+      });
+      rng.setValues(vals);
+      log.push("overruns: moved corrective_action/comments into K/L on " + moved + " row(s)");
+    }
+  }
+  PropertiesService.getScriptProperties().setProperty("legacy_columns_repaired_v1", new Date().toISOString());
+  Logger.log(log.join("\n") || "nothing to repair");
+  return log;
+}
+function ensureLegacyRepair_() {
+  if (PropertiesService.getScriptProperties().getProperty("legacy_columns_repaired_v1")) return;
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    if (!PropertiesService.getScriptProperties().getProperty("legacy_columns_repaired_v1")) repairLegacyColumns();
+  } finally { lock.releaseLock(); }
+}
+function appendRecords_(sh, headerList, records) {
+  if (!records.length) return;
+  const headers = headerIndex_(sh, headerList);
+  const rows = records.map(rec => headers.map(h => (h in rec && rec[h] !== undefined && rec[h] !== null) ? rec[h] : ""));
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+}
+
+// The app renamed "overrun" to "downtime" (hasDowntime / downtime) in June
+// 2026 while this script still only read hasOverrun / overrun, so from
+// 2026-06-25 every downtime analysis was silently dropped and has_overrun was
+// written "NO". Accept both names.
+function downtimeOf_(d) {
+  const has = d.hasDowntime !== undefined ? !!d.hasDowntime : !!d.hasOverrun;
+  return { has: has, dt: d.downtime || d.overrun || {} };
+}
+
+const SUBMISSION_HEADERS = [
+  "record_id","timestamp","bus_model","project","vin",
+  "production_line","station","station_code",
+  "hse_resources","clock_in","clock_out",
+  "actual_time_min","gross_time_min","break_min","designed_time_min",
+  "overrun_min","has_overrun",
+  "ohs_issue","waste_generated",
+  "reviewer","approval_status","review_date","review_comments",
+  // Optional general-user pre-submit fields (comments + a rough delay-time
+  // range) — see the "Additional notes" card in TravelCard.jsx page 1.
+  "general_comments","unexpected_delay",
+  // Who submitted it — lets "My Submissions"/edit find a user's own cards.
+  "submitted_by",
+];
+function writeSubmission(ss, d, id) {
+  const sh = getOrCreate(ss, "submissions", SUBMISSION_HEADERS);
+  const down = downtimeOf_(d);
+  appendRecords_(sh, SUBMISSION_HEADERS, [{
+    record_id: id, timestamp: d.timestamp, bus_model: d.busModel, project: d.project, vin: d.vin,
+    production_line: d.line, station: d.station, station_code: d.stationCode,
+    hse_resources: d.hseResources || 0, clock_in: d.clockIn, clock_out: d.clockOut,
+    actual_time_min: d.actualTime, gross_time_min: Number(d.grossTime) || "", break_min: Number(d.breakMinutes) || 0,
+    designed_time_min: d.designedTime,
+    overrun_min: down.has ? (d.actualTime - d.designedTime) : 0,
+    has_overrun: down.has ? "YES" : "NO",
+    ohs_issue: d.ohsIssue || "", waste_generated: d.wasteGenerated || "",
+    reviewer: d.reviewer, approval_status: d.approvalStatus, review_date: d.reviewDate, review_comments: d.reviewComments || "",
+    general_comments: d.generalComments || "",
+    unexpected_delay: d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "",
+    submitted_by: d.submittedBy || "",
+  }]);
+}
+
+const ACTIVITY_HEADERS = ["record_id","timestamp","station_code","vin","project","activity","status","is_added"];
 function writeActivities(ss, d, id) {
-  const sh = getOrCreate(ss, "activities", [
-    "record_id","timestamp","station_code","vin","project","activity","status","is_added"
-  ]);
+  const sh = getOrCreate(ss, "activities", ACTIVITY_HEADERS);
   const statuses = d.activityStatuses || {};
   const added = d.addedActivities || [];
   const all = {};
   Object.keys(statuses).forEach(a => { all[a] = statuses[a]; });
   added.forEach(a => { if (!(a in all)) all[a] = ""; });
-  Object.entries(all).forEach(([activity, status]) => {
-    sh.appendRow([
-      id, d.timestamp, d.stationCode, d.vin, d.project,
-      activity, status || "not_set",
-      added.indexOf(activity) > -1 ? "YES" : "NO"
-    ]);
-  });
+  appendRecords_(sh, ACTIVITY_HEADERS, Object.entries(all).map(([activity, status]) => ({
+    record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project,
+    activity: activity, status: status || "not_set", is_added: added.indexOf(activity) > -1 ? "YES" : "NO",
+  })));
 }
 
+// is_removed: preset consumables the operator deliberately removed from the
+// card (the live tab already had this column; nothing was filling it).
+const RESOURCE_HEADERS = ["record_id","timestamp","station_code","vin","project","resource_name","quantity","is_other","is_removed"];
 function writeResources(ss, d, id) {
-  const sh = getOrCreate(ss, "resources", [
-    "record_id","timestamp","station_code","vin","project","resource_name","quantity","is_other"
-  ]);
+  const sh = getOrCreate(ss, "resources", RESOURCE_HEADERS);
+  const base = { record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project };
+  const recs = [];
   Object.entries(d.resourcesUsed || {}).forEach(([name, qty]) => {
-    if (qty > 0) sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, name, qty, "NO"]);
+    if (qty > 0) recs.push(Object.assign({}, base, { resource_name: name, quantity: qty, is_other: "NO", is_removed: "NO" }));
   });
   (d.otherResources || []).forEach(r => {
-    sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, r.name, r.qty, "YES"]);
+    recs.push(Object.assign({}, base, { resource_name: r.name, quantity: r.qty, is_other: "YES", is_removed: "NO" }));
   });
+  (d.removedResources || []).forEach(name => {
+    recs.push(Object.assign({}, base, { resource_name: name, quantity: 0, is_other: "NO", is_removed: "YES" }));
+  });
+  appendRecords_(sh, RESOURCE_HEADERS, recs);
 }
 
+// Root-cause analysis fields (RCA method, 5 whys, preventive action, evidence
+// file name) are kept too — the evidence file itself is not: base64 photos
+// exceed the 50,000-character cell limit.
+const OVERRUN_HEADERS = [
+  "record_id","timestamp","station_code","vin","project",
+  "designed_min","actual_min","overrun_min",
+  "root_causes","sub_causes","cause_delays","custom_causes",
+  "corrective_action","comments",
+  "rca_method","category","why_1","why_2","why_3","why_4","why_5","preventive_action","evidence_file",
+];
 function writeOverrun(ss, d, id) {
-  const sh = getOrCreate(ss, "overruns", [
-    "record_id","timestamp","station_code","vin","project",
-    "designed_min","actual_min","overrun_min",
-    "root_causes","sub_causes","cause_delays","custom_causes",
-    "corrective_action","comments"
-  ]);
-  const or = d.overrun || {};
-  sh.appendRow([
-    id, d.timestamp, d.stationCode, d.vin, d.project,
-    d.designedTime, d.actualTime, d.actualTime - d.designedTime,
-    (or.selMs || []).join(", "),
-    Object.entries(or.subCauses || {}).map(([m, s]) => `${m}: ${s}`).join(" | "),
-    Object.entries(or.causeTimes || {}).map(([m, t]) => `${m}: ${t} min`).join(" | "),
-    (or.customCauses || []).join(", "),
-    or.correctiveAction || "", or.comments || ""
-  ]);
+  const sh = getOrCreate(ss, "overruns", OVERRUN_HEADERS);
+  const or = downtimeOf_(d).dt;
+  appendRecords_(sh, OVERRUN_HEADERS, [{
+    record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project,
+    designed_min: d.designedTime, actual_min: d.actualTime, overrun_min: d.actualTime - d.designedTime,
+    root_causes: (or.selMs || []).join(", "),
+    sub_causes: Object.entries(or.subCauses || {}).map(([m, s]) => `${m}: ${s}`).join(" | "),
+    cause_delays: Object.entries(or.causeTimes || {}).map(([m, t]) => `${m}: ${t} min`).join(" | "),
+    custom_causes: (or.customCauses || []).join(", "),
+    corrective_action: or.correctiveAction || "", comments: or.comments || "",
+    rca_method: or.rcaMethod || "", category: or.category || "",
+    why_1: or.why1 || "", why_2: or.why2 || "", why_3: or.why3 || "", why_4: or.why4 || "", why_5: or.why5 || "",
+    preventive_action: or.preventiveAction || "", evidence_file: or.attachmentName || "",
+  }]);
 }
 
 // One row per cause — the analysis-friendly breakdown of where time was lost.
+const OVERRUN_CAUSE_HEADERS = ["record_id","timestamp","station_code","vin","project","cause","is_custom","detail","delay_min"];
 function writeOverrunCauses(ss, d, id) {
-  const sh = getOrCreate(ss, "overrun_causes", [
-    "record_id","timestamp","station_code","vin","project",
-    "cause","is_custom","detail","delay_min"
-  ]);
-  const or = d.overrun || {};
-  (or.selMs || []).forEach(cause => {
+  const sh = getOrCreate(ss, "overrun_causes", OVERRUN_CAUSE_HEADERS);
+  const or = downtimeOf_(d).dt;
+  appendRecords_(sh, OVERRUN_CAUSE_HEADERS, (or.selMs || []).map(cause => {
     const delay = (or.causeTimes || {})[cause];
-    sh.appendRow([
-      id, d.timestamp, d.stationCode, d.vin, d.project,
-      cause,
-      (or.customCauses || []).indexOf(cause) > -1 ? "YES" : "NO",
-      (or.subCauses || {})[cause] || "",
-      (delay === undefined || delay === null || delay === "") ? "" : Number(delay)
-    ]);
-  });
+    return {
+      record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project,
+      cause: cause,
+      is_custom: (or.customCauses || []).indexOf(cause) > -1 ? "YES" : "NO",
+      detail: (or.subCauses || {})[cause] || "",
+      delay_min: (delay === undefined || delay === null || delay === "") ? "" : Number(delay),
+    };
+  }));
 }
 
+const OPERATOR_HEADERS = ["record_id","timestamp","station_code","vin","project","operator_name"];
 function writeOperators(ss, d, id) {
-  const sh = getOrCreate(ss, "operators", [
-    "record_id","timestamp","station_code","vin","project","operator_name"
-  ]);
-  (d.operators || []).forEach(op => {
-    sh.appendRow([id, d.timestamp, d.stationCode, d.vin, d.project, op]);
-  });
+  const sh = getOrCreate(ss, "operators", OPERATOR_HEADERS);
+  appendRecords_(sh, OPERATOR_HEADERS, (d.operators || []).map(op => ({
+    record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project, operator_name: op,
+  })));
 }
 
 function writeProjects(ss, d) {

@@ -79,6 +79,12 @@ async function fetchDowntimeById() {
       const d = (out[id] ||= { selMs: [], subCauses: {}, causeTimes: {}, customCauses: [] });
       d.correctiveAction = col(oCsv.headers, r, 'corrective_action');
       d.comments = col(oCsv.headers, r, 'comments');
+      // Root-cause analysis columns (written by the Apps Script from 2026-09-29).
+      d.rcaMethod = col(oCsv.headers, r, 'rca_method');
+      d.category = col(oCsv.headers, r, 'category');
+      ['why_1', 'why_2', 'why_3', 'why_4', 'why_5'].forEach((h, i) => { d[`why${i + 1}`] = col(oCsv.headers, r, h); });
+      d.preventiveAction = col(oCsv.headers, r, 'preventive_action');
+      d.attachmentName = col(oCsv.headers, r, 'evidence_file');
       if (!d.selMs.length) d.selMs = col(oCsv.headers, r, 'root_causes').split(',').map(s => s.trim()).filter(Boolean);
     });
   } catch (e) {
