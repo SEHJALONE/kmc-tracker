@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CATALOG_READ_URL,
   CATALOG_WRITE_URL,
-  CATALOG_ADMIN_TOKEN,
   EMPTY_CATALOG,
   normalizeCatalog,
 } from '../data/catalogConfig';
+import { sessionParam } from '../data/session';
 import { applyCatalog } from '../data/stations';
 
 const REFRESH_INTERVAL = 120000; // 2 min — catalog changes rarely
@@ -106,7 +106,7 @@ export function useCatalog() {
     try {
       const body = new URLSearchParams({
         action: 'saveCatalog',
-        token: CATALOG_ADMIN_TOKEN,
+        ...sessionParam(),
         payload: JSON.stringify(normalized),
       });
       await fetch(CATALOG_WRITE_URL, { method: 'POST', mode: 'no-cors', body });
@@ -125,7 +125,7 @@ export function useCatalog() {
   // since the UI needs the actual list rather than an optimistic guess.
   const listCatalogBackups = useCallback(async () => {
     try {
-      const body = new URLSearchParams({ action: 'listCatalogBackups', token: CATALOG_ADMIN_TOKEN });
+      const body = new URLSearchParams({ action: 'listCatalogBackups', ...sessionParam() });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') return { ok: false, error: json.message || 'unknown-error' };
@@ -140,7 +140,7 @@ export function useCatalog() {
   // state first, so it can always be undone by restoring again.
   const restoreCatalogBackup = useCallback(async (backupId) => {
     try {
-      const body = new URLSearchParams({ action: 'restoreCatalogBackup', token: CATALOG_ADMIN_TOKEN, backupId });
+      const body = new URLSearchParams({ action: 'restoreCatalogBackup', ...sessionParam(), backupId });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') return { ok: false, error: json.message || 'unknown-error' };

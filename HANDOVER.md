@@ -378,8 +378,8 @@ that; only the new CEE-access check in `App.jsx` also consults `roles`.
 `useNCRData.js`) and `src/components/CostEstimation.jsx` — Machines /
 Rates / Report tabs, gated behind `hasCeeAccess` in `App.jsx`
 (`role === 'systemadmin' || role === 'cee' || roles.includes('cee')`), with
-a new HomeScreen card. Test accounts: `kmc.cee` / `Cee1234!` (CEE only) and
-`kmc.super` / `Super1234!` now also has `roles: ['cee']` — demonstrates one
+a new HomeScreen card. Test accounts: `kmc.cee` (CEE only) and
+`kmc.super` now also has `roles: ['cee']` — demonstrates one
 person holding two roles at once (Supervisor section + Cost Estimations
 Engineer section both show up on their home screen).
 
@@ -558,7 +558,7 @@ before):
 
 ```js
 fetch('https://script.google.com/macros/s/AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q/exec', {
-  method: 'POST', body: new URLSearchParams({ action: 'listDynamicUsers', token: 'kmcisgood' })
+  method: 'POST', body: new URLSearchParams({ action: 'listDynamicUsers', session: <admin session> })
 }).then(r => r.json()).then(j => console.log(j.users[0]));
 ```
 

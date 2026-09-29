@@ -2,25 +2,7 @@ import { useState } from 'react';
 import SignUpModal from './SignUpModal';
 import LoginHelp from './LoginHelp';
 import { CATALOG_WRITE_URL } from '../data/catalogConfig';
-
-// Credential sets → role + NCR domain + optional landing module.
-// domain controls which NCR register tab the user lands on by default (admin sees all).
-// landing sends the user straight into a module on login, skipping the HomeScreen menu.
-// `roles` (plural, optional) lists SUPPLEMENTARY roles on top of the primary
-// `role` — e.g. kmc.super below is a supervisor who's ALSO a Cost Estimations
-// Engineer, demonstrating one person holding more than one role.
-const CREDENTIALS = [
-  { username: 'systemadmin', password: 'admin1234!', role: 'systemadmin', domain: null, landing: null },
-  { username: 'kmcadmin',    password: 'KMC1234!',   role: 'useradmin', domain: null, landing: null },
-  { username: 'kmc',         password: 'kmc1234!',   role: 'user',       domain: null, landing: null },
-  { username: 'kmc.super',  password: 'Super1234!', role: 'supervisor', domain: null, landing: null, roles: ['cee'] },
-  { username: 'kmc.parts',   password: 'Parts1234!', role: 'user',  domain: 'Parts & Materials', landing: null },
-  { username: 'kmc.process', password: 'Proc1234!',  role: 'user',  domain: 'Process', landing: null },
-  { username: 'kmc.quality', password: 'Qual1234!',  role: 'user',  domain: 'Quality', landing: null },
-  { username: 'kmc.prod',    password: 'Prod1234!',  role: 'user',  domain: 'Production', landing: null },
-  { username: 'dpn.kmc', password: 'dpn1234!', role: 'user', domain: null, landing: 'scoreboard' },
-  { username: 'kmc.cee', password: 'Cee1234!', role: 'cee', domain: null, landing: null },
-];
+import { setSession } from '../data/session';
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
   const [username, setUsername] = useState('');
@@ -42,84 +24,71 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
     }
     setLoading(true);
 
-    const staticMatch = CREDENTIALS.find(
-      c => c.username.toLowerCase() === username.trim().toLowerCase() && c.password === password
-    );
-
-    let dynMatch = null;
-    if (!staticMatch) {
-      // Not a hard-coded account — check the shared, server-side user list
-      // (granted via Access Requests) so login works from any device.
-      try {
-        const body = new URLSearchParams({
-          action: 'login',
-          username: username.trim().toLowerCase(),
-          password,
-        });
-        const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
-        const json = await res.json();
-        if (json.status === 'ok' && json.user) dynMatch = json.user;
-      } catch (e) {
-        console.warn('Login: server check failed.', e.message);
-      }
+    // Every account is checked by the server against the private user sheet
+    // (passwords are stored hashed there and never sent back). On success it also
+    // returns a signed session that authorises admin actions — see data/session.js.
+    let json = null;
+    try {
+      const body = new URLSearchParams({
+        action: 'login',
+        username: username.trim().toLowerCase(),
+        password,
+        remember: remember ? '1' : '0',
+      });
+      const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
+      json = await res.json();
+    } catch (e) {
+      console.warn('Login: server check failed.', e.message);
+      setError('Could not reach the server. Check your connection and try again.');
+      setLoading(false);
+      return;
     }
 
-    const match = staticMatch || (dynMatch ? { ...dynMatch, domain: null, landing: null } : null);
-    if (match) {
-        // Store role-specific access assignments for dynamic users
-        if (dynMatch) {
-          if (dynMatch.fullName)
-            localStorage.setItem('kmc_user_fullname', dynMatch.fullName);
-          else localStorage.removeItem('kmc_user_fullname');
+    if (json && json.status === 'ok' && json.user) {
+      const user = json.user;
+      if (json.session) setSession(json.session, remember);
 
-          if (dynMatch.assignedStation)
-            localStorage.setItem('kmc_assigned_station', dynMatch.assignedStation);
-          else localStorage.removeItem('kmc_assigned_station');
+      // Role-specific access assignments from User Management.
+      if (user.fullName) localStorage.setItem('kmc_user_fullname', user.fullName);
+      else localStorage.removeItem('kmc_user_fullname');
 
-          if (dynMatch.assignedStations?.length)
-            localStorage.setItem('kmc_assigned_stations', JSON.stringify(dynMatch.assignedStations));
-          else localStorage.removeItem('kmc_assigned_stations');
+      if (user.assignedStation) localStorage.setItem('kmc_assigned_station', user.assignedStation);
+      else localStorage.removeItem('kmc_assigned_station');
 
-          const lines = dynMatch.assignedLines?.length
-            ? dynMatch.assignedLines
-            : dynMatch.assignedLine ? [dynMatch.assignedLine] : [];
-          if (lines.length)
-            localStorage.setItem('kmc_assigned_lines', JSON.stringify(lines));
-          else localStorage.removeItem('kmc_assigned_lines');
+      if (user.assignedStations?.length) localStorage.setItem('kmc_assigned_stations', JSON.stringify(user.assignedStations));
+      else localStorage.removeItem('kmc_assigned_stations');
 
-          // Admin-controlled Bus Tracker module access (User Management).
-          // Missing/undefined defaults to true — same as the server default.
-          localStorage.setItem('kmc_can_access_tracker', dynMatch.canAccessTracker === false ? 'false' : 'true');
+      const lines = user.assignedLines?.length
+        ? user.assignedLines
+        : user.assignedLine ? [user.assignedLine] : [];
+      if (lines.length) localStorage.setItem('kmc_assigned_lines', JSON.stringify(lines));
+      else localStorage.removeItem('kmc_assigned_lines');
 
-          // Supplementary roles (e.g. a supervisor who's also a Cost
-          // Estimations Engineer) — additive on top of the primary `role`.
-          if (dynMatch.roles?.length) localStorage.setItem('kmc_roles', JSON.stringify(dynMatch.roles));
-          else localStorage.removeItem('kmc_roles');
-        } else {
-          // Static credential — clear any leftover assignments; hardcoded
-          // accounts always keep full Bus Tracker access.
-          localStorage.removeItem('kmc_user_fullname');
-          localStorage.removeItem('kmc_assigned_station');
-          localStorage.removeItem('kmc_assigned_stations');
-          localStorage.removeItem('kmc_assigned_lines');
-          localStorage.setItem('kmc_can_access_tracker', 'true');
+      // Admin-controlled Bus Tracker module access. Missing defaults to true.
+      localStorage.setItem('kmc_can_access_tracker', user.canAccessTracker === false ? 'false' : 'true');
 
-          if (staticMatch.roles?.length) localStorage.setItem('kmc_roles', JSON.stringify(staticMatch.roles));
-          else localStorage.removeItem('kmc_roles');
-        }
-        localStorage.setItem('kmc_username', match.username || username.trim());
+      // Supplementary roles (e.g. a supervisor who's also a Cost Estimations
+      // Engineer) — additive on top of the primary `role`.
+      if (user.roles?.length) localStorage.setItem('kmc_roles', JSON.stringify(user.roles));
+      else localStorage.removeItem('kmc_roles');
 
-        if (remember) {
-          localStorage.setItem('kmc_auth', 'true');
-          localStorage.setItem('kmc_role', match.role);
-          if (match.domain) localStorage.setItem('kmc_ncr_domain', match.domain);
-          else localStorage.removeItem('kmc_ncr_domain');
-          if (match.landing) localStorage.setItem('kmc_landing', match.landing);
-          else localStorage.removeItem('kmc_landing');
-        }
-        onLogin(match.role, match.domain, match.landing);
+      localStorage.setItem('kmc_username', user.username || username.trim());
+
+      const domain = user.domain || null;      // NCR register tab to land on
+      const landing = user.landing || null;    // module that skips the HomeScreen menu
+      if (remember) {
+        localStorage.setItem('kmc_auth', 'true');
+        localStorage.setItem('kmc_role', user.role);
+        if (domain) localStorage.setItem('kmc_ncr_domain', domain);
+        else localStorage.removeItem('kmc_ncr_domain');
+        if (landing) localStorage.setItem('kmc_landing', landing);
+        else localStorage.removeItem('kmc_landing');
+      }
+      onLogin(user.role, domain, landing);
     } else {
-      setError('Incorrect username or password.');
+      setError(json && json.message === 'too-many-attempts'
+        ? 'Too many wrong attempts. Please wait 10 minutes, then try again.'
+        : 'Incorrect username or password.');
       setLoading(false);
     }
   };

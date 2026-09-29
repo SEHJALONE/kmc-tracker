@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CATALOG_WRITE_URL, CATALOG_ADMIN_TOKEN } from '../data/catalogConfig';
+import { CATALOG_WRITE_URL } from '../data/catalogConfig';
+import { sessionParam } from '../data/session';
 
 // Dynamic (granted-access) user accounts, shared across every device via the
 // Apps Script-backed private sheet (see APPS_SCRIPT_CATALOG.md) instead of
@@ -22,7 +23,7 @@ export function useDynamicUsers() {
 
   const fetchUsers = useCallback(async () => {
     try {
-      const body = new URLSearchParams({ action: 'listDynamicUsers', token: CATALOG_ADMIN_TOKEN });
+      const body = new URLSearchParams({ action: 'listDynamicUsers', ...sessionParam() });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') throw new Error(json.message || 'unknown-error');
@@ -48,7 +49,7 @@ export function useDynamicUsers() {
     setUsers(prev => { const next = [...prev, user]; saveCache(next); return next; });
     setSaving(true);
     try {
-      const body = new URLSearchParams({ action: 'createDynamicUser', token: CATALOG_ADMIN_TOKEN, payload: JSON.stringify(user) });
+      const body = new URLSearchParams({ action: 'createDynamicUser', ...sessionParam(), payload: JSON.stringify(user) });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
@@ -66,7 +67,7 @@ export function useDynamicUsers() {
     setUsers(prev => { const next = prev.map(u => u.username === username ? { ...u, ...patch } : u); saveCache(next); return next; });
     setSaving(true);
     try {
-      const body = new URLSearchParams({ action: 'updateDynamicUser', token: CATALOG_ADMIN_TOKEN, payload: JSON.stringify({ username, ...patch }) });
+      const body = new URLSearchParams({ action: 'updateDynamicUser', ...sessionParam(), payload: JSON.stringify({ username, ...patch }) });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
@@ -80,7 +81,7 @@ export function useDynamicUsers() {
   const deleteUser = useCallback(async (username) => {
     setUsers(prev => { const next = prev.filter(u => u.username !== username); saveCache(next); return next; });
     try {
-      const body = new URLSearchParams({ action: 'deleteDynamicUser', token: CATALOG_ADMIN_TOKEN, username });
+      const body = new URLSearchParams({ action: 'deleteDynamicUser', ...sessionParam(), username });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };

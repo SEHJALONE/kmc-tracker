@@ -19,8 +19,8 @@ This is the full, ready-to-paste Apps Script. It merges:
 
 ## Steps
 1. The **`Catalog`** tab already exists (key | value). ✅
-2. Token is set to **`kmcisgood`** in both `src/data/catalogConfig.js` and the
-   script below — keep them identical.
+2. Admin actions are authorised by a signed **session** issued at login — there
+   is no shared token to keep in sync any more (see "Sign-in hardening" below).
 3. **Create a new, separate Google Sheet** for access requests and dynamic
    users — call it e.g. "KMC Tracker — Access & Users (Private)". **Do not
    change its sharing settings** (leave it owner-only / private). This is
@@ -48,6 +48,25 @@ password untouched server-side.
 
 > Reads use the public gviz CSV of the `Catalog` tab; the front-end reassembles
 > the chunked rows. Writes are token-checked here.
+
+## Sign-in hardening (2026-09-29)
+The repository is public, and it used to contain every login password
+(`Login.jsx`) and the shared admin token. Both are gone from the code:
+- **Every** account, including the ten that used to be built in, is checked by
+  this script against the private sheet (passwords hashed). Login returns a
+  signed session (12 h, or 30 days with "Keep me signed in").
+- Catalog / user / access-request actions need a session whose account is
+  `systemadmin` or `useradmin`. The role is re-checked on every call, so
+  deleting or demoting an account ends its sessions immediately.
+- 5 wrong passwords lock that username for 10 minutes.
+
+**Switch-over order (do not skip steps):**
+1. Paste the new script and deploy a **new version** (the old site keeps working:
+   the old shared token is still accepted for now).
+2. In the editor pick `seedBuiltInAccounts` → Run → open **Execution log** and copy
+   the 10 new passwords (shown once). Give them to the right people.
+3. Deploy the new site (push to `main`). Sign in as `systemadmin` to check.
+4. Pick `disableLegacyToken` → Run. The old shared token stops working.
 
 ## 2026-09-29 update — downtime was not being saved
 - The app sends `hasDowntime` / `downtime`, but the script only read
@@ -78,8 +97,15 @@ is always one restore away — no need to dig through Sheets Version History.
 const TRACKER_SHEET_ID = "1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es";
 const TRACKER_TAB_NAME = "Travel Card Data";
 
-// Must match CATALOG_ADMIN_TOKEN in src/data/catalogConfig.js
-const CATALOG_ADMIN_TOKEN = "kmcisgood";
+// ── Authentication ────────────────────────────────────────────────────────────
+// Admin actions (catalog, users, access requests) require a signed SESSION issued
+// by login_ to an account whose role is in ADMIN_ROLES — the browser never holds
+// a shared secret any more. One-time switch-over steps are in this document
+// under "Sign-in hardening".
+const ADMIN_ROLES = ["systemadmin", "useradmin"];
+// The old shared token, kept ONLY so the currently-deployed site keeps working
+// until the new site is live. Run disableLegacyToken() once after that.
+const LEGACY_ADMIN_TOKEN = "kmcisgood";
 
 // Every saveCatalog snapshots the outgoing (about-to-be-overwritten) catalog
 // into this tab first, so a bad write is always recoverable without relying
@@ -134,7 +160,7 @@ function doPost(e) {
   try {
     // ── Login (public — the password itself is the credential) ────────────────
     if (e && e.parameter && e.parameter.action === "login") {
-      return login_(e.parameter.username, e.parameter.password);
+      return login_(e.parameter.username, e.parameter.password, e.parameter.remember === "1");
     }
 
     // ── Access requests ─────────────────────────────────────────────────────────
@@ -142,39 +168,39 @@ function doPost(e) {
       return submitAccessRequest_(e.parameter.payload);
     }
     if (e && e.parameter && e.parameter.action === "listAccessRequests") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return listAccessRequests_();
     }
     if (e && e.parameter && e.parameter.action === "updateAccessRequest") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return updateAccessRequest_(e.parameter.payload);
     }
     if (e && e.parameter && e.parameter.action === "deleteAccessRequest") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return deleteAccessRequest_(e.parameter.id);
     }
 
     // ── Dynamic users ────────────────────────────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "listDynamicUsers") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return listDynamicUsers_();
     }
     if (e && e.parameter && e.parameter.action === "createDynamicUser") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return createDynamicUser_(e.parameter.payload);
     }
     if (e && e.parameter && e.parameter.action === "updateDynamicUser") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return updateDynamicUser_(e.parameter.payload);
     }
     if (e && e.parameter && e.parameter.action === "deleteDynamicUser") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) return response({ status: "error", message: "unauthorized" });
+      if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
       return deleteDynamicUser_(e.parameter.username);
     }
 
     // ── Catalog save branch (admin only) ──────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "saveCatalog") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
+      if (!isAdminRequest_(e.parameter)) {
         return response({ status: "error", message: "unauthorized" });
       }
       return saveCatalog_(e.parameter.payload);
@@ -182,13 +208,13 @@ function doPost(e) {
 
     // ── Catalog backup admin: list / restore ──────────────────────────────────
     if (e && e.parameter && e.parameter.action === "listCatalogBackups") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
+      if (!isAdminRequest_(e.parameter)) {
         return response({ status: "error", message: "unauthorized" });
       }
       return listCatalogBackups_();
     }
     if (e && e.parameter && e.parameter.action === "restoreCatalogBackup") {
-      if (e.parameter.token !== CATALOG_ADMIN_TOKEN) {
+      if (!isAdminRequest_(e.parameter)) {
         return response({ status: "error", message: "unauthorized" });
       }
       return restoreCatalogBackup_(e.parameter.backupId);
@@ -1092,8 +1118,15 @@ function verifyPassword_(plain, stored) {
 
 // ── Login — server-side credential check against the private sheet ──────────
 // Never returns the password field, so no client ever receives it.
-function login_(username, password) {
+const LOGIN_MAX_FAILS = 5;          // wrong passwords allowed per username...
+const LOGIN_LOCK_SECONDS = 600;     // ...before it is locked for this long
+function login_(username, password, remember) {
   if (!username || !password) return response({ status: "error", message: "missing-credentials" });
+  const cache = CacheService.getScriptCache();
+  const failKey = "loginfail_" + String(username).toLowerCase().trim().slice(0, 60);
+  if (Number(cache.get(failKey) || 0) >= LOGIN_MAX_FAILS) {
+    return response({ status: "error", message: "too-many-attempts" });
+  }
   const sh = getOrCreate(privateSs_(), DYNAMIC_USERS_TAB, DYNAMIC_USERS_HEADERS);
   const data = sh.getDataRange().getValues();
   const headers = data[0].map(h => String(h).toLowerCase().trim());
@@ -1106,10 +1139,119 @@ function login_(username, password) {
       if (!isHashedPassword_(String(stored))) {
         sh.getRange(i + 1, passwordCol + 1).setValue(hashPassword_(password));
       }
-      return response({ status: "ok", user: dynamicUserRowToObject_(headers, row) });
+      cache.remove(failKey);
+      const user = dynamicUserRowToObject_(headers, row);
+      // 30 days when "keep me signed in" is ticked, otherwise 12 hours.
+      return response({ status: "ok", user, session: issueSession_(user.username, user.role, remember ? 30 * 24 : 12) });
     }
   }
+  cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), LOGIN_LOCK_SECONDS);
   return response({ status: "error", message: "invalid-credentials" });
+}
+
+// ── Sessions ──────────────────────────────────────────────────────────────────
+// Stateless signed token:  base64url(JSON{u,r,e}) + "." + base64url(HMAC-SHA256).
+// The signing secret lives in Script Properties (created on first use) and never
+// leaves the server. Every use re-checks that the user still exists with the same
+// role, so deleting or demoting an account ends its sessions immediately.
+function sessionSecret_() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty("session_secret");
+  if (!secret) {
+    const lock = LockService.getScriptLock(); lock.waitLock(10000);
+    try {
+      secret = props.getProperty("session_secret");
+      if (!secret) {
+        secret = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+        props.setProperty("session_secret", secret);
+      }
+    } finally { lock.releaseLock(); }
+  }
+  return secret;
+}
+function sign_(text) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(text, sessionSecret_()));
+}
+function issueSession_(username, role, hours) {
+  const payload = Utilities.base64EncodeWebSafe(
+    JSON.stringify({ u: username, r: role, e: Date.now() + hours * 3600 * 1000 }), Utilities.Charset.UTF_8);
+  return payload + "." + sign_(payload);
+}
+function verifySession_(token) {
+  try {
+    if (!token || typeof token !== "string" || token.indexOf(".") < 1) return null;
+    const parts = token.split(".");
+    if (parts.length !== 2) return null;
+    const good = sign_(parts[0]);
+    if (good.length !== parts[1].length) return null;
+    let diff = 0;
+    for (let i = 0; i < good.length; i++) diff |= good.charCodeAt(i) ^ parts[1].charCodeAt(i);
+    if (diff !== 0) return null;
+    const p = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString());
+    if (!p || !p.u || Number(p.e) < Date.now()) return null;
+    // The account must still exist and still hold the role the token claims.
+    const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+    if (!sh) return null;
+    const data = sh.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).toLowerCase().trim());
+    const uCol = headers.indexOf("username"), rCol = headers.indexOf("role");
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][uCol]).toLowerCase() === String(p.u).toLowerCase()) {
+        return String(data[i][rCol] || "user") === p.r ? { username: data[i][uCol], role: p.r } : null;
+      }
+    }
+    return null;
+  } catch (err) { return null; }
+}
+function legacyTokenEnabled_() {
+  return PropertiesService.getScriptProperties().getProperty("legacy_token_off") !== "1";
+}
+// True when the request carries a valid admin session (or, until you run
+// disableLegacyToken(), the old shared token).
+function isAdminRequest_(p) {
+  const s = verifySession_(p && p.session);
+  if (s && ADMIN_ROLES.indexOf(s.role) > -1) return true;
+  return !!(p && p.token && legacyTokenEnabled_() && p.token === LEGACY_ADMIN_TOKEN);
+}
+// Run ONCE from the editor after the new site is live: the shared token stops working.
+function disableLegacyToken() {
+  PropertiesService.getScriptProperties().setProperty("legacy_token_off", "1");
+  Logger.log("Legacy shared admin token is now DISABLED.");
+}
+
+// Run ONCE from the editor. The old site had these accounts hard-coded with
+// passwords published on GitHub. This creates them in the private sheet with NEW
+// random passwords (stored hashed) and prints each password ONCE in the execution
+// log — copy them out and hand them to the right people. Existing usernames are
+// skipped, so it is safe to run again.
+function seedBuiltInAccounts() {
+  const accounts = [
+    { username: "systemadmin", role: "systemadmin", fullName: "System Admin" },
+    { username: "kmcadmin",    role: "useradmin",   fullName: "KMC Admin" },
+    { username: "kmc",         role: "user" },
+    { username: "kmc.super",   role: "supervisor",  roles: ["cee"] },
+    { username: "kmc.parts",   role: "user", domain: "Parts & Materials" },
+    { username: "kmc.process", role: "user", domain: "Process" },
+    { username: "kmc.quality", role: "user", domain: "Quality" },
+    { username: "kmc.prod",    role: "user", domain: "Production" },
+    { username: "dpn.kmc",     role: "user", landing: "scoreboard" },
+    { username: "kmc.cee",     role: "cee" },
+  ];
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const lines = [];
+  accounts.forEach(a => {
+    let pw = "";
+    while (pw.length < 16) {
+      Utilities.getUuid().replace(/-/g, "").match(/../g).forEach(h => {
+        const n = parseInt(h, 16);
+        if (pw.length < 16 && n < alphabet.length * 4) pw += alphabet[n % alphabet.length];
+      });
+    }
+    pw = pw.match(/.{4}/g).join("-");
+    const res = JSON.parse(createDynamicUser_(JSON.stringify(Object.assign({}, a, { password: pw }))).getContent());
+    lines.push(res.status === "ok" ? a.username + "  /  " + pw + "   (" + a.role + ")" : a.username + "  -> skipped (" + res.message + ")");
+  });
+  Logger.log("Copy these NOW — passwords are not stored anywhere readable:\n" + lines.join("\n"));
 }
 
 function dynamicUserRowToObject_(headers, row) {
@@ -1376,10 +1518,4 @@ function testDoPost() {
   Logger.log(result.getContent());
 }
 
-// Optional: test the catalog branch
-function testSaveCatalog() {
-  const result = doPost({ parameter: { action: "saveCatalog", token: CATALOG_ADMIN_TOKEN,
-    payload: JSON.stringify({ projects: [{ id: "p1", name: "Demo", active: true }] }) } });
-  Logger.log(result.getContent());
-}
 ```

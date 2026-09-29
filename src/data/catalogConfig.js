@@ -2,11 +2,11 @@
 // The catalog is the single source of truth for projects, lines, stations,
 // activities and resources. It is stored in a "Catalog" tab of the same Google
 // Sheet the rest of the app reads, as one JSON document, and written back
-// through the existing Apps Script web app (token-protected — see
+// through the existing Apps Script web app (admin session required — see
 // APPS_SCRIPT_CATALOG.md).
 //
 // Read  : public gviz CSV (no auth — sheet shared as "anyone with link can view")
-// Write : POST to the Apps Script with { action:'saveCatalog', token, payload }
+// Write : POST to the Apps Script with { action:'saveCatalog', session, payload }
 
 const SHEET_ID = '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es';
 
@@ -19,11 +19,8 @@ export const CATALOG_READ_URL =
 export const CATALOG_WRITE_URL =
   'https://script.google.com/macros/s/AKfycbyHsyDOXkIURCTNrsxl4MbUVhqZxNco0qz1Bl95UePnesSQgnbJlfyIuiy7FkuAOH_q/exec';
 
-// Shared admin secret. Only admin sessions send this; the Apps Script validates
-// it server-side before accepting a catalog write. CHANGE THIS to a value of
-// your choosing and paste the identical value into the Apps Script (see
-// APPS_SCRIPT_CATALOG.md). This is the real protection against non-admin writes.
-export const CATALOG_ADMIN_TOKEN = 'kmcisgood';
+// Admin writes are authorised by the signed session the Apps Script issues at
+// login (see ./session.js) — there is deliberately no shared secret in this file.
 
 // An empty catalog. Every field is optional; consumers merge whatever is present
 // over their own built-in seed data, so the app works fully even with no backend.

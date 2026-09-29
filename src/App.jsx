@@ -3,6 +3,7 @@ import { useSheetData, filterByDateRange } from './hooks/useSheetData';
 import { useStationTimes } from './hooks/useStationTimes';
 import { useCatalog } from './hooks/useCatalog';
 import { isActive } from './data/catalogConfig';
+import { getSession, clearSession } from './data/session';
 import { useBreakpoint } from './hooks/useBreakpoint';
 import { lookupStation } from './data/stations';
 import LineTracker from './components/LineTracker';
@@ -97,7 +98,9 @@ const TABS = [
 ];
 
 export default function App() {
-  const [authed,     setAuthed]     = useState(() => localStorage.getItem('kmc_auth') === 'true');
+  // A remembered login only counts while its server session is still valid;
+  // otherwise (expired, or from before sessions existed) sign in again.
+  const [authed,     setAuthed]     = useState(() => localStorage.getItem('kmc_auth') === 'true' && !!getSession());
   const [role,       setRole]       = useState(() => localStorage.getItem('kmc_role') || 'user');
   const [ncrDomain,  setNcrDomain]  = useState(() => localStorage.getItem('kmc_ncr_domain') || null);
   const [mode,   setMode]   = useState(() => localStorage.getItem('kmc_landing') || 'home'); // 'home' | 'travelcard' | 'tracker' | 'scoreboard'
@@ -248,6 +251,7 @@ export default function App() {
   }, [mode, hasCeeAccess]);
 
   const handleLogout = () => {
+    clearSession();
     localStorage.removeItem('kmc_auth');
     localStorage.removeItem('kmc_role');
     localStorage.removeItem('kmc_ncr_domain');

@@ -1,3 +1,6 @@
+// These end-to-end tests sign in against the real server. Set KMC_TEST_PASS (the 'kmc' account)
+// and KMC_TEST_ADMIN_PASS (the 'kmcadmin' account) in your environment before running them.
+// Passwords are no longer kept in the source.
 // @ts-check
 import { test, expect } from '@playwright/test';
 
@@ -30,21 +33,21 @@ test.describe('Login', () => {
 
   test('logs in as user role and reaches HomeScreen', async ({ page }) => {
     await page.getByPlaceholder(/username/i).fill('kmc');
-    await page.getByPlaceholder(/password/i).fill('kmc1234!');
+    await page.getByPlaceholder(/password/i).fill(process.env.KMC_TEST_PASS || '');
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.getByText(/bus production tracker/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('logs in as admin role and reaches HomeScreen', async ({ page }) => {
     await page.getByPlaceholder(/username/i).fill('kmcadmin');
-    await page.getByPlaceholder(/password/i).fill('KMC1234!');
+    await page.getByPlaceholder(/password/i).fill(process.env.KMC_TEST_ADMIN_PASS || '');
     await page.getByRole('button', { name: /sign in/i }).click();
     await expect(page.getByText(/bus production tracker/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('Enter key submits the login form', async ({ page }) => {
     await page.getByPlaceholder(/username/i).fill('kmc');
-    await page.getByPlaceholder(/password/i).fill('kmc1234!');
+    await page.getByPlaceholder(/password/i).fill(process.env.KMC_TEST_PASS || '');
     await page.getByPlaceholder(/password/i).press('Enter');
     await expect(page.getByText(/bus production tracker/i)).toBeVisible({ timeout: 5000 });
   });
@@ -59,7 +62,7 @@ test.describe('HomeScreen', () => {
     await page.reload();
     // Log in as user
     await page.getByPlaceholder(/username/i).fill('kmc');
-    await page.getByPlaceholder(/password/i).fill('kmc1234!');
+    await page.getByPlaceholder(/password/i).fill(process.env.KMC_TEST_PASS || '');
     await page.getByRole('button', { name: /sign in/i }).click();
     await page.getByText(/bus production tracker/i).waitFor({ timeout: 5000 });
   });

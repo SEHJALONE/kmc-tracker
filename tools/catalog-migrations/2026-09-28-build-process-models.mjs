@@ -28,7 +28,16 @@ const SHEET_ID = '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es';
 const READ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Catalog`;
 const cfg = fs.readFileSync(path.join(root, 'src/data/catalogConfig.js'), 'utf8');
 const WRITE_URL = /CATALOG_WRITE_URL\s*=\s*\n?\s*'([^']+)'/.exec(cfg)[1];
-const TOKEN = /CATALOG_ADMIN_TOKEN\s*=\s*'([^']+)'/.exec(cfg)[1];
+// Already applied on 2026-09-28. Kept as a record / template: saving now needs an
+// admin login (KMC_ADMIN_USER / KMC_ADMIN_PASS env vars) — the shared token is gone.
+async function adminSession() {
+  const { KMC_ADMIN_USER: u, KMC_ADMIN_PASS: p } = process.env;
+  if (!u || !p) throw new Error('Set KMC_ADMIN_USER and KMC_ADMIN_PASS to save.');
+  const res = await fetch(WRITE_URL, { method: 'POST', redirect: 'follow', body: new URLSearchParams({ action: 'login', username: u, password: p }) });
+  const j = await res.json();
+  if (j.status !== 'ok' || !j.session) throw new Error('Admin login failed: ' + (j.message || res.status));
+  return j.session;
+}
 
 // ── Seed values straight from the source files ──────────────────────────────
 const tc = fs.readFileSync(path.join(root, 'src/components/TravelCard.jsx'), 'utf8');
@@ -111,7 +120,7 @@ console.log('Saved a local copy of the current live catalog to', path.relative(r
 
 if (!APPLY) { console.log('\nDry run only. Re-run with --apply to save.'); process.exit(0); }
 
-const body = new URLSearchParams({ action: 'saveCatalog', token: TOKEN, payload: JSON.stringify(next) });
+const body = new URLSearchParams({ action: 'saveCatalog', session: await adminSession(), payload: JSON.stringify(next) });
 const res = await fetch(WRITE_URL, { method: 'POST', body, redirect: 'follow' });
 const text = await res.text();
 console.log('saveCatalog →', res.status, text.slice(0, 200));

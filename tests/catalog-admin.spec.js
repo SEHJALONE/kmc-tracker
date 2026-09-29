@@ -10,7 +10,7 @@ async function loginAsAdmin(page) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByPlaceholder(/username/i).fill('kmcadmin');
-  await page.getByPlaceholder(/password/i).fill('KMC1234!');
+  await page.getByPlaceholder(/password/i).fill(process.env.KMC_TEST_ADMIN_PASS || '');
   await page.getByRole('button', { name: /sign in/i }).click();
   await page.getByText(/bus production tracker/i).waitFor({ timeout: 5000 });
 }

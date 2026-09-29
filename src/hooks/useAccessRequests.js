@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CATALOG_WRITE_URL, CATALOG_ADMIN_TOKEN } from '../data/catalogConfig';
+import { CATALOG_WRITE_URL } from '../data/catalogConfig';
+import { sessionParam } from '../data/session';
 
 // Access requests (sign-up applications), shared across every device via the
 // Apps Script-backed private sheet (see APPS_SCRIPT_CATALOG.md) instead of
@@ -19,7 +20,7 @@ export function useAccessRequests() {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const body = new URLSearchParams({ action: 'listAccessRequests', token: CATALOG_ADMIN_TOKEN });
+      const body = new URLSearchParams({ action: 'listAccessRequests', ...sessionParam() });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') throw new Error(json.message || 'unknown-error');
@@ -55,7 +56,7 @@ export function useAccessRequests() {
   const updateRequest = useCallback(async (patch) => {
     setRequests(prev => { const next = prev.map(r => r.id === patch.id ? { ...r, ...patch } : r); saveCache(next); return next; });
     try {
-      const body = new URLSearchParams({ action: 'updateAccessRequest', token: CATALOG_ADMIN_TOKEN, payload: JSON.stringify(patch) });
+      const body = new URLSearchParams({ action: 'updateAccessRequest', ...sessionParam(), payload: JSON.stringify(patch) });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
@@ -67,7 +68,7 @@ export function useAccessRequests() {
   const deleteRequest = useCallback(async (id) => {
     setRequests(prev => { const next = prev.filter(r => r.id !== id); saveCache(next); return next; });
     try {
-      const body = new URLSearchParams({ action: 'deleteAccessRequest', token: CATALOG_ADMIN_TOKEN, id });
+      const body = new URLSearchParams({ action: 'deleteAccessRequest', ...sessionParam(), id });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
