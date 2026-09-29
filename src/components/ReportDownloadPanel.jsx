@@ -6,11 +6,12 @@ import { downloadStationReport, downloadBusReport } from '../export/travelCardRe
 // Station Report — or the Full Bus Report — without needing to have just
 // submitted the card. Cards come live from the sheet, so every device sees the
 // same list.
-export default function ReportDownloadPanel({ theme = 'dark', vins = [], initialVin = '' }) {
+export default function ReportDownloadPanel({ theme = 'dark', vins = [] }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [vin, setVin] = useState(initialVin || '');
+  const [project, setProject] = useState('');
+  const [vin, setVin] = useState('');
   const [cardId, setCardId] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -24,7 +25,12 @@ export default function ReportDownloadPanel({ theme = 'dark', vins = [], initial
   }, []);
 
   const key = v => String(v || '').trim().toUpperCase();
-  const allVins = useMemo(() => [...new Set([...vins, ...cards.map(c => c.vin)].map(v => String(v || '').trim()).filter(Boolean))].sort(), [vins, cards]);
+  const projects = useMemo(() => [...new Set(cards.map(c => String(c.project || '').trim()).filter(Boolean))].sort(), [cards]);
+  // Only the VINs that have cards under the chosen project.
+  const allVins = useMemo(() => {
+    const src = project ? cards.filter(c => String(c.project || '').trim() === project).map(c => c.vin) : [...vins, ...cards.map(c => c.vin)];
+    return [...new Set(src.map(v => String(v || '').trim()).filter(Boolean))].sort();
+  }, [vins, cards, project]);
   const forVin = useMemo(() => cards
     .filter(c => key(c.vin) === key(vin))
     .sort((a, b) => String(a.stationCode).localeCompare(String(b.stationCode), undefined, { numeric: true }) || new Date(b.timestamp) - new Date(a.timestamp)),
@@ -58,6 +64,10 @@ export default function ReportDownloadPanel({ theme = 'dark', vins = [], initial
         Download a report
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select style={sel} value={project} onChange={e => { setProject(e.target.value); setVin(''); setCardId(''); }} aria-label="Bus project">
+          <option value="">{loading ? 'Loading projects…' : 'All bus projects'}</option>
+          {projects.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
         <select style={sel} value={vin} onChange={e => { setVin(e.target.value); setCardId(''); }} aria-label="Bus VIN">
           <option value="">{loading ? 'Loading buses…' : 'Choose a bus (VIN)'}</option>
           {allVins.map(v => <option key={v} value={v}>{v}</option>)}
