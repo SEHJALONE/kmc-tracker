@@ -3,7 +3,7 @@ import {
   TC_LINES, ACTS, LINE_MODELS, STATION_MODELS,
   stationLabelForModel, mergeConsumables, usedOtherRes,
 } from '../components/TravelCard.jsx';
-import { SEED_STATIONS, stationDisplayNames, stationNameForModel, modelFamilyOf } from '../data/stations.js';
+import { canonicalStationCode, SEED_STATIONS, stationDisplayNames, stationNameForModel, modelFamilyOf } from '../data/stations.js';
 import { parseStationConsumables } from '../hooks/useStationConsumables.js';
 
 // Mirrors TravelCard's own filtering: which stations (and their activities) a
@@ -52,9 +52,15 @@ describe('build process per model', () => {
     expect(lines).toContain('Chassis Line 02 — KEC');
     expect(lines.some(l => /— (EVS|KDC)$/.test(l))).toBe(false);
     const kec = visible('13m KEC');
-    expect(kec.find(s => s.code === 'C02-03').acts.join()).toMatch(/motor/i);
+    // chassis follows EVS: C02-02 is motor + batteries, C01-03 is steering only
+    expect(kec.find(s => s.code === 'C02-02').acts.join()).toMatch(/motor/i);
+    expect(kec.find(s => s.code === 'C01-03').acts.join()).not.toMatch(/cooling/i);
+    expect(kec.some(s => s.code === 'C01-02')).toBe(true);
+    // welding, paint and trim follow KDC
+    expect(kec.some(s => s.code === 'T01-11-01')).toBe(true);
+    expect(kec.some(s => s.code === 'T01-12' || s.code === 'TQ-01')).toBe(false);
     expect(kec.find(s => s.code === 'Q01-02').acts.join()).not.toMatch(/exhaust/i);
-    expect(kec.some(s => s.code === 'P07-03')).toBe(false); // KDC-only clear-coat drying
+    expect(kec.some(s => s.code === 'P07-03')).toBe(true); // paint follows KDC
   });
 
   it('KDC radiator-fan sub-assembly uses the drawing code C01-03-01', () => {
@@ -96,12 +102,42 @@ describe('tracker station names by family', () => {
   it('resolves KEC names and families', () => {
     expect(modelFamilyOf('13m KEC')).toBe('KEC');
     const st = { code: 'C02-03', ...SEED_STATIONS['C02-03'] };
-    expect(stationNameForModel(st, '13m KEC')).toBe('Installation of Motor and Batteries');
+    expect(stationNameForModel(st, '13m KEC')).toBe('Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers');
     expect(stationNameForModel(st, '12m KDC')).toBe('Engine Cooling & Fuel System');
     expect(stationDisplayNames(st).differs).toBe(true);
   });
   it('U-hoop web frame cell is coach-only in the tracker too', () => {
     expect(SEED_STATIONS['B10-01A'].models).toEqual(['KDC', 'KEC']);
     expect(SEED_STATIONS['B05-01'].models).toEqual(['EVS']);
+  });
+});
+
+describe('13m KEC: every station is tracked', () => {
+  // Travel Card writes codes like "T01-02 EE" / "W01-01a"; the tracker's station
+  // database spells them "T01-02-EE" / "W01-01A".
+  const norm = canonicalStationCode;
+  const kec = visible('13m KEC');
+
+  it('every Travel Card station a KEC can be filed at exists in the tracker with KEC tagged', () => {
+    const problems = kec.filter(s => {
+      const st = SEED_STATIONS[norm(s.code)];
+      return !st || st.active === false || !st.models.includes('KEC');
+    }).map(s => s.code);
+    expect(problems).toEqual([]);
+  });
+
+  it('every active tracker station tagged KEC is on a KEC Travel Card list', () => {
+    const onCard = new Set(kec.map(s => norm(s.code)));
+    // shared lines the card draws from other lists (machine shop, QA, …) are in `kec` too
+    const missing = Object.entries(SEED_STATIONS)
+      .filter(([, st]) => st.active !== false && st.models.includes('KEC'))
+      .map(([code]) => code)
+      .filter(code => !onCard.has(code));
+    expect(missing).toEqual([]);
+  });
+
+  it('C01-02 is a tracked KEC station', () => {
+    expect(kec.some(s => s.code === 'C01-02')).toBe(true);
+    expect(SEED_STATIONS['C01-02'].models).toContain('KEC');
   });
 });

@@ -36,11 +36,10 @@ const TOKENS = {
   },
 };
 
-// Model cut-out renders in /public. No 13m KEC render exists yet — the 12m
-// coach body is the closest match until one is added.
+// Model cut-out renders in /public.
 const MODEL_RENDER = {
   '7m EVS': '/7m EVS.png', '8.5m EVS': '/8.5m EVS.png', '10.5m EVS': '/10.5m EVS.png', '12m EVS': '/12m EVS.png',
-  '10.5m KDC': '/10.5m KDC.png', '12m KDC': '/12m KDC.png', '13m KEC': '/12m KDC.png',
+  '10.5m KDC': '/10.5m KDC.png', '12m KDC': '/12m KDC.png', '13m KEC': '/13m KEC.png',
 };
 const HERO_BACKDROP = '/Bus background 5.png';
 

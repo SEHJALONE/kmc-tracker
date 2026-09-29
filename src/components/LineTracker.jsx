@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel, modelFamilyOf } from '../data/stations';
+import { LINES, MAJOR_STATIONS, stationDisplayNames, stationNameForModel, modelFamilyOf, trackerStationCode } from '../data/stations';
 import { isActive, stationMatchesProject } from '../data/catalogConfig';
 import { useNCRData } from '../hooks/useNCRData';
 
@@ -14,6 +14,7 @@ const BUS_IMAGES = {
   '12m EVS':   '/12m EVS.png',
   '10.5m KDC': '/10.5m KDC.png',
   '12m KDC':   '/12m KDC.png',
+  '13m KEC':   '/13m KEC.png',
 };
 
 // ── Exact filenames as seen in your /public folder ───────
@@ -179,7 +180,7 @@ function StationDot({ station, code, buses, filter, ncrCounts }) {
   const dotRef = useRef(null);
 
   const busesHere = buses.filter(b => {
-    if (b.stationCode !== code) return false;
+    if (trackerStationCode(b.stationCode) !== code) return false;
     if (filter === 'ALL') return true;
     return b.model.toUpperCase().includes(filter);
   });

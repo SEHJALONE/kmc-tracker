@@ -1,3 +1,4 @@
+import { recomputeActual } from '../utils/workTime';
 import { useState, useEffect, useCallback } from 'react';
 
 // Reads Travel Card submissions live from NI Travel Tool Data — the sheet-of-
@@ -40,6 +41,21 @@ export function parseCSV(text) {
   const lines = all.filter(r => r.some(c => c !== ''));
   if (lines.length < 2) return { headers: [], rows: [] };
   return { headers: lines[0].map(h => h.toLowerCase()), rows: lines.slice(1) };
+}
+
+// Actual/break minutes under the CURRENT working-time rules (no Sundays, Saturday
+// 08:00–13:00), re-derived from the raw clock-in + elapsed minutes so cards filed
+// before the rule change line up with new ones. The sheet is never touched, and
+// the originally recorded figures stay available as recordedActualTime/-Break.
+function timingFor(clockIn, actual, gross, brk) {
+  const w = recomputeActual(clockIn, gross);
+  return {
+    actualTime: w ? w.net : actual,
+    grossTime: gross,
+    breakMinutes: w ? Math.max(0, gross - w.net) : brk,
+    recordedActualTime: actual,
+    recordedBreakMinutes: brk,
+  };
 }
 
 function col(headers, row, ...names) {
@@ -152,9 +168,12 @@ export async function fetchSubmissions({ withDowntime = false } = {}) {
       hseResources: col(subCsv.headers, r, 'hse_resources'),
       clockIn: col(subCsv.headers, r, 'clock_in'),
       clockOut: col(subCsv.headers, r, 'clock_out'),
-      actualTime: Number(col(subCsv.headers, r, 'actual_time_min')) || 0,
-      grossTime: Number(col(subCsv.headers, r, 'gross_time_min')) || 0,
-      breakMinutes: Number(col(subCsv.headers, r, 'break_min')) || 0,
+      ...timingFor(
+        col(subCsv.headers, r, 'clock_in'),
+        Number(col(subCsv.headers, r, 'actual_time_min')) || 0,
+        Number(col(subCsv.headers, r, 'gross_time_min')) || 0,
+        Number(col(subCsv.headers, r, 'break_min')) || 0,
+      ),
       designedTime: Number(col(subCsv.headers, r, 'designed_time_min')) || 0,
       hasOverrun: col(subCsv.headers, r, 'has_overrun') === 'YES',
       ohsIssue: col(subCsv.headers, r, 'ohs_issue') || null,

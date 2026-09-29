@@ -1,6 +1,34 @@
-import { useState, useMemo } from 'react';
-import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { useState, useMemo, useEffect } from 'react';
+import { LINES, STATIONS, modelFamilyOf, stationNameForModel } from '../data/stations';
+import { isActive } from '../data/catalogConfig';
 import { useBusSightings } from '../hooks/useBusSightings';
+import { useCatalog } from '../hooks/useCatalog';
+import { fetchSubmissions } from '../hooks/useSubmissionsData';
+
+const DEFAULT_MODELS = ['7m EVS', '8.5m EVS', '10.5m EVS', '12m EVS', '10.5m KDC', '12m KDC', '13m KEC'];
+
+// Dropdown options for the log, built from data that already exists: the shared
+// catalog (projects + registered fleet), Travel Card submissions and earlier
+// sightings. Pure so it can be tested.
+export function buildFleetOptions({ catalog = {}, submissions = [], sightings = [], legacyProjectVins = {} }) {
+  const fleet = {};               // project -> Map(vin -> model)
+  const add = (project, vin, model) => {
+    const p = String(project || '').trim(), v = String(vin || '').trim().toUpperCase();
+    if (!p) return;
+    const m = (fleet[p] ||= new Map());
+    if (v && (!m.has(v) || (!m.get(v) && model))) m.set(v, model || m.get(v) || '');
+  };
+  for (const pr of catalog.projects || []) if (pr && pr.name && pr.active !== false) add(pr.name, '', '');
+  for (const [p, list] of Object.entries(catalog.projectVins || {})) for (const v of list || []) add(p, v?.vin, v?.model);
+  for (const [p, list] of Object.entries(legacyProjectVins)) for (const v of list || []) add(p, v, '');
+  for (const c of submissions) add(c.project, c.vin, c.busModel);
+  for (const c of sightings) add(c.project, c.vin, c.busModel);
+  const projects = Object.keys(fleet).sort((a, b) => a.localeCompare(b));
+  const vinsByProject = Object.fromEntries(projects.map(p => [p, [...fleet[p]].map(([vin, model]) => ({ vin, model })).sort((a, b) => a.vin.localeCompare(b.vin))]));
+  const models = [...new Set([...DEFAULT_MODELS, ...projects.flatMap(p => vinsByProject[p].map(v => v.model)).filter(Boolean)])];
+  const people = [...new Set([...submissions.map(c => c.submittedBy), ...sightings.map(c => c.loggedBy)].filter(Boolean))].sort();
+  return { projects, vinsByProject, models, people };
+}
 
 // Daily Fleet Log — a supervisor's own record of where each bus was
 // spotted, day by day. Deliberately independent of Travel Card data (not
@@ -27,6 +55,17 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
   const mono    = "'Courier New', monospace";
 
   const { sightings, projectVins, loading, error, addSighting, deleteSighting } = useBusSightings();
+  const { catalog } = useCatalog();
+  const [submissions, setSubmissions] = useState([]);
+  useEffect(() => {
+    let live = true;
+    fetchSubmissions().then(c => { if (live) setSubmissions(c); }).catch(() => {});
+    return () => { live = false; };
+  }, []);
+  const opts = useMemo(
+    () => buildFleetOptions({ catalog, submissions, sightings, legacyProjectVins: projectVins }),
+    [catalog, submissions, sightings, projectVins],
+  );
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [project, setProject] = useState('');
@@ -41,15 +80,18 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
 
   function showToast(msg, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); }
 
+  // Live catalog stations (active only), narrowed to the chosen model's family.
   const lineStations = useMemo(() => {
     if (!lineId) return [];
-    return Object.entries(SEED_STATIONS)
-      .filter(([, st]) => st.line === lineId)
-      .map(([code, st]) => ({ code, ...st }))
+    const fam = modelFamilyOf(busModel);
+    return Object.entries(STATIONS)
+      .filter(([, st]) => st.line === lineId && isActive(st) && (!fam || !st.models || st.models.includes(fam)))
+      .map(([code, st]) => ({ code, ...st, label: stationNameForModel({ code, ...st }, busModel) }))
       .sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [lineId]);
+  }, [lineId, busModel]);
 
-  const knownVins = projectVins[project] || [];
+  const knownVins = opts.vinsByProject[project] || [];
+  const lines = LINES.filter(l => isActive(l));
 
   const dayRows = useMemo(() => {
     return sightings
@@ -73,12 +115,12 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
     if (!loggedBy.trim()) return showToast('Enter your name.', false);
 
     const station = lineStations.find(s => s.code === stationCode);
-    const line = SEED_LINES.find(l => l.id === lineId);
+    const line = LINES.find(l => l.id === lineId);
 
     setSaving(true);
     const result = await addSighting({
       date, project: project.trim(), vin: vin.trim().toUpperCase(), busModel: busModel.trim(),
-      line: line?.label || lineId, station: station?.name || '', stationCode,
+      line: line?.label || lineId, station: station?.label || station?.name || '', stationCode,
       time: time || '', loggedBy: loggedBy.trim(),
     });
     setSaving(false);
@@ -145,32 +187,39 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
             <label style={lbl}>Project</label>
             <input list="dal-projects" style={{ ...inp, width: 170 }} value={project} onChange={e => { setProject(e.target.value); setVin(''); }} placeholder="e.g. 45 Bus Project" />
             <datalist id="dal-projects">
-              {Object.keys(projectVins).map(p => <option key={p} value={p} />)}
+              {opts.projects.map(p => <option key={p} value={p} />)}
             </datalist>
           </div>
           <div>
             <label style={lbl}>Bus VIN</label>
-            <input list="dal-vins" style={{ ...inp, width: 180 }} value={vin} onChange={e => setVin(e.target.value)} placeholder="Select or type VIN" />
+            <input list="dal-vins" style={{ ...inp, width: 180 }} value={vin} onChange={e => {
+              const v = e.target.value; setVin(v);
+              const hit = knownVins.find(k => k.vin === v.trim().toUpperCase());
+              if (hit && hit.model) { setBusModel(hit.model); setStationCode(''); }
+            }} placeholder="Select or type VIN" />
             <datalist id="dal-vins">
-              {knownVins.map(v => <option key={v} value={v} />)}
+              {knownVins.map(v => <option key={v.vin} value={v.vin} label={v.model || undefined} />)}
             </datalist>
           </div>
           <div>
             <label style={lbl}>Bus Model <span style={{ color: dim, fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
-            <input style={{ ...inp, width: 130 }} value={busModel} onChange={e => setBusModel(e.target.value)} placeholder="e.g. 12m KDC" />
+            <select style={{ ...inp, width: 130 }} value={busModel} onChange={e => { setBusModel(e.target.value); setStationCode(''); }}>
+              <option value="">Any model</option>
+              {opts.models.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
           <div>
             <label style={lbl}>Line</label>
             <select style={{ ...inp, width: 190 }} value={lineId} onChange={e => { setLineId(e.target.value); setStationCode(''); }}>
               <option value="">Select line…</option>
-              {SEED_LINES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+              {lines.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
             </select>
           </div>
           <div>
             <label style={lbl}>Station</label>
             <select style={{ ...inp, width: 220 }} value={stationCode} onChange={e => setStationCode(e.target.value)} disabled={!lineId}>
               <option value="">{lineId ? 'Select station…' : 'Pick a line first'}</option>
-              {lineStations.map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+              {lineStations.map(s => <option key={s.code} value={s.code}>{s.code} — {s.label}</option>)}
             </select>
           </div>
           <div>
@@ -179,7 +228,8 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
           </div>
           <div>
             <label style={lbl}>Logged By</label>
-            <input style={{ ...inp, width: 160 }} value={loggedBy} onChange={e => setLoggedBy(e.target.value)} placeholder="Your name" />
+            <input list="dal-people" style={{ ...inp, width: 160 }} value={loggedBy} onChange={e => setLoggedBy(e.target.value)} placeholder="Your name" />
+            <datalist id="dal-people">{opts.people.map(n => <option key={n} value={n} />)}</datalist>
           </div>
           <button onClick={handleAdd} disabled={saving} style={{
             background: GR, border: 'none', color: '#fff', borderRadius: 5, padding: '10px 20px',

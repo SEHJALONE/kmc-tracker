@@ -96,7 +96,7 @@ export function useCatalog() {
   }, [fetchCatalog]);
 
   // Persist a new catalog. Optimistically applies locally, then writes through
-  // the Apps Script. no-cors gives an opaque response, so we can't read success.
+  // the Apps Script and reads its verdict.
   // We deliberately do NOT immediately re-fetch: the gviz read can lag several
   // seconds behind a write, which would momentarily revert a good save. The
   // optimistic state stays authoritative; the periodic refresh reconciles later.
@@ -109,7 +109,15 @@ export function useCatalog() {
         ...sessionParam(),
         payload: JSON.stringify(normalized),
       });
-      await fetch(CATALOG_WRITE_URL, { method: 'POST', mode: 'no-cors', body });
+      // The response is read (not no-cors) so a refused save is reported as
+      // refused: the server checks the signed session, and an expired or
+      // non-admin session must not look like a successful save.
+      const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
+      const json = await res.json();
+      if (json.status !== 'ok') {
+        fetchCatalog(); // drop the optimistic local change — the server kept the old one
+        return { ok: false, error: json.message || 'unknown-error' };
+      }
       return { ok: true };
     } catch (e) {
       console.error('Catalog save failed:', e);

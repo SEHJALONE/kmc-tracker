@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { getSession } from '../data/session';
+import { applyKecTemplate, alignKecStations } from '../data/kecTemplate';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from './TravelCard';
 
 // ── Admin catalog editor ────────────────────────────────────────────────────
@@ -113,7 +115,21 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
     [draft.lines]
   );
 
+  // Rebuild the 13m KEC from the EVS (chassis) and KDC (welding, paint, trim)
+  // instructions. Nothing is deleted — KEC-only stations are archived — and
+  // nothing is saved until "Save all".
+  function alignKec() {
+    touch(d => {
+      const t = applyKecTemplate({ tcLines: d.tcLines, acts: d.acts, res: d.res, stationModels: d.stationModels });
+      d.tcLines = t.tcLines; d.acts = t.acts; d.res = t.res; d.stationModels = t.stationModels;
+      d.stations = alignKecStations(d.stations);
+      return d;
+    });
+    setStatus('13m KEC aligned in the draft — review, then Save all.');
+  }
+
   async function handleSave() {
+    if (!getSession()) { setStatus('⚠️ Your sign-in has expired — sign in again as systemadmin or useradmin to save.'); return; }
     setStatus('Saving…');
     const payload = {
       projects: draft.projects,
@@ -129,7 +145,8 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
     };
     const r = await saveCatalog(payload);
     if (r?.ok) { setStatus('✅ Saved — visible to everyone.'); setDirty(false); }
-    else setStatus('⚠️ Could not reach the server. Try again.');
+    else if (r?.error === 'unauthorized') setStatus('⚠️ Not saved — this sign-in is not allowed to edit the catalog. Sign in again as systemadmin or useradmin.');
+    else setStatus('⚠️ Not saved' + (r?.error ? ` (${r.error})` : '') + '. Try again.');
   }
 
   return (
@@ -141,6 +158,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
           <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>Edits apply to all users</div>
           <div style={{ flex: 1 }} />
           {status && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{status}</span>}
+          <button style={btn} title="Chassis follows the EVS instructions; welding, paint and trim follow KDC. Review, then Save all." onClick={alignKec}>Align 13m KEC</button>
           <button style={btnAccent} disabled={saving || !dirty} onClick={handleSave}>{saving ? 'Saving…' : 'Save all'}</button>
           <button style={btn} onClick={onClose}>Close</button>
         </div>

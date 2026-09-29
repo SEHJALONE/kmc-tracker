@@ -2,6 +2,8 @@
 // Each station: { name, line, lineLabel, order, models }
 // models: ['KDC'] | ['EVS'] | ['KDC','EVS']
 
+import { alignKecStations, kecNameFamily } from './kecTemplate.js';
+
 export const SEED_LINES = [
   { id: 'MACHINE',  label: 'Machine Shop',                 models: ['KDC','EVS','KEC'] },
   { id: 'BODY',     label: 'Frame Parts Making',           models: ['KDC','EVS','KEC'] },
@@ -14,7 +16,7 @@ export const SEED_LINES = [
   { id: 'QA',       label: 'Quality Inspection & Testing', models: ['KDC','EVS','KEC'] },
 ];
 
-export const SEED_STATIONS = {
+const RAW_SEED_STATIONS = {
   // ─── MACHINE SHOP ────────────────────────────────────────────────────────────
   // B01: Rectangular Tubes Making
   'B01-01': { name: 'Rectangular Tubes & Steel Plate Storage',            line: 'MACHINE', order: 1,  models: ['KDC','EVS','KEC'] },
@@ -265,6 +267,9 @@ export const SEED_STATIONS = {
   'WASHING': { name: 'Washing Bay — Washing and Cleaning',               line: 'QA', order: 18, models: ['KDC','EVS','KEC'] },
 };
 
+// KEC: chassis follows EVS; welding, paint and trim follow KDC (see kecTemplate.js).
+export const SEED_STATIONS = alignKecStations(RAW_SEED_STATIONS);
+
 // ── Live, catalog-aware bindings ────────────────────────────────────────────
 // These start as the built-in seed and are replaced when the shared catalog
 // loads (see applyCatalog). ES module live bindings mean importers see the
@@ -304,9 +309,17 @@ export function applyCatalog(catalog) {
 
 // Helper: look up a station by code (case-insensitive, spaces→hyphens).
 // Resolves active AND archived stations so historical bus data stays visible.
+// Travel Card files the washing bay as "Washing Bay"; the station database keys
+// it WASHING. Normalise so a bus filed there is not lost from the tracker.
+const CODE_ALIASES = { 'WASHING-BAY': 'WASHING' };
+export function canonicalStationCode(rawCode) {
+  const code = String(rawCode || '').trim().toUpperCase().replace(/\s+/g, '-');
+  return CODE_ALIASES[code] || code;
+}
+
 export function lookupStation(rawCode) {
   if (!rawCode) return null;
-  const code = rawCode.trim().toUpperCase().replace(/\s+/g, '-');
+  const code = canonicalStationCode(rawCode);
   return STATIONS[code] ? { code, ...STATIONS[code] } : null;
 }
 
@@ -319,59 +332,45 @@ export function lookupStation(rawCode) {
 // Codes not listed are identical for every model that uses them.
 export const STATION_MODEL_NAMES = {
   // FRAME & BODY WELDING
-  'W01-01A': { kdc: 'Back Seat, Heat Shield, Floor Sub-frame Plates & Rear Fascia to U-Hoop', kec: 'Fasciae & Floor Frame Integration to U-Hoop Web Frame' },
-  'W01-01B': { kdc: 'U-Hoop, Driver Cabin Floor, Chassis Infuses & Front Fascia to Chassis', kec: 'Special Integration of Coach Frame to Chassis' },
-  'W01-02': { evs: 'Passenger Door Step & Additional Chassis Infuse Profiles', kdc: 'Coach Frame Alignment, Door Step & Chassis Infuse Profiles', kec: 'Full Welding' },
-  'W01-03': { kec: 'Alignment and Grinding' },
-  'W01-04': { evs: 'Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates', kdc: 'Welding of Attachment Brackets & Sealing Plates', kec: 'Welding of Chassis Frame Profiles and Brackets' },
-  'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant', kec: 'Welding of Inner Sealing Plate & Additional Brackets' },
-  'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts', kec: 'Installation of Fibre Roof' },
-  'W01-08': { kec: 'Side Panel Extension' },
-  'W01-09': { kec: 'Trimming and Repairs' },
-  'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light', kec: 'Underbody Welding, Sealant & Surface Protection' },
-  'W01-11': { kec: 'Front & Rear Bumpers, Door Brackets & Seal Plates' },
-  'W01-12': { kec: 'Installation of Passenger Door' },
-  'W01-13': { kec: 'Installation of Compartment Door' },
-  'W01-14': { kec: 'Quality Gate and Rectification (WQ-03)' },
+  'W01-01A': { kdc: 'Back Seat, Heat Shield, Floor Sub-frame Plates & Rear Fascia to U-Hoop' },
+  'W01-01B': { kdc: 'U-Hoop, Driver Cabin Floor, Chassis Infuses & Front Fascia to Chassis' },
+  'W01-02': { evs: 'Passenger Door Step & Additional Chassis Infuse Profiles', kdc: 'Coach Frame Alignment, Door Step & Chassis Infuse Profiles' },
+  'W01-04': { evs: 'Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates', kdc: 'Welding of Attachment Brackets & Sealing Plates' },
+  'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant' },
+  'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts' },
+  'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light' },
   // CHASSIS LINE 01
-  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving', kec: 'VIN Engraving' },
-  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes', kec: 'Chassis Air Tanks, Air Pipes & Braking Systems' },
-  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly', kec: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly' },
-  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket', kec: 'Steering and Cooling Systems' },
-  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness', kec: 'LV and HV Underbody Wiring Harnesses' },
+  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving' },
+  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes' },
+  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly' },
+  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket' },
+  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness' },
   // CHASSIS LINE 02
   'C02-01': { evs: 'HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing', kdc: 'TPMS & Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing' },
-  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination', kec: 'Front & Rear Axles, Suspensions, Air Bellows & Shock Absorbers' },
-  'C02-02-01': { kdc: 'Engine & Gear Box Sub-Assembly', kec: 'Axles Sub-Assembly' },
-  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System', kec: 'Installation of Motor and Batteries' },
-  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers', kec: 'Installation of Tyres' },
-  'C02-04-01': { kdc: 'Axles Sub-Assembly', kec: 'Tyres Sub-Assembly' },
-  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors', kec: 'Termination of HV Battery Accessories' },
+  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination' },
+  'C02-02-01': { kdc: 'Engine & Gear Box Sub-Assembly' },
+  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System' },
+  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers' },
+  'C02-04-01': { kdc: 'Axles Sub-Assembly' },
+  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors' },
   'C02-06': { evs: 'Wheel Arch Profile & Customer Tyres', kdc: 'Air Cleaner, Air Intake, Emissions System & Silencer' },
   'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
   // PAINT SHOP
-  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting', kec: 'AutoCryl TopCoat Paint-Drying' },
+  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting' },
   // TRIM LINE & FINAL ASSEMBLY
-  'T01-01': { kec: 'Installation of Floor Boards & Heat Shield' },
-  'T01-01-EE': { kdc: 'Rear Wall & Rear Side Compartment Components', kec: 'Rear HV Components, Exterior Side Lights & Turn Signals' },
-  'T01-02-EE': { evs: 'Installation and Termination of HV Components', kec: 'Termination of HV Components' },
-  'T01-03-EE': { kec: 'Height Marker Lights, Ceiling, Fire Wall & Dashboard Harnesses' },
-  'T01-04': { kec: 'Dashboard, Roof Boards/Fabric, Side Boards, Airduct/Cargo Racks, Moulds & Panels' },
-  'T01-04-EE': { kec: 'Wiper Motor, Defroster, Rear & Front Side Compartments' },
-  'T01-04-01': { kec: 'Dashboard and Roof Sub-Assemblies' },
-  'T01-05': { kec: 'Side Glass, Front & Rear Windshields, Water Rails' },
-  'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels', kec: 'Steps Floor Profiles, Airduct Doors, Waist Beam Cover & Rear Side Panels' },
-  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights', kec: 'Final Rear & Front Side Compartments Routing & Termination' },
-  'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant', kec: 'Poles, Column Covers, Curtain Rails, E-Hammers, A/C Grille & Curtains' },
+  'T01-01-EE': { kdc: 'Rear Wall & Rear Side Compartment Components' },
+  'T01-02-EE': { evs: 'Installation and Termination of HV Components' },
+  'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels' },
+  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights' },
+  'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant' },
   'T01-07-EE': { evs: 'Final Dashboard Components & Display Screens', kdc: 'Dashboard Accessories & Display Screens' },
-  'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats', kec: 'Driver Seat & Cabin, Sunvisor, Fridge, Covers & Fire Extinguisher' },
+  'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats' },
   'T01-08-EE': { evs: 'Interior Cameras & Speakers', kdc: 'Speakers/Reading Lights & Interior Cameras' },
-  'T01-09': { kec: 'Passenger Door & Locks, Exterior Accessories, Mirrors, Wipers, Sealant & Aluminium Strips' },
-  'T01-09-EE': { kdc: 'Interior EE Components and Lighting Systems', kec: 'Final Dashboard Components, Interior Cameras & Interior Lights' },
-  'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks', kec: 'Electrical Systems (VCUs), Steering Column, TVs, Side Cameras, USB & Underbody' },
+  'T01-09-EE': { kdc: 'Interior EE Components and Lighting Systems' },
+  'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks' },
   'T01-10-EE': { evs: 'BMS, USB, Steering Column & Side Cameras', kdc: 'Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination' },
-  'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection', kec: 'Filling Oils, Coolant, ECAS, A/C Refilling & Mechanical Checks' },
-  'T01-12': { evs: 'Quality Inspection and Rectification (TQ-01)', kec: 'Installation of Seats and Armrests' },
+  'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection' },
+  'T01-12': { evs: 'Quality Inspection and Rectification (TQ-01)' },
   // QUALITY INSPECTION & TESTING
   'Q01-02': { evs: 'Speed Test', kdc: 'Vehicle Exhaust & Speed Test', kec: 'Speed Test' },
 };
@@ -391,7 +390,8 @@ export function modelFamilyOf(model = '') {
 export function stationDisplayNames(station) {
   const base = station?.name || '';
   const m = (station?.code && STATION_MODEL_NAMES[station.code]) || {};
-  const names = { evs: m.evs || base, kdc: m.kdc || base, kec: m.kec || base };
+  const kf = kecNameFamily(station?.line);
+  const names = { evs: m.evs || base, kdc: m.kdc || base, kec: kf ? (m[kf] || base) : (m.kec || base) };
   const used = (Array.isArray(station?.models) && station.models.length ? station.models : FAMILIES)
     .map(f => names[f.toLowerCase()]).filter(Boolean);
   return { ...names, differs: new Set(used).size > 1 };
@@ -430,4 +430,25 @@ export function isMajorStation(code) {
 // denominator for progress so subassemblies don't distort completion %.
 export function majorStationCountForLine(lineId) {
   return Object.values(MAJOR_STATIONS).filter(s => s.line === lineId).length;
+}
+
+// Progress along a bus's CURRENT line: distinct critical-path stations of that
+// line (that this bus's model actually uses) it has been filed at, out of the
+// line's total for the model. Counting visits on other lines, or dividing by
+// other models' stations, made progress meaningless for coaches.
+export function lineProgress(stationCodes, lineId, model) {
+  const fam = modelFamilyOf(model);
+  const onLine = ([code, st]) => st.line === lineId && !isSubassembly(code) && st.active !== false
+    && (!fam || !st.models || st.models.includes(fam));
+  const valid = new Set(Object.entries(STATIONS).filter(onLine).map(([code]) => code));
+  const visited = new Set((stationCodes || []).map(canonicalStationCode).filter(c => valid.has(c))).size;
+  return { visited, total: valid.size };
+}
+
+// The tracker only draws critical-path stations. A bus filed at a sub-assembly
+// feeder (e.g. C01-02-01) is shown at its parent station (C01-02) rather than
+// vanishing from the board.
+export function trackerStationCode(rawCode) {
+  const code = canonicalStationCode(rawCode);
+  return isSubassembly(code) ? code.replace(/-\d+$/, '') : code;
 }

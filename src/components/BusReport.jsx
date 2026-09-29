@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { LINES, isMajorStation, majorStationCountForLine } from '../data/stations';
+import ReportDownloadPanel from './ReportDownloadPanel';
+import { LINES, lineProgress } from '../data/stations';
 import { useNCRData } from '../hooks/useNCRData';
 
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
@@ -288,11 +289,8 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
 
         // Progress is measured along the critical path only — subassembly
         // feeder visits are excluded from both numerator and denominator.
-        const stationsVisited = new Set(
-          history.map(r => r.stationCode).filter(isMajorStation)
-        ).size;
         const lineId = bus.station?.line;
-        const lineStations = lineId ? majorStationCountForLine(lineId) : 0;
+        const { visited: stationsVisited, total: lineStations } = lineProgress(history.map(r => r.stationCode), lineId, bus.model);
 
         const rawPct      = lineStations > 0 ? (stationsVisited / lineStations) * 100 : 0;
         const progressPct = Math.min(Math.round(rawPct), 100);
@@ -361,6 +359,8 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
       backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
     }}>
     <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      <ReportDownloadPanel theme={theme} vins={[...new Set((allRows ?? []).map(r => r.vin).filter(Boolean))]} />
 
       {/* ── Summary cards ── */}
       <div className="report-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>

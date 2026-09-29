@@ -81,6 +81,7 @@ function resolveDateBounds(datePreset, startDate, endDate) {
   return { startDate: null, endDate: null };
 }
 
+const FILTERS_KEY = 'kmc_tracker_filters';
 const DEFAULT_FILTERS = {
   model: 'ALL',
   project: '',
@@ -98,6 +99,26 @@ const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
 ];
 
+function loadSavedFilters() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTERS_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      // Only known keys, so a stale or hand-edited entry can't break the page.
+      const out = { ...DEFAULT_FILTERS };
+      for (const k of Object.keys(DEFAULT_FILTERS)) {
+        const v = saved[k], d = DEFAULT_FILTERS[k];
+        if (d === null ? (v === null || typeof v === 'string') : typeof v === typeof d) out[k] = v;
+      }
+      return out;
+    }
+  } catch { /* storage unavailable or corrupt — start with the defaults */ }
+  return DEFAULT_FILTERS;
+}
+
+function saveFilters(filters) {
+  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(filters)); } catch { /* private mode / full */ }
+}
+
 export default function App() {
   // A remembered login only counts while its server session is still valid;
   // otherwise (expired, or from before sessions existed) sign in again.
@@ -110,7 +131,10 @@ export default function App() {
   // scoreboard from HomeScreen and should keep their way back.
   const [landingOnly, setLandingOnly] = useState(() => !!localStorage.getItem('kmc_landing'));
   const [view,   setView]   = useState('tracker');
-  const [filters, setFilters] = useState(DEFAULT_FILTERS);
+  // Tracker filters (project, model, line, station, status, dates) are remembered
+  // on this machine, so the tracker reopens exactly as it was left.
+  const [filters, setFilters] = useState(loadSavedFilters);
+  useEffect(() => { saveFilters(filters); }, [filters]);
   const [theme,  setTheme]  = useState(getInitialTheme);
   const [menuOpen, setMenuOpen] = useState(false);
 

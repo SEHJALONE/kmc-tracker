@@ -75,37 +75,17 @@ const SCHEDULE = {
   ],
 };
 
-// Total minutes of scheduled breaks/lunch that fall inside [start, end].
-// Iterates each calendar day spanned so overnight/multi-day spans work too.
-function breakMinutesWithin(start, end) {
-  if (!(start instanceof Date) || !(end instanceof Date) || isNaN(start) || isNaN(end) || end <= start) return 0;
-  let total = 0;
-  const day = new Date(start); day.setHours(0, 0, 0, 0);
-  const lastDay = new Date(end); lastDay.setHours(0, 0, 0, 0);
-  while (day <= lastDay) {
-    for (const b of SCHEDULE.breaks) {
-      const [bh, bm] = b.start.split(":").map(Number);
-      const [eh, em] = b.end.split(":").map(Number);
-      const bs = new Date(day); bs.setHours(bh, bm, 0, 0);
-      const be = new Date(day); be.setHours(eh, em, 0, 0);
-      const ovStart = Math.max(start.getTime(), bs.getTime());
-      const ovEnd   = Math.min(end.getTime(), be.getTime());
-      if (ovEnd > ovStart) total += (ovEnd - ovStart) / 60000;
-    }
-    day.setDate(day.getDate() + 1);
-  }
-  return Math.round(total);
-}
-
-// Net productive minutes between a local clock-in string and an ISO clock-out,
-// excluding scheduled breaks. Returns { gross, breaks, net }.
+// Net productive minutes between a local clock-in string and an ISO clock-out.
+// Sundays and the part of Saturday outside 08:00–13:00 are not worked time, and
+// scheduled breaks are excluded (see utils/workTime.js). Returns
+// { gross, breaks, net } where gross is elapsed minutes and breaks is EVERYTHING
+// excluded, so gross − breaks = net.
 function productiveMinutes(clockInLocal, clockOutISO) {
   const start = new Date(clockInLocal);
   const end = new Date(new Date(clockOutISO).toLocaleString("sv-SE").replace(" ", "T"));
   if (isNaN(start) || isNaN(end)) return { gross: 0, breaks: 0, net: 0 };
-  const gross = Math.round((end - start) / 60000);
-  const brk = breakMinutesWithin(start, end);
-  return { gross, breaks: brk, net: Math.max(0, gross - brk) };
+  const w = workingMinutes(start, end);
+  return { gross: w.gross, breaks: Math.max(0, w.gross - w.net), net: w.net };
 }
 
 // ── Station data ──────────────────────────────────────────────────────────────
@@ -977,13 +957,24 @@ export function usedOtherRes(list) {
   return (list || []).filter(r => r && r.name && Number(r.qty) > 0);
 }
 
+// 13m KEC: chassis follows the EVS work instructions; welding, paint and trim
+// follow the KDC ones. Rebuild its lists / activities / consumables from them so
+// the two never drift apart (the literal "— KEC" rows above are superseded).
+{
+  const kec = applyKecTemplate({ tcLines: TC_LINES, acts: ACTS, res: RES, stationModels: STATION_MODELS });
+  for (const [dst, src] of [[TC_LINES, kec.tcLines], [ACTS, kec.acts], [RES, kec.res], [STATION_MODELS, kec.stationModels]]) {
+    for (const k of Object.keys(dst)) if (!(k in src)) delete dst[k];
+    Object.assign(dst, src);
+  }
+}
+
 // Shared-line station labels can carry both families' wording, e.g.
 // "Q01-02: Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)". Show only
 // the selected family's half (KEC is electric, so it takes the EVS wording).
 // Display-only: the stored station value keeps the full label.
 export function stationLabelForModel(label, kind) {
   const m = /^([^:]+:\s*)(.+?) \(EVS\) \/ (.+?) \(KDC\)$/.exec(label);
-  if (m) return m[1] + (kind === "KDC" ? m[3] : m[2]);
+  if (m) return m[1] + (kind === "KDC" || (kind === "KEC" && /^P/i.test(m[1])) ? m[3] : m[2]);
   return label.replace(/\s*\(KDC only\)$/, "");
 }
 
@@ -1000,6 +991,9 @@ import { useState, useEffect } from "react";
 import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
 import { fetchSubmissions } from '../hooks/useSubmissionsData';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { useStationPresets, presetFor } from '../hooks/useStationPresets';
+import { workingMinutes } from '../utils/workTime';
+import { applyKecTemplate } from '../data/kecTemplate';
 import { useStationConsumables } from '../hooks/useStationConsumables';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -1234,6 +1228,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [otherResName, setOtherResName] = useState("");
   const [otherResQty, setOtherResQty] = useState("");
   const stationCons = useStationConsumables();
+  const stationPresets = useStationPresets();
   const [ohs, setOhs] = useState(false);
   const [ohsTxt, setOhsTxt] = useState("");
   const [waste, setWaste] = useState("");
@@ -1548,13 +1543,18 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     // Load remembered quantities and custom consumables for this station.
     // Custom consumables = everything anyone has added at this station (shared,
     // online) plus this device's own list; quantities come from this device.
-    const savedQtys = LS.get(`kmc_qty_${code}`, {});
+    const nz = v => (v && (Array.isArray(v) ? v.length : Object.keys(v).length) ? v : null);
+    const preset = presetFor(stationPresets, code, busModel);
+    const savedQtys = nz(LS.get(`kmc_qty_${code}`, null)) ?? preset?.qtys ?? {};
     setResQtys(savedQtys);
     setRemovedRes([]);
-    setOtherRes(mergeConsumables(LS.get(`kmc_other_res_${code}`, []), stationCons.namesFor(code)));
+    const localOther = nz(LS.get(`kmc_other_res_${code}`, null));
+    const baseOther = localOther ?? preset?.other ?? [];
+    setOtherRes(mergeConsumables(baseOther, stationCons.namesFor(code)));
+    if (!mins && preset?.designedTime) setDesignedTime(preset.designedTime);
 
     // Load station-specific operator pool and remembered selection
-    const stationOps = LS.get(`kmc_station_ops_${code}`, []);
+    const stationOps = nz(LS.get(`kmc_station_ops_${code}`, null)) ?? preset?.operators ?? [];
     setOperators(stationOps);
     const savedSel = LS.get(`kmc_sel_${code}`, stationOps);
     setSelOps(savedSel.filter(s => stationOps.includes(s)));
@@ -2052,7 +2052,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             <div style={css.note}>Clock-out was recorded automatically when you completed the identity page.</div>
           )}
           <div style={{ ...css.note, marginTop: 8 }}>
-            ⏱ Time used excludes scheduled breaks (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}). Default shift {SCHEDULE.shiftStart}–{SCHEDULE.shiftEnd}.
+            ⏱ Time used excludes scheduled breaks (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}). Default shift {SCHEDULE.shiftStart}–{SCHEDULE.shiftEnd}; weekday time counts 08:00–18:00 only, Sundays are not counted and Saturday counts 08:00–13:00.
           </div>
         </div>
 
@@ -2228,7 +2228,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>
         {breakTime > 0 && (
           <div style={{ ...css.note, textAlign: "center", margin: "-6px 20px 8px" }}>
-            Actual excludes {breakTime} min of scheduled breaks (gross {grossTime} min).
+            Actual excludes {breakTime} min of breaks and non-working time — nights, Sundays and Saturday outside 08:00–13:00 (gross {grossTime} min).
           </div>
         )}
 
