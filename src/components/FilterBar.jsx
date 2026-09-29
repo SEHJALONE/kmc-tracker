@@ -99,20 +99,36 @@ function Divider() {
 }
 
 export default function FilterBar({ filters, onChange, busCount, totalBusCount, projects = [], selectedProject = null, theme }) {
+  // Only offer lines/stations the selected model actually uses (a KEC has no
+  // roof/side-wall frame cells, an EV has no U-hoop cell, ...).
+  const fam = filters.model === 'ALL' ? null : filters.model;
+  const usesModel = (item) => !fam || !Array.isArray(item.models) || item.models.includes(fam);
+  const visibleLines = LINES.filter(usesModel); // LINES is a live catalog binding, so not memoised
+
   const lineStations = useMemo(() => {
     if (filters.line === 'ALL') return [];
     // Critical-path stations only — subassembly feeders aren't offered as filters.
     // Archived stations are hidden unless the active project filter includes them.
     return Object.entries(MAJOR_STATIONS)
       .filter(([, s]) => s.line === filters.line)
+      .filter(([, s]) => usesModel(s))
       .filter(([, s]) => isActive(s) || (selectedProject && stationMatchesProject(s, selectedProject)))
       .sort((a, b) => a[1].order - b[1].order)
       .map(([code, s]) => ({ code, name: s.name, archived: !isActive(s) }));
-  }, [filters.line, selectedProject]);
+  }, [filters.line, selectedProject, fam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key, value) => {
     const update = { ...filters, [key]: value };
     if (key === 'line') update.station = '';
+    if (key === 'model') {
+      // Drop a line/station choice the new model doesn't have, so the filters
+      // never silently combine into an empty result.
+      const m = value === 'ALL' ? null : value;
+      const ok = (x) => !m || !Array.isArray(x.models) || x.models.includes(m);
+      const line = LINES.find(l => l.id === filters.line);
+      if (line && !ok(line)) { update.line = 'ALL'; update.station = ''; }
+      else if (filters.station && STATIONS[filters.station] && !ok(STATIONS[filters.station])) update.station = '';
+    }
     if (key === 'datePreset' && value !== 'custom') {
       update.startDate = null;
       update.endDate = null;
@@ -331,7 +347,7 @@ export default function FilterBar({ filters, onChange, busCount, totalBusCount, 
             onChange={e => set('line', e.target.value)}
           >
             <option value="ALL">All Lines</option>
-            {LINES.map(l => (
+            {visibleLines.map(l => (
               <option key={l.id} value={l.id}>{l.label}</option>
             ))}
           </select>

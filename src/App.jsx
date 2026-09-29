@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useSheetData, filterByDateRange } from './hooks/useSheetData';
+import { useSheetData, filterByDateRange, normVin } from './hooks/useSheetData';
 import { useStationTimes } from './hooks/useStationTimes';
 import { useCatalog } from './hooks/useCatalog';
 import { isActive } from './data/catalogConfig';
 import { getSession, clearSession } from './data/session';
+import { matchesStatus, matchesProject } from './utils/trackerFilters';
 import { useBreakpoint } from './hooks/useBreakpoint';
 import { lookupStation } from './data/stations';
 import LineTracker from './components/LineTracker';
@@ -181,10 +182,14 @@ export default function App() {
       rows = rows.filter(r => r.model?.toUpperCase().includes(filters.model));
     }
     if (filters.project) {
-      rows = rows.filter(r => r.project === filters.project);
+      // A bus belongs to a project if its card says so OR its VIN is on the
+      // project's registered fleet (Catalog Admin → Vehicles), so buses filed
+      // before/without a project name still filter correctly.
+      const fleet = (catalog.projectVins || {})[filters.project] || [];
+      rows = rows.filter(r => matchesProject(r, filters.project, fleet, normVin));
     }
     return rows;
-  }, [allRows, dateBounds, filters.model, filters.project]);
+  }, [allRows, dateBounds, filters.model, filters.project, catalog.projectVins]);
 
   // Latest bus positions after all filters applied
   const filteredBuses = useMemo(() => {
@@ -209,16 +214,20 @@ export default function App() {
       result = result.filter(b => b.stationCode === filters.station);
     }
     if (filters.status !== 'ALL') {
-      result = result.filter(b => {
-        if (filters.status === 'APPROVED') return b.approvalStatus?.toLowerCase().includes('approved');
-        if (filters.status === 'PENDING')  return !b.approvalStatus || b.approvalStatus?.toLowerCase().includes('pending');
-        if (filters.status === 'OHS')      return !!b.ohsIssue;
-        if (filters.status === 'OVERRUN')  return (b.overrunMin || 0) > 0;
-        if (filters.status === 'REWORK')   return b.reworkFlag === true;
-        return true;
-      });
+      result = result.filter(b => matchesStatus(b, filters.status));
     }
     return result;
+  }, [filteredRows, filters.line, filters.station, filters.status]);
+
+  // The rows behind the Dashboard's numbers follow EVERY filter (line, station
+  // and status too) — before, only date / model / project reached it, so the
+  // Line, Station and Status filters changed the bus list but not the metrics.
+  const dashboardRows = useMemo(() => {
+    let rows = filteredRows;
+    if (filters.line !== 'ALL') rows = rows.filter(r => lookupStation(r.stationCode)?.line === filters.line);
+    if (filters.station) rows = rows.filter(r => r.stationCode === filters.station);
+    if (filters.status !== 'ALL') rows = rows.filter(r => matchesStatus(r, filters.status));
+    return rows;
   }, [filteredRows, filters.line, filters.station, filters.status]);
 
   // Current user info (set by Login from dynamic user record)
@@ -927,6 +936,8 @@ export default function App() {
             buses={filteredBuses}
             filter={filters.model}
             projectFilter={selectedProject}
+            lineFilter={filters.line}
+            stationFilter={filters.station}
             onOpenTravelCard={({ vin, model, stationCode }) => {
               setTcPrefill({ vin, model, stationCode });
               setMode('travelcard');
@@ -949,7 +960,7 @@ export default function App() {
         ) : (
           <Dashboard
             buses={filteredBuses}
-            allRows={filteredRows}
+            allRows={dashboardRows}
             filters={filters}
             stationTimes={stationTimes}
             theme={theme}

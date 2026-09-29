@@ -399,7 +399,7 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight, ncrCo
   );
 }
 
-export default function LineTracker({ buses, filter, projectFilter = null }) {
+export default function LineTracker({ buses, filter, projectFilter = null, lineFilter = 'ALL', stationFilter = '' }) {
   const { ncrs } = useNCRData();
   const ncrCounts = useMemo(() => {
     const map = {};
@@ -414,6 +414,7 @@ export default function LineTracker({ buses, filter, projectFilter = null }) {
 
   const linesToShow = LINES.filter(line => {
     if (!isActive(line)) return false;
+    if (lineFilter !== 'ALL' && line.id !== lineFilter) return false;
     if (filter === 'ALL') return true;
     return line.models.some(m => filter.toUpperCase().includes(m) || m === filter);
   });
@@ -426,6 +427,7 @@ export default function LineTracker({ buses, filter, projectFilter = null }) {
   const stationsByLine = {};
   for (const [code, st] of Object.entries(MAJOR_STATIONS)) {
     if (filter !== 'ALL' && !st.models.some(m => filter.toUpperCase().includes(m) || m === filter)) continue;
+    if (stationFilter && code !== stationFilter) continue;
     if (!isActive(st)) {
       if (!projectFilter || !stationMatchesProject(st, projectFilter)) continue;
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { lookupStation } from '../data/stations';
+import { fetchSubmissions } from './useSubmissionsData';
 
 // NI Travel Tool Data → "Travel Card Data" tab.
 // The gviz endpoint reads by spreadsheet ID + tab name directly, so no
@@ -8,7 +9,7 @@ import { lookupStation } from '../data/stations';
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es/gviz/tq?tqx=out:csv&sheet=Travel%20Card%20Data';
 const REFRESH_INTERVAL = 60000;
 
-function parseCSV(text) {
+export function parseCSV(text) {
   const lines = text.trim().split('\n');
   if (lines.length < 2) return [];
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
@@ -84,6 +85,47 @@ function parseCSV(text) {
   return rows;
 }
 
+// The tracker used to read ONLY the "Travel Card Data" tab, which holds five
+// columns (time, VIN, model, station, designed time). Project, approval status,
+// OHS, downtime and rework don't exist there, so the Project and Status filters
+// could never match anything. The full "submissions" data has them all, and is
+// kept current when a supervisor reviews or a user edits a card, so rows are
+// built from it. Older Travel Card Data rows with no matching submission (from
+// before submissions were kept) are still shown, just without those fields.
+export const normVin = (v) => String(v || '').trim().replace(/^VIN\s+/i, '');
+const normCode = (c) => String(c || '').trim().toUpperCase().replace(/\s+/g, '-');
+
+export function submissionToRow(s) {
+  const ts = s.clockOut || s.timestamp || '';
+  const designed = Number(s.designedTime) || 0;
+  const over = designed > 0 ? Math.max(0, (Number(s.actualTime) || 0) - designed) : 0;
+  const statuses = Object.values(s.activityStatuses || {});
+  return {
+    vin: normVin(s.vin), model: s.busModel || '', stationCode: normCode(s.stationCode),
+    timestamp: ts, rawTimestamp: ts,
+    designedTime: designed || null,
+    approvalStatus: s.approvalStatus || null,
+    ohsIssue: s.ohsIssue || null,
+    overrunMin: over || null,
+    downtimeMin: null, downtimeReason: null,
+    reworkFlag: statuses.includes('rework'),
+    reworkHrs: null,
+    project: s.project || null,
+  };
+}
+
+// Submission rows plus legacy Travel Card Data rows for buses/stations that have
+// no submission at all.
+export function mergeRows(submissions, legacyRows) {
+  const rows = submissions.map(submissionToRow).filter(r => r.vin && r.stationCode);
+  const seen = new Set(rows.map(r => `${r.vin}|${r.stationCode}`));
+  for (const r of legacyRows) {
+    const row = { ...r, vin: normVin(r.vin) };
+    if (!seen.has(`${row.vin}|${row.stationCode}`)) rows.push(row);
+  }
+  return rows;
+}
+
 function getLatestPositions(rows) {
   const map = {};
   for (const row of rows) {
@@ -138,10 +180,18 @@ export function useSheetData() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(SHEET_URL + '&t=' + Date.now());
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const rows = parseCSV(text);
+      const [subs, legacy] = await Promise.allSettled([
+        fetchSubmissions(),
+        fetch(SHEET_URL + '&t=' + Date.now()).then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        }),
+      ]);
+      if (subs.status === 'rejected' && legacy.status === 'rejected') throw legacy.reason;
+      const rows = mergeRows(
+        subs.status === 'fulfilled' ? subs.value : [],
+        legacy.status === 'fulfilled' ? parseCSV(legacy.value) : [],
+      );
       setAllRows(rows);
       setBuses(getLatestPositions(rows));
       setLastUpdated(new Date());
