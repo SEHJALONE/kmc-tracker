@@ -129,7 +129,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
   }
 
   async function handleSave() {
-    if (!getSession()) { setStatus('⚠️ Your sign-in has expired — sign in again as systemadmin or useradmin to save.'); return; }
+    if (!getSession()) console.warn('Catalog save: no session token in this browser — the server will refuse.');
     setStatus('Saving…');
     const payload = {
       projects: draft.projects,
@@ -145,7 +145,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
     };
     const r = await saveCatalog(payload);
     if (r?.ok) { setStatus('✅ Saved — visible to everyone.'); setDirty(false); }
-    else if (r?.error === 'unauthorized') setStatus('⚠️ Not saved — this sign-in is not allowed to edit the catalog. Sign in again as systemadmin or useradmin.');
+    else if (r?.error === 'unauthorized') setStatus('⚠️ Not saved — the server refused this sign-in (no valid session, or the account is not systemadmin/useradmin). Sign out, sign in again as systemadmin or useradmin, then Save all.');
     else setStatus('⚠️ Not saved' + (r?.error ? ` (${r.error})` : '') + '. Try again.');
   }
 
