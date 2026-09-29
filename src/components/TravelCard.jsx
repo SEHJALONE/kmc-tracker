@@ -991,6 +991,7 @@ import { useState, useEffect } from "react";
 import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
 import { fetchSubmissions } from '../hooks/useSubmissionsData';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import ReportDownloadPanel from './ReportDownloadPanel';
 import { useStationPresets, presetFor } from '../hooks/useStationPresets';
 import { workingMinutes } from '../utils/workTime';
 import { applyKecTemplate } from '../data/kecTemplate';
@@ -1914,6 +1915,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
       {/* ── PAGE 0: IDENTITY ── */}
       {page === 0 && <>
+        {/* Download a Station Report or Full Bus Report for any bus / station */}
+        <div style={{ margin: "0 20px 14px" }}>
+          <ReportDownloadPanel theme={theme} vins={vinOptions} initialVin={vin} />
+        </div>
         {/* change 2: Project first */}
         <div style={css.card}>
           <div style={css.cardHd}>Bus project</div>

@@ -6,11 +6,11 @@ import { downloadStationReport, downloadBusReport } from '../export/travelCardRe
 // Station Report — or the Full Bus Report — without needing to have just
 // submitted the card. Cards come live from the sheet, so every device sees the
 // same list.
-export default function ReportDownloadPanel({ theme = 'dark', vins = [] }) {
+export default function ReportDownloadPanel({ theme = 'dark', vins = [], initialVin = '' }) {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [vin, setVin] = useState('');
+  const [vin, setVin] = useState(initialVin || '');
   const [cardId, setCardId] = useState('');
   const [busy, setBusy] = useState('');
 
