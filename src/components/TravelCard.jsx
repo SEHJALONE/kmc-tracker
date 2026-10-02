@@ -1914,6 +1914,19 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
       {/* ── PAGE 0: IDENTITY ── */}
       {page === 0 && <>
+        {/* change 2: Project first */}
+        <div style={css.card}>
+          <div style={css.cardHd}>Bus project</div>
+          <div style={css.fld}>
+            <label style={css.lbl_}>Project</label>
+            <select style={css.inp} value={curProj} onChange={e => { const v = e.target.value; setCurProj(v); if (v && !projects[v]) setProjects(p => ({ ...p, [v]: { vins: [] } })); }}>
+              <option value="">Select project…</option>
+              {projectNames.map(p => <option key={p}>{p}</option>)}
+            </select>
+            <AddRow placeholder="Add new project name…" onAdd={n => { if (!n.trim()) return; setProjects(p => ({ ...p, [n.trim()]: { vins: [] } })); setCurProj(n.trim()); }} />
+            <div style={css.tagRow}>{Object.keys(projects).map(p => <Tag key={p} label={p} onDel={() => { setProjects(prev => { const n = { ...prev }; delete n[p]; return n; }); if (curProj === p) setCurProj(""); }} />)}</div>
+          </div>
+        </div>
 
         <div style={css.card}>
           <div style={css.cardHd}>Bus identity</div>
