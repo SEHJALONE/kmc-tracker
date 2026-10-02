@@ -15,7 +15,7 @@ import { STATIONS } from '../data/stations.js';
 // breakdown-downtime (2026-09-13, DOWNTIME_LOG_URL, replaces the workbook's
 // own Downtime tab) and Kaizen ideas (2026-09-18, KAIZEN_LOG_URL, replaces
 // the workbook's own Kaizen tab). Both are soft-fail reads.
-const SHEET_ID = '1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs';
+const SHEET_ID = '1S5CzUns4NXoorcOwbEpFrQxubMSddMkHx-k8G7mn_AA';
 const TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
 // Cross-sheet read: Travel Card headcount (operators/submissions tabs) feeds

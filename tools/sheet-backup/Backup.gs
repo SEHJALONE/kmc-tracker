@@ -38,7 +38,7 @@ const SOURCES = [
   { name: 'NI Travel Tool Data',               id: '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es', xlsx: true },
   { name: 'Password manager for Bus Tracker',  id: '1TS2xV3kDIOlQ9W1-j-P9DExvt5lNZhLX6xeeuLX9BNA', xlsx: false, alwaysNative: true },
   // TODO(after rebuild): replace with the rebuilt scoreboard sheet's ID.
-  { name: 'KMC Department Monthly Scoreboard', id: '1Rzd023TymG_l159Urake3eiBST9SkuKKm8EyH8U3Xcs', xlsx: true },
+  { name: 'KMC Department Monthly Scoreboard', id: '1S5CzUns4NXoorcOwbEpFrQxubMSddMkHx-k8G7mn_AA', xlsx: true },
   { name: 'KMC DPN SCOREBOARD (old)',          id: '1Z338nnUHTxelGTUtXwbVQPdFi0czu_4us39070i3axM', xlsx: true },
   // External view-only sheets the scoreboard reads — we don't own them, but a
   // copy still protects us if their owner deletes or unshares them.
