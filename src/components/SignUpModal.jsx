@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAccessRequests } from '../hooks/useAccessRequests';
+import { sendViaAppsScript } from '../data/mailer.js';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 
 const DEPARTMENTS = ['Production', 'Product Development'];
@@ -124,15 +125,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     await submitRequest(request);
 
     try {
-      // Always same-origin — this Vercel serverless function is deployed
-      // alongside the app itself, so there's no env-dependent URL to get
-      // wrong (unlike a build-time VITE_* var, which bakes in whatever was
-      // last committed to .env and can silently drift from what's intended).
-      await fetch('/api/notify-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      });
+      await sendViaAppsScript('notifyAdminNew', request);
     } catch { /* email failure is non-fatal */ }
 
     setBusy(false);

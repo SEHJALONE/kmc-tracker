@@ -23,6 +23,6 @@ export default defineConfig({
     // include picked up a second (stale) copy of every test file and ran it —
     // `npm test` reported twice the tests it has, failing on code that is not
     // in the working tree. `tests/` is Playwright, not vitest.
-    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**', 'tests/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '.claude/**', 'tests/**', 'archive/**'],
   },
 })

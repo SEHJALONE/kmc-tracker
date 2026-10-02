@@ -48,3 +48,6 @@ dist-ssr
 cad-pipeline/output/*
 !cad-pipeline/output/.gitkeep
 cad-pipeline/__pycache__/
+
+# Archived email keys (kept locally for later, never committed)
+archive/email-keys/.env*

@@ -5,6 +5,7 @@ import { LOGO_WHITE, LOGO_DARK } from '../../data/logoData.js';
 import { buildSlidePDF } from '../../export/buildSlidePDF';
 import { buildPDF } from '../../export/buildPDF';
 import { summarizeFilters, summarizeFiltersText } from '../../utils/filterSummary';
+import { sendViaAppsScript } from '../../data/mailer.js';
 
 // ── localStorage schedule helpers ────────────────────────────
 const SCHEDULES_KEY = 'kmc_email_schedules';
@@ -37,16 +38,9 @@ async function captureElement(el, landscape = false) {
 }
 
 async function postEmailRequest(payload) {
-  // Always same-origin — this Vercel serverless function is deployed
-  // alongside the app itself, so there's no env-dependent URL to get wrong
-  // (unlike a build-time VITE_* var, which bakes in whatever was last
-  // committed to .env and can silently drift from what's intended).
-  const res = await fetch('/api/send-report', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`Server responded ${res.status}`);
-  return res.json();
+  // Sent by the tracker's Apps Script from its Gmail account — no keys on this
+  // side (see src/data/mailer.js). The script only sends for signed-in users.
+  return sendViaAppsScript('sendReportEmail', payload);
 }
 
 export default function EmailModal({ onClose, buses, rows, metrics, filters = {}, coverRef, theme = 'dark' }) {
@@ -172,7 +166,8 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
         msg: result.fallback
           ? `Mail client opened — ${attachments.length} attachment(s) included in payload (PNG + 2 PDFs). Attach manually if needed.`
           : schedule === 'now'
-            ? `Report sent with ${attachments.length} attachment(s) ✓`
+            ? `Report sent to ${(result.accepted || []).join(', ') || to.trim()} with ${attachments.length} attachment(s) ✓` +
+              (result.rejected?.length ? ` — not delivered to: ${result.rejected.join(', ')}` : '')
             : `Scheduled: ${schedule === 'daily' ? `Daily at ${scheduledTime}` : `Every ${weekday} at ${scheduledTime}`} ✓`,
       });
     } catch (e) {

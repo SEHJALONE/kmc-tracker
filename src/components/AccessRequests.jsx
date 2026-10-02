@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useAccessRequests } from '../hooks/useAccessRequests';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
+import { sendViaAppsScript } from '../data/mailer.js';
 
 const ROLE_OPTIONS = [
   { value: 'user',       label: 'General User',  desc: 'Assigned to one or more stations — travel card prefilled & locked' },
@@ -179,28 +180,26 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       processedAt: new Date().toISOString(),
     });
 
-    let emailed = false;
+    let emailed = false, emailNote = '';
     try {
-      const emailRes = await fetch('/api/notify-approved', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: selected.fullName, email: selected.email,
-          username: newUser.username, role: form.role,
-        }),
+      await sendViaAppsScript('notifyApproved', {
+        fullName: selected.fullName, email: selected.email,
+        username: newUser.username, role: form.role,
       });
-      emailed = (await emailRes.json())?.emailed === true;
-    } catch { /* email failure is non-fatal — account is already created */ }
+      emailed = true;
+    } catch (e) {
+      // Non-fatal — the account is already created; say why so the admin shares details by hand.
+      emailNote = e.message;
+    }
 
     setSelected(null);
     setBusy(false);
-    // Resend's free tier can only email your own address until a domain is
-    // verified — so applicant notifications commonly fail. Tell the admin so
-    // they know to share credentials manually rather than assume it sent.
+    // If the email didn't go, say why, so the admin shares the details by hand
+    // rather than assuming the applicant was told.
     showToast(
       emailed
-        ? `Access granted to ${selected.fullName} ✓ — confirmation emailed`
-        : `Access granted to ${selected.fullName} ✓ — email not sent, share credentials manually`,
+        ? `Access granted to ${selected.fullName} ✓ — confirmation emailed to ${selected.email}`
+        : `Access granted to ${selected.fullName} ✓ — email not sent${emailNote ? ` (${emailNote})` : ''}, share credentials manually`,
       true
     );
   }

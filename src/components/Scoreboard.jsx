@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useId, createContext, useContext, Children } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
+import { sendViaAppsScript } from '../data/mailer.js';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData, computeLineCard, DOWNTIME_REASON_CODES } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
@@ -871,15 +872,8 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
         filename: `KMC_Scoreboard_p${i + 1}_${stamp}.png`,
         dataUrl: cv.toDataURL('image/png'),
       }));
-      // Always same-origin — see EmailModal.jsx for why this isn't read from
-      // VITE_EMAIL_ENDPOINT (a committed .env value that drifts from prod).
-      const res = await fetch('/api/send-report', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject, schedule, scheduledTime, weekday, busCount: 0, attachments }),
-      });
-      if (!res.ok) throw new Error(`Server responded ${res.status}`);
-      const out = await res.json();
-      setStatus({ ok: true, msg: out.scheduled ? `Scheduled (${schedule} at ${scheduledTime}).` : 'Report sent.' });
+      await sendViaAppsScript('sendReportEmail', { to, subject, schedule, scheduledTime, weekday, busCount: 0, attachments });
+      setStatus({ ok: true, msg: 'Report sent.' });
     } catch (e) {
       setStatus({ ok: false, msg: e.message });
     } finally {

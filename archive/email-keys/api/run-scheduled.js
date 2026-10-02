@@ -1,19 +1,21 @@
 /**
- * Vercel Cron endpoint — generates PDFs + Excel server-side and sends via Resend.
+ * Vercel Cron endpoint — generates PDFs + Excel server-side and emails them
+ * through api/_lib/mailer.js (Gmail by default — see EMAIL-SETUP.md).
  * Triggered by vercel.json cron config (daily at 07:00 UTC).
  *
  * Required env vars (set in Vercel dashboard):
- *   RESEND_API_KEY         — from resend.com
+ *   EMAIL_USER, EMAIL_PASS — the Gmail account and its App Password
  *   SCHEDULED_EMAIL_TO     — comma-separated list of recipient addresses
- *   EMAIL_FROM             — sender, e.g. "KMC Tracker <onboarding@resend.dev>"
- *   CRON_SECRET            — a random string to protect this endpoint
+ *   CRON_SECRET            — a random string; Vercel sends it on cron calls.
+ *                            Without it this endpoint refuses to run, so it
+ *                            can't be triggered by anyone to spam the list.
  *
  * Optional env vars:
  *   SCHEDULED_SUBJECT      — email subject line
  */
 
-import { Resend } from 'resend';
 import * as XLSX from 'xlsx';
+import { sendMail, MailError } from './_lib/mailer.js';
 import { buildPDF } from '../src/export/buildPDF.js';
 import { buildSlidePDF } from '../src/export/buildSlidePDF.js';
 import { buildWorkbook } from '../src/export/buildWorkbook.js';
@@ -262,15 +264,11 @@ export default async function handler(req, res) {
 
   // Protect with CRON_SECRET — Vercel automatically sets Authorization header for crons
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers['authorization'];
-    if (auth !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  if (!cronSecret) {
+    return res.status(503).json({ error: 'CRON_SECRET not set — scheduled sending is disabled.' });
   }
-
-  if (!process.env.RESEND_API_KEY) {
-    return res.status(500).json({ error: 'RESEND_API_KEY not set' });
+  if (req.headers['authorization'] !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const toRaw = process.env.SCHEDULED_EMAIL_TO;
@@ -319,28 +317,24 @@ export default async function handler(req, res) {
     const dashB64   = dashPdfDoc.output('datauristring').split(',')[1];
     const xlsxB64   = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
 
-    console.log('[run-scheduled] Attachments built. Sending via Resend…');
+    console.log('[run-scheduled] Attachments built. Sending…');
 
-    // ── 4. Send via Resend ────────────────────────────────────────────────────
-    const resend  = new Resend(process.env.RESEND_API_KEY);
-    const toList  = toRaw.split(',').map(e => e.trim()).filter(Boolean);
-    const from    = process.env.EMAIL_FROM || 'KMC Tracker <onboarding@resend.dev>';
+    // ── 4. Send ───────────────────────────────────────────────────────────────
     const subject = process.env.SCHEDULED_SUBJECT || `KMC Bus Production Report — ${date}`;
-
-    const result = await resend.emails.send({
-      from, to: toList, subject,
-      html: buildEmailBody(buses.length, new Date().toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })),
+    const result = await sendMail({
+      to: toRaw, subject,
+      html: buildEmailBody(buses.length, new Date().toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kampala' })),
       attachments: [
-        { filename: `KMC_Presentation_${date}.pdf`,  content: slideB64 },
-        { filename: `KMC_Dashboard_${date}.pdf`,     content: dashB64  },
-        { filename: `KMC_Dashboard_${date}.xlsx`,    content: xlsxB64  },
+        { filename: `KMC_Presentation_${date}.pdf`,  content: slideB64, contentType: 'application/pdf' },
+        { filename: `KMC_Dashboard_${date}.pdf`,     content: dashB64,  contentType: 'application/pdf' },
+        { filename: `KMC_Dashboard_${date}.xlsx`,    content: xlsxB64,  contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
       ],
     });
 
-    console.log(`[run-scheduled] Email sent. ID: ${result.data?.id}`);
-    return res.json({ ok: true, sent: true, id: result.data?.id, buses: buses.length, to: toList });
+    console.log(`[run-scheduled] Email sent via ${result.provider}. ID: ${result.id}`);
+    return res.json({ ok: true, sent: true, buses: buses.length, ...result });
   } catch (err) {
     console.error('[run-scheduled] Error:', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(err instanceof MailError ? err.status : 500).json({ error: err.message });
   }
 }

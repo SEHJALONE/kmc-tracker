@@ -70,6 +70,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   for (let i = 0; i < busRows.length; i += BUSES_PER_PAGE) {
     chunks.push(busRows.slice(i, i + BUSES_PER_PAGE));
   }
+  const hasAnalytics = (metrics.overrunPareto?.length > 0) || (metrics.stationEfficiency?.some(s => s.efficiency != null)) || metrics.hasDowntimeData || metrics.hasReworkData;
   const totalSlides = (hasAnalytics ? 2 : 1) + chunks.length;
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -162,7 +163,6 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
 
   const delayed    = busRows.filter(b => b.status === 'Delayed').length;
   const prodRate   = metrics.prodRate || 0;
-  const hasAnalytics = (metrics.overrunPareto?.length > 0) || (metrics.stationEfficiency?.some(s => s.efficiency != null)) || metrics.hasDowntimeData || metrics.hasReworkData;
 
   const KPI_Y = BODY_Y + 8;
   const KPI_H = 24;
