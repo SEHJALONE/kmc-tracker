@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "bundle-api": "node scripts/bundle-api.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",
