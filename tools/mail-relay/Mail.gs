@@ -309,3 +309,14 @@ function runScheduledReport() {
   });
   Logger.log("Scheduled report sent to " + to.join(", "));
 }
+
+// Run from the editor to see who the emails will come from. "Send mail as" must
+// list MAIL_FROM below, in the Gmail of the account that runs this script.
+function checkSender() {
+  Logger.log("Script runs as:        " + Session.getEffectiveUser().getEmail());
+  Logger.log("Verified Send-as list: " + (GmailApp.getAliases().join(", ") || "(none)"));
+  Logger.log("MAIL_FROM is set to:   " + MAIL_FROM);
+  Logger.log(GmailApp.getAliases().indexOf(MAIL_FROM) > -1
+    ? "OK: emails will be sent as " + MAIL_FROM
+    : "NOT FOUND: emails go out from the script owner's own address. Make MAIL_FROM exactly match one address in the list above.");
+}
