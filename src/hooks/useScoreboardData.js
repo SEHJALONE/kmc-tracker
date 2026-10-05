@@ -809,7 +809,7 @@ async function fetchTabSoft(urlFn, tab) {
 // Same soft-fail contract as fetchTabSoft: this is a sheet we don't own, so a
 // sharing-permission change or a rename shouldn't take the whole board down —
 // it degrades to "no downtime data" instead.
-async function fetchDowntimeLog() {
+export async function fetchDowntimeLog() {
   try {
     const res = await fetch(DOWNTIME_LOG_URL);
     const text = await res.text();

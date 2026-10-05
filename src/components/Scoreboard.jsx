@@ -7,6 +7,7 @@ import { useScoreboardData, computeLineCard, DOWNTIME_REASON_CODES } from '../ho
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
 import { addCanvasPaged } from '../utils/pdfImagePager';
 import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
+import DailyLogModal from './DailyLogModal';
 
 // ── Theme-aware palettes ──────────────────────────────────────────────────
 // Scoreboard keeps its own theme state (separate from the rest of the app —
@@ -1241,6 +1242,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const { data, loading, error, lastUpdated, refresh } = useScoreboardData();
   const [emailOpen, setEmailOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [dailyLogOpen, setDailyLogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [range, setRange] = useState(() => {
@@ -1457,7 +1459,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
       <ScoreboardToolbar
         live={live} loading={loading} error={error} lastUpdated={lastUpdated}
         refresh={refresh} exportPNG={exportPNG} exportPDF={exportPDF}
-        exporting={exporting} setEmailOpen={setEmailOpen} setReportOpen={setReportOpen} btn={btn}
+        exporting={exporting} setEmailOpen={setEmailOpen} setReportOpen={setReportOpen} setDailyLogOpen={setDailyLogOpen} btn={btn}
         selectorOpen={selectorOpen} setSelectorOpen={setSelectorOpen}
         view={view} setView={setView} onHome={onHome} onLogout={onLogout} hideHome={hideHome}
       />
@@ -1687,6 +1689,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
       )}
 
       {emailOpen && <ScoreboardEmailModal onClose={() => setEmailOpen(false)} capturePages={capturePages} />}
+      {dailyLogOpen && <DailyLogModal onClose={() => setDailyLogOpen(false)} C={C} font={UI_FONT} />}
       {reportOpen && (
         <ProductionReportModal
           onClose={() => setReportOpen(false)}
@@ -1707,7 +1710,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
 // on this row now.
 function ScoreboardToolbar({
   live, loading, error, lastUpdated, refresh, exportPNG, exportPDF, exporting,
-  setEmailOpen, setReportOpen, btn, selectorOpen, setSelectorOpen,
+  setEmailOpen, setReportOpen, setDailyLogOpen, btn, selectorOpen, setSelectorOpen,
   view, setView, onHome, onLogout, hideHome,
 }) {
   const C = useC();
@@ -1752,6 +1755,7 @@ function ScoreboardToolbar({
       <button style={btn} onClick={exportPNG} disabled={exporting}>Export PNG</button>
       <button style={btn} onClick={exportPDF} disabled={exporting}>Export PDF</button>
       <button style={{ ...btn, background: C.redWash, color: C.red }} onClick={() => setReportOpen(true)}>Production Report</button>
+      <button style={{ ...btn, background: C.redWash, color: C.red }} onClick={() => setDailyLogOpen(true)}>Daily Log</button>
       <button style={{ ...btn, color: '#fff', background: C.red }} onClick={() => setEmailOpen(true)}>Email / Schedule</button>
       {onLogout && (
         <button style={{ ...btn, background: C.redWash, color: C.red }} onClick={onLogout}>
