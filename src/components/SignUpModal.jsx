@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useAccessRequests } from '../hooks/useAccessRequests';
-import { sendViaAppsScript } from '../data/mailer.js';
+import { submitAccessRequest } from '../hooks/useAccessRequests';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 
 const DEPARTMENTS = ['Production', 'Product Development'];
@@ -29,8 +28,6 @@ const PRODUCT_DEV_LINES = [
 
 export default function SignUpModal({ onClose, theme = 'dark' }) {
   const isDark = theme === 'dark';
-
-  const { submitRequest } = useAccessRequests();
 
   const [step, setStep]   = useState(1);
   const [busy, setBusy]   = useState(false);
@@ -122,12 +119,15 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       submittedAt:    new Date().toISOString(),
     };
 
-    await submitRequest(request);
+    // The request counts as sent only when the server says it stored it. A
+    // failure keeps the form (and everything typed) on screen with the reason.
+    const saved = await submitAccessRequest(request);
+    if (!saved.ok) {
+      setBusy(false);
+      return setError(saved.error);
+    }
 
-    try {
-      await sendViaAppsScript('notifyAdminNew', request);
-    } catch { /* email failure is non-fatal */ }
-
+    // The server emails the administrators itself once the request is stored.
     setBusy(false);
     setStep(2);
   }

@@ -19,6 +19,8 @@ export function useDynamicUsers() {
   const [users, setUsers]     = useState(loadCache);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
+  // Why the last load failed (shown on the page) — never pass a stale or empty cache off as live.
+  const [loadError, setLoadError] = useState('');
   const mounted = useRef(true);
 
   const fetchUsers = useCallback(async () => {
@@ -27,10 +29,13 @@ export function useDynamicUsers() {
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') throw new Error(json.message || 'unknown-error');
-      if (mounted.current) setUsers(json.users || []);
+      if (mounted.current) { setUsers(json.users || []); setLoadError(''); }
       saveCache(json.users || []);
     } catch (e) {
       console.warn('Dynamic users: could not load shared list, using local cache.', e.message);
+      if (mounted.current) setLoadError(e.message === 'unauthorized'
+        ? 'The server refused this sign-in for the user list. The live Apps Script is out of date (it still expects the old shared password), so the list cannot load until it is updated — see tools/mail-relay/UPDATE-LIVE-SCRIPT.md. No accounts were lost.'
+        : 'Could not reach the server (' + e.message + '). Check the connection and try again.');
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -90,5 +95,5 @@ export function useDynamicUsers() {
     }
   }, []);
 
-  return { dynamicUsers: users, loading, saving, createUser, updateUser, deleteUser, refreshDynamicUsers: fetchUsers };
+  return { dynamicUsers: users, loading, loadError, saving, createUser, updateUser, deleteUser, refreshDynamicUsers: fetchUsers };
 }

@@ -163,6 +163,19 @@ function doPost(e) {
       return login_(e.parameter.username, e.parameter.password, e.parameter.remember === "1");
     }
 
+    // ── Email (functions live in the separate Mail file — tools/mail-relay/Mail.gs) ──
+    if (e && e.parameter && e.parameter.action === "sendReportEmail") return sendReportEmail_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "notifyApproved")  return notifyApproved_(e.parameter);
+    // Confirmation to the person who filed a Travel Card (with the station and
+    // bus reports) and an approval request to the supervisors/managers who can
+    // review it. Admin alerts for new access requests and the "access granted"
+    // email are sent by submitAccessRequest_/updateAccessRequest_ themselves.
+    if (e && e.parameter && e.parameter.action === "notifyCardSubmitted") return notifyCardSubmitted_(e.parameter);
+
+    // ── Start/End Travel Card tasks (signed-in; see "Open tasks" below) ─────────
+    if (e && e.parameter && e.parameter.action === "saveTravelTask")  return saveTravelTask_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "listTravelTasks") return listTravelTasks_(e.parameter);
+
     // ── Access requests ─────────────────────────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "submitAccessRequest") {
       return submitAccessRequest_(e.parameter.payload);
@@ -267,6 +280,17 @@ function doPost(e) {
     // from Travel Card data, so it can be used to cross-check it.
     if (data && data.action === "saveBusSighting")   return saveBusSighting_(data);
     if (data && data.action === "deleteBusSighting") return deleteBusSighting_(data);
+
+    // Only a real Travel Card may reach the writer below. Anything else (an
+    // action this script does not know, such as an email action sent to an
+    // older deployment, or an empty body) is refused. It used to be filed as a
+    // blank Travel Card row, which polluted the submissions tab.
+    if (!data || typeof data !== "object" || data.action) {
+      return response({ status: "error", message: "unknown-action" });
+    }
+    if (!data.stationCode && !data.vin) {
+      return response({ status: "error", message: "empty-submission" });
+    }
 
     // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.openById(TRACKER_SHEET_ID);
@@ -1283,20 +1307,56 @@ function dynamicUserRowToObject_(headers, row) {
 }
 
 // ── Access requests (private sheet, one row per applicant) ───────────────────
+// Public endpoint (an applicant has no account yet), so it checks what it
+// stores and says why when it refuses. The password is stored HASHED from the
+// start: the admin never sees it, and the account is created from the hash.
 function submitAccessRequest_(payload) {
   let d;
   try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
-  const sh = getOrCreate(privateSs_(), ACCESS_REQUESTS_TAB, ACCESS_REQUESTS_HEADERS);
-  const id = d.id || Utilities.getUuid();
+
+  const username = String(d.username || "").trim().toLowerCase();
+  if (!username || !String(d.fullName || "").trim() || String(d.email || "").indexOf("@") < 1 ||
+      String(d.password || "").length < 8) {
+    return response({ status: "error", message: "missing-fields" });
+  }
+
+  // A form anyone can reach: cap how fast it can be filled.
+  const cache = CacheService.getScriptCache();
+  const hits = Number(cache.get("access_request_hits") || 0);
+  if (hits >= 30) return response({ status: "error", message: "rate-limited" });
+  cache.put("access_request_hits", String(hits + 1), 3600);
+
+  const ss = privateSs_();
+  const users = getOrCreate(ss, DYNAMIC_USERS_TAB, DYNAMIC_USERS_HEADERS).getDataRange().getValues();
+  const userCol = users[0].map(h => String(h).toLowerCase().trim()).indexOf("username");
+  for (let i = 1; i < users.length; i++) {
+    if (String(users[i][userCol]).toLowerCase() === username) return response({ status: "error", message: "username-taken" });
+  }
+
+  const sh = getOrCreate(ss, ACCESS_REQUESTS_TAB, ACCESS_REQUESTS_HEADERS);
+  const rows = sh.getDataRange().getValues();
+  const head = rows[0].map(h => String(h).toLowerCase().trim());
+  const nameCol = head.indexOf("username"), statusCol = head.indexOf("status");
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][nameCol]).toLowerCase() === username && String(rows[i][statusCol] || "pending") === "pending") {
+      return response({ status: "error", message: "request-already-pending" });
+    }
+  }
+
+  const id = Utilities.getUuid();
   sh.appendRow([
-    id, d.fullName || "", d.email || "", d.username || "", d.department || "",
-    JSON.stringify(d.productionLines || []), d.position || "", d.password || "",
-    d.reason || "", d.status || "pending", d.submittedAt || new Date().toISOString(),
+    id, String(d.fullName).trim(), String(d.email).trim().toLowerCase(), username, d.department || "",
+    JSON.stringify(d.productionLines || []), d.position || "", hashPassword_(String(d.password)),
+    d.reason || "", "pending", new Date().toISOString(),
     "", "", "",
     JSON.stringify(d.preferredStations || []),
     d.ceeInterest ? "YES" : "NO",
   ]);
-  return response({ status: "ok", id });
+  // Tell the administrators. The request is already stored, so a mail failure
+  // (quota, no alias) never loses it; the reply says whether the alert went.
+  let adminNotified = false;
+  try { adminNotified = notifyAdminsOfRequest_(Object.assign({}, d, { username: username })); } catch (err) { adminNotified = false; }
+  return response({ status: "ok", id, adminNotified: adminNotified });
 }
 
 function listAccessRequests_() {
@@ -1343,12 +1403,26 @@ function updateAccessRequest_(payload) {
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === String(d.id)) {
       const rowNum = i + 1;
+      const was = String(data[i][headers.indexOf("status")] || "pending");
       Object.entries(fieldMap).forEach(([key, colName]) => {
         if (d[key] !== undefined) {
           const colIdx = headers.indexOf(colName);
           if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
         }
       });
+      // First time it is marked approved: tell the applicant they can sign in.
+      if (d.status === "approved" && was !== "approved") {
+        const row = data[i], at = name => row[headers.indexOf(name)];
+        let emailed = false, emailError = "";
+        try {
+          notifyApplicantApproved_({
+            fullName: at("full_name"), email: at("email"),
+            username: d.assignedUsername || at("username"), role: d.assignedRole || at("assigned_role"),
+          });
+          emailed = true;
+        } catch (err) { emailError = String(err && err.message || err).slice(0, 300); }
+        return response({ status: "ok", id: d.id, emailed: emailed, emailError: emailError, email: at("email") });
+      }
       return response({ status: "ok", id: d.id });
     }
   }
@@ -1394,7 +1468,8 @@ function createDynamicUser_(payload) {
     }
   }
   sh.appendRow([
-    u.username, hashPassword_(u.password), u.role || "user", u.domain || "", u.landing || "",
+    // A request already carries its password hashed; hash only a plain one.
+    u.username, (isHashedPassword_(String(u.password)) ? String(u.password) : hashPassword_(u.password)), u.role || "user", u.domain || "", u.landing || "",
     u.fullName || "", u.email || "", u.department || "", u.productionLine || "",
     JSON.stringify(u.productionLines || []), u.position || "", u.createdAt || new Date().toISOString(),
     u.assignedStation || "", u.assignedLine || "",
@@ -1471,6 +1546,125 @@ function deleteDynamicUser_(username) {
     }
   }
   return response({ status: "error", message: "user-not-found" });
+}
+
+// One account by username (never includes the password), or null.
+function userRecord_(username) {
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  if (!sh || !username) return null;
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const uCol = headers.indexOf("username");
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][uCol]).toLowerCase() === String(username).toLowerCase()) return dynamicUserRowToObject_(headers, data[i]);
+  }
+  return null;
+}
+function allUsers_() {
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  return data.slice(1).filter(r => r[headers.indexOf("username")]).map(r => dynamicUserRowToObject_(headers, r));
+}
+
+// ── Open tasks (Start/End Travel Card) ────────────────────────────────────────
+// A task is a station job someone has STARTED and not yet closed. It lives here
+// (not only in the browser) so it follows the person to another device and so
+// runTravelTaskReminders (Mail file) can email them to close it: once at the
+// expected end of the station time, then every 6 hours until it is closed.
+const TRAVEL_TASKS_TAB = "travel_tasks";
+const TRAVEL_TASK_HEADERS = [
+  "task_id", "owner", "owner_name", "status", "started_at", "expected_end", "closed_at",
+  "project", "bus_model", "vin", "production_line", "station", "station_code", "designed_min",
+  "activities", "record_id", "reminder_count", "last_reminder_at", "updated_at",
+];
+const TRAVEL_TASK_STATUSES = ["open", "closed", "discarded"];
+
+function travelTaskRow_(headers, row) {
+  const at = name => row[headers.indexOf(name)];
+  let activities = [];
+  try { activities = JSON.parse(at("activities") || "[]"); } catch (err) { activities = []; }
+  const iso = v => (v instanceof Date ? v.toISOString() : String(v || ""));
+  return {
+    id: String(at("task_id")), owner: String(at("owner") || ""), ownerName: String(at("owner_name") || ""),
+    status: String(at("status") || "open"), startedAt: iso(at("started_at")), expectedEnd: iso(at("expected_end")),
+    closedAt: iso(at("closed_at")), project: String(at("project") || ""), busModel: String(at("bus_model") || ""),
+    vin: String(at("vin") || ""), line: String(at("production_line") || ""), station: String(at("station") || ""),
+    stationCode: String(at("station_code") || ""), designedMin: Number(at("designed_min")) || 0,
+    activities: Array.isArray(activities) ? activities : [], recordId: String(at("record_id") || ""),
+    reminderCount: Number(at("reminder_count")) || 0, lastReminderAt: iso(at("last_reminder_at")),
+    updatedAt: iso(at("updated_at")),
+  };
+}
+
+// Create or update one task (matched on task_id). Only its owner (or an
+// administrator) may change it.
+function saveTravelTask_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!d.id || !/^[\w-]{6,64}$/.test(String(d.id))) return response({ status: "error", message: "missing-id" });
+  if (d.status && TRAVEL_TASK_STATUSES.indexOf(d.status) < 0) return response({ status: "error", message: "bad-status" });
+
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), TRAVEL_TASKS_TAB, TRAVEL_TASK_HEADERS);
+    const data = sh.getDataRange().getValues();
+    const headers = data[0].map(h => String(h).toLowerCase().trim());
+    const idCol = headers.indexOf("task_id");
+    const now = new Date().toISOString();
+    const clip = (v, n) => String(v == null ? "" : v).slice(0, n || 300);
+    const acts = JSON.stringify((Array.isArray(d.activities) ? d.activities : []).slice(0, 200).map(a => ({
+      name: clip(a && a.name, 500), doneAt: clip(a && a.doneAt, 40), added: !!(a && a.added),
+    })));
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== String(d.id)) continue;
+      const cur = travelTaskRow_(headers, data[i]);
+      if (cur.owner.toLowerCase() !== String(user.username).toLowerCase() && ADMIN_ROLES.indexOf(user.role) < 0) {
+        return response({ status: "error", message: "not-your-task" });
+      }
+      const set = (name, v) => { const c = headers.indexOf(name); if (c > -1) sh.getRange(i + 1, c + 1).setValue(v); };
+      if (d.status) set("status", d.status);
+      if (d.status && d.status !== "open" && cur.status === "open") set("closed_at", clip(d.closedAt || now, 40));
+      if (d.startedAt) set("started_at", clip(d.startedAt, 40));
+      if (d.expectedEnd) set("expected_end", clip(d.expectedEnd, 40));
+      if (d.activities) set("activities", acts);
+      if (d.recordId) set("record_id", clip(d.recordId, 80));
+      set("updated_at", now);
+      return response({ status: "ok", id: d.id });
+    }
+
+    // New task. A person may have several open at once.
+    if (!d.stationCode || !d.startedAt) return response({ status: "error", message: "missing-fields" });
+    const me = userRecord_(user.username);
+    appendRecords_(sh, TRAVEL_TASK_HEADERS, [{
+      task_id: clip(d.id, 64), owner: user.username, owner_name: clip((me && me.fullName) || d.ownerName || user.username, 120),
+      status: d.status || "open", started_at: clip(d.startedAt, 40), expected_end: clip(d.expectedEnd, 40),
+      closed_at: d.status && d.status !== "open" ? clip(d.closedAt || now, 40) : "", project: clip(d.project), bus_model: clip(d.busModel, 40), vin: clip(d.vin, 80),
+      production_line: clip(d.line), station: clip(d.station), station_code: clip(d.stationCode, 40),
+      designed_min: Number(d.designedMin) || 0, activities: acts, record_id: "",
+      reminder_count: 0, last_reminder_at: "", updated_at: now,
+    }]);
+    return response({ status: "ok", id: d.id, created: true });
+  } finally { lock.releaseLock(); }
+}
+
+// The caller's own tasks: every open one plus those closed in the last 30 days.
+function listTravelTasks_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName(TRAVEL_TASKS_TAB);
+  if (!sh) return response({ status: "ok", tasks: [] });
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const since = Date.now() - 30 * 24 * 3600 * 1000;
+  const tasks = data.slice(1).map(r => travelTaskRow_(headers, r)).filter(t =>
+    t.id && t.owner.toLowerCase() === String(user.username).toLowerCase() &&
+    (t.status === "open" || new Date(t.closedAt || t.updatedAt).getTime() > since));
+  return response({ status: "ok", tasks: tasks });
 }
 
 function getOrCreate(ss, name, headers) {

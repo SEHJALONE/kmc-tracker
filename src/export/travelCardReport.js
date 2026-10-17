@@ -500,13 +500,15 @@ async function htmlToPdf(html, { theme, fileName, save = true }) {
 
 const safeName = s => String(s || '').replace(/[^\w.-]+/g, '_');
 
-// save:false returns the jsPDF document instead of downloading it (tests/previews).
+export const stationReportFileName = sub =>
+  `Station_Report_${safeName(sub.stationCode)}_${safeName(sub.vin)}_${new Date(sub.timestamp || Date.now()).toISOString().slice(0, 10)}.pdf`;
+export const busReportFileName = vin => `Full_Bus_Report_${safeName(vin)}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+// save:false returns the jsPDF document instead of downloading it (email, tests, previews).
 export function downloadStationReport(sub, { theme = 'light', save = true } = {}) {
-  const day = new Date(sub.timestamp || Date.now()).toISOString().slice(0, 10);
-  return htmlToPdf(stationReportHTML(sub, { theme }), { theme, save, fileName: `Station_Report_${safeName(sub.stationCode)}_${safeName(sub.vin)}_${day}.pdf` });
+  return htmlToPdf(stationReportHTML(sub, { theme }), { theme, save, fileName: stationReportFileName(sub) });
 }
 
 export function downloadBusReport(cards, { theme = 'light', vin = '', save = true } = {}) {
-  const day = new Date().toISOString().slice(0, 10);
-  return htmlToPdf(busReportHTML(cards, { theme }), { theme, save, fileName: `Full_Bus_Report_${safeName(vin || cards[0]?.vin)}_${day}.pdf` });
+  return htmlToPdf(busReportHTML(cards, { theme }), { theme, save, fileName: busReportFileName(vin || cards[0]?.vin) });
 }
