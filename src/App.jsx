@@ -12,6 +12,8 @@ import Dashboard from './components/Dashboard';
 import BusReport from './components/BusReport';
 import Login from './components/Login';
 import TravelCard from './components/TravelCard';
+import TravelCardHub from './components/TravelCardHub';
+import ThemeSwitch from './components/ui/ThemeSwitch';
 import HomeScreen from './components/HomeScreen';
 import FilterBar from './components/FilterBar';
 import CatalogAdmin from './components/CatalogAdmin';
@@ -329,7 +331,7 @@ export default function App() {
   );
 
   if (mode === 'access-requests') return (
-    <AccessRequests theme={theme} role={role} onBack={() => setMode('home')} />
+    <AccessRequests theme={theme} onToggleTheme={toggleTheme} role={role} onBack={() => setMode('home')} />
   );
 
   if (mode === 'cost-estimation') return (
@@ -337,7 +339,7 @@ export default function App() {
   );
 
   if (mode === 'user-management') return (
-    <UserManagement theme={theme} onBack={() => setMode('home')} />
+    <UserManagement theme={theme} onToggleTheme={toggleTheme} onBack={() => setMode('home')} />
   );
 
   if (mode === 'daily-fleet-log') return (
@@ -347,6 +349,7 @@ export default function App() {
   if (mode === 'pending-reviews') return (
     <PendingReviews
       theme={theme}
+      onToggleTheme={toggleTheme}
       role={role}
       onBack={() => setMode('home')}
       assignedStations={assignedStations}
@@ -358,6 +361,7 @@ export default function App() {
   if (mode === 'my-submissions') return (
     <MySubmissions
       theme={theme}
+      onToggleTheme={toggleTheme}
       currentUserName={currentUserName}
       onBack={() => setMode('home')}
       onEdit={(submission) => { setEditingSubmission(submission); setMode('travelcard'); }}
@@ -366,12 +370,7 @@ export default function App() {
 
 
   if (mode === 'travelcard') return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg-base)',
-      color: 'var(--text-primary)',
-      fontFamily: "'Inter', system-ui, sans-serif",
-    }}>
+    <div className="kmc-page" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <style>{`
         .tc-header {
           border-bottom: 1px solid var(--header-border);
@@ -447,9 +446,7 @@ export default function App() {
           </svg>
           <span className="tc-label">Info</span>
         </button>
-        <button className="tc-btn" onClick={toggleTheme}>
-          {theme === 'dark' ? '☀' : '☾'}<span className="tc-label">{theme === 'dark' ? ' Light' : ' Dark'}</span>
-        </button>
+        <ThemeSwitch theme={theme} onToggle={toggleTheme} />
         <button className="tc-btn accent" onClick={handleLogout}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
@@ -458,20 +455,37 @@ export default function App() {
         </button>
       </header>
       <main style={{ padding: 'clamp(18px, 4vw, 28px) clamp(14px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
-        <TravelCard
-          prefillVin={tcPrefill?.vin ?? ''}
-          prefillModel={tcPrefill?.model ?? ''}
-          prefillStation={tcPrefill?.stationCode ?? ''}
-          lockedStation={assignedStation}
-          lockedStations={assignedStations}
+        {/* Home of the Travel Card: Start/End tasks + dashboard, or the legacy
+            form. Opening a card from the tracker or My Submissions goes straight
+            to the form. */}
+        <TravelCardHub
+          username={username}
           currentUserName={currentUserName}
-          onReset={() => { setTcPrefill(null); setEditingSubmission(null); }}
-          onSubmitSuccess={refresh}
-          theme={theme}
-          role={role}
           catalog={catalog}
-          editSubmission={editingSubmission}
-          onEditSubmit={saveSubmissionEdit}
+          lockedCodes={(assignedStations && assignedStations.length) ? assignedStations : (assignedStation ? [assignedStation] : [])}
+          initialView={editingSubmission || tcPrefill ? 'legacy' : 'home'}
+          onHome={() => { setTcPrefill(null); setEditingSubmission(null); }}
+          renderLegacy={({ taskPrefill = null, onCardSubmitted = null, onExit = null } = {}) => (
+            <TravelCard
+              key={taskPrefill ? taskPrefill.taskId : 'legacy'}
+              prefillVin={tcPrefill?.vin ?? ''}
+              prefillModel={tcPrefill?.model ?? ''}
+              prefillStation={tcPrefill?.stationCode ?? ''}
+              lockedStation={assignedStation}
+              lockedStations={assignedStations}
+              currentUserName={currentUserName}
+              onReset={() => { setTcPrefill(null); setEditingSubmission(null); }}
+              onSubmitSuccess={refresh}
+              theme={theme}
+              role={role}
+              catalog={catalog}
+              editSubmission={editingSubmission}
+              onEditSubmit={saveSubmissionEdit}
+              taskPrefill={taskPrefill}
+              onCardSubmitted={onCardSubmitted}
+              onExit={onExit}
+            />
+          )}
         />
       </main>
       {adminOpen && canEditCatalog && (
@@ -481,6 +495,7 @@ export default function App() {
           saving={catalogSaving}
           listCatalogBackups={listCatalogBackups}
           restoreCatalogBackup={restoreCatalogBackup}
+          initialTab="Travel Card"
           onClose={() => setAdminOpen(false)}
         />
       )}
@@ -513,7 +528,7 @@ export default function App() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--bg-base)',
+      background: 'transparent',
       color: 'var(--text-primary)',
       fontFamily: "'Inter', system-ui, sans-serif",
       transition: 'background 0.25s ease, color 0.25s ease',
@@ -858,10 +873,7 @@ export default function App() {
             <span className="btn-label">Info</span>
           </button>
 
-          <button className="icon-btn" onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-            <span className="btn-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
-          </button>
+          <ThemeSwitch theme={theme} onToggle={toggleTheme} />
 
           <button className="icon-btn" onClick={handleLogout} style={{ borderColor: 'var(--accent-border)' }} title="Sign out">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1025,7 +1037,7 @@ function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: 'transparent', color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif" }}>
       <style>{`
         .hov-header {
           border-bottom: 1px solid var(--header-border);

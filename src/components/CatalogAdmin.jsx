@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { getSession } from '../data/session';
-import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from './TravelCard';
+import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
+import TravelCardTab from './catalog/TravelCardTab';
 
 // ── Admin catalog editor ────────────────────────────────────────────────────
 // Edits the shared catalog: bus projects, tracker lines & stations (with
@@ -33,7 +34,10 @@ const PROJECT_MODEL_OPTS = [
   { v: 'BOTH', label: 'Mixed' }, { v: 'KDC', label: 'KDC' }, { v: 'EVS', label: 'EVS' }, { v: 'KEC', label: 'KEC' },
 ];
 
-const TABS = ['Projects', 'Vehicles', 'Lines', 'Stations', 'Activities', 'Resources', 'Work Instructions', 'Backups'];
+// "Travel Card" edits the card the way it is filled (model → line → station →
+// activities / consumables). Activities and Resources are the same data as raw
+// per-code lists; Lines and Stations are the bus tracker's own structure.
+const TABS = ['Travel Card', 'Projects', 'Vehicles', 'Lines', 'Stations', 'Activities', 'Resources', 'Work Instructions', 'Backups'];
 
 const BUS_MODEL_OPTS = ['10.5m KDC', '12m KDC', '7m EVS', '8.5m EVS', '10.5m EVS', '12m EVS', '13m KEC'];
 
@@ -101,8 +105,8 @@ const th = { fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', 
 const td = { padding: '4px 6px', verticalAlign: 'top' };
 const sectionHd = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '4px 0 10px', fontWeight: 700 };
 
-export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose }) {
-  const [tab, setTab] = useState('Projects');
+export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose, initialTab = 'Projects' }) {
+  const [tab, setTab] = useState(TABS.includes(initialTab) ? initialTab : 'Projects');
   const [draft, setDraft] = useState(() => buildInitial(catalog));
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState('');
@@ -157,6 +161,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
         </div>
 
         <div style={{ padding: 18, maxHeight: '70vh', overflowY: 'auto' }}>
+          {tab === 'Travel Card' && <TravelCardTab draft={draft} touch={touch} inp={inp} btn={btn} ListEditor={ListEditor} />}
           {tab === 'Projects'   && <ProjectsTab draft={draft} touch={touch} />}
           {tab === 'Vehicles'   && <VehiclesTab draft={draft} touch={touch} />}
           {tab === 'Lines'      && <LinesTab draft={draft} touch={touch} />}
@@ -547,18 +552,30 @@ function ResourcesTab({ draft, touch, lineOptions }) {
 }
 
 // Generic ordered-list editor (strings).
-function ListEditor({ items, onChange, placeholder }) {
+// movable: ↑/↓ buttons (order is the order the card shows). hint(item): a short
+// note shown under an item.
+function ListEditor({ items, onChange, placeholder, movable = false, hint = null }) {
   const [val, setVal] = useState('');
   const add = () => { if (!val.trim()) return; onChange([...items, val.trim()]); setVal(''); };
   const del = (i) => onChange(items.filter((_, x) => x !== i));
   const edit = (i, v) => onChange(items.map((it, x) => x === i ? v : it));
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= items.length) return;
+    const next = [...items]; [next[i], next[j]] = [next[j], next[i]]; onChange(next);
+  };
   return (
     <div>
       {items.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>No items yet.</div>}
       {items.map((it, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-          <input style={inp} value={it} onChange={e => edit(i, e.target.value)} />
-          <button style={btn} onClick={() => del(i)}>×</button>
+        <div key={i} style={{ marginBottom: 6 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input style={inp} value={it} onChange={e => edit(i, e.target.value)} />
+            {movable && <button style={btn} title="Move up" onClick={() => move(i, -1)}>↑</button>}
+            {movable && <button style={btn} title="Move down" onClick={() => move(i, 1)}>↓</button>}
+            <button style={btn} onClick={() => del(i)}>×</button>
+          </div>
+          {hint && hint(it) && <div style={{ fontSize: 10, color: 'var(--text-dim)', margin: '2px 0 0 4px' }}>{hint(it)}</div>}
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>

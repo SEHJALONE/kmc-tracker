@@ -99,3 +99,17 @@ describe('every station can show a bus on the line tracker', () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe('addWorkingMinutes', () => {
+  it('skips breaks, nights and Sundays', async () => {
+    const { addWorkingMinutes } = await import('../utils/workTime');
+    const hhmm = d => `${d.getDay()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    // Monday 2026-10-12 09:30 + 60 working min → tea 10:00–10:30 skipped → 11:00
+    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 12, 9, 30), 60))).toBe('1 11:00');
+    // Monday 17:30 + 60 → 30 today, 30 Tuesday from 08:00 → Tue 08:30
+    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 12, 17, 30), 60))).toBe('2 08:30');
+    // Saturday 12:30 + 60 → 30 Saturday, Sunday skipped → Monday 08:30
+    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 17, 12, 30), 60))).toBe('1 08:30');
+    expect(addWorkingMinutes(new Date(), 0)).toBeNull();
+  });
+});

@@ -66,3 +66,21 @@ export function recomputeActual(clockIn, grossMin) {
   if (isNaN(start)) return null;
   return workingMinutes(start, new Date(start.getTime() + g * 60000));
 }
+
+// When `mins` of working time (same rules: no Sundays, working windows only,
+// breaks excluded) will have passed after `start` — the expected end of a
+// station job started at `start` with a designed time of `mins`. Searches at
+// most 30 days ahead; null for bad input.
+export function addWorkingMinutes(start, mins) {
+  const m = Number(mins);
+  if (!(start instanceof Date) || isNaN(start) || !(m > 0)) return null;
+  // Smallest whole number of minutes after start that holds m working minutes.
+  const after = k => new Date(start.getTime() + k * 60000);
+  let lo = 0, hi = 30 * 24 * 60;
+  if (workingMinutes(start, after(hi)).net < m) return null;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (workingMinutes(start, after(mid)).net >= m) hi = mid; else lo = mid;
+  }
+  return after(hi);
+}

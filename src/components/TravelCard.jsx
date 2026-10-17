@@ -88,859 +88,6 @@ function productiveMinutes(clockInLocal, clockOutISO) {
   return { gross: w.gross, breaks: Math.max(0, w.gross - w.net), net: w.net };
 }
 
-// ── Station data ──────────────────────────────────────────────────────────────
-export const TC_LINES = {
-  // ── Shared lines (identical for EVS and KDC) ────────────────────────────────
-  "Machine Shop": [
-    "B01-01: Rectangular Tubes & Steel Plate Storage",
-    "B01-02: Rectangular Tubes Cutting — Band Saw",
-    "B01-03: Rectangular Tube Cutting — Laser Cutting Machine",
-    "B01-04: Rectangular Tubes Cutting — Circular Saw",
-    "B01-05: Sheet Metal Punching",
-    "B01-06: 3D CNC Pipe Bending",
-    "B01-07: Table Type Drilling",
-    "B02-01: Plate Cutting — Laser Cutting Machine",
-    "B02-02: Plate Shearing — Shearing Machine",
-    "B02-03: Plate Bending — Bending Machine",
-    "B02-04: Metal Sheet Processing — Hydraulic Press",
-    "B02-05: Lathe, Milling and Drilling Machine",
-    "B02-06: Sheet Metal Welding",
-    "B02-07: Storage of Finished Parts",
-    "B03-01: Uncoiling and Alignment",
-    "B03-02: Side Panel Roller Press",
-    "B03-03: Roof Middle Panel Roller Press",
-    "B03-04: Side Roof Panel Roller Press",
-    "B03-05: Storage of Finished Parts",
-  ],
-  "Frame Parts Making": [
-    "B04-01: Roof Frame Welding",
-    "B04-02: Repair Welding of Roof Panel Framework",
-    "B04-03: Turn-over Welding of Roof Panel Framework",
-    "B04-04: Grinding, Alignment and Cleaning of Roof Framework",
-    "B04-05: Top Panel Stretcher",
-    "B04-06: Escape Hatch Welding",
-    "B04-07: Repair Welding, Grinding and Alignment of Roof Panel Assembly",
-    "B05-01: Welding of Right Side Wall Framework",
-    "B05-02: Repair Welding of Right Side Wall Framework",
-    "B05-03: Turn-over and Repair Welding of the Right Side Wall Framework",
-    "B05-04: Grinding and Correction of the Right Side Wall Framework",
-    "B06-01: Welding of Left Side Wall Framework",
-    "B06-02: Repair Welding of Left Side Wall Framework",
-    "B06-03: Turn-over and Repair Welding of the Left Side Wall Framework",
-    "B06-04: Grinding and Correction of Left Side Wall Framework",
-    "B07-01: Welding of Rear Face Framework",
-    "B07-02: Repair Welding and Correction of Rear Face Framework",
-    "B07-03: Welding of Rear Panel",
-    "B07-04: Repair, Grinding and Storage of Rear Face",
-    "B08-01: Front Face Frame Welding",
-    "B08-02: Repair Welding and Correction of Front Face Framework",
-    "B08-03: Welding of Front Panel",
-    "B08-04: Repair, Grinding and Storage of Front Face",
-    "B09-01: Frame Parts Welding",
-    "B09-02: Integration Welding of Frame Assembly",
-    "B09-03: Repair Welding of Frame Assembly",
-    "B09-04: Installation of Frame Accessories",
-    "B09-05: Grinding and Alignment of Frame Assembly",
-    "B09-06: Inspection and Storage of Frame Assembly",
-    // B10 replaces the roof/side-wall cells (B04/B05/B06) on U-hoop coaches
-    "B10-01a: Inverted U-Hoop Web Frame Welding (A)",
-    "B10-01b: Inverted U-Hoop Web Frame Welding (B)",
-    "B10-02: Top Roof Brackets & Inverted U-Hoop Web Frame Uprighting",
-    "B10-03: U-Hoop Web Frame Alignment, Aisle Floor Frames & A/C Top Brackets",
-  ],
-  "Electrophoresis": [
-    "E01-01: Pre-degreasing",
-    "E01-02: Degreasing",
-    "E01-03: Washing 1",
-    "E01-04: Washing 2",
-    "E01-05: Transfer",
-    "E01-06: Pure Water Wash 1",
-    "E01-07: Silane",
-    "E01-08: Pure Water Wash 2",
-    "E01-09: Pure Water Washing 3",
-    "E01-10: Transfer",
-    "E02-01: Electrophoresis",
-    "E02-02: UF1",
-    "E02-03: UF2",
-    "E02-04: Pure Water Wash 4",
-    "E02-05: Electrophoresis Drying",
-  ],
-
-  // ── Frame & Body Welding — model-specific ───────────────────────────────────
-  "Frame & Body Welding — EVS": [
-    "WQ-01: Quality Gate",
-    "W01-01: Six Parts Merging and Alignment",
-    "W01-02: Passenger Door Step & Additional Chassis Infuse Profiles",
-    "WQ-02: Quality Gate",
-    "W01-03: Full Welding, Grinding & Weld Bead Protection",
-    "W01-04: Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates",
-    "W01-05: Exterior Sealing Plate & Additional Brackets",
-    "W01-06: Fibre Roof, A/C Bolts, Cargo Rack & Ladder Bolts (7m EVS)",
-    "W01-07: Transfer",
-    "W01-08: Side Panel Extension and Side Panel Trimming",
-    "W01-09: Passenger Door Frames and Door Actuator",
-    "W01-10: External Side Frame, Fibre Strips, Marker Light & Camera Hole",
-    "W01-11: Compartment Doors & Fascia Bumper Alignment",
-    "W01-12: Underbody Welding and Sealant Application",
-    "W01-13: Rectification",
-    "W01-14: Quality Gate (WQ-03)",
-  ],
-  "Frame & Body Welding — KDC": [
-    "W01-01a: Back Seat, Heat Shield, Floor Sub-frame Plates & Rear Fascia to U-Hoop",
-    "WQ-01: Quality Gate",
-    "W01-01b: U-Hoop, Driver Cabin Floor, Chassis Infuses & Front Fascia to Chassis",
-    "WQ-02: Quality Gate",
-    "W01-02: Coach Frame Alignment, Door Step & Chassis Infuse Profiles",
-    "W01-03: Full Welding, Grinding & Weld Bead Protection",
-    "W01-04: Welding of Attachment Brackets & Sealing Plates",
-    "W01-05: Additional Seal Plates, Attachment Brackets & Sealant",
-    "W01-06: Fibre Roof & A/C Bolts",
-    "W01-07: Transfer",
-    "W01-08: Side Panel Extension and Side Panel Trimming",
-    "W01-09: Passenger Door Frames and Door Actuator",
-    "W01-10: External Side Frame, Fibre Strips & Marker Light",
-    "W01-11: Compartment Doors & Fascia Bumper Alignment",
-    "W01-12: Underbody Welding and Sealant Application",
-    "W01-13: Rectification",
-    "W01-14: Quality Gate (WQ-03)",
-  ],
-  // 13m KEC (electric coach) — from the KEC build process drawing, mapped onto
-  // the 2026 plant: the U-hoop web frame is welded in the shared B10 cell and
-  // integrated here at W01-01a/b (as on the KDC), then the KEC's own W01 flow.
-  "Frame & Body Welding — KEC": [
-    "W01-01a: Fasciae & Floor Frame Integration to U-Hoop Web Frame",
-    "WQ-01: Quality Gate",
-    "W01-01b: Special Integration of Coach Frame to Chassis",
-    "WQ-02: Quality Gate",
-    "W01-02: Full Welding",
-    "W01-03: Alignment and Grinding",
-    "W01-04: Welding of Chassis Frame Profiles and Brackets",
-    "W01-05: Welding of Inner Sealing Plate and Additional Brackets",
-    "W01-06: Installation of Fibre Roof",
-    "W01-07: Transfer",
-    "W01-08: Side Panel Extension",
-    "W01-09: Trimming and Repairs",
-    "W01-10: Underbody Welding, Sealant Application & Surface Protection",
-    "W01-11: Front & Rear Bumpers, Door Brackets and Seal Plates",
-    "W01-12: Installation of Passenger Door",
-    "W01-13: Installation of Compartment Door",
-    "W01-14: Quality Gate and Rectification (WQ-03)",
-  ],
-
-  // ── Chassis Line 01 — model-specific ────────────────────────────────────────
-  "Chassis Line 01 — EVS": [
-    "CQ-01: Chassis Frame Defects, Rectification Buffer & Pre-Chassis Assembly",
-    "C01-01: VIN Engraving & LV Underbody Wiring Harnesses",
-    "C01-02: Chassis Air Tanks, Air Pipes & Braking Systems",
-    "C01-02-01: Sub-Assembly",
-    "C01-03: Installation of Steering System",
-    "C01-04: Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 01 — KDC": [
-    "CQ-01: Chassis Frame Defects, Rectification Buffer & Pre-Chassis Assembly",
-    "C01-01: VIN Engraving",
-    "C01-02: Chassis Air Tanks, Air Pipes, Braking, Nylon, Gear Selector & Hydraulic",
-    "C01-02-01: Air Tanks Sub-Assembly",
-    "C01-03: Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket",
-    "C01-03-01: Radiator-Fan Assembly",
-    "C01-04: Low Voltage Underbody Wiring Harness",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 01 — KEC": [
-    "CQ-01: Chassis Frame Buffer & Pre-Chassis Assembly Quality Gate",
-    "C01-01: VIN Engraving",
-    "C01-02: Chassis Air Tanks, Air Pipes & Braking Systems",
-    "C01-02-01: Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly",
-    "C01-03: Steering and Cooling Systems",
-    "C01-04: LV and HV Underbody Wiring Harnesses",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-
-  // ── Chassis Line 02 — model-specific ────────────────────────────────────────
-  "Chassis Line 02 — EVS": [
-    "C02-01: HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing",
-    "C02-02: Installation of Motor & HV Batteries",
-    "C02-03: Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers",
-    "C02-03-01: Axles Sub-Assembly",
-    "C02-04: Air Compressor, Radiator, Air Dryer, PDU & MCU",
-    "C02-05: Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors",
-    "C02-06: Wheel Arch Profile & Customer Tyres",
-    "C02-06-01: Tires Sub-Assembly",
-    "C02-07: Torquing & Pressure Balancing of Customer Tyres",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 02 — KDC": [
-    "C02-01: TPMS, Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing",
-    "C02-02: Diesel Engine, Gear Box & Engine Accessories Termination",
-    "C02-02-01: Engine and Gear Box Sub-Assembly",
-    "C02-03: Engine Cooling and Fuel System",
-    "C02-04-01: Axles Sub-Assembly",
-    "C02-04: Front & Rear Axles, Suspensions & Shock Absorbers",
-    "C02-05: Pneumatic & Steering Completion, Driver Floorboard, Clutch & Sensors",
-    "C02-05-01: Clutch Sub-Assembly",
-    "C02-06: Air Cleaner, Air Intake, Emissions System & Silencer",
-    "C02-07-01: Tires Sub-Assembly",
-    "C02-07: Installation of Tyres",
-    "CQ-02: Quality Gate",
-  ],
-  // The KEC drawing labels BOTH of its first two stations "C02-01"; they are
-  // split a/b here so each keeps its own travel-card history and station time.
-  "Chassis Line 02 — KEC": [
-    "C02-01a: Installation of HV Harnesses",
-    "C02-01b: Air Compressor, Radiator and Air Dryer",
-    "C02-02: Front & Rear Axles, Suspensions, Air Bellows & Shock Absorbers",
-    "C02-02-01: Axles Sub-Assembly",
-    "C02-03: Installation of Motor and Batteries",
-    "C02-04: Installation of Tyres",
-    "C02-04-01: Tyres Sub-Assembly",
-    "C02-05: Termination of HV Battery Accessories",
-    "CQ-02: Quality Gate",
-  ],
-
-  // ── Paint Shop (shared; P07-02 differs, P07-03 KDC-only) ────────────────────
-  "Paint Shop": [
-    "P01-01: Bus Body Panel Masking",
-    "P01-02: Foaming Application and Trimming",
-    "P01-03: Underbody Anti-corrosion Painting",
-    "P02-01: Body Panel Surface Grinding and Sanding",
-    "P02-02: Ground Body Manual Surface-Cleaning",
-    "P02-03: Epoxy Primer Painting",
-    "P02-04: Epoxy Primer Drying",
-    "P02-05: Epoxy Primer Polishing",
-    "P03-01: Panel Beating; Filler and Fibre Application",
-    "P03-02: Filler and Fibre Polishing",
-    "P03-03: Filler Polish Manual Surface-Cleaning",
-    "P04-01: NC Primer Painting",
-    "P04-02: NC Primer Drying",
-    "P05-01: Defects Rectification",
-    "P05-02: Putty Application and Drying",
-    "P05-03: Putty Polishing",
-    "P05-04: Putty Polish Manual Surface-Cleaning",
-    "PQ-01: Inspection",
-    "P06-01: Intermediate Coat Painting",
-    "P06-02: Intermediate Coat Paint-Drying",
-    "P06-03: Intermediate Coat Polishing",
-    "P07-01: AutoCryl TopCoat Painting",
-    "P07-02: AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)",
-    "P07-03: TopCoat Paint-Drying (KDC only)",
-    "P08-01: Color Strip and Pattern Masking",
-    "P08-02: Color Strip and Pattern Painting",
-    "P08-03: Color Strip and Pattern Drying",
-    "P08-04: Color Strip and Pattern Unmasking",
-    "PQ-02: Finishing and Inspection",
-  ],
-
-  // ── Trim Line & Final Assembly — model-specific ─────────────────────────────
-  "Trim Line & Final Assembly — EVS": [
-    "T01-01: Installation of Floor Boards, A/C & Heat Shield",
-    "T01-01-01: Floorboard Preparation (sub-assembly)",
-    "T01-02: Carpet Installation",
-    "T01-02 EE: Installation and Termination of HV Components",
-    "T01-02-01: Carpets Preparation (sub-assembly)",
-    "T01-03: Carpet Welding, A/C & Accessories, Side Board Profiles, Escape Hatch",
-    "T01-03 EE: Cooling Pipes, Antenna, Marker Lights, Harnesses & A/C Terminations",
-    "T01-03-01: A/C Sub-Assembly",
-    "T01-04: Roof/Side Boards, Airducts, Pneumatic Pipes, Moulds, Panels & Latch Cable",
-    "T01-04 EE: Front Wall & Front Compartment Components; Routing & Termination",
-    "T01-04-01: Dashboard, Roof & Air Duct Preparation (sub-assembly)",
-    "T01-05: Installation of Side Glass",
-    "T01-06: Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels",
-    "T01-06 EE: Exterior Lights Installation and Termination",
-    "T01-07: Poles, Column Covers, Curtain Rails, E-Valves, E-Hammers, A/C Grille & Sealant",
-    "T01-07 EE: Final Dashboard Components & Display Screens",
-    "T01-08: Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher & False Roof",
-    "T01-08 EE: Interior Cameras and Speakers",
-    "T01-09: Passenger Door & Locks, Exterior Accessories, Mirrors, Dampers & Sealant",
-    "T01-09-01: Passenger Doors Sub-Assembly",
-    "T01-10: Installation of Seats; Filling Oils, Coolant & Mechanical Checks",
-    "T01-10 EE: BMS, USB, Steering Column & Side Cameras",
-    "T01-10-01: Electrical System Sub-Assembly",
-    "T01-11 EE: First Start, Testing, Debugging & Camera Calibration",
-    "T01-11: ECAS, Fine Tuning of Passenger Doors",
-    "T01-12: Quality Inspection and Rectification (TQ-01)",
-  ],
-  "Trim Line & Final Assembly — KDC": [
-    "T01-01: Installation of Floor Boards, A/C & Heat Shield",
-    "T01-01 EE: Rear Wall and Rear Side Compartment Components",
-    "T01-01-01: Floorboard Preparation (sub-assembly)",
-    "T01-02: Carpet Installation",
-    "T01-02-01: Carpets Preparation (sub-assembly)",
-    "T01-03: Carpet Welding, A/C & Accessories, Side Board Profiles, Escape Hatch",
-    "T01-03 EE: Cooling Pipes, Antenna, Marker Lights, Harnesses & A/C Terminations",
-    "T01-03-01: A/C Sub-Assembly",
-    "T01-04: Roof/Side Boards, Airducts, Pneumatic Pipes, Moulds, Panels & Latch Cable",
-    "T01-04 EE: Front Wall & Front Compartment Components; Routing & Termination",
-    "T01-04-01: Dashboard, Roof & Air Duct Preparation (sub-assembly)",
-    "T01-05: Installation of Side Glass",
-    "T01-06: Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Side Panels",
-    "T01-06 EE: Exterior Lights, Front Camera & Step Decorative Lights",
-    "T01-07: Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant",
-    "T01-07 EE: Dashboard Accessories & Display Screens",
-    "T01-08: Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers & Rear Seats",
-    "T01-08 EE: Speakers / Reading Lights & Interior Cameras",
-    "T01-09: Passenger Door & Locks, Exterior Accessories, Mirrors, Dampers & Sealant",
-    "T01-09 EE: Interior EE Components & Lighting Systems",
-    "T01-09-01: Passenger Doors Sub-Assembly",
-    "T01-10: Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks",
-    "T01-10 EE: Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination",
-    "T01-10-01: Electrical System Sub-Assembly",
-    "T01-11 EE: First Start, Testing, Debugging & Camera Calibration",
-    "T01-11: A/C Refilling, Rubber for Aluminium, Door Fine-Tuning & Quality Inspection",
-    "T01-11-01: Seat and Armrest Assembly (sub-assembly)",
-  ],
-  // 13m KEC — EE work is drawn inside each trim station on the KEC drawing;
-  // it is split out as "EE" sub-stations here, the same way the 2026 EVS/KDC
-  // lines do it.
-  "Trim Line & Final Assembly — KEC": [
-    "T01-01: Installation of Floor Boards & Heat Shield",
-    "T01-01 EE: Rear HV Components, Exterior Side Lights & Turn Signals",
-    "T01-01-01: Floorboard Sub-Assembly",
-    "T01-02: Carpet Installation",
-    "T01-02 EE: Termination of HV Components",
-    "T01-02-01: Carpets Preparation (sub-assembly)",
-    "T01-03: Carpet Welding, A/C & Accessories, Side Board Profiles, Escape Hatch",
-    "T01-03 EE: Height Marker Lights, Ceiling, Fire Wall & Dashboard Harnesses",
-    "T01-03-01: A/C Sub-Assembly",
-    "T01-04: Dashboard, Roof Boards/Fabric, Side Boards, Airduct/Cargo Racks, Moulds & Panels",
-    "T01-04 EE: Wiper Motor, Defroster, Rear & Front Side Compartments",
-    "T01-04-01: Dashboard and Roof Sub-Assemblies",
-    "T01-05: Side Glass, Front & Rear Windshields, Water Rails",
-    "T01-06: Steps Aluminium Floor Profiles, Airduct Doors, Waist Beam Cover & Rear Side Panels",
-    "T01-06 EE: Final Rear & Front Side Compartments Routing and Termination",
-    "T01-07: Poles, Column Covers, Curtain Rails, E-Hammers, A/C Grille & Curtains, Rubber for Aluminium",
-    "T01-08: Driver Seat & Cabin, Sunvisor, Fridge, Inspection & Steering Column Covers, Fire Extinguisher",
-    "T01-09: Passenger Door & Locks, Exterior Accessories, Mirrors, Dampers, Wipers, Sealant & Aluminium Strips",
-    "T01-09 EE: Final Dashboard Components, Interior Cameras & Interior Lights",
-    "T01-09-01: Passenger Doors Sub-Assembly",
-    "T01-10: Electrical Systems (VCUs), Steering Column, TVs, Side Cameras, USB & Underbody Termination",
-    "T01-10-01: Electrical System Sub-Assembly",
-    "T01-11: Filling Oils, Coolant, ECAS, A/C Refilling & Mechanical Checks",
-    "T01-12: Installation of Seats and Armrests",
-    "T01-12-01: Passenger Seats Sub-Assembly",
-    "TQ-01: Debugging, Quality Inspection and Rectification",
-  ],
-
-  // ── Quality Inspection & Testing (shared; Q01-02 differs) ───────────────────
-  "Quality Inspection & Testing": [
-    "Q01-01: Test Registration",
-    "Q01-02: Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)",
-    "Q01-03: Wheel Alignment",
-    "Q01-04: Sound Level Inspection",
-    "Q01-05: Head Lamp Aim Alignment",
-    "Q01-06: Side Slip Test",
-    "Q01-07: Axle Load and Brake Test",
-    "Q01-08: Test Report Generation",
-    "Q01-09: Defects Rectification",
-    "Q01-10: Chassis Anti-corrosion & Underbody Plastic Primer Application",
-    "Q01-11: Paint Inspection",
-    "Q01-12: Paint Repair and Drying",
-    "Q01-13: Rain Test / Water Intrusion",
-    "Q01-14: Defects Rectification",
-    "Q01-15: Road Test / Whole Vehicle Dynamic Test",
-    "Q01-16: Inspection / Decision Gate & Underbody Inspection",
-    "Washing Bay: Washing and Cleaning the Bus",
-    "Q01-17: Defects Rectification",
-  ],
-};
-
-// Lines that apply to only one model. Anything not listed = both.
-export const LINE_MODELS = {
-  "Frame & Body Welding — EVS": ["EVS"],
-  "Frame & Body Welding — KDC": ["KDC"],
-  "Chassis Line 01 — EVS": ["EVS"],
-  "Chassis Line 01 — KDC": ["KDC"],
-  "Chassis Line 02 — EVS": ["EVS"],
-  "Chassis Line 02 — KDC": ["KDC"],
-  "Trim Line & Final Assembly — EVS": ["EVS"],
-  "Trim Line & Final Assembly — KDC": ["KDC"],
-  "Frame & Body Welding — KEC": ["KEC"],
-  "Chassis Line 01 — KEC": ["KEC"],
-  "Chassis Line 02 — KEC": ["KEC"],
-  "Trim Line & Final Assembly — KEC": ["KEC"],
-};
-
-// Individual stations restricted to some models (within an otherwise-shared
-// line). Anything not listed applies to every model.
-export const STATION_MODELS = {
-  // Roof & side-wall framework cells feed the EVS "six parts" merge only. U-hoop
-  // coaches (KDC, KEC) have no roof/side-wall framework — per the 2026 KDC
-  // drawing their Frame Parts Making is B07/B08/B09 + the B10 U-hoop cell.
-  // (B04-05 Top Panel Stretcher is used by every model.)
-  "B04-01": ["EVS"], "B04-02": ["EVS"], "B04-03": ["EVS"], "B04-04": ["EVS"],
-  "B04-06": ["EVS"], "B04-07": ["EVS"],
-  "B05-01": ["EVS"], "B05-02": ["EVS"], "B05-03": ["EVS"], "B05-04": ["EVS"],
-  "B06-01": ["EVS"], "B06-02": ["EVS"], "B06-03": ["EVS"], "B06-04": ["EVS"],
-  "B10-01a": ["KDC", "KEC"], "B10-01b": ["KDC", "KEC"], "B10-02": ["KDC", "KEC"], "B10-03": ["KDC", "KEC"],
-  "P07-03": ["KDC"], // KDC has an extra TopCoat drying stage (clear-coat process)
-};
-
-// ── Activities per station (from the Build Process Summary documents) ─────────
-// Codes that differ between models are namespaced "EVS:CODE" / "KDC:CODE".
-// The component looks up "<model>:<code>" first, then falls back to the bare code.
-export const ACTS = {
-  // ── Machine Shop (shared) ───────────────────────────────────────────────────
-  "B01-01": ["Receive and store rectangular tubes & steel plates", "Stock labelling and organisation", "Material inspection"],
-  "B01-02": ["Band saw setup and tensioning", "Cut rectangular tubes to length", "Deburr and inspect cut ends"],
-  "B01-03": ["Laser cutting machine setup", "Laser cut rectangular tubes to profile", "Dimension inspection"],
-  "B01-04": ["Circular saw setup", "Cut rectangular tubes", "Deburr and inspect"],
-  "B01-05": ["Punch tooling setup", "Punch sheet metal to template", "Inspect hole pattern"],
-  "B01-06": ["Load CNC bending program", "3D CNC pipe bending to specification", "Bend angle check"],
-  "B01-07": ["Table drill setup", "Drill holes to specification", "Deburr and inspect"],
-  "B02-01": ["Laser cutting machine setup", "Laser cut steel plate to profile", "Dimension inspection"],
-  "B02-02": ["Shearing machine setup", "Shear plate to size", "Deburr and inspect"],
-  "B02-03": ["Bending machine setup", "Bend plate to angle/profile", "Angle inspection"],
-  "B02-04": ["Hydraulic press setup", "Form/press sheet metal", "Dimension inspection"],
-  "B02-05": ["Machine setup (lathe / milling / drilling)", "Machine to drawing", "Dimension & finish inspection"],
-  "B02-06": ["Fixture setup and clamping", "Sheet metal welding", "Weld inspection and grinding"],
-  "B02-07": ["Sort and label finished parts", "Storage racking", "Inventory update"],
-  "B03-01": ["Load and uncoil steel coil", "Strip alignment and feed setting", "Straightness check"],
-  "B03-02": ["Side panel roller press setup", "Roll panel to profile", "Profile dimension check"],
-  "B03-03": ["Roof middle panel roller press setup", "Roll panel to profile", "Profile dimension check"],
-  "B03-04": ["Side roof panel roller press setup", "Roll panel to profile", "Profile dimension check"],
-  "B03-05": ["Sort and label finished panels", "Storage racking", "Inventory update"],
-  // ── Frame Parts Making (shared) ─────────────────────────────────────────────
-  "B04-01": ["Jig and fixture setup", "Roof frame member tack & full welding", "Weld inspection"],
-  "B04-02": ["Repair welding of roof panel framework defects", "Grind repair welds", "Inspect"],
-  "B04-03": ["Turn over roof panel framework", "Repair welding of underside", "Alignment check"],
-  "B04-04": ["Grind roof framework welds", "Alignment correction", "Cleaning"],
-  "B04-05": ["Top panel stretcher setup", "Stretch panel to profile", "Dimension check"],
-  "B04-06": ["Position escape hatch frame", "Weld escape hatch frame", "Inspect and grind"],
-  "B04-07": ["Repair weld roof panel assembly", "Grinding and alignment", "Inspection and storage"],
-  "B05-01": ["Jig setup", "Right side wall framework tack & full welding", "Weld inspection"],
-  "B05-02": ["Repair welding of right side wall defects", "Grind welds", "Inspect"],
-  "B05-03": ["Turn over right side wall framework", "Repair welding of underside", "Alignment check"],
-  "B05-04": ["Grind and straighten right side wall", "Correction welding if required", "Inspect"],
-  "B06-01": ["Jig setup", "Left side wall framework tack & full welding", "Weld inspection"],
-  "B06-02": ["Repair welding of left side wall defects", "Grind welds", "Inspect"],
-  "B06-03": ["Turn over left side wall framework", "Repair welding of underside", "Alignment check"],
-  "B06-04": ["Grind and straighten left side wall", "Correction welding if required", "Inspect"],
-  "B07-01": ["Rear face framework tack & full welding", "Weld inspection"],
-  "B07-02": ["Repair welding & correction of rear face framework", "Inspect"],
-  "B07-03": ["Position and weld rear panel", "Weld inspection"],
-  "B07-04": ["Repair welding of rear face", "Grinding", "Storage of rear face assembly"],
-  "B08-01": ["Front face frame tack & full welding", "Weld inspection"],
-  "B08-02": ["Repair welding & correction of front face framework", "Inspect"],
-  "B08-03": ["Position and weld front panel", "Weld inspection"],
-  "B08-04": ["Repair welding of front face", "Grinding", "Storage of front face assembly"],
-  "B09-01": ["Frame parts sub-assembly tack & full welding", "Weld inspection"],
-  "B09-02": ["Integration welding of complete frame assembly", "Alignment check"],
-  "B09-03": ["Repair welding of frame assembly defects", "Weld inspection"],
-  "B09-04": ["Install frame accessories (brackets, inserts, plates)", "Torque and fit check"],
-  "B09-05": ["Grind frame assembly welds", "Alignment measurement and correction"],
-  "B09-06": ["Final inspection of frame assembly", "Defect logging", "Storage and labelling"],
-  "B10-01a": ["Jig setup", "Inverted U-hoop web frame tack & full welding", "Weld inspection"],
-  "B10-01b": ["Jig setup", "Inverted U-hoop web frame tack & full welding", "Weld inspection"],
-  "B10-02": ["Installation of top roof brackets", "Uprighting of inverted U-hoop web frame"],
-  "B10-03": ["U-hoop web frame alignment", "Installation of aisle floor frames", "Installation of A/C top brackets"],
-  // ── Electrophoresis (shared) ────────────────────────────────────────────────
-  "E01-01": ["Pre-degreasing dip", "Bath concentration & temperature check"],
-  "E01-02": ["Degreasing dip", "Bath concentration & temperature check"],
-  "E01-03": ["Washing 1 (rinse)", "Rinse water quality check"],
-  "E01-04": ["Washing 2 (rinse)", "Rinse water quality check"],
-  "E01-05": ["Transfer to next stage"],
-  "E01-06": ["Pure water wash 1", "Conductivity check"],
-  "E01-07": ["Silane treatment", "Bath concentration check"],
-  "E01-08": ["Pure water wash 2", "Conductivity check"],
-  "E01-09": ["Pure water washing 3", "Conductivity check"],
-  "E01-10": ["Transfer to electrophoresis"],
-  "E02-01": ["Electrophoresis (e-coat) dip", "Voltage & bath parameter monitoring"],
-  "E02-02": ["UF1 ultrafiltrate rinse"],
-  "E02-03": ["UF2 ultrafiltrate rinse"],
-  "E02-04": ["Pure water wash 4", "Conductivity check"],
-  "E02-05": ["Electrophoresis drying (oven cure)", "Film thickness check"],
-
-  // ── Frame & Body Welding — EVS ──────────────────────────────────────────────
-  "EVS:WQ-01": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "EVS:WQ-02": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "EVS:W01-01": ["Six parts merging and alignment", "Structural fit checks"],
-  "EVS:W01-02": ["Installation of passenger door step", "Installation of additional chassis infuse profiles"],
-  "EVS:W01-03": ["Full welding", "Grinding", "Weld bead protection"],
-  "EVS:W01-04": ["Welding of chassis frame profiles", "Welding of brackets", "Welding of inner sealing plates"],
-  "EVS:W01-05": ["Welding of exterior sealing plate and additional brackets", "Grinding", "Application of sealant"],
-  "EVS:W01-06": ["Installation of fibre roof", "Installation of A/C bolts", "Installation of cargo rack and ladder bolts (7m EVS)"],
-  "EVS:W01-07": ["Transfer to next station"],
-  "EVS:W01-08": ["Side panel extension", "Side panel trimming"],
-  "EVS:W01-09": ["Installation of passenger door frames", "Installation of door actuator"],
-  "EVS:W01-10": ["External side frame installation", "Side fibre strips installation", "Side marker light installation", "Camera hole installation"],
-  "EVS:W01-11": ["Installation of compartment doors", "Fascia bumper alignment"],
-  "EVS:W01-12": ["Underbody welding", "Sealant application"],
-  "EVS:W01-13": ["Rectification of logged defects"],
-  "EVS:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
-  // ── Frame & Body Welding — KDC ──────────────────────────────────────────────
-  "KDC:W01-01a": ["Integration of back seat to U-hoop web frame", "Integration of back seat brackets to U-hoop web frame", "Integration of engine heat shield to U-hoop web frame", "Integration of floor sub-frame seal plates and rear fascia to U-hoop web frame"],
-  "KDC:WQ-01": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "KDC:W01-01b": ["Integration of U-hoop web frame to the chassis frame assembly", "Integration of driver-cabin floor frame to the chassis frame assembly", "Integration of chassis infuses to the chassis frame assembly", "Integration of front fascia to the chassis frame assembly"],
-  "KDC:WQ-02": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "KDC:W01-02": ["Coach frame alignment", "Installation of passenger door step", "Installation of additional chassis infuse profiles"],
-  "KDC:W01-03": ["Full welding", "Grinding", "Weld bead protection"],
-  "KDC:W01-04": ["Welding of attachment brackets", "Welding of sealing plates"],
-  "KDC:W01-05": ["Additional welding of seal plates", "Welding of attachment brackets", "Application of sealant"],
-  "KDC:W01-06": ["Installation of fibre roof", "Installation of A/C bolts"],
-  "KDC:W01-07": ["Transfer to next station"],
-  "KDC:W01-08": ["Side panel extension", "Side panel trimming"],
-  "KDC:W01-09": ["Installation of passenger door frames", "Installation of door actuator"],
-  "KDC:W01-10": ["External side frame installation", "Side fibre strips installation", "Side marker light installation"],
-  "KDC:W01-11": ["Installation of compartment doors", "Fascia bumper alignment"],
-  "KDC:W01-12": ["Underbody welding", "Sealant application"],
-  "KDC:W01-13": ["Rectification of logged defects"],
-  "KDC:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
-
-  // ── Chassis Line 01 — EVS ───────────────────────────────────────────────────
-  "EVS:CQ-01": ["Chassis frame defects check", "Rectification buffer", "Pre-chassis assembly"],
-  "EVS:C01-01": ["VIN engraving", "Installation of LV underbody wiring harnesses"],
-  "EVS:C01-02": ["Installation of chassis air tanks", "Installation of air pipes", "Installation of braking systems"],
-  "EVS:C01-02-01": ["Sub-assembly build", "Quality check"],
-  "EVS:C01-03": ["Installation of steering system"],
-  "EVS:C01-04": ["Air tanks, valves, brake pedals, ABS valves & pipes sub-assembly"],
-  "EVS:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "EVS:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-  // ── Chassis Line 01 — KDC ───────────────────────────────────────────────────
-  "KDC:CQ-01": ["Chassis frame defects check", "Rectification buffer", "Pre-chassis assembly"],
-  "KDC:C01-01": ["VIN engraving"],
-  "KDC:C01-02": ["Installation of chassis air tanks, air pipes and braking systems", "Installation of nylon pipes", "Installation of gear selector cable", "Installation of hydraulic pipes"],
-  "KDC:C01-02-01": ["Air tanks sub-assembly build", "Quality check"],
-  "KDC:C01-03": ["Installation of steering system", "Installation of gear lever cables", "Installation of clutch", "Installation of radiator", "Installation of spare tyre bracket"],
-  "KDC:C01-03-01": ["Radiator-fan assembly build", "Mounting hardware check"],
-  "KDC:C01-04": ["Installation of low voltage underbody wiring harness"],
-  "KDC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "KDC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-
-  // ── Chassis Line 02 — EVS ───────────────────────────────────────────────────
-  "EVS:C02-01": ["Installation of HV harnesses", "Installation of TPMS modules", "Installation of fire extinguishers", "LV harness routing"],
-  "EVS:C02-02": ["Installation of motor", "Installation of HV batteries"],
-  "EVS:C02-03": ["Installation of front and rear axles", "Installation of suspensions", "Installation of air bellow shock absorbers (if necessary)"],
-  "EVS:C02-03-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "EVS:C02-04": ["Installation of air compressor", "Installation of radiator", "Installation of air dryer", "Installation of the PDU", "Installation of the MCU"],
-  "EVS:C02-05": ["Termination of HV battery accessories", "Termination of ABS", "Termination of speed and brake-wear sensors"],
-  "EVS:C02-06": ["Installation of wheel arch profile", "Installation of customer tyres"],
-  "EVS:C02-06-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "EVS:C02-07": ["Torquing", "Pressure balancing of customer tyres"],
-  // ── Chassis Line 02 — KDC ───────────────────────────────────────────────────
-  "KDC:C02-01": ["Installation of TPMS modules and fire extinguisher", "Installation of rear LV", "Installation of A/C", "Installation of starter motor", "Wiring harness routing"],
-  "KDC:C02-02": ["Installation of diesel engine and gear box", "Termination of engine accessories"],
-  "KDC:C02-02-01": ["Engine and gear box sub-assembly build", "Quality check"],
-  "KDC:C02-03": ["Installation of engine cooling and fuel system"],
-  "KDC:C02-04-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "KDC:C02-04": ["Installation of front and rear axles", "Installation of suspensions", "Installation of shock absorbers"],
-  "KDC:C02-05": ["Pneumatic system and steering system completion", "Installation of driver floor board", "Bleeding of clutch system", "Routing and termination of ABS", "Routing and termination of speed and brake-wear sensors"],
-  "KDC:C02-05-01": ["Clutch sub-assembly build", "Quality check"],
-  "KDC:C02-06": ["Installation of air cleaner", "Installation of air intake", "Installation of emissions system and silencer"],
-  "KDC:C02-07-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "KDC:C02-07": ["Installation of tyres"],
-
-  // ── Paint Shop (shared, with model-specific P07-02) ─────────────────────────
-  "P01-01": ["Bus body panel masking", "Glass & trim protection"],
-  "P01-02": ["Foaming application", "Foam trimming"],
-  "P01-03": ["Underbody anti-corrosion painting", "Coverage inspection"],
-  "P02-01": ["Body panel surface grinding and sanding", "Surface uniformity check"],
-  "P02-02": ["Ground body manual surface-cleaning"],
-  "P02-03": ["Epoxy primer painting", "Coverage inspection"],
-  "P02-04": ["Epoxy primer drying"],
-  "P02-05": ["Epoxy primer polishing"],
-  "P03-01": ["Panel beating", "Filler and fibre application"],
-  "P03-02": ["Filler and fibre polishing"],
-  "P03-03": ["Filler polish manual surface-cleaning"],
-  "P04-01": ["NC primer painting"],
-  "P04-02": ["NC primer drying"],
-  "P05-01": ["Defects rectification"],
-  "P05-02": ["Putty application and drying"],
-  "P05-03": ["Putty polishing"],
-  "P05-04": ["Putty polish manual surface-cleaning"],
-  "PQ-01": ["Paint inspection", "Defect marking", "Sign-off"],
-  "P06-01": ["Intermediate coat painting", "Coverage inspection"],
-  "P06-02": ["Intermediate coat paint-drying"],
-  "P06-03": ["Intermediate coat polishing"],
-  "P07-01": ["AutoCryl topcoat painting", "Wet film thickness check"],
-  "EVS:P07-02": ["AutoCryl topcoat paint-drying"],
-  "KDC:P07-02": ["Clear coat painting"],
-  "P07-03": ["TopCoat paint-drying"],
-  "P08-01": ["Color strip and pattern masking"],
-  "P08-02": ["Color strip and pattern painting"],
-  "P08-03": ["Color strip and pattern drying"],
-  "P08-04": ["Color strip and pattern unmasking"],
-  "PQ-02": ["Finishing and inspection", "Colour match verification", "Sign-off"],
-
-  // ── Trim Line — EVS ─────────────────────────────────────────────────────────
-  "EVS:T01-01": ["Installation of floor boards", "Installation of A/C", "Installation of heat shield"],
-  "EVS:T01-01-01": ["Floorboard preparation (sub-assembly)"],
-  "EVS:T01-02": ["Carpet installation"],
-  "EVS:T01-02 EE": ["Installation and termination of HV components"],
-  "EVS:T01-02-01": ["Carpets preparation (sub-assembly)"],
-  "EVS:T01-03": ["Carpet welding", "A/C installation", "A/C accessories installation", "Side board aluminium profiles", "Escape hatch installation"],
-  "EVS:T01-03 EE": ["Installation of cooling pipes", "Installation of antenna", "Installation of height marker lights", "Installation of ceiling, front wall and dashboard harness", "A/C terminations"],
-  "EVS:T01-03-01": ["A/C sub-assembly"],
-  "EVS:T01-04": ["Installation of roof boards", "Installation of side boards", "Installation of airducts", "Installation of pneumatic pipes", "Installation of front and rear mould", "Installation of left/right panel", "Latch cable preparation"],
-  "EVS:T01-04 EE": ["Installation of front wall and front compartment components", "Routing and termination"],
-  "EVS:T01-04-01": ["Dashboard, roof and air duct preparation (sub-assembly)"],
-  "EVS:T01-05": ["Installation of side glass"],
-  "EVS:T01-06": ["Installation of dashboard", "Installation of front and rear windshields", "Installation of steps aluminium floor profiles", "Installation of airduct doors", "Installation of waist beam cover and rear side panels"],
-  "EVS:T01-06 EE": ["Exterior lights installation and termination"],
-  "EVS:T01-07": ["Installation of poles", "Installation of column covers", "Installation of curtain rails", "Installation of E-valves", "Installation of E-hammers", "Installation of A/C air grille and curtains", "Installation of rubber for aluminium", "Side glass sealant application"],
-  "EVS:T01-07 EE": ["Installation of final dashboard components", "Installation of display screens"],
-  "EVS:T01-08": ["Installation of driver seat", "Installation of driver cabins", "Installation of barriers", "Installation of sun visor rods", "Installation of seat brackets", "Installation of inspection cover", "Installation of steering column cover", "Placement of fire extinguisher, trash-can", "Installation of water rails and false roof panel"],
-  "EVS:T01-08 EE": ["Installation of interior cameras and speakers"],
-  "EVS:T01-09": ["Installation of passenger door and locks", "Installation of exterior body accessories", "Installation of side mirrors, dampers and wipers", "Compartment door sealant application, aluminium strips"],
-  "EVS:T01-09-01": ["Passenger doors sub-assembly"],
-  "EVS:T01-10": ["Installation of seats", "Filling oils, coolant and mechanical checks"],
-  "EVS:T01-10 EE": ["Installation of BMS", "Installation of USB", "Installation of steering column and side cameras"],
-  "EVS:T01-10-01": ["Electrical system sub-assembly"],
-  "EVS:T01-11 EE": ["First start, testing and debugging", "Calibration of the camera"],
-  "EVS:T01-11": ["ECAS", "Fine tuning of passenger doors"],
-  "EVS:T01-12": ["Quality inspection and rectification (TQ-01)"],
-  // ── Trim Line — KDC ─────────────────────────────────────────────────────────
-  "KDC:T01-01": ["Installation of floor boards", "Installation of A/C and heat shield"],
-  "KDC:T01-01 EE": ["Installation of rear wall and rear side compartment components"],
-  "KDC:T01-01-01": ["Floorboard preparation (sub-assembly)"],
-  "KDC:T01-02": ["Carpet installation"],
-  "KDC:T01-02-01": ["Carpets preparation (sub-assembly)"],
-  "KDC:T01-03": ["Carpet welding", "A/C installation", "A/C accessories installation", "Side board aluminium profiles", "Escape hatch installation"],
-  "KDC:T01-03 EE": ["Installation of cooling pipes", "Installation of antenna", "Installation of height marker lights", "Installation of ceiling", "Installation of front wall and dashboard harness", "A/C terminations"],
-  "KDC:T01-03-01": ["A/C sub-assembly"],
-  "KDC:T01-04": ["Installation of roof boards", "Installation of side boards", "Installation of airducts", "Installation of pneumatic pipes", "Installation of front and rear mould", "Installation of left/right panel", "Latch cable preparation"],
-  "KDC:T01-04 EE": ["Installation of front wall and front compartment components", "Routing and termination"],
-  "KDC:T01-04-01": ["Dashboard, roof and air duct preparation (sub-assembly)"],
-  "KDC:T01-05": ["Installation of side glass"],
-  "KDC:T01-06": ["Installation of dashboard", "Installation of front and rear windshields", "Installation of steps aluminium floor profiles", "Installation of airduct doors", "Installation of rear side panels"],
-  "KDC:T01-06 EE": ["Exterior lights installation and termination", "Installation of front camera and step decorative lights"],
-  "KDC:T01-07": ["Installation of step poles", "Installation of pillar and waist beam column covers", "Installation of side mirror brackets and water rails", "Installation of curtain rails", "Installation of E-valves", "Installation of A/C air grille and curtains", "Installation of rubber for aluminium", "Side glass sealant application"],
-  "KDC:T01-07 EE": ["Installation of dashboard accessories", "Installation of display screens"],
-  "KDC:T01-08": ["Installation of driver seat", "Installation of driver cabins", "Installation of driver guard rail", "Installation of barriers", "Installation of sun visor rods", "Installation of seat brackets", "Installation of inspection cover", "Installation of steering column cover", "Placement of fire extinguisher, trash-can", "Installation of false roof panel", "Installation of rear seats"],
-  "KDC:T01-08 EE": ["Installation of speakers/reading lights", "Installation of interior cameras"],
-  "KDC:T01-09": ["Installation of passenger door and locks", "Installation of exterior body accessories", "Installation of side mirrors, dampers and wipers", "Compartment door sealant application, aluminium strips"],
-  "KDC:T01-09 EE": ["Installation of interior EE components", "Installation of lighting systems"],
-  "KDC:T01-09-01": ["Passenger doors sub-assembly"],
-  "KDC:T01-10": ["Installation of passenger seats", "Filling oils, coolant and mechanical checks"],
-  "KDC:T01-10 EE": ["Installation of accelerator pedal", "Installation of USB harness", "Steering column assembly", "Installation of exterior camera", "Underbody routing and termination"],
-  "KDC:T01-10-01": ["Electrical system sub-assembly"],
-  "KDC:T01-11 EE": ["First start, testing and debugging", "Calibration of the camera"],
-  "KDC:T01-11": ["A/C refilling", "Rubber for aluminium", "Fine tuning passenger doors", "Quality inspection and rectification"],
-  "KDC:T01-11-01": ["Assembly of seats and armrests (sub-assembly)"],
-
-  // ── 13m KEC — Frame & Body Welding ──────────────────────────────────────────
-  "KEC:W01-01a": ["Integration of front and rear fasciae to U-hoop web frame", "Integration of floor frame to U-hoop web frame"],
-  "KEC:WQ-01": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "KEC:W01-01b": ["Special integration of coach frame to chassis frame", "Structural fit checks"],
-  "KEC:WQ-02": ["Quality gate inspection", "Defect identification and logging", "Sign-off"],
-  "KEC:W01-02": ["Full welding", "Weld inspection"],
-  "KEC:W01-03": ["Alignment", "Grinding"],
-  "KEC:W01-04": ["Welding of chassis frame profiles", "Welding of brackets"],
-  "KEC:W01-05": ["Welding of inner sealing plate", "Welding of additional brackets"],
-  "KEC:W01-06": ["Installation of fibre roof"],
-  "KEC:W01-07": ["Transfer to next station"],
-  "KEC:W01-08": ["Side panel extension"],
-  "KEC:W01-09": ["Trimming", "Repairs"],
-  "KEC:W01-10": ["Underbody welding", "Sealant application", "Surface protection"],
-  "KEC:W01-11": ["Installation of front and rear bumpers", "Welding of door brackets", "Welding of seal plates"],
-  "KEC:W01-12": ["Installation of passenger door"],
-  "KEC:W01-13": ["Installation of compartment doors"],
-  "KEC:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
-  // ── 13m KEC — Chassis Line 01 ───────────────────────────────────────────────
-  "KEC:CQ-01": ["Chassis frame buffer", "Pre-chassis assembly", "Quality gate inspection"],
-  "KEC:C01-01": ["VIN engraving"],
-  "KEC:C01-02": ["Installation of chassis air tanks", "Installation of air pipes", "Installation of braking systems"],
-  "KEC:C01-02-01": ["Air tanks, valves, brake pedals, ABS valves and pipes sub-assembly", "Quality check"],
-  "KEC:C01-03": ["Installation of steering system", "Installation of cooling system"],
-  "KEC:C01-04": ["Installation of LV underbody wiring harnesses", "Installation of HV underbody wiring harnesses"],
-  "KEC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "KEC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-  // ── 13m KEC — Chassis Line 02 ───────────────────────────────────────────────
-  "KEC:C02-01a": ["Installation of HV harnesses"],
-  "KEC:C02-01b": ["Installation of air compressor", "Installation of radiator", "Installation of air dryer"],
-  "KEC:C02-02": ["Installation of front and rear axles", "Installation of suspensions", "Installation of air bellows", "Installation of shock absorbers"],
-  "KEC:C02-02-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "KEC:C02-03": ["Installation of motor", "Installation of batteries"],
-  "KEC:C02-04": ["Installation of tyres"],
-  "KEC:C02-04-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "KEC:C02-05": ["Termination of HV battery accessories"],
-  // ── 13m KEC — Trim Line ─────────────────────────────────────────────────────
-  "KEC:T01-01": ["Installation of floor boards", "Installation of heat shield"],
-  "KEC:T01-01 EE": ["Installation of rear HV components", "Installation of exterior side lights", "Installation of turn signals"],
-  "KEC:T01-01-01": ["Floorboard sub-assembly"],
-  "KEC:T01-02": ["Carpet installation"],
-  "KEC:T01-02 EE": ["Termination of HV components"],
-  "KEC:T01-02-01": ["Carpets preparation (sub-assembly)"],
-  "KEC:T01-03": ["Carpet welding", "A/C installation", "A/C accessories installation", "Side board aluminium profiles", "Escape hatch installation"],
-  "KEC:T01-03 EE": ["Installation of height marker lights", "Installation of ceiling harness", "Installation of fire wall harness", "Installation of dashboard harness"],
-  "KEC:T01-03-01": ["A/C sub-assembly"],
-  "KEC:T01-04": ["Installation of dashboard", "Installation of roof boards / fabric", "Installation of side boards", "Installation of airduct / cargo racks", "Installation of front and rear mould", "Installation of left/right panel"],
-  "KEC:T01-04 EE": ["Installation of wiper motor", "Installation of defroster", "Installation of rear and front side compartments"],
-  "KEC:T01-04-01": ["Dashboard and roof sub-assemblies"],
-  "KEC:T01-05": ["Installation of side glass", "Installation of front and rear windshields", "Installation of water rails"],
-  "KEC:T01-06": ["Installation of steps aluminium floor profiles", "Installation of airduct doors", "Installation of waist beam cover", "Installation of rear side panels"],
-  "KEC:T01-06 EE": ["Final rear and front side compartments routing", "Final rear and front side compartments termination"],
-  "KEC:T01-07": ["Installation of poles", "Installation of column covers", "Installation of curtain rails", "Installation of E-hammers", "Installation of A/C air grille and curtains", "Installation of rubber for aluminium"],
-  "KEC:T01-08": ["Installation of driver seat", "Installation of driver cabin", "Installation of sunvisor", "Installation of fridge", "Installation of inspection cover", "Installation of steering column cover", "Placement of fire extinguisher"],
-  "KEC:T01-09": ["Installation of passenger door and locks", "Installation of exterior body accessories", "Installation of side mirrors, dampers and wipers", "Sealant application", "Installation of aluminium strips"],
-  "KEC:T01-09 EE": ["Final dashboard components routing and termination", "Installation of interior cameras", "Installation of interior lights"],
-  "KEC:T01-09-01": ["Passenger doors sub-assembly"],
-  "KEC:T01-10": ["Installation of electrical systems (VCUs)", "Installation of steering column", "Installation of televisions", "Installation of side cameras", "Installation of USB harnesses", "Underbody routing and termination"],
-  "KEC:T01-10-01": ["Electrical system sub-assembly"],
-  "KEC:T01-11": ["Filling oils and coolant", "ECAS", "A/C refilling", "Mechanical system checks"],
-  "KEC:T01-12": ["Installation of seats", "Installation of armrests"],
-  "KEC:T01-12-01": ["Passenger seats sub-assembly"],
-  "KEC:TQ-01": ["Debugging", "Quality inspection", "Rectification"],
-  // 13m KEC on shared lines: electric, so EVS-style topcoat drying (no clear
-  // coat stage) and a speed test with no exhaust test.
-  "KEC:P07-02": ["AutoCryl topcoat paint-drying"],
-
-  // ── Quality Inspection & Testing (shared, with model-specific Q01-02) ───────
-  "Q01-01": ["Test registration", "Pre-test checklist"],
-  "EVS:Q01-02": ["Speed test on rollers", "Pass/fail recording"],
-  "KEC:Q01-02": ["Speed test on rollers", "Pass/fail recording"],
-  "KDC:Q01-02": ["Vehicle exhaust emission test", "Speed test on rollers", "Pass/fail recording"],
-  "Q01-03": ["Wheel alignment measurement", "Adjustment if required"],
-  "Q01-04": ["Sound level inspection", "Pass/fail recording"],
-  "Q01-05": ["Head lamp aim alignment", "Adjustment if required"],
-  "Q01-06": ["Side slip test", "Pass/fail recording"],
-  "Q01-07": ["Axle load and brake test", "Pass/fail recording"],
-  "Q01-08": ["Test report generation", "Sign-off"],
-  "Q01-09": ["Defects rectification", "Re-test if required"],
-  "Q01-10": ["Chassis anti-corrosion application", "Underbody plastic primer application"],
-  "Q01-11": ["Paint inspection", "Defect marking"],
-  "Q01-12": ["Paint repair and drying"],
-  "Q01-13": ["Rain test / water intrusion check", "Leak logging"],
-  "Q01-14": ["Defects rectification", "Re-test if required"],
-  "Q01-15": ["Road test / whole vehicle dynamic test", "Result recording"],
-  "Q01-16": ["Inspection / decision gate", "Underbody inspection", "Pass/fail decision"],
-  "Washing Bay": ["Washing and cleaning the bus", "Presentability check"],
-  "Q01-17": ["Defects rectification", "Final sign-off"],
-};
-
-// ── Consumables / materials per station (travel card) ─────────────────────────
-// Keyed by the exact travel-card line label, then station code.
-export const RES = {
-  "Machine Shop": {
-    "B01-02": ["Band Saw Blade", "Coolant", "Deburring Tool"],
-    "B01-03": ["Laser Cutting Nozzle", "Cutting Gas (O₂/N₂)"],
-    "B01-04": ["Circular Saw Blade", "Coolant"],
-    "B02-01": ["Laser Cutting Nozzle", "Cutting Gas (O₂/N₂)"],
-    "B02-06": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-  },
-  "Frame Parts Making": {
-    "B04-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B05-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B06-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B07-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B08-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B09-01": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B10-01a": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-    "B10-01b": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm"],
-  },
-  "Frame & Body Welding — EVS": {
-    "W01-03": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm", "Weld Bead Protection Compound (L)"],
-    "W01-04": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Frame Profiles", "Sealing Plates (pcs)"],
-    "W01-05": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Brackets (pcs)", "Silicon Sealant (ml)"],
-    "W01-06": ["Fibre Roof", "A/C Bolts", "Cargo Rack & Ladder Bolts", "Silicon Sealant (ml)", "Rivets (pcs)"],
-    "W01-12": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)"],
-  },
-  "Frame & Body Welding — KDC": {
-    "W01-01a": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Heat Shield", "Seal Plates (pcs)"],
-    "W01-01b": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Infuse Profiles"],
-    "W01-03": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Grinding Disc 115mm", "Weld Bead Protection Compound (L)"],
-    "W01-04": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Attachment Brackets (pcs)", "Sealing Plates (pcs)"],
-    "W01-05": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)", "Silicon Sealant (ml)"],
-    "W01-06": ["Fibre Roof", "A/C Bolts", "Silicon Sealant (ml)", "Rivets (pcs)"],
-    "W01-12": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)"],
-  },
-  "Frame & Body Welding — KEC": {
-    "W01-01a": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)"],
-    "W01-01b": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Infuse Profiles"],
-    "W01-02": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)"],
-    "W01-03": ["Grinding Disc 115mm", "Flap Disc 115mm"],
-    "W01-04": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Chassis Frame Profiles", "Brackets (pcs)"],
-    "W01-05": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Sealing Plates (pcs)", "Brackets (pcs)"],
-    "W01-06": ["Fibre Roof", "Silicon Sealant (ml)", "Rivets (pcs)"],
-    "W01-10": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Weld Bead Protection Compound (L)"],
-    "W01-11": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)"],
-  },
-  "Chassis Line 01 — KEC": {
-    "C01-01": ["VIN Engraving Tool Tip"],
-    "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Coolant Pipe (m)", "Mounting Bolts M12", "Thread Lock (ml)"],
-    "C01-04": ["LV Underbody Wiring Harness", "HV Underbody Wiring Harness", "Cable Ties (pack)", "Split Loom 20mm (m)"],
-  },
-  "Chassis Line 02 — KEC": {
-    "C02-01a": ["HV Harness Set", "Cable Ties (pack)"],
-    "C02-01b": ["Air Compressor", "Radiator", "Air Dryer"],
-    "C02-02": ["Front & Rear Axles", "Suspensions", "Air Bellows", "Shock Absorbers", "Thread Lock (ml)"],
-    "C02-03": ["Motor Mounting Hardware", "HV Batteries", "Thread Lock (ml)"],
-    "C02-04": ["Customer Tyres", "Valve Cores"],
-    "C02-05": ["Connector Pins", "Cable Ties (pack)"],
-  },
-  "Trim Line & Final Assembly — KEC": {
-    "T01-01 EE": ["HV Component Set", "Exterior Side Lights", "Turn Signals", "Cable Ties (pack)"],
-    "T01-02 EE": ["Connector Pins", "Cable Ties (pack)"],
-    "T01-10": ["VCU", "USB Harness", "Side Cameras", "Cable Ties (pack)"],
-  },
-  "Chassis Line 01 — EVS": {
-    "C01-01": ["VIN Engraving Tool Tip", "Cable Ties (pack)", "Split Loom 20mm (m)"],
-    "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Mounting Bolts M12", "Thread Lock (ml)"],
-    "C01-04": ["Air Tank Valves", "Brake Pedals", "ABS Valves", "Mounting Bolts M10"],
-  },
-  "Chassis Line 01 — KDC": {
-    "C01-01": ["VIN Engraving Tool Tip"],
-    "C01-02": ["Air Tanks", "Nylon Pipe 8mm (m)", "Nylon Pipe 10mm (m)", "Gear Selector Cable", "Hydraulic Pipe (m)", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Gear Lever Cables", "Clutch", "Radiator", "Spare Tyre Bracket", "Mounting Bolts M12"],
-    "C01-03-01": ["Radiator Unit", "Fan Blade Set", "Mounting Hardware"],
-    "C01-04": ["LV Underbody Wiring Harness", "Cable Ties (pack)"],
-  },
-  "Chassis Line 02 — EVS": {
-    "C02-01": ["HV Harness Set", "TPMS Sensor Set", "Fire Extinguisher Bracket", "Cable Ties (pack)"],
-    "C02-02": ["Motor Mounting Hardware", "HV Batteries", "Thread Lock (ml)"],
-    "C02-03": ["Front & Rear Axles", "Suspensions", "Air Bellow Shock Absorbers", "Thread Lock (ml)"],
-    "C02-04": ["Air Compressor", "Radiator", "Air Dryer", "PDU", "MCU"],
-    "C02-06": ["Wheel Arch Profile Set", "Customer Tyres"],
-    "C02-07": ["Torque Wrench", "Tyre Pressure Gauge"],
-  },
-  "Chassis Line 02 — KDC": {
-    "C02-01": ["TPMS Sensor Set", "Fire Extinguisher", "Rear LV Harness", "A/C Components", "Starter Motor", "Cable Ties (pack)"],
-    "C02-02": ["Diesel Engine", "Gear Box", "Gasket Set", "Mounting Bolts M16"],
-    "C02-03": ["Coolant Pipe (m)", "Fuel Line (m)", "Fuel Connectors"],
-    "C02-04": ["Front & Rear Axles", "Suspensions", "Shock Absorbers", "Thread Lock (ml)"],
-    "C02-06": ["Air Cleaner Kit", "Air Intake", "Emissions System", "Silencer", "Exhaust Clamps"],
-    "C02-07": ["Customer Tyres", "Valve Cores"],
-  },
-  "Paint Shop": {
-    "P01-01": ["Masking Tape 25mm (roll)", "Masking Tape 50mm (roll)", "Masking Paper (m)"],
-    "P01-02": ["PU Foam Canister", "Utility Knife"],
-    "P01-03": ["Anti-Corrosion Primer (L)", "Applicator Brush", "Respirator Cartridge"],
-    "P02-01": ["Grinding Disc 115mm", "DA Sander Pad 150mm", "Sandpaper 80 grit", "Sandpaper 120 grit"],
-    "P02-03": ["Epoxy Primer (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"],
-    "P03-01": ["Body Filler (kg)", "Glass Fibre Mat (m²)", "Polyester Resin (L)", "Body Hammer Set"],
-    "P04-01": ["NC Primer (L)", "NC Thinner (L)", "Spray Gun Tip 1.6mm"],
-    "P05-02": ["Spot Putty (kg)", "Spreading Knife"],
-    "P06-01": ["Intermediate Coat Paint (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"],
-    "P07-01": ["AutoCryl Top Coat (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.3mm"],
-    "P07-03": ["(KDC) Clear Coat (L)", "Hardener (L)", "Thinner (L)"],
-    "P08-02": ["Colour Strip Paint (L)", "Thinner (L)", "Spray Gun Tip 1.2mm"],
-    "PQ-02": ["Inspection Light", "Touch-up Paint (ml)", "Polish Compound (g)", "Buffer Pad"],
-  },
-  "Trim Line & Final Assembly — EVS": {
-    "T01-02 EE": ["HV Component Set", "Connector Pins", "Cable Ties (pack)"],
-    "T01-10 EE": ["BMS Unit", "USB Harness", "Side Cameras", "Cable Ties (pack)"],
-  },
-  "Trim Line & Final Assembly — KDC": {
-    "T01-09 EE": ["Interior EE Components", "Lighting Systems", "Cable Ties (pack)"],
-    "T01-10 EE": ["Accelerator Pedal", "USB Harness", "Exterior Camera", "Cable Ties (pack)"],
-  },
-};
-
-// Local custom-consumable memory ([{ name, qty }]) plus the station's shared
-// names — shared ones this device hasn't used yet join with a blank quantity.
-export function mergeConsumables(local, sharedNames) {
-  const out = (local || []).filter(r => r && r.name);
-  const have = new Set(out.map(r => r.name.trim().toLowerCase()));
-  for (const name of sharedNames || []) {
-    if (!have.has(name.trim().toLowerCase())) { out.push({ name, qty: "" }); have.add(name.trim().toLowerCase()); }
-  }
-  return out;
-}
-
 // This device's own copy of the cards it filed per VIN — a fallback for the
 // Full Bus Report while the sheet catches up. The evidence photo (base64,
 // often megabytes) is left out: storing it used to fill the ~5 MB browser
@@ -951,49 +98,16 @@ function appendBusLog(vin, sub) {
   LS.set(key, [...LS.get(key, []), slim].slice(-200));
 }
 
-// Persisted consumables show on every fill-in; only the ones actually used
-// (quantity > 0) belong on the submitted card.
-export function usedOtherRes(list) {
-  return (list || []).filter(r => r && r.name && Number(r.qty) > 0);
-}
-
-// 13m KEC: chassis follows the EVS work instructions; welding, paint and trim
-// follow the KDC ones. Rebuild its lists / activities / consumables from them so
-// the two never drift apart (the literal "— KEC" rows above are superseded).
-{
-  const kec = applyKecTemplate({ tcLines: TC_LINES, acts: ACTS, res: RES, stationModels: STATION_MODELS });
-  for (const [dst, src] of [[TC_LINES, kec.tcLines], [ACTS, kec.acts], [RES, kec.res], [STATION_MODELS, kec.stationModels]]) {
-    for (const k of Object.keys(dst)) if (!(k in src)) delete dst[k];
-    Object.assign(dst, src);
-  }
-}
-
-// Shared-line station labels can carry both families' wording, e.g.
-// "Q01-02: Speed Test (EVS) / Vehicle Exhaust & Speed Test (KDC)". Show only
-// the selected family's half (KEC is electric, so it takes the EVS wording).
-// Display-only: the stored station value keeps the full label.
-export function stationLabelForModel(label, kind) {
-  const m = /^([^:]+:\s*)(.+?) \(EVS\) \/ (.+?) \(KDC\)$/.exec(label);
-  if (m) return m[1] + (kind === "KDC" || (kind === "KEC" && /^P/i.test(m[1])) ? m[3] : m[2]);
-  return label.replace(/\s*\(KDC only\)$/, "");
-}
-
-const SIX = [
-  { m: "Man", icon: "👤", d: "Operator skill, fatigue, attendance", subs: ["Skill gap / lack of training","Fatigue or health issue","Absenteeism / understaffing","Incorrect method used","Communication failure"] },
-  { m: "Machine", icon: "🔧", d: "Equipment, tooling, fixtures", subs: ["Machine breakdown","Tooling failure","Fixture misalignment","Calibration issue","Machine setup delay"] },
-  { m: "Method", icon: "📋", d: "Process, sequence, instructions", subs: ["Incorrect work sequence","Missing work instruction","Outdated procedure","Process not followed","Design / engineering issue"] },
-  { m: "Material", icon: "📦", d: "Parts, consumables, supply", subs: ["Material shortage","Wrong material delivered","Defective incoming part","Consumable exhausted","Material handling delay"] },
-  { m: "Measurement", icon: "📐", d: "Inspection, gauging, data", subs: ["Gauge / instrument error","Measurement method incorrect","Inspection delay","Tolerance issue","Documentation error"] },
-  { m: "Mother Nature", icon: "🌦", d: "Environment, temperature, power", subs: ["High ambient temperature","Humidity / moisture issue","Power fluctuation / outage","Poor ventilation","External noise or vibration"] },
-];
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
-import { fetchSubmissions } from '../hooks/useSubmissionsData';
+import { busCardsFor, emailCardReports, describeCardEmail } from '../utils/cardEmail';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useStationPresets, presetFor } from '../hooks/useStationPresets';
 import { workingMinutes } from '../utils/workTime';
-import { applyKecTemplate } from '../data/kecTemplate';
+import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
+import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
+// Older imports read the seed from this file; keep them working.
+export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { useStationConsumables } from '../hooks/useStationConsumables';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -1143,7 +257,7 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null, taskPrefill = null, onCardSubmitted = null, onExit = null }) {
   // Normalize single/multi station-lock props into one list. A single assigned
   // station keeps the old fully-locked (disabled dropdown) behavior; multiple
   // assigned stations (same line, e.g. a station head over several stations)
@@ -1283,6 +397,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Done
   const [submission, setSubmission] = useState(null);
   const [gsStatus, setGsStatus] = useState("");
+  const [emailStatus, setEmailStatus] = useState("");
+  // Closing a Start/End task: its start and end times are prefilled and stay
+  // editable for every role (see the clock card on the Activities page).
+  const fromTask = !!taskPrefill;
 
   // Station times
   const [stationTimesApi, setStationTimesApi] = useState(null);
@@ -1394,8 +512,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // ("Chassis Line 01 — EVS/KDC") and the visible line list depends on the model.
   useEffect(() => {
     if (!lockedCodes.length) return;
-    const LINES_L = { ...TC_LINES, ...(catalog.tcLines || {}) };
-    const kind = busModel.includes("KDC") ? "KDC" : busModel.includes("KEC") ? "KEC" : "EVS";
+    const LINES_L = resolveTcCatalog(catalog).lines;
+    const kind = modelKindOf(busModel);
 
     function resolveCode(code) {
       // 1) Look for the code in the travel-card line lists, preferring the
@@ -1459,44 +577,56 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserName]);
 
+  // ── Closing a Start/End task ─────────────────────────────────────────────────
+  // Phase 1 sets project / model / VIN / line; phase 2 (once the bus model has
+  // rendered, so the station lookup uses the right family) picks the station and
+  // carries the ticked activities and the start/end times over. Runs after the
+  // station-lock effect above, so its activity reset does not undo this.
+  const appliedTask = useRef(null);
+  useEffect(() => {
+    if (!taskPrefill) return;
+    appliedTask.current = null;
+    setCurProj(taskPrefill.project || "");
+    setBusModel(taskPrefill.busModel || "");
+    setVin(taskPrefill.vin || "");
+    setCurLine(taskPrefill.line || "");
+    // Remember the project and VIN locally (as "Add VIN" would) so both appear
+    // in the dropdowns even when the VIN was typed at Start.
+    if (taskPrefill.project) setProjects(p => {
+      const cur = p[taskPrefill.project] || { vins: [] };
+      const vins = cur.vins || [];
+      return taskPrefill.vin && !vins.includes(taskPrefill.vin)
+        ? { ...p, [taskPrefill.project]: { ...cur, vins: [...vins, taskPrefill.vin] } }
+        : (p[taskPrefill.project] ? p : { ...p, [taskPrefill.project]: cur });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskPrefill?.taskId]);
+  useEffect(() => {
+    if (!taskPrefill || appliedTask.current === taskPrefill.taskId || busModel !== (taskPrefill.busModel || "")) return;
+    appliedTask.current = taskPrefill.taskId;
+    if (taskPrefill.station) onStation(taskPrefill.station);
+    if (taskPrefill.designedMin > 0) setDesignedTime(taskPrefill.designedMin);
+    const done = {};
+    (taskPrefill.activities || []).forEach(a => { if (a.doneAt) done[a.name] = "complete"; });
+    setActStatuses(done);
+    setOtherActs((taskPrefill.activities || []).filter(a => a.added).map(a => a.name));
+    setClockIn(isoToLocalInput(taskPrefill.startedAt));
+    setClockOut(taskPrefill.endedAt || new Date().toISOString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskPrefill?.taskId, busModel, stationTimesApi]);
+
   // Which model family's template applies (EVS city bus, KDC diesel coach, KEC
   // electric coach). Lines, stations and "<family>:<code>" activities key off it.
-  const modelKind = busModel.includes("KDC") ? "KDC" : busModel.includes("KEC") ? "KEC" : "EVS";
+  const modelKind = modelKindOf(busModel);
 
-  // ── Merge the shared catalog over the built-in seed ──────────────────────────
   // Admin edits (lines/stations/activities/resources) live in the catalog and
-  // override or extend the defaults, so every session sees the same dropdowns.
-  const LINES_  = { ...TC_LINES, ...(catalog.tcLines || {}) };
-  const ACTS_   = { ...ACTS, ...(catalog.acts || {}) };
-  const RES_    = (() => {
-    const out = { ...RES };
-    for (const [ln, obj] of Object.entries(catalog.res || {})) out[ln] = { ...(RES[ln] || {}), ...obj };
-    return out;
-  })();
-  const LINE_MODELS_    = { ...LINE_MODELS, ...(catalog.lineModels || {}) };
-  const STATION_MODELS_ = { ...STATION_MODELS, ...(catalog.stationModels || {}) };
-
-  // Per-model filtering. Anything NOT listed below applies to BOTH models.
-  const visibleLines = Object.keys(LINES_).filter(
-    l => !LINE_MODELS_[l] || LINE_MODELS_[l].includes(modelKind)
-  );
-  const stationMatchesModel = (s) => {
-    const code = s.split(":")[0].trim();
-    const m = STATION_MODELS_[code];
-    return !m || m.includes(modelKind);
-  };
-  const stations = curLine ? (LINES_[curLine] || []).filter(stationMatchesModel) : [];
-  // Activities can differ by model for shared lines (e.g. Paint P07-02, QA Q01-02).
-  // Look up the model-namespaced key first, then fall back to the bare code.
-  // An activity ending in a bus-model tag, e.g. "… ladder bolts (7m EVS)", only
-  // applies to that exact model, so it's hidden for the other lengths.
-  const acts = curCode
-    ? (ACTS_[modelKind + ":" + curCode] || ACTS_[curCode] || []).filter(a => {
-        const tag = /\((\d+(?:\.\d+)?m [A-Z]{3})\)\s*$/.exec(a);
-        return !tag || tag[1] === busModel;
-      })
-    : [];
-  const resList = (curLine && curCode && RES_[curLine]) ? RES_[curLine][curCode] || [] : [];
+  // override or extend the built-in seed; src/utils/tcCatalog.js does the merge
+  // and the per-model filtering, shared with Start/End and Catalog Admin.
+  const tc = resolveTcCatalog(catalog);
+  const visibleLines = tc.visibleLines(busModel);
+  const stations = curLine ? tc.stationsFor(curLine, busModel) : [];
+  const acts = tc.actsFor(curCode, busModel);
+  const resList = tc.resFor(curLine, curCode);
 
   // Bus projects offered in the dropdown: union of locally-remembered projects
   // (which carry VIN memory) and active catalog projects added by an admin.
@@ -1583,7 +713,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!curSt) { alert("Select a station."); return; }
     // Editing an existing card shouldn't silently reset its original
     // clock-out to "now" — only a fresh submission auto-stamps it.
-    if (!isEditMode) setClockOut(new Date().toISOString());
+    if (!isEditMode && !fromTask) setClockOut(new Date().toISOString());
     goTo(1);
   }
 
@@ -1688,6 +818,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       await fetch(SHEETS_URL, { method: "POST", mode: "no-cors", body });
       setGsStatus("✅ Submitted. Awaiting supervisor review.");
       if (onSubmitSuccess) onSubmitSuccess();
+      afterFiled(sub);
     } catch {
       setGsStatus("⚠️ Could not reach Google Sheets. Download your record below.");
     }
@@ -1771,6 +902,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       await fetch(SHEETS_URL, { method: "POST", mode: "no-cors", body });
       setGsStatus("✅ Saved to production records.");
       if (onSubmitSuccess) onSubmitSuccess();
+      afterFiled(sub);
     } catch {
       setGsStatus("⚠️ Could not reach Google Sheets. Download the record below.");
     }
@@ -1791,18 +923,21 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Every card filed for this VIN from ANY device (the sheet), plus this
   // device's own recent cards the sheet hasn't caught up with yet (a card
   // submitted seconds ago), de-duplicated by station + submit time.
+  // A card was filed: tell the hub (closes the Start/End task it came from) and
+  // email the submitter + approvers with both reports attached.
+  function afterFiled(sub) {
+    if (onCardSubmitted) onCardSubmitted(sub, taskPrefill);
+    setEmailStatus("📧 Emailing your station and bus reports…");
+    emailCardReports(sub)
+      .then(reply => setEmailStatus(describeCardEmail(reply)))
+      .catch(e => setEmailStatus(`⚠️ Email not sent: ${e.message}`));
+  }
+
   async function dlBusReport() {
     if (!submission || dlBusy) return;
     setDlBusy("bus");
     try {
-      const vinKey = String(submission.vin).trim().toUpperCase();
-      let fromSheet = [];
-      try {
-        fromSheet = (await fetchSubmissions({ withDowntime: true })).filter(c => String(c.vin).trim().toUpperCase() === vinKey);
-      } catch (e) { console.warn("Bus report: sheet unavailable, using this device's cards only.", e); }
-      const local = LS.get(`kmc_bus_log_${submission.vin}`, []);
-      const seen = new Set(fromSheet.map(c => `${c.stationCode}|${c.timestamp}`));
-      const cards = [...fromSheet, ...local.filter(c => !seen.has(`${c.stationCode}|${c.timestamp}`))];
+      const cards = await busCardsFor(submission.vin);
       await downloadBusReport(cards, { theme, vin: submission.vin });
     } catch (e) { console.error("PDF error:", e); alert("PDF generation failed. Check console."); }
     finally { setDlBusy(""); }
@@ -1817,7 +952,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCorrAction(""); setOrComments("");
     setRcaMethod(""); setWhy1(""); setWhy2(""); setWhy3(""); setWhy4(""); setWhy5(""); setFiveCategory(""); setPreventiveAction("");
     setReviewer(""); setRevOther("");
-    setAppStatus(""); setRevComments(""); setSubmission(null); setGsStatus("");
+    setAppStatus(""); setRevComments(""); setSubmission(null); setGsStatus(""); setEmailStatus("");
     setBusModel(km); setCurProj(kp); setVin(kv);
     // Stay on the same line + station and reload its memory (operators,
     // quantities, custom consumables) for the next fill-in. Clearing it used to
@@ -1839,11 +974,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const lblStyle = i => ({ ...css.lbl, ...(i === visSeg ? css.lblAct : i < visSeg ? css.lblDone : {}) });
 
   return (
-    <div style={{
-      position: 'relative', minHeight: '100vh',
-      backgroundImage: theme === 'dark' ? "url('/Bus background.png')" : "url('/Bus background 2.png')",
-      backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed',
-    }}>
+    // The page background (bus photo + overlay) comes from .kmc-page around it.
+    <div style={{ position: 'relative' }}>
     <div style={{...css.wrap, position: 'relative', zIndex: 1}} className="tc-wrap">
       <style>{`
         .tc-wrap select option,
@@ -2035,18 +1167,18 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       {/* ── PAGE 1: ACTIVITIES ── */}
       {page === 1 && <>
         <div style={css.card}>
-          <div style={css.cardHd}>Clock in{isAdmin ? " / out" : ""}</div>
+          <div style={css.cardHd}>Clock in{isAdmin || fromTask ? " / out" : ""}</div>
           {/* change 4: clock-out removed; only clock-in here */}
           <Inp label="Clock in time" type="datetime-local" value={clockIn} onChange={e => setClockIn(e.target.value)} />
-          {isAdmin ? (
+          {isAdmin || fromTask ? (
             <>
               <Inp
-                label="Clock out time (admin)"
+                label={fromTask ? "Clock out time" : "Clock out time (admin)"}
                 type="datetime-local"
                 value={isoToLocalInput(clockOut)}
                 onChange={e => setClockOut(e.target.value ? new Date(e.target.value).toISOString() : "")}
               />
-              <div style={css.note}>Admin can adjust the auto-recorded clock-out time.</div>
+              <div style={css.note}>{fromTask ? "Start and end were recorded when you pressed Start and Close. Correct them here if needed." : "Admin can adjust the auto-recorded clock-out time."}</div>
             </>
           ) : (
             <div style={css.note}>Clock-out was recorded automatically when you completed the identity page.</div>
@@ -2678,6 +1810,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>}
 
         <div style={{ fontSize: 11, textAlign: "center", color: T.dim, fontFamily: T.mono, marginBottom: 8 }}>{gsStatus}</div>
+        {emailStatus && <div style={{ fontSize: 11, textAlign: "center", color: T.dim, fontFamily: T.mono, margin: "-4px 20px 8px" }}>{emailStatus}</div>}
 
         {/* change 10: two PDF download buttons */}
         <div style={css.px}>
@@ -2688,7 +1821,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             {dlBusy === "bus" ? "Generating PDF…" : "⬇ Download full bus report (PDF)"}
           </button>
           <button style={css.btnP} onClick={another}>Log another station →</button>
-          <button style={css.btnS} onClick={() => { if (onReset) onReset(); }}>← Back to tracker</button>
+          <button style={css.btnS} onClick={() => { if (onReset) onReset(); if (onExit) onExit(); }}>{onExit ? "← Back to Travel Card home" : "← Back to tracker"}</button>
         </div>
       </>}
     </div>
