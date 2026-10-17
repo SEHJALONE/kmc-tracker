@@ -1,3 +1,5 @@
+import ThemeSwitch from './ui/ThemeSwitch';
+
 export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onSelectCostEstimation, onSelectMySubmissions, onLogout, theme, toggleTheme, role, canAccessTracker = true, hasCeeAccess = false }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
@@ -30,7 +32,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
   return (
     <div className="home-screen" style={{
       minHeight: '100vh',
-      background: 'var(--bg-base)',
+      background: 'transparent',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -225,12 +227,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
       `}</style>
 
       <div className="home-top-controls">
-        {toggleTheme && (
-          <button className="home-top-btn" onClick={toggleTheme}>
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-            {theme === 'dark' ? 'Light' : 'Dark'}
-          </button>
-        )}
+        {toggleTheme && <ThemeSwitch theme={theme} onToggle={toggleTheme} />}
         {onLogout && (
           <button className="home-top-btn signout" onClick={onLogout}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">

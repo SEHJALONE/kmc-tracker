@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
+import ThemeSwitch from './ui/ThemeSwitch';
+import { StatTile } from './ui/Charts';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useAccessRequests } from '../hooks/useAccessRequests';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
-import { sendViaAppsScript } from '../data/mailer.js';
 
 const ROLE_OPTIONS = [
   { value: 'user',       label: 'General User',  desc: 'Assigned to one or more stations — travel card prefilled & locked' },
@@ -52,16 +53,16 @@ function userLineStationsFor(stationsByLine, lineId) {
   return stationsByLine[lineId] || [];
 }
 
-export default function AccessRequests({ onBack, theme = 'dark' }) {
+export default function AccessRequests({ onBack, onToggleTheme = null, theme = 'dark' }) {
   const isDark = theme === 'dark';
-  const bg     = isDark ? 'rgba(7,9,15,0.92)'     : 'rgba(248,250,252,0.99)';
-  const card   = isDark ? 'rgba(13,21,38,0.90)'    : '#ffffff';
-  const text   = isDark ? '#e2e8f0'                : '#1e293b';
-  const muted  = isDark ? '#94a3b8'                : '#475569';
-  const dim    = isDark ? '#64748b'                : '#94a3b8';
-  const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.09)';
-  const inpBg  = isDark ? '#0d1526'                : '#f8fafc';
-  const inpBor = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)';
+  const bg     = 'transparent';
+  const card   = 'var(--bg-card)';
+  const text   = 'var(--text-primary)';
+  const muted  = 'var(--text-secondary)';
+  const dim    = 'var(--text-muted)';
+  const border = 'var(--border-subtle)';
+  const inpBg  = 'var(--input-bg)';
+  const inpBor = 'var(--input-border)';
   const R      = '#dc2626';
   const GR     = '#10b981';
   const AM     = '#f59e0b';
@@ -69,7 +70,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   const stationsByLine = useMemo(buildStationsByLine, []);
 
-  const { requests, loading: requestsLoading, updateRequest: persistRequestUpdate, deleteRequest: persistRequestDelete } = useAccessRequests();
+  const { requests, loading: requestsLoading, loadError, refreshRequests, updateRequest: persistRequestUpdate, deleteRequest: persistRequestDelete } = useAccessRequests();
   const { createUser } = useDynamicUsers();
   const [selected, setSelected]     = useState(null);
   const [tab, setTab]               = useState('pending');
@@ -174,30 +175,23 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
       return alert(`Could not create the account: ${result.error || 'unknown error'}`);
     }
 
-    await persistRequestUpdate({
+    const marked = await persistRequestUpdate({
       id: selected.id, status: 'approved',
       assignedUsername: newUser.username, assignedRole: form.role,
       processedAt: new Date().toISOString(),
     });
 
-    let emailed = false, emailNote = '';
-    try {
-      await sendViaAppsScript('notifyApproved', {
-        fullName: selected.fullName, email: selected.email,
-        username: newUser.username, role: form.role,
-      });
-      emailed = true;
-    } catch (e) {
-      // Non-fatal — the account is already created; say why so the admin shares details by hand.
-      emailNote = e.message;
-    }
+    // The server emails the applicant itself when the request is marked approved.
+    const emailed = marked.ok && marked.emailed, emailNote = marked.emailError || '';
 
     setSelected(null);
     setBusy(false);
     // If the email didn't go, say why, so the admin shares the details by hand
     // rather than assuming the applicant was told.
     showToast(
-      emailed
+      !marked.ok
+        ? `Account created for ${selected.fullName}, but the request could not be marked approved (${marked.error}). It may still show as pending: do not approve it twice.`
+        : emailed
         ? `Access granted to ${selected.fullName} ✓ — confirmation emailed to ${selected.email}`
         : `Access granted to ${selected.fullName} ✓ — email not sent${emailNote ? ` (${emailNote})` : ''}, share credentials manually`,
       true
@@ -206,13 +200,14 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
   async function handleDeny() {
     if (!confirm(`Deny access for ${selected.fullName}?`)) return;
-    await persistRequestUpdate({ id: selected.id, status: 'denied', processedAt: new Date().toISOString() });
+    const denied = await persistRequestUpdate({ id: selected.id, status: 'denied', processedAt: new Date().toISOString() });
     setSelected(null);
-    showToast('Request denied.', false);
+    showToast(denied.ok ? 'Request denied.' : `Could not deny the request: ${denied.error}`, false);
   }
 
-  function deleteRequest(id) {
-    persistRequestDelete(id);
+  async function deleteRequest(id) {
+    const r = await persistRequestDelete(id);
+    if (!r.ok) showToast(`Could not remove the request: ${r.error}`, false);
   }
 
   const inp = {
@@ -232,23 +227,22 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
   const userLineStations = form.stationLine ? userLineStationsFor(stationsByLine, form.stationLine) : [];
 
   return (
-    <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)' }}>
+    <div style={{ minHeight: '100vh', background: bg, fontFamily: fm, color: text, padding: 'clamp(20px,4vw,36px) clamp(14px,4vw,32px)', maxWidth: 1000, margin: '0 auto' }}>
 
       {/* Banner */}
       <div style={{
-        width: '100%', maxWidth: 900, height: 140, borderRadius: 10, overflow: 'hidden',
+        width: '100%', maxWidth: '100%', height: 150, borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--panel-shadow)',
         marginBottom: 28, position: 'relative',
         backgroundImage: `url('${isDark ? '/img 2.png' : '/img 1.png'}')`,
         backgroundSize: 'cover', backgroundPosition: 'center 30%',
       }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(7,9,15,0.82) 0%, rgba(7,9,15,0.35) 60%, transparent 100%)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(10,13,20,0.92) 0%, rgba(10,13,20,0.72) 58%, rgba(10,13,20,0.5) 100%)' }} />
+        {onToggleTheme && <div style={{ position: 'absolute', top: 12, right: 14, zIndex: 2 }}><ThemeSwitch theme={theme} onToggle={onToggleTheme} /></div>}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14 }}>
-          <button onClick={onBack} style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: 6, padding: '7px 14px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0 }}>
-            ← Back
-          </button>
+          <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>Access Requests</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Review and grant system access — assign roles, lines, and stations</div>
+            <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>Access Requests</div>
+            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Review and grant system access — assign roles, lines, and stations</div>
           </div>
           <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {pending.length} pending
@@ -256,8 +250,26 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
         </div>
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 22 }}>
+        <StatTile label="Waiting for you" value={pending.length} tone="amber" sub="requests to review" />
+        <StatTile label="Approved" value={processed.filter(r => r.status === 'approved').length} tone="lime" sub="accounts created" />
+        <StatTile label="Denied" value={processed.filter(r => r.status === 'denied').length} tone="red" sub="not granted" />
+      </div>
+
+      {/* The list could not be loaded from the server: say so, never pass a saved copy off as live */}
+      {loadError && (
+        <div role="alert" style={{ maxWidth: '100%', marginBottom: 16, padding: '12px 16px', borderRadius: 8, border: `1px solid ${R}66`, background: 'rgba(220,38,38,0.10)', fontSize: 12.5, lineHeight: 1.55, color: text }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>The latest requests could not be loaded from the server.</div>
+          <div style={{ color: muted }}>{loadError.message}</div>
+          <div style={{ color: muted, marginTop: 4 }}>
+            {requests.length ? 'The list below is a copy saved on this device and may be out of date.' : 'Nothing is saved on this device either, so new requests will not show here yet.'}
+          </div>
+          <button onClick={refreshRequests} style={{ marginTop: 10, background: 'transparent', border: `1px solid ${border}`, color: text, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Try again</button>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, maxWidth: 900, borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, maxWidth: '100%', borderBottom: `1px solid ${border}`, paddingBottom: 0 }}>
         {[['pending', `Pending (${pending.length})`], ['processed', `Processed (${processed.length})`]].map(([t, label]) => (
           <button key={t} onClick={() => { setTab(t); setSelected(null); }} style={{
             padding: '8px 18px', background: 'none', border: 'none',
@@ -284,7 +296,7 @@ export default function AccessRequests({ onBack, theme = 'dark' }) {
 
       {/* Request list */}
       {!selected && displayed.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 900 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: '100%' }}>
           {displayed.map(req => {
             const statusColor = req.status === 'approved' ? GR : req.status === 'denied' ? R : AM;
             const rc = ROLE_COLOR[req.assignedRole] || AM;

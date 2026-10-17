@@ -43,9 +43,10 @@ describe('HomeScreen', () => {
   it('calls toggleTheme when theme toggle is clicked', () => {
     const toggleTheme = vi.fn()
     render(<HomeScreen {...defaultProps} toggleTheme={toggleTheme} />)
-    // In dark mode the button shows "Light" (switch to light)
-    const btn = screen.getByText(/light/i)
-    fireEvent.click(btn)
+    // The switch has a Light and a Dark segment; in dark mode only Light changes anything
+    fireEvent.click(screen.getByTitle('Dark'))
+    expect(toggleTheme).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByTitle('Light'))
     expect(toggleTheme).toHaveBeenCalledOnce()
   })
 })

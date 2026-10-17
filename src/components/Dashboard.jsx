@@ -6,6 +6,9 @@ import { useNCRData } from '../hooks/useNCRData';
 import ExportPanel from './ExportPanel';
 import Presentation from './Presentation';
 
+// Accent hex → the gradient used for its bars and tile edges.
+const softGrad = (c, angle = 90) => `linear-gradient(${angle}deg, ${c}88, ${c})`;
+
 const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
 
@@ -25,10 +28,11 @@ function fmtHours(h) {
 // ── Takt Time components ──────────────────────────────────
 function TaktKpiBox({ label, value, sub, color }) {
   return (
-    <div style={{ background: 'var(--bg-surface-2, var(--bg-surface))', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '12px 16px', flex: '1 1 140px', minWidth: 0 }}>
-      <div style={{ fontSize: 9, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: color || 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1, letterSpacing: '-0.5px' }}>{value}</div>
-      {sub && <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4 }}>{sub}</div>}
+    <div className="kmc-stat" style={{ background: 'var(--socket-bg)', boxShadow: 'var(--socket-shadow)', borderRadius: 14, flex: '1 1 140px', minWidth: 0 }}>
+      <div className="bar" style={{ background: softGrad(color || '#64748b', 180) }} />
+      <div className="kmc-label">{label}</div>
+      <div className="v" style={{ fontSize: 34, color: color || 'var(--text-heading)' }}>{value}</div>
+      {sub && <div className="s">{sub}</div>}
     </div>
   );
 }
@@ -157,22 +161,14 @@ function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTak
 // ── Tiny helpers ─────────────────────────────────────────
 function MetricCard({ label, value, sub, accent }) {
   return (
-    <div style={{
-      background: 'var(--bg-surface)',
-      border: `1px solid ${accent ? accent + '44' : 'var(--border-subtle)'}`,
-      borderTop: `2px solid ${accent || 'var(--border-medium)'}`,
-      borderRadius: 8, padding: '16px 18px',
-      display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', textAlign: 'center',
-      boxShadow: 'var(--shadow-card)',
-      transition: 'background 0.25s ease',
-    }}>
-      <div style={{ fontSize: 9, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700 }}>
-        {label}
+    <div className="kmc-panel kmc-stat" style={{ textAlign: 'left' }}>
+      <div className="bar" style={{ background: softGrad(accent || '#64748b', 180) }} />
+      <div className="kmc-label">{label}</div>
+      <div className="v" style={{ fontSize: 44 }}>{value}</div>
+      {sub && <div className="s">{sub}</div>}
+      <div className="kmc-track" style={{ height: 6, marginTop: 10 }}>
+        <div className="kmc-fill" style={{ height: '100%', width: '100%', background: softGrad(accent || '#64748b') }} />
       </div>
-      <div style={{ fontSize: 30, fontWeight: 800, color: accent || 'var(--text-heading)', lineHeight: 1.05, letterSpacing: '-0.5px' }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>{sub}</div>}
     </div>
   );
 }
@@ -181,12 +177,12 @@ function BarRow({ label, value, max, color, sub }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-        <span style={{ fontSize: 12, color: 'var(--text-primary)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 600 }}>{label}</span>
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif" }}>{sub || value}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6, gap: 8 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 600 }}>{label}</span>
+        <span className="kmc-chip"><span>{sub || value}</span><b style={{ background: softGrad(color, 135) }}>{pct}%</b></span>
       </div>
-      <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
+      <div className="kmc-track" style={{ height: 12 }}>
+        <div className="kmc-fill" style={{ height: '100%', width: `${pct}%`, background: softGrad(color), transition: 'width 0.6s ease' }} />
       </div>
     </div>
   );
@@ -194,44 +190,34 @@ function BarRow({ label, value, max, color, sub }) {
 
 function SectionTitle({ children }) {
   return (
-    <div style={{
-      fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em',
-      fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 12,
-      paddingBottom: 8, borderBottom: '1px solid var(--border)',
-    }}>
-      {children}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+      <span style={{ width: 22, height: 4, borderRadius: 2, background: 'var(--g-red)', flexShrink: 0 }} />
+      <span className="kmc-label" style={{ color: 'var(--text-secondary)' }}>{children}</span>
     </div>
   );
 }
 
 function PerfCard({ title, name, detail, accent, subDetail }) {
+  const c = accent === 'green' ? '#10b981' : '#dc2626';
   return (
-    <div style={{
-      background: `rgba(${accent === 'green' ? '16,185,129' : '220,38,38'},0.07)`,
-      border: `1px solid rgba(${accent === 'green' ? '16,185,129' : '220,38,38'},0.2)`,
-      borderRadius: 8, padding: '14px 16px',
-    }}>
-      <div style={{ fontSize: 9, color: accent === 'green' ? '#10b981' : '#dc2626', textTransform: 'uppercase', letterSpacing: '0.12em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 8 }}>
-        {title}
-      </div>
+    <div className="kmc-panel" style={{ padding: '14px 16px', borderLeft: `4px solid ${c}` }}>
+      <div className="kmc-label" style={{ color: c, marginBottom: 8 }}>{title}</div>
       {name
         ? <>
-            <div style={{ fontSize: 12, color: '#f1f5f9', fontWeight: 600, lineHeight: 1.4 }}>{name}</div>
-            <div style={{ fontSize: 9, color: '#475569', marginTop: 4, fontFamily: "'Inter', system-ui, sans-serif" }}>{detail}</div>
-            {subDetail && <div style={{ fontSize: 9, color: '#334155', marginTop: 2, fontFamily: "'Inter', system-ui, sans-serif" }}>{subDetail}</div>}
+            <div style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 700, lineHeight: 1.4 }}>{name}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{detail}</div>
+            {subDetail && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{subDetail}</div>}
           </>
-        : <div style={{ fontSize: 10, color: '#334155', fontFamily: "'Inter', system-ui, sans-serif" }}>Not enough data yet</div>
+        : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not enough data yet</div>
       }
     </div>
   );
 }
 
-
-
 // ── Production Trend SVG chart ───────────────────────────
 function ProductionTrendChart({ data }) {
-  const W = 600, H = 160;
-  const pad = { top: 24, right: 16, bottom: 36, left: 28 };
+  const W = 600, H = 190;
+  const pad = { top: 30, right: 16, bottom: 34, left: 30 };
   const cw = W - pad.left - pad.right;
   const ch = H - pad.top - pad.bottom;
   const n = data.length;
@@ -250,27 +236,34 @@ function ProductionTrendChart({ data }) {
   if (yTicks[yTicks.length - 1] !== maxCount) yTicks.push(maxCount);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
+      <defs>
+        <linearGradient id="ptc-line" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#a9dccf" /><stop offset=".5" stopColor="#2492b3" /><stop offset="1" stopColor="#20c464" /></linearGradient>
+        <linearGradient id="ptc-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2492b3" stopOpacity=".35" /><stop offset="1" stopColor="#2492b3" stopOpacity="0" /></linearGradient>
+        <filter id="ptc-glow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="3.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+      </defs>
       {yTicks.map(v => (
         <g key={v}>
-          <line x1={pad.left} y1={yOf(v)} x2={W - pad.right} y2={yOf(v)} stroke="rgba(148,163,184,0.1)" strokeWidth={1} />
-          <text x={pad.left - 5} y={yOf(v) + 4} textAnchor="end" fontSize={9} fill="var(--text-dim)" fontFamily="'Inter',system-ui">{v}</text>
+          <line x1={pad.left} y1={yOf(v)} x2={W - pad.right} y2={yOf(v)} stroke="var(--grid-line)" strokeDasharray="4 6" strokeWidth={1} />
+          <text x={pad.left - 8} y={yOf(v) + 4} textAnchor="end" fontSize={10} fill="var(--text-muted)" fontFamily="var(--font-label)" fontWeight="600">{v}</text>
         </g>
       ))}
-      <polygon points={areaPts} fill="rgba(59,130,246,0.08)" />
-      <polyline points={pts} fill="none" stroke="#3b82f6" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <polygon points={areaPts} fill="url(#ptc-area)" />
+      <polyline points={pts} fill="none" stroke="var(--socket-bg)" strokeWidth={11} strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts} fill="none" stroke="url(#ptc-line)" strokeWidth={5} strokeLinejoin="round" strokeLinecap="round" filter="url(#ptc-glow)" />
       {data.map((d, i) => (
         <g key={d.key}>
-          <circle cx={xOf(i)} cy={yOf(d.count)} r={d.count > 0 ? 4 : 2.5}
-            fill={d.count > 0 ? '#3b82f6' : 'rgba(148,163,184,0.2)'}
-            stroke="var(--bg-surface)" strokeWidth={1.5} />
+          {d.count > 0 && <circle cx={xOf(i)} cy={yOf(d.count)} r={7} fill="var(--panel-solid)" stroke="#2492b3" strokeWidth={3} />}
           {d.count > 0 && (
-            <text x={xOf(i)} y={yOf(d.count) - 9} textAnchor="middle" fontSize={9}
-              fill="#3b82f6" fontWeight={700} fontFamily="'Inter',system-ui">{d.count}</text>
+            <text x={xOf(i)} y={yOf(d.count) - 13} textAnchor="middle" fontSize={16}
+              fill="var(--text-heading)" fontFamily="var(--font-display)">{d.count}</text>
           )}
           {i % 2 === 0 && (
-            <text x={xOf(i)} y={H - 4} textAnchor="middle" fontSize={8}
-              fill="var(--text-dim)" fontFamily="'Inter',system-ui">{d.label}</text>
+            <>
+              <circle cx={xOf(i)} cy={H - 20} r={2.5} fill="var(--text-dim)" />
+              <text x={xOf(i)} y={H - 4} textAnchor="middle" fontSize={9.5}
+                fill="var(--text-muted)" fontFamily="var(--font-label)" fontWeight="600">{d.label}</text>
+            </>
           )}
         </g>
       ))}
@@ -299,7 +292,7 @@ const fmtMin = (m) => {
 
 function DowntimePanel({ title, note, children }) {
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
       <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <span>{title}</span>
         {note && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{note}</span>}
@@ -410,8 +403,8 @@ function DowntimeInsights({ modelColor }) {
                   <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,2fr) minmax(0,3fr) 64px 52px', gap: 10, alignItems: 'center' }}>
                     <div style={{ fontSize: 9, color: idx === 0 ? color : 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, textAlign: 'right' }}>#{idx + 1}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.cause}</div>
-                    <div style={{ height: 8, background: 'var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}99, ${color})`, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                    <div className="kmc-track" style={{ height: 12 }}>
+                      <div className="kmc-fill" style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${color}99, ${color})`, borderRadius: 4, transition: 'width 0.5s ease' }} />
                     </div>
                     <div style={{ fontSize: 11, fontWeight: 700, color, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(c.totalMin)}</div>
                     <div style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{c.count}×</div>
@@ -424,8 +417,8 @@ function DowntimeInsights({ modelColor }) {
                         return (
                           <div key={s.sub} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 56px 40px', gap: 10, alignItems: 'center' }}>
                             <div style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>↳ {s.sub}</div>
-                            <div style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${sp}%`, background: `${color}66`, borderRadius: 2 }} />
+                            <div className="kmc-track" style={{ height: 10 }}>
+                              <div className="kmc-fill" style={{ height: '100%', width: `${sp}%`, background: `${color}66`, borderRadius: 2 }} />
                             </div>
                             <div style={{ fontSize: 9, color: 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.totalMin)}</div>
                             <div style={{ fontSize: 8, color: 'var(--text-dim)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{s.count}×</div>
@@ -454,8 +447,8 @@ function DowntimeInsights({ modelColor }) {
               return (
                 <div key={p.project} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 64px 64px', gap: 10, alignItems: 'center' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.project}</div>
-                  <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: idx === 0 ? `linear-gradient(90deg, ${color}99, ${color})` : `${color}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                  <div className="kmc-track" style={{ height: 10 }}>
+                    <div className="kmc-fill" style={{ height: '100%', width: `${pct}%`, background: idx === 0 ? `linear-gradient(90deg, ${color}99, ${color})` : `${color}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(p.totalMin)}</div>
                   <div style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{p.count}× avg {p.avgMin}m</div>
@@ -490,15 +483,15 @@ function DowntimeInsights({ modelColor }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 7, color: 'var(--text-dim)', width: 46, flexShrink: 0, fontFamily: "'Inter', system-ui, sans-serif" }}>DESIGNED</span>
-                      <div style={{ flex: 1, height: 5, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(s.designed / dMax) * 100}%`, background: '#64748b', borderRadius: 3 }} />
+                      <div className="kmc-track" style={{ flex: 1, height: 10 }}>
+                        <div className="kmc-fill" style={{ height: '100%', width: `${(s.designed / dMax) * 100}%`, background: '#64748b', borderRadius: 3 }} />
                       </div>
                       <span style={{ fontSize: 8, color: 'var(--text-dim)', width: 52, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.designed)}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 7, color: 'var(--text-dim)', width: 46, flexShrink: 0, fontFamily: "'Inter', system-ui, sans-serif" }}>ACTUAL</span>
-                      <div style={{ flex: 1, height: 5, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(s.actual / dMax) * 100}%`, background: vColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      <div className="kmc-track" style={{ flex: 1, height: 10 }}>
+                        <div className="kmc-fill" style={{ height: '100%', width: `${(s.actual / dMax) * 100}%`, background: vColor, borderRadius: 3, transition: 'width 0.5s ease' }} />
                       </div>
                       <span style={{ fontSize: 8, color: vColor, width: 52, textAlign: 'right', fontWeight: 700, fontFamily: "'Inter', system-ui, sans-serif" }}>{fmtMin(s.actual)}</span>
                     </div>
@@ -617,7 +610,7 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
                   </span>
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: clr, borderRadius: 3, transition: 'width .3s' }} />
+                  <div className="kmc-fill" style={{ height: '100%', width: `${pct}%`, background: clr, borderRadius: 3, transition: 'width .3s' }} />
                 </div>
               </div>
             );
@@ -977,10 +970,10 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
       <div ref={dashboardRef} style={{
         position: 'relative',
-        backgroundImage: theme === 'dark' ? "url('/Bus background.png')" : "url('/Bus background 2.png')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
+        // Same legible overlay as the page, so text never sits on the raw photo
+        // (and PNG exports of this block keep a background).
+        background: 'var(--page-overlay), var(--page-image) center / cover no-repeat, var(--bg-base)',
+        borderRadius: 18,
       }}>
 
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 72, paddingTop: 16 }}>
@@ -1030,7 +1023,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* Model + Line distribution */}
           <div className="dashboard-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <SectionTitle>Buses by model</SectionTitle>
               {modelEntries.length === 0
                 ? <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>No buses on floor</div>
@@ -1038,7 +1031,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                   <BarRow key={model} label={model} value={count} max={maxModelCount} color={modelColor(model)} sub={`${count} bus${count !== 1 ? 'es' : ''}`} />
                 ))}
             </div>
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <SectionTitle>Buses by line</SectionTitle>
               {lineDistribution.length === 0
                 ? <div style={{ fontSize: 11, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif" }}>No buses on tracked lines</div>
@@ -1139,7 +1132,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* ── Phase 3: Downtime Pareto chart ── */}
           {metrics.overrunPareto.length > 0 && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{
                 fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.14em',
                 fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14,
@@ -1172,7 +1165,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                           </div>
                         </div>
                         {/* Bar */}
-                        <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div className="kmc-track" style={{ height: 10 }}>
                           <div style={{
                             height: '100%', width: `${pct}%`,
                             background: idx === 0
@@ -1205,7 +1198,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* ── Downtime Pareto ── */}
           {metrics.hasDowntimeData && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Downtime by Reason — Pareto</span>
                 <span style={{ color: 'var(--text-muted)' }}>
@@ -1227,8 +1220,8 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                       return (
                         <div key={d.reason} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) minmax(0,3fr) 52px 40px', gap: 10, alignItems: 'center', marginBottom: 10 }}>
                           <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.reason}</div>
-                          <div style={{ height: 8, background: 'var(--border-subtle)', borderRadius: 4, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${barPct}%`, background: barColor, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                          <div className="kmc-track" style={{ height: 12 }}>
+                            <div className="kmc-fill" style={{ height: '100%', width: `${barPct}%`, background: barColor, borderRadius: 4, transition: 'width 0.5s ease' }} />
                           </div>
                           <div style={{ fontSize: 11, fontWeight: 700, color: barColor, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{label}</div>
                           <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>{d.pct}%</div>
@@ -1250,7 +1243,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* ── Rework by Station ── */}
           {metrics.hasReworkData && metrics.reworkByStationList.length > 0 && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Rework Hours by Station</span>
                 <span style={{ color: 'var(--text-muted)' }}>
@@ -1271,8 +1264,8 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                           {r.code} · <span style={{ color: lc }}>{LINES.find(l => l.id === r.line)?.label || r.line}</span>
                         </div>
                       </div>
-                      <div style={{ height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: i === 0 ? '#f97316' : `${lc}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      <div className="kmc-track" style={{ height: 10 }}>
+                        <div className="kmc-fill" style={{ height: '100%', width: `${pct}%`, background: i === 0 ? '#f97316' : `${lc}99`, borderRadius: 3, transition: 'width 0.5s ease' }} />
                       </div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: i === 0 ? '#f97316' : 'var(--text-secondary)', textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>
                         {r.hrs.toFixed(1)}h
@@ -1286,7 +1279,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* ── Station Efficiency Chart ── */}
           {metrics.stationEfficiency.filter(s => s.efficiency !== null).length > 0 && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Station Efficiency — Planned ÷ Actual Time</span>
                 <span style={{ display: 'flex', gap: 14 }}>
@@ -1313,10 +1306,10 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                           {s.estimatedHours != null && ` · ${s.hours.toFixed(1)}h / ${s.estimatedHours.toFixed(1)}h est.`}
                         </div>
                       </div>
-                      <div style={{ position: 'relative', height: 6, background: 'var(--border-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(barW / 130) * 100}%`, background: color, borderRadius: 3, transition: 'width 0.5s ease' }} />
+                      <div className="kmc-track" style={{ position: 'relative', height: 10 }}>
+                        <div className="kmc-fill" style={{ height: '100%', width: `${(barW / 130) * 100}%`, background: color, borderRadius: 3, transition: 'width 0.5s ease' }} />
                         {/* 100% marker */}
-                        <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / 130) * 100}%`, width: 1.5, background: 'rgba(255,255,255,0.3)' }} />
+                        <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / 130) * 100}%`, width: 2, background: 'var(--text-secondary)', borderRadius: 1 }} />
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 800, color, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>
                         {eff !== null ? `${eff}%` : '—'}
@@ -1333,7 +1326,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {/* ── Weekly Production Trend ── */}
           {weeklyProduction.some(w => w.count > 0) && (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '18px 20px', boxShadow: 'var(--shadow-card)', transition: 'background 0.25s ease' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span>Weekly Production Trend — buses reaching QA (last 12 weeks)</span>
                 <span style={{ color: '#3b82f6' }}>

@@ -1,0 +1,175 @@
+/* ══ KMC design layer ═══════════════════════════════════════════════════════
+   Shared by every screen so the app looks like one product. The guide for other
+   systems is docs/KMC-UI-GUIDE.md. Benchmark (Graphics/ folder): dark slate
+   grounds, gradient "pill" bars sitting in recessed sockets, concentric rings,
+   numbered ribbons, Bebas Neue numerals over Montserrat labels.
+   Gradients and series colours are identical in both themes; only grounds,
+   panels and sockets change. */
+
+:root,
+[data-theme="dark"] {
+  --page-image:   url('/Bus background.png');
+  --page-overlay: radial-gradient(1200px 600px at 78% -10%, rgba(42,155,181,0.20), transparent 60%),
+                  radial-gradient(900px 500px at -10% 110%, rgba(220,38,38,0.14), transparent 60%),
+                  linear-gradient(180deg, rgba(14,17,24,0.90), rgba(22,26,35,0.95));
+  --panel-bg:     rgba(34, 39, 50, 0.80);
+  --panel-solid:  #232833;
+  --panel-shadow: 0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+  --socket-bg:    #191d25;
+  --socket-shadow: inset 0 2px 5px rgba(0,0,0,0.65), 0 1px 0 rgba(255,255,255,0.05);
+  --orb-ring:     #1a1e26;
+  --gloss:        linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0) 55%);
+  --grid-line:    rgba(148,163,184,0.14);
+
+  /* Re-point the original surface tokens so every existing screen picks up the design. */
+  --bg-base:     #151820;
+  --bg-surface:  rgba(34, 39, 50, 0.84);
+  --bg-card:     rgba(34, 39, 50, 0.94);
+  --shadow-card: 0 14px 34px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.04);
+  --header-bg:   rgba(17, 20, 27, 0.88);
+}
+
+[data-theme="light"] {
+  --page-image:   url('/Bus background 2.png');
+  --page-overlay: radial-gradient(1200px 600px at 78% -10%, rgba(42,155,181,0.16), transparent 60%),
+                  radial-gradient(900px 500px at -10% 110%, rgba(220,38,38,0.10), transparent 60%),
+                  linear-gradient(180deg, rgba(244,246,250,0.90), rgba(236,240,245,0.95));
+  --panel-bg:     rgba(255, 255, 255, 0.88);
+  --panel-solid:  #ffffff;
+  --panel-shadow: 0 14px 34px rgba(15,23,42,0.10), inset 0 1px 0 #ffffff;
+  --socket-bg:    #e3e8ef;
+  --socket-shadow: inset 0 2px 4px rgba(15,23,42,0.16), 0 1px 0 #ffffff;
+  --orb-ring:     #e6ebf2;
+  --gloss:        linear-gradient(180deg, rgba(255,255,255,0.45), rgba(255,255,255,0) 55%);
+  --grid-line:    rgba(15,23,42,0.10);
+
+  --bg-base:     #eef2f6;
+  --bg-surface:  rgba(255, 255, 255, 0.90);
+  --bg-card:     #ffffff;
+  --shadow-card: 0 10px 28px rgba(15,23,42,0.09), inset 0 1px 0 #ffffff;
+  --header-bg:   rgba(255, 255, 255, 0.88);
+}
+
+:root {
+  --font-display: 'Bebas Neue', 'Montserrat', system-ui, sans-serif;
+  --font-label:   'Montserrat', 'Inter', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+
+  --c-red: #ef4444; --c-pink: #e14fd6; --c-lime: #2fc96a; --c-amber: #ff9a0a; --c-teal: #2492b3; --c-blue: #3b82f6;
+  --g-red:   linear-gradient(135deg, #ff8a7a, #dc2626);
+  --g-pink:  linear-gradient(135deg, #ffb4c9, #e14fd6);
+  --g-lime:  linear-gradient(135deg, #d6f53b, #20c464);
+  --g-amber: linear-gradient(135deg, #ffd42a, #ff8400);
+  --g-teal:  linear-gradient(135deg, #a9dccf, #1c78a6);
+  --g-blue:  linear-gradient(135deg, #8fd3ff, #2563eb);
+}
+
+/* ── Page & panels ── */
+/* Every page gets the themed background; screens that paint their own opaque
+   ground were moved to transparent so it shows through. */
+body { background: var(--page-overlay), var(--page-image) center / cover fixed, var(--bg-base); }
+
+.kmc-page {
+  min-height: 100vh;
+  background: var(--page-overlay), var(--page-image) center / cover fixed, var(--bg-base);
+  color: var(--text-primary);
+}
+.kmc-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Type ── */
+.kmc-display { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.04em; line-height: 0.95; }
+.kmc-label   { font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); }
+.kmc-title   { font-family: var(--font-display); font-size: 30px; letter-spacing: 0.06em; color: var(--text-heading); line-height: 1; font-weight: 400; }
+
+/* ── Horizontal bar: gradient pill in a recessed socket ──
+   Any inline fill colour gets the gloss highlight from ::after. */
+.kmc-track {
+  background: var(--socket-bg) !important;
+  box-shadow: var(--socket-shadow);
+  border-radius: 999px !important;
+  padding: 2px;
+  overflow: hidden;
+}
+.kmc-fill { position: relative; border-radius: 999px !important; min-width: 6px; }
+.kmc-fill::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--gloss); pointer-events: none; }
+
+/* ── Pill chip with a coloured value end: "label | 60%" ── */
+.kmc-chip { display: inline-flex; align-items: stretch; border-radius: 999px; overflow: hidden; font-family: var(--font-label);
+  font-size: 11px; font-weight: 700; background: var(--socket-bg); box-shadow: var(--socket-shadow); color: var(--text-secondary); white-space: nowrap; }
+.kmc-chip > span { padding: 4px 10px; display: flex; align-items: center; }
+.kmc-chip > b { padding: 3px 11px; color: #fff; font-family: var(--font-display); font-size: 16px; font-weight: 400; letter-spacing: 0.04em;
+  display: flex; align-items: center; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+
+/* ── Buttons ── */
+.kmc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--panel-bg); border: 1px solid var(--border-medium);
+  color: var(--text-secondary); border-radius: 999px; padding: 8px 16px; font-family: var(--font-label); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, transform .15s; }
+.kmc-btn:hover { border-color: var(--accent-border); color: var(--text-heading); }
+.kmc-btn.primary { background: var(--g-red); border-color: transparent; color: #fff; box-shadow: 0 8px 20px rgba(220,38,38,0.32); }
+.kmc-btn.primary:hover { transform: translateY(-1px); color: #fff; }
+.kmc-btn.ok { background: var(--g-lime); border-color: transparent; color: #0b2a14; }
+.kmc-btn.ghost { background: transparent; }
+.kmc-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* ── Big circular action (Start / End, Legacy, START). Size with --orb. ── */
+.kmc-orb { --orb: 190px; position: relative; width: var(--orb); height: var(--orb); border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--orb-ring); box-shadow: var(--panel-shadow), var(--socket-shadow); padding: calc(var(--orb) * 0.075);
+  transition: transform .2s ease; flex-shrink: 0; font-family: var(--font-label); }
+.kmc-orb:hover { transform: translateY(-3px) scale(1.02); }
+.kmc-orb:active { transform: scale(0.98); }
+.kmc-orb:focus-visible { outline: 3px solid var(--accent-border); outline-offset: 4px; }
+.kmc-orb > .face { position: relative; width: 100%; height: 100%; border-radius: 50%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; color: #fff; overflow: hidden; background: var(--g-red);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.35), inset 0 -8px 18px rgba(0,0,0,0.18); }
+.kmc-orb > .face::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--gloss); pointer-events: none; }
+.kmc-orb .orb-icon { width: 32%; height: 32%; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3)); }
+.kmc-orb .orb-text { font-family: var(--font-display); font-size: calc(var(--orb) * 0.13); letter-spacing: 0.06em; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.kmc-orb.live > .face { animation: kmc-breathe 2.6s ease-in-out infinite; }
+@keyframes kmc-breathe { 50% { box-shadow: 0 12px 44px rgba(220,38,38,0.6), inset 0 -8px 18px rgba(0,0,0,0.18); } }
+
+/* ── Numbered ribbon row: big numeral block + content ── */
+.kmc-ribbon { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: stretch; border-radius: 14px; overflow: hidden;
+  background: var(--panel-bg); border: 1px solid var(--border-subtle); box-shadow: var(--panel-shadow); margin-bottom: 10px; }
+.kmc-ribbon > .num { display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 34px; color: #fff;
+  background: var(--g-amber); text-shadow: 0 2px 4px rgba(0,0,0,0.25); position: relative; }
+.kmc-ribbon > .num::after { content: ''; position: absolute; inset: 0; background: var(--gloss); }
+.kmc-ribbon > .body { padding: 11px 14px; min-width: 0; }
+.kmc-ribbon > .side { display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+@media (max-width: 520px) {
+  .kmc-ribbon { grid-template-columns: 52px minmax(0, 1fr); }
+  .kmc-ribbon > .side { grid-column: 1 / -1; padding: 0 12px 12px; justify-content: flex-end; }
+}
+
+/* ── Stat tile ── */
+.kmc-stat { position: relative; padding: 14px 16px 12px; overflow: hidden; }
+.kmc-stat .v { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--text-heading); letter-spacing: 0.02em; margin-top: 6px; }
+.kmc-stat .s { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.kmc-stat .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--g-teal); }
+
+/* ── Theme switch ── */
+.kmc-theme-switch { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--socket-bg); box-shadow: var(--socket-shadow); flex-shrink: 0; }
+.kmc-theme-switch button { border: 0; background: transparent; color: var(--text-muted); width: 32px; height: 28px; border-radius: 999px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background .2s, color .2s; }
+.kmc-theme-switch button.on { background: var(--panel-solid); color: var(--text-heading); box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
+
+/* ── Page header (PageShell) ── */
+.kmc-head { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px clamp(14px, 4vw, 32px);
+  background: var(--header-bg); border-bottom: 1px solid var(--header-border); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.kmc-head .kmc-title { font-size: 24px; }
+.kmc-head .sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.kmc-main { padding: clamp(16px, 3vw, 28px) clamp(14px, 4vw, 32px) 60px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 560px) {
+  .kmc-head .hide-sm { display: none; }
+  .kmc-head .kmc-title { font-size: 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kmc-orb, .kmc-orb > .face { animation: none !important; transition: none !important; }
+}
