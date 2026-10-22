@@ -18,7 +18,19 @@ const parts = s => {
   return m ? { y: Number(m[1]), m: Number(m[2]) - 1, d: Number(m[3]) } : null;
 };
 
-export const quarterOf = monthIndex => Math.floor(monthIndex / 3) + 1;
+// KMC reports on the financial year, July – June: Q1 = Jul–Sep, Q2 = Oct–Dec,
+// Q3 = Jan–Mar, Q4 = Apr–Jun. A financial year is named by the calendar year
+// it starts in: FY 2026/27 = 1 Jul 2026 – 30 Jun 2027.
+export const FY_START_MONTH = 6;   // July, 0-based
+export const quarterOf = monthIndex => Math.floor(((monthIndex - FY_START_MONTH + 12) % 12) / 3) + 1;
+export const fyOf = (y, m) => (m >= FY_START_MONTH ? y : y - 1);
+export const fyOfISO = s => { const p = parts(s); return p ? fyOf(p.y, p.m) : new Date().getFullYear(); };
+export const fyLabel = fy => `FY ${fy}/${String(fy + 1).slice(-2)}`;
+// The twelve months of a financial year in order, July first.
+export const fyMonths = fy => Array.from({ length: 12 }, (_, i) => {
+  const m = (FY_START_MONTH + i) % 12;
+  return { y: m >= FY_START_MONTH ? fy : fy + 1, m };
+});
 
 export function monthPeriod(y, m) {
   return {
@@ -27,20 +39,25 @@ export function monthPeriod(y, m) {
   };
 }
 
-export function quarterPeriod(y, q) {
-  const m0 = (q - 1) * 3, m2 = m0 + 2;
+// Quarter `q` (1–4) of financial year `fy`.
+export function quarterPeriod(fy, q) {
+  const first = fyMonths(fy)[(q - 1) * 3], last = fyMonths(fy)[(q - 1) * 3 + 2];
+  const span = `${MONTHS[first.m]} – ${MONTHS[last.m]} ${last.y}`;
   return {
-    kind: 'quarter', start: iso(y, m0, 1), end: iso(y, m2, lastDay(y, m2)),
-    label: `Q${q} ${y} (${MONTHS[m0]} – ${MONTHS[m2]})`,
-    upper: `Q${q} ${y} (${MONTHS[m0]} – ${MONTHS[m2]})`.toUpperCase(),
-    short: `Q${q} ${y}`,
+    kind: 'quarter', start: iso(first.y, first.m, 1), end: iso(last.y, last.m, lastDay(last.y, last.m)),
+    label: `Q${q} ${fyLabel(fy)} (${span})`,
+    upper: `Q${q} ${fyLabel(fy)} (${span})`.toUpperCase(),
+    short: `Q${q} ${fyLabel(fy)}`,
   };
 }
 
-export function yearPeriod(y) {
+// The whole financial year: 1 Jul `fy` – 30 Jun `fy + 1`.
+export function yearPeriod(fy) {
   return {
-    kind: 'year', start: iso(y, 0, 1), end: iso(y, 11, 31),
-    label: `Year ${y}`, upper: `ANNUAL REPORT ${y}`, short: String(y),
+    kind: 'year', start: iso(fy, FY_START_MONTH, 1), end: iso(fy + 1, FY_START_MONTH - 1, 30),
+    label: `${fyLabel(fy)} (July ${fy} – June ${fy + 1})`,
+    upper: `ANNUAL REPORT ${fyLabel(fy)}`,
+    short: fyLabel(fy),
   };
 }
 
@@ -63,10 +80,15 @@ export function customPeriod(start, end) {
 export function describeRange({ start, end }) {
   const a = parts(start), b = parts(end);
   if (!a || !b) return customPeriod(start, end);
-  if (a.d === 1 && a.y === b.y && b.d === lastDay(b.y, b.m)) {
-    if (a.m === b.m) return monthPeriod(a.y, a.m);
-    if (a.m % 3 === 0 && b.m === a.m + 2) return quarterPeriod(a.y, quarterOf(a.m));
-    if (a.m === 0 && b.m === 11) return yearPeriod(a.y);
+  if (a.d === 1 && b.d === lastDay(b.y, b.m)) {
+    const fy = fyOf(a.y, a.m);
+    if (a.y === b.y && a.m === b.m) return monthPeriod(a.y, a.m);
+    for (let q = 1; q <= 4; q++) {
+      const p = quarterPeriod(fy, q);
+      if (p.start === start && p.end === end) return p;
+    }
+    const y = yearPeriod(fy);
+    if (y.start === start && y.end === end) return y;
   }
   return customPeriod(start, end);
 }

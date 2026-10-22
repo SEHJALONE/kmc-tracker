@@ -61,7 +61,7 @@ describe('ECR register', () => {
     expect(sep.rows.map(r => r.id)).toEqual(['626002', 'CHG-023']);
     expect(sep.raisedCount).toBe(1);
     expect(sep.implementedCount).toBe(1);
-    const q3 = summarizeEcr(rows, quarterPeriod(2026, 3));
+    const q3 = summarizeEcr(rows, quarterPeriod(2026, 1));
     expect(q3.total).toBe(2);
   });
   it('lists every date not written dd.mm.yyyy', () => {
@@ -87,7 +87,7 @@ describe('Incident register', () => {
     expect(rows.map(r => r.no)).toEqual(['1', '10', '11', '33']);
   });
   it('counts by severity within the range, and leaves out rows it cannot date', () => {
-    const q2 = summarizeIncidents(rows, quarterPeriod(2026, 2));
+    const q2 = summarizeIncidents(rows, quarterPeriod(2025, 4));
     expect(q2.total).toBe(2);
     expect(q2.bySeverity).toMatchObject({ Major: 1, Catastrophic: 1 });
     expect(q2.flagged.map(f => f.name)).toEqual(['#10', '#33']);
@@ -113,9 +113,11 @@ describe('Kaizen register', () => {
 
 describe('periods', () => {
   it('names a hand-picked range by the month / quarter / year it covers', () => {
-    expect(describeRange({ start: '2026-07-01', end: '2026-09-30' }).short).toBe('Q3 2026');
+    expect(describeRange({ start: '2026-07-01', end: '2026-09-30' }).short).toBe('Q1 FY 2026/27');
     expect(describeRange({ start: '2026-09-01', end: '2026-09-30' }).short).toBe('Sep 2026');
-    expect(describeRange({ start: '2026-01-01', end: '2026-12-31' }).kind).toBe('year');
+    expect(describeRange({ start: '2026-07-01', end: '2027-06-30' }).short).toBe('FY 2026/27');
+    expect(describeRange({ start: '2027-01-01', end: '2027-03-31' }).short).toBe('Q3 FY 2026/27');
+    expect(describeRange({ start: '2026-01-01', end: '2026-12-31' }).kind).toBe('range');
     expect(describeRange({ start: '2026-09-03', end: '2026-09-10' }).kind).toBe('range');
   });
   it('lists the month labels a range touches', () => {

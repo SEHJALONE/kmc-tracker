@@ -9,7 +9,7 @@ import { addCanvasPaged } from '../utils/pdfImagePager';
 import { buildReportModel } from '../utils/productionReportModel';
 import {
   monthPeriod, quarterPeriod, yearPeriod, customPeriod, describeRange, monthLabelsIn,
-  quarterOf, todayISO, MONTH_SHORT,
+  quarterOf, todayISO, MONTH_SHORT, fyOfISO, fyLabel, fyMonths,
 } from '../utils/reportPeriod';
 import { displayDate, SEVERITIES } from '../utils/registers';
 import DailyLogModal from './DailyLogModal';
@@ -987,7 +987,7 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
 // as the annexes.
 const REPORT_KINDS = [
   { id: 'month', label: 'Month' }, { id: 'quarter', label: 'Quarter' },
-  { id: 'year', label: 'Annual' }, { id: 'range', label: 'Custom range' },
+  { id: 'year', label: 'Financial Year' }, { id: 'range', label: 'Custom range' },
 ];
 
 function ProductionReportModal({ onClose, capturePages, buses, initialRange, setRange, registersFor }) {
@@ -995,7 +995,8 @@ function ProductionReportModal({ onClose, capturePages, buses, initialRange, set
   const initial = describeRange(initialRange);
   const [kind, setKind] = useState(initial.kind);
   const [month, setMonth] = useState(initialRange.start.slice(0, 7));
-  const [year, setYear] = useState(Number(initialRange.start.slice(0, 4)));
+  // financial year (July – June), named by the year it starts in
+  const [year, setYear] = useState(fyOfISO(initialRange.start));
   const [quarter, setQuarter] = useState(quarterOf(Number(initialRange.start.slice(5, 7)) - 1));
   const [custom, setCustom] = useState({ start: initialRange.start, end: initialRange.end });
 
@@ -1075,8 +1076,11 @@ function ProductionReportModal({ onClose, capturePages, buses, initialRange, set
             )}
             {(kind === 'quarter' || kind === 'year') && (
               <div style={{ display: 'flex', gap: 8 }}>
-                <input type="number" min="2020" max="2100" style={{ ...field, width: 110 }} value={year}
-                  onChange={e => setYear(Number(e.target.value) || year)} />
+                <select style={{ ...field, width: 130 }} value={year} onChange={e => setYear(Number(e.target.value))}>
+                  {Array.from({ length: 8 }, (_, i) => fyOfISO(todayISO()) - 5 + i).map(fy => (
+                    <option key={fy} value={fy}>{fyLabel(fy)}</option>
+                  ))}
+                </select>
                 {kind === 'quarter' && [1, 2, 3, 4].map(q => (
                   <button key={q} style={{ ...seg(quarter === q), flex: 1, border: `1px solid ${C.line}` }} onClick={() => setQuarter(q)}>Q{q}</button>
                 ))}
@@ -1133,22 +1137,24 @@ function ProductionReportModal({ onClose, capturePages, buses, initialRange, set
 // ── Period bar — the one place the board's reporting range is set ────────
 // Every period figure on the board (line cards, downtime, cost, safety,
 // quality, waste, and the ECR / incident / kaizen / downtime registers)
-// follows it. Quick buttons for each month and quarter of the chosen year,
-// the whole year, year-to-date, and a custom From/To. Not captured in
+// follows it. Quick buttons for each month and quarter of the chosen
+// financial year (July – June: Q1 = Jul–Sep … Q4 = Apr–Jun), the whole FY,
+// FY-to-date, and a custom From/To. Not captured in
 // exports — rendered outside the Page refs.
 function PeriodBar({ range, setRange }) {
   const C = useC();
   const today = todayISO();
   const current = describeRange(range);
-  const [year, setYear] = useState(() => Number(range.start.slice(0, 4)));
-  useEffect(() => { setYear(Number(range.start.slice(0, 4))); }, [range.start]);
+  // `year` is the financial year (July – June), named by the year it starts in
+  const [year, setYear] = useState(() => fyOfISO(range.start));
+  useEffect(() => { setYear(fyOfISO(range.start)); }, [range.start]);
 
   const same = p => p.start === range.start && p.end === range.end;
-  const thisYear = new Date().getFullYear();
+  const fy = yearPeriod(year);
   const presets = [
     { label: 'MTD', title: 'Month to date', p: { start: `${today.slice(0, 8)}01`, end: today } },
-    { label: 'YTD', title: 'Year to date', p: { start: `${year}-01-01`, end: year === thisYear ? today : `${year}-12-31` } },
-    { label: 'Full Year', title: `January – December ${year}`, p: yearPeriod(year) },
+    { label: 'FYTD', title: `${fyLabel(year)} to date`, p: { start: fy.start, end: today < fy.end ? today : fy.end } },
+    { label: 'Full FY', title: fy.label, p: fy },
   ];
 
   const pill = (active, future) => ({
@@ -1187,7 +1193,7 @@ function PeriodBar({ range, setRange }) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button style={pill(false)} onClick={() => setYear(y => y - 1)} aria-label="Previous year">‹</button>
-        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 22, letterSpacing: '0.05em', color: C.ink, minWidth: 48, textAlign: 'center' }}>{year}</span>
+        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 22, letterSpacing: '0.05em', color: C.ink, minWidth: 92, textAlign: 'center' }}>{fyLabel(year)}</span>
         <button style={pill(false)} onClick={() => setYear(y => y + 1)} aria-label="Next year">›</button>
       </div>
 
@@ -1199,9 +1205,9 @@ function PeriodBar({ range, setRange }) {
       </div>
 
       <div style={socket} role="group" aria-label="Months">
-        {MONTH_SHORT.map((m, i) => {
-          const p = monthPeriod(year, i);
-          return <button key={m} title={p.label} style={pill(same(p), p.start > today)} onClick={() => setRange({ start: p.start, end: p.end })}>{m}</button>;
+        {fyMonths(year).map(({ y, m }) => {
+          const p = monthPeriod(y, m);
+          return <button key={MONTH_SHORT[m]} title={p.label} style={pill(same(p), p.start > today)} onClick={() => setRange({ start: p.start, end: p.end })}>{MONTH_SHORT[m]}</button>;
         })}
       </div>
 
