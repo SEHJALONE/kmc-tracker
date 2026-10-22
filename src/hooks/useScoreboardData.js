@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { STATIONS } from '../data/stations.js';
+import {
+  ECR_SHEET_ID, INCIDENT_SHEET_ID, csvExportUrl,
+  parseEcrRegister, parseIncidentRegister, parseKaizenRegister,
+  summarizeEcr, summarizeIncidents, summarizeKaizen,
+} from '../utils/registers.js';
 
 // DPN Scoreboard — reads the REAL "KMC_Department_Monthly_Scoreboard" workbook,
 // which as of 2026-07-27 is the full IMS-objectives master workbook (README /
@@ -14,7 +19,13 @@ import { STATIONS } from '../data/stations.js';
 // own, each with its own reasoning documented at its URL constant below:
 // breakdown-downtime (2026-09-13, DOWNTIME_LOG_URL, replaces the workbook's
 // own Downtime tab) and Kaizen ideas (2026-09-18, KAIZEN_LOG_URL, replaces
-// the workbook's own Kaizen tab). Both are soft-fail reads.
+// the workbook's own Kaizen tab). Both are soft-fail reads. Since 2026-10-22
+// the Change Management (ECR) and Production Incident registers are read the
+// same way, from sheets of their own (see utils/registers.js).
+//
+// Period figures are NOT fixed to the sheet's own Scoreboard Period: the
+// hook hands back raw rows and deriveRangeKpis re-slices them to whatever
+// month, quarter, year or custom range the board is set to.
 const SHEET_ID = '1S5CzUns4NXoorcOwbEpFrQxubMSddMkHx-k8G7mn_AA';
 const TAB_URL = (tab) =>
   `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
@@ -539,8 +550,11 @@ export function parseMonthlyPlan(grid) {
 }
 
 // ── Daily Output tab: fully formula-driven in the sheet — Date | Planned |
-// Actual | Cum. Plan | Cum. Act. | Gap. Read directly rather than re-derived
-// from the Tracker grid.
+// Actual | Cum. Plan | Cum. Act. | Gap | Working Day. Read directly rather
+// than re-derived from the Tracker grid. `workingDay` (1 when the weekday is
+// within Targets' Working Days/Week) is what lets availableHoursForRange
+// below compute Available Hours for an arbitrary range the same way
+// Targets!B11 computes it for the sheet's own Scoreboard Period.
 export function parseDailyOutput(grid) {
   const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && (r[1] || '').trim() === 'Planned');
   if (hIdx === -1) return [];
@@ -554,10 +568,84 @@ export function parseDailyOutput(grid) {
     const cumAct = r[4] !== undefined && r[4] !== '' ? toNum(r[4]) : null;
     out.push({
       date: dailyLabel(d), dateObj: d, planned: toNum(r[1]) || 0, actual,
-      cumPlan: toNum(r[3]) || 0, cumAct, gap: toNum(r[5]),
+      cumPlan: toNum(r[3]) || 0, cumAct, gap: toNum(r[5]), workingDay: toNum(r[6]) === 1,
     });
   }
   return out;
+}
+
+// Available Hours for an arbitrary range — the same maths as Targets!B11 x
+// B12 (Working Days in Period x Shift Hours/Day), for a range the caller
+// chooses instead of the sheet's own Scoreboard Period. This is what lets
+// Machine Cost and Downtime % respond to the board's date-range filter.
+// A day the Daily Output tab lists uses its own Working Day flag; a day
+// outside the tab's span (it only runs to the sheet's Scoreboard Period End)
+// falls back to Targets' Working Days / Week, counted from Monday.
+export function availableHoursForRange(daily, shiftHoursPerDay, start, end, workingDaysPerWeek = 6) {
+  if (!start || !end) return 0;
+  const iso = d =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const listed = new Map(daily.filter(d => d.dateObj).map(d => [iso(d.dateObj), d.workingDay]));
+  const [ys, ms, ds] = start.split('-').map(Number);
+  let workingDays = 0;
+  for (let day = new Date(ys, ms - 1, ds); iso(day) <= end; day.setDate(day.getDate() + 1)) {
+    const k = iso(day);
+    const working = listed.has(k) ? listed.get(k) : ((day.getDay() + 6) % 7) < workingDaysPerWeek;
+    if (working) workingDays++;
+  }
+  return workingDays * (shiftHoursPerDay || 0);
+}
+
+// ── Safety tab: one row per event (Date | Event Type | Workshop |
+// Description | Status | Reported By | Action/Closure). Event Type is one of
+// Targets' SafetyEventList values (Near Miss, Unsafe Condition, PPE Misuse,
+// Recordable Incident, Lost-Time Injury, Corrective Action Closed, Safety
+// Inspection Passed/Failed).
+export function parseSafetyLog(grid) {
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /event type/i.test(r[1] || ''));
+  if (hIdx === -1) return [];
+  const out = [];
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    if (!r[0] || !r[0].trim()) continue;
+    const d = parseTrackerDate(r[0]);
+    if (!d) continue;
+    out.push({
+      date: d,
+      eventType: (r[1] || '').trim(),
+      workshop: (r[2] || '').trim(),
+      description: (r[3] || '').trim(),
+      status: (r[4] || '').trim(),
+      reportedBy: (r[5] || '').trim(),
+    });
+  }
+  return out;
+}
+
+// Range-scoped Safety KPIs: event counts by type, Inspection Compliance
+// (Passed / (Passed+Failed)), and the Near-Miss Response Rate the sheet's
+// own header describes — Near Miss / Unsafe Condition events whose Status
+// has since moved to Reviewed or Actioned.
+export function summarizeSafety(events, start, end) {
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const inPeriod = events.filter(e => {
+    const s = iso(e.date);
+    return (!start || s >= start) && (!end || s <= end);
+  });
+  const count = type => inPeriod.filter(e => e.eventType.toLowerCase() === type).length;
+  const passed = count('safety inspection passed');
+  const failed = count('safety inspection failed');
+  const nearMissPool = inPeriod.filter(e => ['near miss', 'unsafe condition'].includes(e.eventType.toLowerCase()));
+  const responded = nearMissPool.filter(e => ['reviewed', 'actioned'].includes(e.status.toLowerCase()));
+  return {
+    events: inPeriod,
+    lostTimeInjuries: count('lost-time injury'),
+    ppeMisuse: count('ppe misuse'),
+    unsafeConditions: count('unsafe condition'),
+    correctiveActionsClosed: count('corrective action closed'),
+    inspectionCompliance: (passed + failed) ? passed / (passed + failed) : null,
+    nearMissResponseRate: nearMissPool.length ? responded.length / nearMissPool.length : null,
+  };
 }
 
 // ── External Production Downtime Log (separate sheet, view-only — see
@@ -717,22 +805,68 @@ export function parseQualityMonthly(grid) {
   });
 }
 
-// ── Environment tab: one row per month (Month Start | Energy Used (kWh) |
-// ...) — returns the most recently dated row's kWh figure, for Energy Cost.
-// Energy per Unit / vs Baseline are already computed by Calc from this same
-// tab; this is only for the NEW cost calculation, not those existing KPIs.
-export function parseEnvironmentLatestKwh(grid) {
+// Same tab, one entry per inspection, for a First Pass Yield over whatever
+// range the board is set to rather than per calendar month.
+export function parseQualityRows(grid) {
+  const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Date') && /inspection result/i.test(r[2] || ''));
+  if (hIdx === -1) return [];
+  const out = [];
+  for (let i = hIdx + 1; i < grid.length; i++) {
+    const r = grid[i];
+    const d = parseTrackerDate(r[0]);
+    const result = (r[2] || '').trim();
+    if (!d || !result) continue;
+    out.push({ iso: isoDate(d), pass: /pass/i.test(result) });
+  }
+  return out;
+}
+
+// ── Waste tab: Date | Waste Type | Quantity | Unit | Cost Impact (UGX '000)
+// | Workshop | Notes — one row per item. `cells` keeps the table's own
+// column order for the board's waste table.
+export function parseWasteRows(grid) {
+  return parseRegisterRows(grid, r => headerCellIs(r[0], 'Date') && /waste type/i.test(r[1] || ''))
+    .map(cells => {
+      const d = parseTrackerDate(cells[0]);
+      return { iso: d ? isoDate(d) : null, cells, cost: toNum(cells[4]) || 0 };
+    });
+}
+
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ── Environment tab: one row per calendar month (Month Start | Energy Used
+// (kWh) | Paper Used (reams) | Notes | Buses Completed (auto) | Energy per
+// Unit (auto)). Returned as one entry per logged month, for range-scoped
+// aggregation rather than Calc's single whole-program figure.
+export function parseEnvironmentMonthly(grid) {
   const hIdx = grid.findIndex(r => headerCellIs(r[0], 'Month Start'));
-  if (hIdx === -1) return 0;
-  let latestDate = null, latestKwh = 0;
+  if (hIdx === -1) return [];
+  const out = [];
   for (let i = hIdx + 1; i < grid.length; i++) {
     const r = grid[i];
     if (!r[0] || !r[0].trim()) continue;
     const d = parseTrackerDate(r[0]);
-    const kwh = toNum(r[1]);
-    if (d && kwh != null && (!latestDate || d > latestDate)) { latestDate = d; latestKwh = kwh; }
+    if (!d) continue;
+    out.push({ monthStart: d, kwh: toNum(r[1]) || 0, reams: toNum(r[2]) || 0 });
   }
-  return latestKwh;
+  return out;
+}
+
+// Sums kWh for every logged month that OVERLAPS the given range — a month
+// counts as soon as any part of it falls inside the range, since the sheet
+// only ever logs one figure for the whole month (some are marked PARTIAL in
+// their own Notes, which this can't see into further than that).
+export function sumEnvironmentKwh(monthly, start, end) {
+  return monthly.reduce((sum, m) => {
+    const y = m.monthStart.getFullYear(), mo = m.monthStart.getMonth();
+    const mStart = `${y}-${String(mo + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(y, mo + 1, 0).getDate();
+    const mEnd = `${y}-${String(mo + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const overlaps = (!end || mStart <= end) && (!start || mEnd >= start);
+    return overlaps ? sum + m.kwh : sum;
+  }, 0);
 }
 
 // ── Generic register reader for Bottlenecks / ECR / Waste / Kaizen — finds
@@ -891,19 +1025,21 @@ export function resolveRateAsOf(rateRows, asOf, machineId = null) {
   return applicable[applicable.length - 1].rate;
 }
 
-// ── Labour cost: cross-sheet read of the Travel Card's operators + submissions
-// tabs. Each "operators" row is one staff member on duty for one submission;
-// the matching "submissions" row gives how long that stint actually took
-// (actual_time_min) and which station — mapped to one of the 4 reported
-// lines via data/stations.js. Cost = headcount-instances × hours × hourly rate.
-export function parseLabourCost(operatorsGrid, submissionsGrid, hourlyRate) {
-  const empty = { totalHours: 0, totalCost: 0, byLine: {} };
-  if (!operatorsGrid.length || !submissionsGrid.length) return empty;
+// ── Labour stints: cross-sheet read of the Travel Card's operators +
+// submissions tabs. Each "operators" row is one staff member on duty for one
+// submission; the matching "submissions" row gives how long that stint
+// actually took (actual_time_min), which station (mapped to one of the 4
+// reported lines via data/stations.js), and when it happened (timestamp) —
+// kept per-stint, rather than pre-summed, so callers can total any date
+// range instead of only the whole history.
+export function parseLabourStints(operatorsGrid, submissionsGrid) {
+  if (!operatorsGrid.length || !submissionsGrid.length) return [];
 
-  const sIdxId      = headerIndex(submissionsGrid, 'record_id');
-  const sIdxTime    = headerIndex(submissionsGrid, 'actual_time_min');
-  const sIdxStation = headerIndex(submissionsGrid, 'station_code');
-  if (sIdxId < 0) return empty;
+  const sIdxId        = headerIndex(submissionsGrid, 'record_id');
+  const sIdxTime       = headerIndex(submissionsGrid, 'actual_time_min');
+  const sIdxStation    = headerIndex(submissionsGrid, 'station_code');
+  const sIdxTimestamp  = headerIndex(submissionsGrid, 'timestamp');
+  if (sIdxId < 0) return [];
 
   const submissionByRecord = new Map();
   submissionsGrid.slice(1).forEach(r => {
@@ -912,32 +1048,145 @@ export function parseLabourCost(operatorsGrid, submissionsGrid, hourlyRate) {
     submissionByRecord.set(id, {
       hours: (sIdxTime >= 0 ? toNum(r[sIdxTime]) : null) / 60 || 0,
       stationCode: sIdxStation >= 0 ? r[sIdxStation] : null,
+      date: sIdxTimestamp >= 0 ? parseTrackerDate(r[sIdxTimestamp]) : null,
     });
   });
 
   const oIdxId      = headerIndex(operatorsGrid, 'record_id');
   const oIdxStation = headerIndex(operatorsGrid, 'station_code');
-  if (oIdxId < 0) return empty;
+  if (oIdxId < 0) return [];
 
-  let totalHours = 0;
-  const hoursByLine = {};
+  const stints = [];
   operatorsGrid.slice(1).forEach(r => {
     const id = r[oIdxId];
     if (!id) return;
     const sub = submissionByRecord.get(id);
     const hours = sub?.hours || 0;
     if (hours <= 0) return;
-    totalHours += hours;
     const stationCode = sub?.stationCode || (oIdxStation >= 0 ? r[oIdxStation] : null);
     const lineId = stationCode ? STATIONS[stationCode]?.line : null;
     const workshopName = lineId ? LINE_ID_TO_WORKSHOP[lineId] : null;
-    if (workshopName) hoursByLine[workshopName] = (hoursByLine[workshopName] || 0) + hours;
+    stints.push({ hours, workshopName, date: sub?.date || null });
+  });
+  return stints;
+}
+
+// Cost = headcount-instances × hours × hourly rate, totalled from the stints
+// above. `range` is optional ({start,end}, ISO YYYY-MM-DD) — when given,
+// only stints whose submission timestamp falls inside it count, which is
+// what makes Labour Cost respond to the board's date-range filter; omitted,
+// every stint in the workbook's history counts, as it always has.
+export function parseLabourCost(stints, hourlyRate, range = null) {
+  const iso = d => d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    : null;
+  const inRange = s => {
+    if (!range) return true;
+    const k = iso(s.date);
+    return !!k && (!range.start || k >= range.start) && (!range.end || k <= range.end);
+  };
+
+  let totalHours = 0;
+  const hoursByLine = {};
+  stints.filter(inRange).forEach(s => {
+    totalHours += s.hours;
+    if (s.workshopName) hoursByLine[s.workshopName] = (hoursByLine[s.workshopName] || 0) + s.hours;
   });
 
   const byLine = {};
   for (const name of LINE_WORKSHOP_NAMES) byLine[name] = (hoursByLine[name] || 0) * hourlyRate;
 
   return { totalHours, totalCost: totalHours * hourlyRate, byLine };
+}
+
+// ── Everything on the board that belongs to a period, for ANY period ──────
+// The hook loads raw rows once; this re-derives every period KPI for the
+// range the board is set to (a month, a quarter, a year, a custom span), so
+// switching the range never refetches and every figure agrees on one window.
+// `d` is the hook's `data`. Returns `kv` overrides in the same
+// { raw, num } shape as the sheet-sourced KPIs, plus the in-range rows each
+// register / log card drills into.
+//
+// Planned Downtime is a schedule figure the sheet gives once for its own
+// Scoreboard Period; it is prorated by Available Hours, so a quarter carries
+// a quarter's share of it.
+export function deriveRangeKpis(d, range) {
+  const { start, end } = range;
+  const within = iso => !!iso && iso >= start && iso <= end;
+  const n = v => ({ raw: String(v ?? ''), num: v });
+
+  const availableHours = availableHoursForRange(d.daily || [], d.shiftHoursPerDay, start, end, d.workingDaysPerWeek);
+  const dt = summarizeDowntimeLog(d.downtimeAll || [], start, end);
+  const plannedDowntime = d.sheetAvailableHours
+    ? (d.plannedDowntimeSheet || 0) * availableHours / d.sheetAvailableHours : 0;
+  const totalLost = plannedDowntime + dt.hours;
+
+  const kv = {
+    'Available Hours': n(availableHours),
+    'Planned Downtime (hrs)': n(plannedDowntime),
+    'Unplanned Downtime (hrs)': n(dt.hours),
+    'Total Hours Lost': n(totalLost),
+    'Downtime % of Available': n(availableHours ? totalLost / availableHours : null),
+    'MTTR (hrs)': n(dt.mttrHours),
+    'Breakdown Events': n(dt.eventCount),
+  };
+  DOWNTIME_REASON_CODES.forEach(code => { kv[code] = n(dt.byReason[code] || 0); });
+  kv['Uncategorised'] = n(dt.uncategorisedHours);
+
+  // Cost — the same Labour + Energy + Machine model as before, every part
+  // of it over the range. UGX '000, like the Cost tab.
+  const labour = parseLabourCost(d.labourStints || [], d.staffHourlyRate || 0, range);
+  const kwh = sumEnvironmentKwh(d.environmentMonthly || [], start, end);
+  const energyK = (kwh * (d.energyTariffRate || 0)) / 1000;
+  const machineCostRows = (d.machineRates || [])
+    .map(m => ({ ...m, costK: (m.rate * availableHours) / 1000 }))
+    .sort((a, b) => b.costK - a.costK);
+  const machineK = machineCostRows.reduce((s, m) => s + m.costK, 0);
+  const opK = labour.totalCost / 1000 + energyK + machineK;
+  kv['Labour Cost'] = n(labour.totalCost / 1000);
+  kv['Machine Cost'] = n(machineK);
+  kv['Production Operational Cost'] = n(opK);
+  kv['Total Production Cost'] = n(opK);
+  LINE_WORKSHOP_NAMES.forEach(name => {
+    const m = machineCostRows.filter(r => r.workshopName === name).reduce((s, r) => s + r.costK, 0);
+    kv[`Operational Cost — ${name}`] = n((labour.byLine[name] || 0) / 1000 + m);
+  });
+
+  // Environment / quality / safety / waste
+  const builtInRange = (d.busUnits || []).filter(b => b.done && within(b.completedOn)).length;
+  kv['Energy Used (kWh)'] = n(kwh);
+  kv['Energy per Unit (latest month, kWh)'] = n(builtInRange ? kwh / builtInRange : null);
+  const inspections = (d.qualityRows || []).filter(q => within(q.iso));
+  kv['Vehicles Inspected'] = n(inspections.length);
+  kv['First Pass Yield'] = n(inspections.length ? inspections.filter(q => q.pass).length / inspections.length : null);
+  const safety = summarizeSafety(d.safetyEvents || [], start, end);
+  kv['Lost-Time Injuries'] = n(safety.lostTimeInjuries);
+  kv['PPE Misuse Incidents'] = n(safety.ppeMisuse);
+  kv['Unsafe Conditions'] = n(safety.unsafeConditions);
+  kv['Corrective Actions Closed'] = n(safety.correctiveActionsClosed);
+  kv['Safety Inspection Compliance'] = n(safety.inspectionCompliance);
+  kv['Near-Miss Response Rate'] = n(safety.nearMissResponseRate);
+  const waste = (d.wasteRows || []).filter(w => within(w.iso));
+  kv["Waste Cost (period, UGX '000)"] = n(waste.reduce((s, w) => s + w.cost, 0));
+  kv['Waste Items (period)'] = n(waste.length);
+
+  const ecr = summarizeEcr(d.ecrRows || [], range);
+  const incidents = summarizeIncidents(d.incidentRows || [], range);
+  const kaizen = summarizeKaizen(d.kaizenRows || [], range);
+  kv['ECR Raised'] = n(ecr.raisedCount);
+  kv['ECR Implemented'] = n(ecr.implementedCount);
+  kv['Incidents'] = n(incidents.total);
+  kv['Kaizen Implemented'] = n(kaizen.implemented);
+  kv['Kaizen Proposed'] = n(kaizen.open);
+
+  return {
+    kv,
+    availableHours,
+    downtimeEvents: dt.events,
+    machineCostRows,
+    wasteRows: waste.map(w => w.cells),
+    ecr, incidents, kaizen,
+  };
 }
 
 export function useScoreboardData() {
@@ -951,13 +1200,14 @@ export function useScoreboardData() {
     try {
       const [
         targetsGrid, trackerGrid, dailyOutputGrid, bottlenecksGrid,
-        qualityGrid, environmentGrid, ecrGrid, costGrid, wasteGrid, calcGrid,
+        qualityGrid, environmentGrid, costGrid, wasteGrid, calcGrid, safetyGrid,
         machinesGrid, machineRatesGrid, staffRatesGrid, energyRatesGrid,
         operatorsGrid, submissionsGrid, downtimeLogGrid, kaizenGrid,
+        ecrGrid, incidentGrid,
       ] = await Promise.all([
         fetchTab('Targets'), fetchTab('Tracker'), fetchTab('Daily Output'),
-        fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'), fetchTab('ECR'),
-        fetchTab('Cost'), fetchTab('Waste'), fetchTab('Calc'),
+        fetchTab('Bottlenecks'), fetchTab('Quality'), fetchTab('Environment'),
+        fetchTab('Cost'), fetchTab('Waste'), fetchTab('Calc'), fetchTab('Safety'),
         // Machine Cost Database — lives on the main sheet (Cost Estimation
         // module writes here via Apps Script), soft-fetched since it may not
         // exist yet on a given deployment.
@@ -975,6 +1225,11 @@ export function useScoreboardData() {
         // Kaizen ideas — the external Kaizen sheet, not this workbook's own
         // (stale) Kaizen tab. Also soft-fetched, same reasoning.
         fetchCsvExport(KAIZEN_LOG_URL),
+        // Change Management (ECR) and Production Incident registers — two
+        // more view-only sheets of their own (2026-10-22); the ECR one
+        // replaces the workbook's old ECR tab. Soft-fetched likewise.
+        fetchCsvExport(csvExportUrl(ECR_SHEET_ID)),
+        fetchCsvExport(csvExportUrl(INCIDENT_SHEET_ID)),
       ]);
 
       const targetsKv = parseTargetsKv(targetsGrid);
@@ -984,11 +1239,14 @@ export function useScoreboardData() {
       const downtimeTrend = downtimeMonthlyTrend(downtimeEvents);
       const activeEvents = activeDowntimeEvents(downtimeEvents);
       const fpyTrend = parseQualityMonthly(qualityGrid);
-      const latestKwh = parseEnvironmentLatestKwh(environmentGrid);
+      const environmentMonthly = parseEnvironmentMonthly(environmentGrid);
+      const safetyEvents = parseSafetyLog(safetyGrid);
       const bottlenecks = parseRegisterRows(bottlenecksGrid, r => headerCellIs(r[0], 'Date Raised'));
-      const ecr = parseRegisterRows(ecrGrid, r => /^ecr no/i.test(String(r[0] || '').trim()) || /^description$/i.test(String(r[1] || '').trim()));
-      const waste = parseRegisterRows(wasteGrid, r => headerCellIs(r[0], 'Date') && /waste type/i.test(r[1] || ''));
-      const kaizen = parseRegisterRows(kaizenGrid, r => /kaizen idea/i.test(r[1] || ''));
+      const wasteRows = parseWasteRows(wasteGrid);
+      const qualityRows = parseQualityRows(qualityGrid);
+      const ecrRows = parseEcrRegister(ecrGrid);
+      const incidentRows = parseIncidentRegister(incidentGrid);
+      const kaizenRows = parseKaizenRegister(kaizenGrid);
       const costKv = parseCost(costGrid);
       const projects = parseProjects(targetsGrid);
       const monthlyPlan = parseMonthlyPlan(targetsGrid);
@@ -1054,7 +1312,9 @@ export function useScoreboardData() {
         };
       }
 
-      const labour = parseLabourCost(operatorsGrid, submissionsGrid, staffHourlyRate);
+      const labourStints = parseLabourStints(operatorsGrid, submissionsGrid);
+      const labour = parseLabourCost(labourStints, staffHourlyRate);
+      const latestKwh = sumEnvironmentKwh(environmentMonthly, isoOrNull(periodStart), isoOrNull(periodEnd));
 
       // Machine Cost — absorption costing: rate × Available Hours for the
       // period, same hours for every machine at a station regardless of
@@ -1071,9 +1331,9 @@ export function useScoreboardData() {
         if (rate == null) return;
         const cost = rate * availableHours;
         machineCostTotal += cost;
-        machineCostRows.push({ id: m.id, stationCode: m.stationCode, activity: m.activity, machineName: m.machineName, rate, cost });
         const lineId = m.stationCode ? STATIONS[m.stationCode]?.line : null;
         const workshopName = lineId ? LINE_ID_TO_WORKSHOP[lineId] : null;
+        machineCostRows.push({ id: m.id, stationCode: m.stationCode, activity: m.activity, machineName: m.machineName, rate, cost, workshopName });
         if (workshopName) machineCostByLine[workshopName] = (machineCostByLine[workshopName] || 0) + cost;
       });
       machineCostRows.sort((a, b) => b.cost - a.cost);
@@ -1115,13 +1375,29 @@ export function useScoreboardData() {
         machineCostRows: machineCostRowsK,
         daily,
         bottlenecks,
-        kaizen,
-        ecr,
-        waste,
+        waste: wasteRows.map(w => w.cells),
         fpyTrend,
         downtimeTrend,
         downtimeEvents: downtimeSummary.events,
         activeDowntimeEvents: activeEvents,
+        // Raw, un-periodised inputs for deriveRangeKpis — the board re-slices
+        // these to whatever range it is set to.
+        downtimeAll: downtimeEvents,
+        environmentMonthly,
+        safetyEvents,
+        labourStints,
+        qualityRows,
+        wasteRows,
+        ecrRows,
+        incidentRows,
+        kaizenRows,
+        staffHourlyRate,
+        energyTariffRate,
+        machineRates: machineCostRows.map(({ cost, ...m }) => m),
+        shiftHoursPerDay: targetsKv['Shift Hours / Day']?.num || 0,
+        workingDaysPerWeek: targetsKv['Working Days / Week']?.num || 6,
+        sheetAvailableHours: availableHours,
+        plannedDowntimeSheet: plannedDowntimeHours,
         linePlannedVsActual: lineMonthly.byLine,    // per-line monthly Plan vs Actual, the 4 reported lines
         overallMonthly: lineMonthly.overallMonthly, // whole-program monthly Plan vs Actual (= Trim & Final Assembly)
       });

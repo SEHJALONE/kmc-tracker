@@ -50,8 +50,10 @@ export const busLabel = b => [b.unit, b.vin].filter(Boolean).join(' – ') || `B
 
 /**
  * @param {object} opts
- * @param {Array}  opts.buses  parseBusUnits output (needs `ws` per line)
- * @param {string} opts.month  'YYYY-MM' reporting month
+ * @param {Array}  opts.buses   parseBusUnits output (needs `ws` per line)
+ * @param {string} opts.month   'YYYY-MM' reporting month, or…
+ * @param {object} opts.period  …any reporting period (utils/reportPeriod.js):
+ *                              a month, quarter, year or custom range
  */
 // Did this workshop record an actual INPUT inside the month — a start or an
 // end dated within it? Deliberately not an overlap test: a unit that began in
@@ -63,8 +65,10 @@ const workedInMonth = (ws, bounds) => {
   return within(ws.actualStart) || within(ws.actualEnd);
 };
 
-export function buildReportModel({ buses = [], month }) {
-  const bounds = monthBounds(month);
+export function buildReportModel({ buses = [], month, period }) {
+  const bounds = period ? { start: period.start, end: period.end } : monthBounds(month);
+  const label = period ? period.label : monthName(month);
+  const upper = period ? period.upper : monthName(month).toUpperCase();
 
   // A bus counts as completed once it has cleared all four reported
   // workshops, or once the tracker's own Bus Status says so. It belongs to
@@ -108,8 +112,8 @@ export function buildReportModel({ buses = [], month }) {
 
   return {
     month, bounds,
-    monthName: monthName(month),
-    monthUpper: monthName(month).toUpperCase(),
+    monthName: label,
+    monthUpper: upper,
     completed,
     completedCount: completed.length,
     inProgress,

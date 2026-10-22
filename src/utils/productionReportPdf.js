@@ -13,7 +13,12 @@ import { addCanvasPaged } from './pdfImagePager';
 //            Review Date come from the preliminary form
 //   p3–p5    the three scoreboard pages, one per page
 //   annex    Annex A — workshop start/end dates for the buses completed in
-//            the reporting month
+//            the reporting period; Annexes B–E — the full rows behind the
+//            board's register scorecards: engineering changes (ECR),
+//            production incidents, kaizen, and downtime events
+//
+// The reporting period is a month, a quarter, a year or a custom range
+// (utils/reportPeriod.js); every annex is sliced to it.
 //
 // Everything typeset here is Times New Roman 12pt black on white, and the
 // Annex is drawn with hairline black rules and no fills. The only colour in
@@ -173,12 +178,26 @@ export function defaultReference(month) {
 }
 
 // ── cover ───────────────────────────────────────────────────────────────
+// A quarter's label ("Q3 2026 (JULY – SEPTEMBER)") is too long for the gap
+// on one line, so anything with a bracketed part goes on two, and the size
+// steps down until the widest line fits the cover's text column.
+const COVER_MAX_W = 118;
 function drawCover(pdf, coverImg, model) {
   if (coverImg) pdf.addImage(coverImg, 'PNG', 0, 0, PAGE.w, PAGE.h);
   pdf.setTextColor(0);
   pdf.setFont('times', 'bold');
-  pdf.setFontSize(COVER.pt);
-  pdf.text(model.monthUpper, COVER.textX, COVER.textY, { align: 'center' });
+  const lines = /\(/.test(model.monthUpper)
+    ? model.monthUpper.split(/\s*\(\s*/).map(s => s.replace(/\)\s*$/, ''))
+    : [model.monthUpper];
+  let pt = COVER.pt;
+  pdf.setFontSize(pt);
+  while (pt > 12 && Math.max(...lines.map(l => pdf.getTextWidth(l))) > COVER_MAX_W) {
+    pt -= 1;
+    pdf.setFontSize(pt);
+  }
+  const lh = pt * PT_MM * 1.15;
+  const y0 = COVER.textY - ((lines.length - 1) * lh) / 2;
+  lines.forEach((l, i) => pdf.text(l, COVER.textX, y0 + i * lh, { align: 'center' }));
 }
 
 // ── Document Version History ────────────────────────────────────────────
@@ -289,6 +308,97 @@ function drawAnnexure(flow, model) {
     { bodyPt: 10 });
 }
 
+// ── Annexes B–E ─────────────────────────────────────────────────────────
+// The rows behind the board's register scorecards, for the reporting period
+// (the same `deriveRangeKpis` result the board shows). Each annex closes with
+// the register's dates that are not written dd.mm.yyyy, so they get fixed at
+// source.
+const clip = (s, n = 320) => {
+  const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t || '–';
+};
+const ddmmyyyy = iso => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+};
+const dateOf = dt => (dt
+  ? `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.${dt.getFullYear()}`
+  : '');
+
+function annexHeading(flow, text) {
+  flow.need(30);
+  flow.y += 4;
+  flow.para(text, { bold: true });
+}
+
+function flaggedTable(flow, flagged) {
+  if (!flagged || !flagged.length) return;
+  flow.para('Dates to correct in the register (house format dd.mm.yyyy):', { pt: 10, gapAfter: 2 });
+  flow.table(['SHEET ROW', 'ENTRY', 'FIELD', 'AS ENTERED', 'ISSUE'],
+    flagged.map(f => [String(f.sheetRow), clip(f.name, 90), f.field, f.raw,
+      `${f.reason}${f.flag !== 'format' ? ', not counted' : ''}`]),
+    [0.9, 3.2, 1.6, 1.6, 2.2], ['center', 'left', 'left', 'left', 'left'], { bodyPt: 9 });
+}
+
+function drawRegisterAnnexes(flow, regs, model) {
+  const { ecr, incidents, kaizen, downtimeEvents = [] } = regs;
+  const p = model.monthName;
+
+  annexHeading(flow, `Annex B: Engineering Changes (ECR) — ${p}`);
+  flow.para(`${ecr.total} change${ecr.total === 1 ? '' : 's'} in the period: ${ecr.raisedCount} raised and ${ecr.implementedCount} implemented.`, { pt: 10 });
+  flow.table(
+    ['CHANGE ID', 'RAISED', 'TITLE', 'MODEL', 'CATEGORY / TYPE', 'RISK', 'DECISION', 'STATUS', 'IMPLEMENTED'],
+    ecr.rows.length ? ecr.rows.map(e => [
+      e.id, ddmmyyyy(e.raised.iso) || e.raised.raw, clip(e.title, 140), clip(e.model, 40),
+      [e.category, e.type].filter(Boolean).join(' / ') || '–', e.risk || '–', e.decision || '–', e.status || '–',
+      ddmmyyyy(e.implemented.iso || e.closed.iso) || '–',
+    ]) : [[`No changes were raised or implemented in ${p}.`, '', '', '', '', '', '', '', '']],
+    [1.1, 1, 3.2, 1.3, 1.6, 0.9, 1.3, 1.3, 1.45],
+    ['left', 'center', 'left', 'left', 'left', 'center', 'left', 'left', 'center'],
+    { bodyPt: 9 });
+  flaggedTable(flow, ecr.flagged);
+
+  annexHeading(flow, `Annex C: Production Incidents — ${p}`);
+  const sev = Object.entries(incidents.bySeverity).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(', ');
+  flow.para(`${incidents.total} incident${incidents.total === 1 ? '' : 's'} in the period${sev ? ` (${sev})` : ''}.`, { pt: 10 });
+  flow.table(
+    ['NO.', 'DATE', 'LOCATION', 'CLASSIFICATION', 'SEVERITY', 'DESCRIPTION', 'IMMEDIATE ACTIONS'],
+    incidents.rows.length ? incidents.rows.map(x => [
+      x.no, ddmmyyyy(x.date.iso), clip(x.location, 60), clip(x.classification, 60), x.severity || '–',
+      clip(x.description), clip(x.actions, 220),
+    ]) : [[`No incidents were recorded in ${p}.`, '', '', '', '', '', '']],
+    [0.6, 1, 1.5, 1.5, 1.25, 4, 3],
+    ['center', 'center', 'left', 'left', 'center', 'left', 'left'],
+    { bodyPt: 9 });
+  flaggedTable(flow, incidents.flagged);
+
+  annexHeading(flow, `Annex D: Kaizen / Improvement Ideas — ${p}`);
+  flow.para(`${kaizen.total} idea${kaizen.total === 1 ? '' : 's'} in the period: ${kaizen.implemented} implemented, ${kaizen.open} proposed or open.`, { pt: 10 });
+  flow.table(
+    ['DATE', 'KAIZEN IDEA', 'WORKSHOP', 'PROPOSED BY', 'STATUS', 'IMPACT'],
+    kaizen.rows.length ? kaizen.rows.map(k => [
+      ddmmyyyy(k.date.iso), clip(k.idea, 200), clip(k.workshop, 50), k.proposedBy || '–', k.status || '–', clip(k.impact, 160),
+    ]) : [[`No kaizen ideas are dated in ${p}.`, '', '', '', '', '']],
+    [1, 4, 1.6, 1.4, 1.2, 3],
+    ['center', 'left', 'left', 'left', 'center', 'left'],
+    { bodyPt: 9 });
+  flaggedTable(flow, kaizen.flagged);
+
+  annexHeading(flow, `Annex E: Production Downtime Events — ${p}`);
+  const hours = downtimeEvents.reduce((s, e) => s + e.minutes, 0) / 60;
+  flow.para(`${downtimeEvents.length} event${downtimeEvents.length === 1 ? '' : 's'} started in the period, ${hours.toFixed(1)} hours lost.`, { pt: 10 });
+  flow.table(
+    ['WORKSHOP', 'MACHINE', 'REASON', 'START', 'END', 'STATUS', 'HOURS', 'FAULT'],
+    downtimeEvents.length ? downtimeEvents.map(e => [
+      clip(e.workshop, 50), clip(e.machineName, 60), e.reasonCode || '–',
+      `${dateOf(e.startDate)} ${e.startTime || ''}`.trim(), `${dateOf(e.endDate)} ${e.endTime || ''}`.trim() || '–',
+      e.status || '–', (e.minutes / 60).toFixed(1), clip(e.description, 160),
+    ]) : [[`No downtime events started in ${p}.`, '', '', '', '', '', '', '']],
+    [1.6, 1.6, 1.6, 1.3, 1.3, 1, 0.8, 3],
+    ['left', 'left', 'left', 'center', 'center', 'center', 'right', 'left'],
+    { bodyPt: 9 });
+}
+
 function drawPageNumbers(pdf) {
   const n = pdf.getNumberOfPages();
   for (let i = 2; i <= n; i++) {
@@ -305,10 +415,11 @@ function drawPageNumbers(pdf) {
  * @param {object} opts.meta          preliminary form: month, referenceNo, issueDate, lastReviewDate…
  * @param {Array}  opts.buses         parseBusUnits output
  * @param {Array}  opts.pageCanvases  the three captured scoreboard pages
+ * @param {object} opts.registers     deriveRangeKpis(data, period) — Annexes B–E
  * @returns {jsPDF}
  */
-export async function buildProductionReport({ meta, buses = [], pageCanvases = [] }) {
-  const model = buildReportModel({ buses, month: meta.month });
+export async function buildProductionReport({ meta, buses = [], pageCanvases = [], registers = null }) {
+  const model = buildReportModel({ buses, month: meta.month, period: meta.period });
   const resolved = {
     referenceNo: meta.referenceNo || '',
     issueDateLabel: longDate(meta.issueDate),
@@ -336,6 +447,7 @@ export async function buildProductionReport({ meta, buses = [], pageCanvases = [
 
   pageCanvases.forEach(cv => flow.boardPage(cv));
   drawAnnexure(flow, model);
+  if (registers) drawRegisterAnnexes(flow, registers, model);
 
   drawPageNumbers(pdf);
   return pdf;

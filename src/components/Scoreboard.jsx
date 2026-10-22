@@ -1,12 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useId, createContext, useContext, Children } from 'react';
+import { useState, useRef, useEffect, useCallback, useId, useMemo, createContext, useContext, Children } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { sendViaAppsScript } from '../data/mailer.js';
 import { jsPDF } from 'jspdf';
-import { useScoreboardData, computeLineCard, DOWNTIME_REASON_CODES } from '../hooks/useScoreboardData';
+import { useScoreboardData, computeLineCard, deriveRangeKpis, DOWNTIME_REASON_CODES } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
 import { addCanvasPaged } from '../utils/pdfImagePager';
-import { buildReportModel, monthBounds, monthName } from '../utils/productionReportModel';
+import { buildReportModel } from '../utils/productionReportModel';
+import {
+  monthPeriod, quarterPeriod, yearPeriod, customPeriod, describeRange, monthLabelsIn,
+  quarterOf, todayISO, MONTH_SHORT,
+} from '../utils/reportPeriod';
+import { displayDate, SEVERITIES } from '../utils/registers';
 import DailyLogModal from './DailyLogModal';
 
 // ── Theme-aware palettes ──────────────────────────────────────────────────
@@ -71,6 +76,20 @@ const PALETTES = {
 // on Inter, so figures get `font-variant-numeric: tabular-nums` for column
 // alignment instead of a monospaced face.)
 const UI_FONT = "'Inter', system-ui, sans-serif";
+// The Travel Card design language (styles/design.css) for the headline
+// figures: Bebas Neue numerals over Montserrat labels, gradient pills in
+// recessed sockets. Used by the period bar and the register scorecards.
+const DISPLAY_FONT = "'Bebas Neue', 'Montserrat', 'Inter', sans-serif";
+const LABEL_FONT = "'Montserrat', 'Inter', sans-serif";
+const GRAD = {
+  red: 'linear-gradient(135deg, #ff8a7a, #dc2626)',
+  amber: 'linear-gradient(135deg, #ffd42a, #ff8400)',
+  lime: 'linear-gradient(135deg, #d6f53b, #20c464)',
+  teal: 'linear-gradient(135deg, #a9dccf, #1c78a6)',
+  blue: 'linear-gradient(135deg, #8fd3ff, #2563eb)',
+  pink: 'linear-gradient(135deg, #ffb4c9, #e14fd6)',
+};
+const SOLID = { red: '#ef4444', amber: '#ff9a0a', lime: '#2fc96a', teal: '#2492b3', blue: '#3b82f6', pink: '#e14fd6' };
 // Reference width of a board page: the layout the exports always reproduce,
 // and the widest the board ever grows on screen. Declared up here because the
 // responsive layout context below defaults to it.
@@ -334,7 +353,10 @@ function SectionLabel({ children, right }) {
 
 // The reusable KPI tile — the reference's `.stat`: translucent gradient glass
 // on a hairline highlight border, label above, one large tabular figure below.
-function ScoreCard({ label, value, valueColor }) {
+// `sheet` marks a figure the workbook calculates for its own Scoreboard
+// Period, which the board cannot re-slice — shown with a † that the footer
+// explains, so it is never mistaken for a selected-range figure.
+function ScoreCard({ label, value, valueColor, sheet = false }) {
   const C = useC();
   return (
     <div style={{
@@ -346,7 +368,7 @@ function ScoreCard({ label, value, valueColor }) {
       <div style={{
         fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.07em', lineHeight: 1.35, minHeight: '2.2em',
-      }}>{label}</div>
+      }}>{label}{sheet && <span title="Workbook figure for its own Scoreboard Period" style={{ color: C.amber, marginLeft: 2 }}>†</span>}</div>
       <div style={{
         fontSize: 22, fontWeight: 700, color: valueColor || C.ink, lineHeight: 1.15,
         letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums', wordBreak: 'break-word',
@@ -727,9 +749,21 @@ function CumChart({ daily }) {
 }
 
 
+// A faint band behind the months the selected range covers, so a whole-
+// programme trend still shows where the reporting period sits in it.
+function RangeBands({ C, labels, highlight, x0For, bw, padT, y0 }) {
+  if (!highlight || !highlight.size) return null;
+  return labels.map((l, i) => highlight.has(l) && (
+    <g key={`hl${i}`}>
+      <rect x={x0For(i)} y={padT - 6} width={bw} height={Math.max(0, y0 - padT + 6)} rx="5" fill={C.red} opacity="0.09" />
+      <rect x={x0For(i) + bw * 0.3} y={padT - 6} width={bw * 0.4} height="2" rx="1" fill={C.red} opacity="0.7" />
+    </g>
+  ));
+}
+
 // Single-series monthly bar chart — used for the Downtime trend now that
 // it's a bar chart, not a line, per request.
-function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
+function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v), highlight }) {
   const C = useC();
   const uid = useId().replace(/[:]/g, '');
   if (!points || points.length === 0) {
@@ -745,6 +779,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
       <defs><BarGradient id={`mb${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} />
+      <RangeBands C={C} labels={points.map(p => p.label)} highlight={highlight} x0For={i => padL + i * bw} bw={bw} padT={padT} y0={y0} />
       {points.map((p, i) => {
         const x0 = padL + i * bw, pw = bw * 0.5;
         return (
@@ -767,7 +802,7 @@ function MonthlyBarChart({ points, color, axisTitle, fmt = (v) => f1(v) }) {
 
 // Grouped monthly Planned-vs-Actual bar chart, spanning the whole
 // production timeline (no slicing to a recent window).
-function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
+function MonthlyPlanActualChart({ points, axisTitle = 'Buses', highlight }) {
   const C = useC();
   const uid = useId().replace(/[:]/g, '');
   const pts = (points || []).filter(p => p.planned != null || p.actual != null);
@@ -789,6 +824,7 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
           <BarGradient id={`pa${uid}`} color={C.green} />
         </defs>
         <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle} />
+        <RangeBands C={C} labels={pts.map(p => p.label)} highlight={highlight} x0For={i => padL + i * bw} bw={bw} padT={padT} y0={y0} />
         {pts.map((d, i) => {
           const x0 = padL + i * bw, pw = bw * 0.32;
           const planned = d.planned || 0;
@@ -821,7 +857,7 @@ function MonthlyPlanActualChart({ points, axisTitle = 'Buses' }) {
 
 // Date helper — plain 'YYYY-MM-DD' strings compare correctly as-is, so no
 // Generic monthly trend line — used for FPY%.
-function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
+function TrendChart({ points, color, fmt, axisTitle, axisFmt, highlight }) {
   const C = useC();
   const uid = useId().replace(/[:]/g, '');
   if (!points || points.length < 2) {
@@ -839,6 +875,11 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt }) {
     <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
       <defs><AreaGradient id={`tr${uid}`} color={color} /></defs>
       <YAxis niceMax={niceMax} step={step} tickCount={tickCount} padL={padL} padT={padT} padB={padB} h={h} w={w} title={axisTitle || ''} fmt={axisFmt || (v => Math.round(v))} />
+      {(() => {
+        const step = points.length > 1 ? (w - padL - padR) / (points.length - 1) : 0;
+        const bw = Math.min(step, 60);
+        return <RangeBands C={C} labels={points.map(p => p.label)} highlight={highlight} x0For={i => x(i) - bw / 2} bw={bw} padT={padT} y0={y(0)} />;
+      })()}
       <path d={area} fill={`url(#tr${uid})`} stroke="none" />
       <path d={path} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
       {points.map((p, i) => (
@@ -935,18 +976,40 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
 }
 
 // ── Production Report modal ───────────────────────────────────────────────
-// The preliminary form for the monthly Production Report. Everything the
-// template leaves blank is filled here up front: the reporting month (which
-// is all that appears on the cover, and what Annex A is sliced to) plus the
-// three empty Document Version History cells — Reference No., Issue Date and
-// Last Review Date.
+// The preliminary form for the Production Report. Everything the template
+// leaves blank is filled here up front: the reporting period — a month, a
+// quarter, a year or any custom range; it is what appears on the cover and
+// what every annex is sliced to — plus the three empty Document Version
+// History cells: Reference No., Issue Date and Last Review Date.
 //
-// Choosing a month also moves the board's own selected range to that month
-// before the pages are captured, so the embedded screenshots report the same
-// period as Annex A.
-function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, applyMonthRange }) {
+// Choosing a period also moves the board's own selected range to it before
+// the pages are captured, so the embedded screenshots report the same period
+// as the annexes.
+const REPORT_KINDS = [
+  { id: 'month', label: 'Month' }, { id: 'quarter', label: 'Quarter' },
+  { id: 'year', label: 'Annual' }, { id: 'range', label: 'Custom range' },
+];
+
+function ProductionReportModal({ onClose, capturePages, buses, initialRange, setRange, registersFor }) {
   const C = useC();
-  const [referenceNo, setReferenceNo] = useState(() => defaultReference(month));
+  const initial = describeRange(initialRange);
+  const [kind, setKind] = useState(initial.kind);
+  const [month, setMonth] = useState(initialRange.start.slice(0, 7));
+  const [year, setYear] = useState(Number(initialRange.start.slice(0, 4)));
+  const [quarter, setQuarter] = useState(quarterOf(Number(initialRange.start.slice(5, 7)) - 1));
+  const [custom, setCustom] = useState({ start: initialRange.start, end: initialRange.end });
+
+  const period = (() => {
+    if (kind === 'month') {
+      const [y, m] = month.split('-').map(Number);
+      return monthPeriod(y, m - 1);
+    }
+    if (kind === 'quarter') return quarterPeriod(year, quarter);
+    if (kind === 'year') return yearPeriod(year);
+    return customPeriod(custom.start, custom.end <= custom.start ? custom.start : custom.end);
+  })();
+
+  const [referenceNo, setReferenceNo] = useState(() => defaultReference(period.end));
   const [issueDate, setIssueDate] = useState(() => localISODate());
   const [lastReviewDate, setLastReviewDate] = useState('');
   const [versionNo, setVersionNo] = useState('00');
@@ -955,28 +1018,30 @@ function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
 
-  // The reference number tracks the month until the preparer overrides it.
-  useEffect(() => { if (!refTouched) setReferenceNo(defaultReference(month)); }, [month, refTouched]);
+  // The reference number tracks the period until the preparer overrides it.
+  useEffect(() => { if (!refTouched) setReferenceNo(defaultReference(period.end)); }, [period.end, refTouched]);
 
-  const model = buildReportModel({ buses, month });
+  const model = buildReportModel({ buses, period });
+  const regs = registersFor(period);
 
   async function generate() {
     setBusy(true); setStatus(null);
     try {
-      applyMonthRange(month);
-      // Let the board re-render against the month before it is captured. A
+      setRange({ start: period.start, end: period.end });
+      // Let the board re-render against the period before it is captured. A
       // plain timer, not requestAnimationFrame — rAF is suspended while the
       // tab is in the background, which would hang the export the moment the
       // operator switched away.
       await new Promise(r => setTimeout(r, 450));
       const pageCanvases = await capturePages();
       const pdf = await buildProductionReport({
-        meta: { month, referenceNo, issueDate, lastReviewDate, versionNo, nextReview },
+        meta: { period, referenceNo, issueDate, lastReviewDate, versionNo, nextReview },
         buses,
         pageCanvases,
+        registers: regs,
       });
-      pdf.save(`KMC_Production_Report_${month}.pdf`);
-      setStatus({ ok: true, msg: `Report generated for ${monthName(month)}.` });
+      pdf.save(`KMC_Production_Report_${period.short.replace(/[^\w-]+/g, '_')}.pdf`);
+      setStatus({ ok: true, msg: `Report generated for ${period.label}.` });
     } catch (e) {
       setStatus({ ok: false, msg: e.message });
     } finally {
@@ -986,16 +1051,45 @@ function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, 
 
   const field = { width: '100%', boxSizing: 'border-box', background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '8px 10px', fontSize: 12, fontFamily: 'inherit' };
   const label = { fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5, display: 'block' };
+  const seg = active => ({
+    flex: 1, border: 'none', borderRadius: 999, padding: '7px 8px', cursor: 'pointer',
+    fontFamily: LABEL_FONT, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+    background: active ? GRAD.red : 'transparent', color: active ? '#fff' : C.ink2,
+    boxShadow: active ? '0 6px 14px rgba(220,38,38,0.28)' : 'none',
+  });
 
   return createPortal(
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,16,30,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.glassBorder}`, borderRadius: 16, width: 'min(500px, 92vw)', padding: 20, color: C.ink, boxShadow: C.shadowLg, fontFamily: "'Inter', Arial, sans-serif" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.panel, border: `1px solid ${C.glassBorder}`, borderRadius: 16, width: 'min(520px, 94vw)', maxHeight: '92vh', overflowY: 'auto', padding: 20, color: C.ink, boxShadow: C.shadowLg, fontFamily: "'Inter', Arial, sans-serif" }}>
         <div style={{ fontWeight: 600, fontSize: 16, letterSpacing: '-0.014em', marginBottom: 15 }}>
           Production Report (PDF)
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div><span style={label}>Reporting Month</span>
-            <input type="month" style={field} value={month} onChange={e => e.target.value && setMonth(e.target.value)} /></div>
+          <div>
+            <span style={label}>Reporting Period</span>
+            <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 999, background: C.surface2, marginBottom: 8 }}>
+              {REPORT_KINDS.map(k => <button key={k.id} style={seg(kind === k.id)} onClick={() => setKind(k.id)}>{k.label}</button>)}
+            </div>
+            {kind === 'month' && (
+              <input type="month" style={field} value={month} onChange={e => e.target.value && setMonth(e.target.value)} />
+            )}
+            {(kind === 'quarter' || kind === 'year') && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="number" min="2020" max="2100" style={{ ...field, width: 110 }} value={year}
+                  onChange={e => setYear(Number(e.target.value) || year)} />
+                {kind === 'quarter' && [1, 2, 3, 4].map(q => (
+                  <button key={q} style={{ ...seg(quarter === q), flex: 1, border: `1px solid ${C.line}` }} onClick={() => setQuarter(q)}>Q{q}</button>
+                ))}
+              </div>
+            )}
+            {kind === 'range' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input type="date" style={field} value={custom.start} onChange={e => e.target.value && setCustom(c => ({ ...c, start: e.target.value }))} />
+                <input type="date" style={field} value={custom.end} onChange={e => e.target.value && setCustom(c => ({ ...c, end: e.target.value }))} />
+              </div>
+            )}
+            <div style={{ marginTop: 7, fontFamily: DISPLAY_FONT, fontSize: 20, letterSpacing: '0.04em', color: C.ink }}>{period.label}</div>
+          </div>
 
           <div style={{ fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 4 }}>
             Document Version History
@@ -1016,9 +1110,11 @@ function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, 
               <input style={field} value={nextReview} onChange={e => setNextReview(e.target.value)} /></div>
           </div>
 
-          <div style={{ fontSize: 11.5, color: C.ink2 }}>
-            Annex A will list the {model.completedCount} bus{model.completedCount === 1 ? '' : 'es'} completed
-            and {model.inProgressCount} in progress in {monthName(month)}.
+          <div style={{ fontSize: 11.5, color: C.ink2, lineHeight: 1.6 }}>
+            <b>Annexes for {period.short}:</b> A, {model.completedCount} bus{model.completedCount === 1 ? '' : 'es'} completed
+            and {model.inProgressCount} in progress · B, {regs.ecr.total} engineering change{regs.ecr.total === 1 ? '' : 's'}
+            {' '}({regs.ecr.raisedCount} raised, {regs.ecr.implementedCount} implemented) · C, {regs.incidents.total} incident{regs.incidents.total === 1 ? '' : 's'}
+            {' '}· D, {regs.kaizen.total} kaizen · E, {regs.downtimeEvents.length} downtime event{regs.downtimeEvents.length === 1 ? '' : 's'}.
           </div>
           {status && <div style={{ fontSize: 11.5, color: status.ok ? C.green : C.red }}>{status.msg}</div>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
@@ -1034,12 +1130,250 @@ function ProductionReportModal({ onClose, capturePages, buses, month, setMonth, 
   );
 }
 
-// ── Range & per-line target selector — mirrors the "⚙ Set Targets" panel in
-// the standalone workbook view (public/dpn-scoreboard-workbook.html): a date
-// range that drives the "selected range" Planned vs Actual chart, plus an
-// optional manual target override per line (blank = auto, computed from the
-// Tracker). Not captured in exports — rendered outside the Page refs.
-function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
+// ── Period bar — the one place the board's reporting range is set ────────
+// Every period figure on the board (line cards, downtime, cost, safety,
+// quality, waste, and the ECR / incident / kaizen / downtime registers)
+// follows it. Quick buttons for each month and quarter of the chosen year,
+// the whole year, year-to-date, and a custom From/To. Not captured in
+// exports — rendered outside the Page refs.
+function PeriodBar({ range, setRange }) {
+  const C = useC();
+  const today = todayISO();
+  const current = describeRange(range);
+  const [year, setYear] = useState(() => Number(range.start.slice(0, 4)));
+  useEffect(() => { setYear(Number(range.start.slice(0, 4))); }, [range.start]);
+
+  const same = p => p.start === range.start && p.end === range.end;
+  const thisYear = new Date().getFullYear();
+  const presets = [
+    { label: 'MTD', title: 'Month to date', p: { start: `${today.slice(0, 8)}01`, end: today } },
+    { label: 'YTD', title: 'Year to date', p: { start: `${year}-01-01`, end: year === thisYear ? today : `${year}-12-31` } },
+    { label: 'Full Year', title: `January – December ${year}`, p: yearPeriod(year) },
+  ];
+
+  const pill = (active, future) => ({
+    border: 'none', borderRadius: 999, padding: '6px 10px', cursor: 'pointer', whiteSpace: 'nowrap',
+    fontFamily: LABEL_FONT, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+    background: active ? GRAD.red : 'transparent',
+    color: active ? '#fff' : future ? C.muted : C.ink2,
+    opacity: future && !active ? 0.55 : 1,
+    boxShadow: active ? '0 6px 14px rgba(220,38,38,0.30)' : 'none',
+    transition: 'background .15s, color .15s',
+  });
+  const socket = {
+    display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: C.surface2,
+    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.22)', flexWrap: 'wrap',
+  };
+  const cap = { fontFamily: LABEL_FONT, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted };
+  const dateField = { background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 999, padding: '5px 10px', fontSize: 11.5, fontFamily: 'inherit' };
+
+  return (
+    <div style={{
+      maxWidth: PAGE_WIDTH, margin: '0 auto 10px', background: C.glass, border: `1px solid ${C.glassBorder}`,
+      borderRadius: 16, padding: '10px 14px', boxShadow: C.shadow,
+      // sticky on a desktop so the period is always one click away; on a
+      // phone the wrapped bar would cover half the screen, so it scrolls away
+      position: typeof window !== 'undefined' && window.innerWidth >= 900 ? 'sticky' : 'relative',
+      top: 6, zIndex: 30, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 14px',
+    }}>
+      {/* the period now in force, in the display face */}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 150, marginRight: 'auto' }}>
+        <span style={cap}>Reporting period</span>
+        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 24, letterSpacing: '0.04em', lineHeight: 1, color: C.ink }}>
+          {current.kind === 'range' ? current.short : current.label}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button style={pill(false)} onClick={() => setYear(y => y - 1)} aria-label="Previous year">‹</button>
+        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 22, letterSpacing: '0.05em', color: C.ink, minWidth: 48, textAlign: 'center' }}>{year}</span>
+        <button style={pill(false)} onClick={() => setYear(y => y + 1)} aria-label="Next year">›</button>
+      </div>
+
+      <div style={socket} role="group" aria-label="Quarters">
+        {[1, 2, 3, 4].map(q => {
+          const p = quarterPeriod(year, q);
+          return <button key={q} title={p.label} style={pill(same(p), p.start > today)} onClick={() => setRange({ start: p.start, end: p.end })}>Q{q}</button>;
+        })}
+      </div>
+
+      <div style={socket} role="group" aria-label="Months">
+        {MONTH_SHORT.map((m, i) => {
+          const p = monthPeriod(year, i);
+          return <button key={m} title={p.label} style={pill(same(p), p.start > today)} onClick={() => setRange({ start: p.start, end: p.end })}>{m}</button>;
+        })}
+      </div>
+
+      <div style={socket} role="group" aria-label="Presets">
+        {presets.map(x => (
+          <button key={x.label} title={x.title} style={pill(same(x.p))} onClick={() => setRange({ start: x.p.start, end: x.p.end })}>{x.label}</button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={cap}>From</span>
+        <input type="date" style={dateField} value={range.start} max={range.end}
+          onChange={e => e.target.value && setRange(r => ({ ...r, start: e.target.value }))} />
+        <span style={cap}>To</span>
+        <input type="date" style={dateField} value={range.end} min={range.start}
+          onChange={e => e.target.value && setRange(r => ({ ...r, end: e.target.value }))} />
+      </div>
+    </div>
+  );
+}
+
+// ── Register scorecards ───────────────────────────────────────────────────
+// One card per register (ECR, incidents, kaizen, downtime) for the selected
+// period: the count in the display face, a gradient split bar in a recessed
+// socket for its breakdown, and a click-through to the full rows. The detail
+// itself goes in the Production Report's annexes; on the board it is a
+// modal, so the captured pages stay one screen each.
+function SplitBar({ parts }) {
+  const C = useC();
+  const total = parts.reduce((s, p) => s + p.value, 0);
+  return (
+    <div style={{
+      height: 10, borderRadius: 999, background: C.track, padding: 2, display: 'flex', gap: 2,
+      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.25)',
+    }}>
+      {total > 0 && parts.filter(p => p.value > 0).map(p => (
+        <div key={p.name} title={`${p.name}: ${p.value}`} style={{
+          flex: p.value, borderRadius: 999, background: GRAD[p.tone], minWidth: 6,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+function RegisterCard({ title, value, unit, tone, icon, parts, flags, onOpen }) {
+  const C = useC();
+  return (
+    <div role="button" tabIndex={0} onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      style={{
+        background: C.stat, border: `1px solid ${C.glassBorder}`, borderRadius: 14,
+        padding: '11px 13px 10px', boxShadow: C.shadow, cursor: 'pointer', minWidth: 0,
+        display: 'flex', flexDirection: 'column', gap: 7, position: 'relative', overflow: 'hidden',
+      }}>
+      {/* gradient accent along the top edge */}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 3, background: GRAD[tone] }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 999, background: GRAD[tone], flex: '0 0 auto',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.25)',
+        }}>{icon}</div>
+        <div style={{
+          fontFamily: LABEL_FONT, fontSize: 10, fontWeight: 700, letterSpacing: '0.11em',
+          textTransform: 'uppercase', color: C.muted, lineHeight: 1.3, flex: 1, minWidth: 0,
+        }}>{title}</div>
+        {flags > 0 && <Chip tone="warn">{flags} date{flags === 1 ? '' : 's'} to fix</Chip>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 44, lineHeight: 0.9, letterSpacing: '0.02em', color: C.ink }}>{value}</span>
+        <span style={{ fontSize: 11, color: C.ink2, fontWeight: 600 }}>{unit}</span>
+      </div>
+      <SplitBar parts={parts} />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontSize: 10.5, color: C.ink2 }}>
+        {parts.map(p => (
+          <span key={p.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: SOLID[p.tone] }} />
+            {p.name} <b style={{ color: C.ink, fontVariantNumeric: 'tabular-nums' }}>{p.value}</b>
+          </span>
+        ))}
+      </div>
+      <div data-html2canvas-ignore="true" style={{
+        fontFamily: LABEL_FONT, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em',
+        textTransform: 'uppercase', color: C.red, marginTop: 'auto',
+      }}>View details ›</div>
+    </div>
+  );
+}
+
+const icon = d => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+const ICONS = {
+  ecr: icon(<><path d="M4 7h11l-3-3M20 17H9l3 3" /></>),
+  incident: icon(<><path d="M12 3 2 20h20L12 3z" /><path d="M12 10v4M12 17.5v.01" /></>),
+  kaizen: icon(<><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></>),
+  downtime: icon(<><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9 2h6" /></>),
+};
+
+// The full rows behind one register card, for the selected period, plus any
+// dates in that register that are not written dd.mm.yyyy (or can't be
+// placed on a day at all) — those are listed so the sheet can be corrected.
+function RegisterDetailModal({ detail, periodLabel, onClose }) {
+  const C = useC();
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const { title, tone, headers, rows, empty, flagged = [], summary } = detail;
+  const th = { ...thStyle(C), position: 'sticky', top: 0, background: C.panel, paddingTop: 8, zIndex: 1 };
+  return createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(10,16,30,0.6)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={e => e.stopPropagation()} role="dialog" aria-label={title} style={{
+        background: C.panel, border: `1px solid ${C.glassBorder}`, borderRadius: 18, width: 'min(1180px, 96vw)',
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column', color: C.ink, boxShadow: C.shadowLg,
+        fontFamily: UI_FONT, overflow: 'hidden',
+      }}>
+        <div style={{ height: 4, background: GRAD[tone], flex: '0 0 auto' }} />
+        <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontFamily: LABEL_FONT, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>{periodLabel}</div>
+            <div style={{ fontFamily: DISPLAY_FONT, fontSize: 30, letterSpacing: '0.04em', lineHeight: 1 }}>{title}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{summary}</div>
+          <button onClick={onClose} style={{ background: C.surface2, border: 'none', color: C.ink2, borderRadius: 999, padding: '8px 15px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
+        </div>
+        <div style={{ overflow: 'auto', padding: '0 18px 16px', flex: 1, minHeight: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, minWidth: headers.length * 95 }}>
+            <thead><tr>{headers.map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {rows.length === 0
+                ? <tr><td colSpan={headers.length} style={{ padding: '14px 6px', color: C.muted }}>{empty}</td></tr>
+                : rows.map((r, i) => (
+                  <tr key={i}>{r.map((c, j) => (
+                    <td key={j} style={{ ...tdStyle(C, { first: j === 0 }), verticalAlign: 'top', lineHeight: 1.45, maxWidth: 360 }}>{c}</td>
+                  ))}</tr>
+                ))}
+            </tbody>
+          </table>
+          {flagged.length > 0 && (
+            <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 12, background: C.amberWash, border: `1px solid ${C.amber}55` }}>
+              <div style={{ fontFamily: LABEL_FONT, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.amber, marginBottom: 6 }}>
+                Dates to correct in the register · house format dd.mm.yyyy
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead><tr>{['Sheet row', 'Entry', 'Field', 'As entered', 'Issue'].map(h => <th key={h} style={thStyle(C)}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {flagged.map((f, i) => (
+                    <tr key={i}>
+                      <td style={tdStyle(C, { first: true })}>{f.sheetRow}</td>
+                      <td style={{ ...tdStyle(C), maxWidth: 320 }}>{f.name}</td>
+                      <td style={tdStyle(C)}>{f.field}</td>
+                      <td style={{ ...tdStyle(C), fontWeight: 700, color: C.ink }}>{f.raw}</td>
+                      <td style={tdStyle(C)}>{f.reason}{f.flag !== 'format' ? ', not counted' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Per-line target selector — an optional manual target override per line
+// (blank = auto, computed from the Tracker). The range itself is set on the
+// PeriodBar. Not captured in exports — rendered outside the Page refs.
+function RangeTargetPanel({ lineTargets, setLineTargets }) {
   const C = useC();
   const field = { background: C.surface2, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '7px 10px', fontSize: 12, fontFamily: 'inherit' };
   const label = { fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 5, display: 'block' };
@@ -1048,15 +1382,9 @@ function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
       maxWidth: PAGE_WIDTH, margin: '0 auto 10px', background: C.glass, border: `1px solid ${C.glassBorder}`,
       borderRadius: 14, padding: 16, boxShadow: C.shadow,
     }}>
-      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.014em', marginBottom: 12, color: C.ink }}>
-        Selected Range &amp; Line Targets
-      </div>
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12, alignItems: 'flex-end' }}>
-        <div><span style={label}>Range Start</span>
-          <input type="date" style={field} value={range.start} onChange={e => setRange(r => ({ ...r, start: e.target.value }))} />
-        </div>
-        <div><span style={label}>Range End</span>
-          <input type="date" style={field} value={range.end} onChange={e => setRange(r => ({ ...r, end: e.target.value }))} />
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+        <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.014em', color: C.ink, flex: 1 }}>
+          Line Targets
         </div>
         <button
           onClick={() => setLineTargets({})}
@@ -1086,7 +1414,7 @@ function RangeTargetPanel({ range, setRange, lineTargets, setLineTargets }) {
 // is white-on-transparent), the title as an h1, and the period / shift / ref
 // metadata as chips instead of label:value rows. Nothing is dropped, it is
 // just carried in less chrome.
-function BoardHeader({ raw, referenceNo }) {
+function BoardHeader({ raw, referenceNo, periodLabel }) {
   const C = useC();
   return (
     <div style={{
@@ -1103,7 +1431,7 @@ function BoardHeader({ raw, referenceNo }) {
           Department of Production Scoreboard
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 7 }}>
-          <Chip>{raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}</Chip>
+          <Chip tone="info">{periodLabel}</Chip>
           <Chip>{raw('Shift Label') || 'DAY SHIFT'}</Chip>
           <Chip tone="crit">{referenceNo}</Chip>
         </div>
@@ -1255,17 +1583,21 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const [lineTargets, setLineTargets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('kmc_scoreboard_targets') || '{}'); } catch { return {}; }
   });
-  // The Production Report is month-scoped; the picker seeds from whatever
-  // month the board's selected range currently ends in.
-  const [reportMonth, setReportMonth] = useState(() => range.end.slice(0, 7));
-  const applyMonthRange = useCallback(m => setRange(monthBounds(m)), []);
-  useEffect(() => { localStorage.setItem('kmc_scoreboard_range', JSON.stringify(range)); }, [range]);
-  useEffect(() => { localStorage.setItem('kmc_scoreboard_targets', JSON.stringify(lineTargets)); }, [lineTargets]);
+  const [detail, setDetail] = useState(null);
+  useEffect(() => { try { localStorage.setItem('kmc_scoreboard_range', JSON.stringify(range)); } catch { /* private mode */ } }, [range]);
+  useEffect(() => { try { localStorage.setItem('kmc_scoreboard_targets', JSON.stringify(lineTargets)); } catch { /* private mode */ } }, [lineTargets]);
   const pageRefs = [useRef(null), useRef(null), useRef(null)];
 
   const live = !!data;
   const d = data || SAMPLE;
-  const kv = d.kv;
+  // Every period figure, re-derived for the selected range (see
+  // deriveRangeKpis). Sample data has no raw rows to re-slice, so it keeps
+  // its own fixed figures.
+  const derived = useMemo(() => deriveRangeKpis(d, range), [d, range]);
+  const period = describeRange(range);
+  const highlight = useMemo(() => monthLabelsIn(range), [range]);
+  const registersFor = useCallback(p => deriveRangeKpis(d, p), [d]);
+  const kv = live ? { ...d.kv, ...derived.kv } : d.kv;
   const g = (key) => kv[key] || {};
   const num = (key) => g(key).num ?? null;
   const raw = (key) => g(key).raw ?? '';
@@ -1357,15 +1689,18 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
 
   // The 8 "big rock" KPIs pulled out of objectives 2-5 — the numbers that
   // actually move the needle, one card each, no more per-objective tables.
+  // `sheet: true` = the workbook's own Calc figure for its Scoreboard
+  // Period, which the board has no raw rows to re-slice (see the † note in
+  // the footer). Everything else follows the selected range.
   const bigRocks = [
     { label: 'First Pass Yield', value: fpct(num('First Pass Yield')) },
-    { label: 'Critical Defects', value: fint(num('Critical Defects')) },
-    { label: 'OEE', value: fpct(num('OEE')) },
+    { label: 'Critical Defects', value: fint(num('Critical Defects')), sheet: true },
+    { label: 'OEE', value: fpct(num('OEE')), sheet: true },
     { label: 'MTTR', value: `${f1(num('MTTR (hrs)'))} h` },
     { label: 'Days Without LTI', value: fint(num('Days Without Lost-Time Injury')) },
     { label: 'Near-Miss Response', value: fpct(num('Near-Miss Response Rate')) },
-    { label: 'Energy vs Baseline', value: fpct1(num('Energy vs Baseline')) },
-    { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')) },
+    { label: 'Energy vs Baseline', value: fpct1(num('Energy vs Baseline')), sheet: true },
+    { label: 'Waste vs Baseline', value: fpct1(num('Waste vs Baseline')), sheet: true },
   ];
 
   // Cost reporting is deliberately just these two things — overall and
@@ -1376,9 +1711,9 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
     value: fint(num(`Operational Cost — ${lw.dataName}`)),
   }));
   const schedCards = [
-    { label: 'Activities On Time', value: fpct(num('On-Time %')) },
-    { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')) },
-    { label: 'Critical Activity', value: raw('Critical Activity') || '-' },
+    { label: 'Activities On Time', value: fpct(num('On-Time %')), sheet: true },
+    { label: 'Avg Delay (days)', value: f1(num('Avg Schedule Delay (days)')), sheet: true },
+    { label: 'Critical Activity', value: raw('Critical Activity') || '-', sheet: true },
     { label: 'Downtime % of Hours', value: fpct1(num('Downtime % of Available')) },
   ];
 
@@ -1407,11 +1742,94 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
     `${fint(p.vins.filter(v => doneVins.has(v)).length)} / ${fint(p.units)}`,
   ]);
 
-  const kaizenSorted = [...d.kaizen].sort((a, b) => {
-    const openA = !/^implemented$/i.test((a[4] || '').trim());
-    const openB = !/^implemented$/i.test((b[4] || '').trim());
-    return openA === openB ? 0 : openA ? -1 : 1;
-  });
+  // ── Register scorecards: ECR, incidents, kaizen and downtime events for
+  // the selected range. Each card opens its full rows (`detail`); the same
+  // rows become Annexes B–E of the Production Report.
+  const { ecr, incidents, kaizen } = derived;
+  const rangeDowntime = live ? derived.downtimeEvents : [];
+  const dtHours = rangeDowntime.reduce((s, e) => s + e.minutes, 0) / 60;
+  const fmtD = dt => (dt ? displayDate(localISODate(dt)) : '');
+  const sevTone = { Catastrophic: 'red', Major: 'amber', Moderate: 'pink', Minor: 'teal' };
+  const registerCards = [
+    {
+      key: 'ecr', title: 'Engineering Changes (ECR)', tone: 'blue', icon: ICONS.ecr,
+      value: ecr.total, unit: ecr.total === 1 ? 'change' : 'changes',
+      parts: [
+        { name: 'Raised', value: ecr.raisedCount, tone: 'blue' },
+        { name: 'Implemented', value: ecr.implementedCount, tone: 'lime' },
+      ],
+      flags: ecr.flagged.length,
+      detail: {
+        title: 'Engineering Change Register', tone: 'blue', flagged: ecr.flagged,
+        summary: [
+          <Chip key="r" tone="info">{ecr.raisedCount} raised</Chip>,
+          <Chip key="i" tone="ok">{ecr.implementedCount} implemented</Chip>,
+          ...Object.entries(ecr.byDecision).map(([k, v]) => <Chip key={k}>{v} {k}</Chip>),
+        ],
+        headers: ['Change ID', 'Raised', 'Title', 'Model', 'Category / Type', 'Risk', 'Decision', 'Status', 'Implemented', 'In period as'],
+        rows: ecr.rows.map(e => [
+          e.id, displayDate(e.raised.iso) || e.raised.raw, e.title, e.model,
+          [e.category, e.type].filter(Boolean).join(' / '), e.risk, e.decision || '-', e.status || '-',
+          displayDate(e.implemented.iso || e.closed.iso) || '-',
+          [e.raisedInPeriod && 'Raised', e.implementedInPeriod && 'Implemented'].filter(Boolean).join(' + '),
+        ]),
+        empty: 'No changes raised or implemented in this period.',
+      },
+    },
+    {
+      key: 'incident', title: 'Production Incidents', tone: 'red', icon: ICONS.incident,
+      value: incidents.total, unit: incidents.total === 1 ? 'incident' : 'incidents',
+      parts: SEVERITIES.map(s => ({ name: s, value: incidents.bySeverity[s] || 0, tone: sevTone[s] })),
+      flags: incidents.flagged.length,
+      detail: {
+        title: 'Production Incident Register', tone: 'red', flagged: incidents.flagged,
+        summary: SEVERITIES.filter(s => incidents.bySeverity[s]).map(s => (
+          <Chip key={s} tone={s === 'Catastrophic' ? 'crit' : s === 'Major' ? 'warn' : undefined}>{incidents.bySeverity[s]} {s}</Chip>
+        )),
+        headers: ['No.', 'Date', 'Location', 'Classification', 'Severity', 'Description', 'Immediate Actions', 'Reported By'],
+        rows: incidents.rows.map(x => [
+          x.no, displayDate(x.date.iso), x.location, x.classification, x.severity, x.description, x.actions, x.reportedBy || '-',
+        ]),
+        empty: 'No incidents recorded in this period.',
+      },
+    },
+    {
+      key: 'kaizen', title: 'Kaizen / Improvements', tone: 'lime', icon: ICONS.kaizen,
+      value: kaizen.total, unit: kaizen.total === 1 ? 'idea' : 'ideas',
+      parts: [
+        { name: 'Implemented', value: kaizen.implemented, tone: 'lime' },
+        { name: 'Proposed / open', value: kaizen.open, tone: 'amber' },
+      ],
+      flags: kaizen.flagged.length,
+      detail: {
+        title: 'Kaizen / Improvement Ideas', tone: 'lime', flagged: kaizen.flagged,
+        summary: [<Chip key="i" tone="ok">{kaizen.implemented} implemented</Chip>, <Chip key="o" tone="warn">{kaizen.open} open</Chip>],
+        headers: ['Date', 'Kaizen Idea', 'Workshop', 'Proposed By', 'Status', 'Impact', 'Notes'],
+        rows: kaizen.rows.map(k => [displayDate(k.date.iso), k.idea, k.workshop, k.proposedBy || '-', k.status, k.impact || '-', k.notes || '-']),
+        empty: 'No kaizen ideas dated in this period.',
+      },
+    },
+    {
+      key: 'downtime', title: 'Downtime Events', tone: 'amber', icon: ICONS.downtime,
+      value: rangeDowntime.length, unit: `events · ${f1(dtHours)} h lost`,
+      parts: [
+        { name: 'Closed', value: rangeDowntime.filter(e => /^closed/i.test(e.status)).length, tone: 'teal' },
+        { name: 'Open', value: rangeDowntime.filter(e => /^open/i.test(e.status)).length, tone: 'red' },
+      ],
+      flags: 0,
+      detail: {
+        title: 'Production Downtime Log', tone: 'amber',
+        summary: [<Chip key="h" tone="warn">{f1(dtHours)} h lost</Chip>, <Chip key="n">{rangeDowntime.length} events</Chip>],
+        headers: ['Workshop', 'Machine', 'Reason', 'Start', 'End', 'Status', 'Hours', 'Fault', 'Remark'],
+        rows: rangeDowntime.map(e => [
+          e.workshop, e.machineName || '-', e.reasonCode || '-',
+          `${fmtD(e.startDate)} ${e.startTime || ''}`.trim(), `${fmtD(e.endDate)} ${e.endTime || ''}`.trim() || '-',
+          e.status, f1(e.minutes / 60), e.description || '-', e.remark || '-',
+        ]),
+        empty: 'No downtime events started in this period.',
+      },
+    },
+  ];
 
   const wsColor = s => s === 'ON TRACK' ? C.green : s === 'AT RISK' ? C.amber : C.red;
   // Done/target come straight from the Tracker (d.lineCompletion), not the
@@ -1463,15 +1881,16 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
         selectorOpen={selectorOpen} setSelectorOpen={setSelectorOpen}
         view={view} setView={setView} onHome={onHome} onLogout={onLogout} hideHome={hideHome}
       />
+      {view !== 'workbook' && <PeriodBar range={range} setRange={setRange} />}
       {selectorOpen && (
-        <RangeTargetPanel range={range} setRange={setRange} lineTargets={lineTargets} setLineTargets={setLineTargets} />
+        <RangeTargetPanel lineTargets={lineTargets} setLineTargets={setLineTargets} />
       )}
 
       {view === 'workbook' ? <WorkbookView /> : (
         <>
         {/* ═══════════ PAGE 1 — Overview ═══════════ */}
         <Page innerRef={pageRefs[0]}>
-          <BoardHeader raw={raw} referenceNo={referenceNo} />
+          <BoardHeader raw={raw} referenceNo={referenceNo} periodLabel={period.label} />
 
           {/* Overall Progress — first, and exempt from any period slicing */}
           <SectionLabel>Overall Progress</SectionLabel>
@@ -1483,7 +1902,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           {/* Production Line Status — 4 core assembly-line workshops as
               scorecards, scoped to the selected range (labelled so a reader
               never mistakes a period figure for a program-to-date one) */}
-          <SectionLabel right={<Chip>{range.start} → {range.end}</Chip>}>Production Line Status</SectionLabel>
+          <SectionLabel right={<Chip tone="info">{period.short}</Chip>}>Production Line Status</SectionLabel>
           <Row cols={lineCols}>
             {lineWorkshops.map(w => (
               <div key={w.name} style={{
@@ -1510,7 +1929,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           </Row>
 
           {/* Key Performance Indicators — the 8 big rocks */}
-          <SectionLabel>Key Performance Indicators</SectionLabel>
+          <SectionLabel right={<Chip tone="info">{period.short}</Chip>}>Key Performance Indicators</SectionLabel>
           <CardGrid cols={4}>
             {bigRocks.map(c => <ScoreCard key={c.label} {...c} />)}
           </CardGrid>
@@ -1538,24 +1957,24 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               picker still drives the line-status cards on page 1. */}
           <Row cols={chartCols} grow>
             <Panel title="First Pass Yield by Month">
-              <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} />
+              <TrendChart points={d.fpyTrend} color={C.green} fmt={v => fpct(v)} axisTitle="First Pass Yield" axisFmt={v => `${Math.round(v * 100)}%`} highlight={highlight} />
             </Panel>
             <Panel title="Downtime by Month (hours)">
-              <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} />
+              <MonthlyBarChart points={d.downtimeTrend} color={C.red} axisTitle="Hours" fmt={v => `${f1(v)}h`} highlight={highlight} />
             </Panel>
             <Panel title="Planned vs Actual by Month (whole program)">
-              <MonthlyPlanActualChart points={d.overallMonthly} />
+              <MonthlyPlanActualChart points={d.overallMonthly} highlight={highlight} />
             </Panel>
             <Panel title="Cumulative Throughput (whole program)">
               <CumChart daily={cumulativeMonthly} />
             </Panel>
           </Row>
 
-          <SectionLabel>Planned vs Actual by Month, per Line</SectionLabel>
+          <SectionLabel right={<Chip>Shaded: {period.short}</Chip>}>Planned vs Actual by Month, per Line</SectionLabel>
           <Row cols={chartCols} grow>
             {LINE_WORKSHOPS.map(lw => (
               <Panel key={lw.dataName} title={lw.display}>
-                <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} />
+                <MonthlyPlanActualChart points={d.linePlannedVsActual?.[lw.dataName] || []} highlight={highlight} />
               </Panel>
             ))}
           </Row>
@@ -1563,7 +1982,7 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           {/* Schedule + cost roll-ups moved here from page 3: they are small
               card panels that left page 3 overcrowded and this page short, so
               the PDF export packed unevenly. */}
-          <SectionLabel>Schedule &amp; Cost</SectionLabel>
+          <SectionLabel right={<Chip tone="info">{period.short}</Chip>}>Schedule &amp; Cost</SectionLabel>
           <Row cols={w => (w >= 700 ? 2 : 1)}>
             <Panel title="Schedule">
               <CardGrid cols={4}>{schedCards.map(c => <ScoreCard key={c.label} {...c} />)}</CardGrid>
@@ -1580,10 +1999,10 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
         {/* ═══════════ PAGE 3 — Detail & Registers ═══════════ */}
         <Page innerRef={pageRefs[2]}>
           <Row cols={w => (w >= 1040 ? '1.6fr 1fr 1fr' : w >= 700 ? '1fr 1fr' : '1fr')}>
-            <Panel title="Production Downtime: Full Breakdown (Period)">
+            <Panel title="Production Downtime: Full Breakdown" chip={<Chip tone="info">{period.short}</Chip>}>
               <DowntimeTable kv={kv} />
             </Panel>
-            <Panel title="Safety">
+            <Panel title="Safety" chip={<Chip tone="info">{period.short}</Chip>}>
               <CardGrid cols={2}>
                 {[
                   { label: 'Lost-Time Injuries', value: fint(num('Lost-Time Injuries')) },
@@ -1593,16 +2012,26 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
                 ].map(c => <ScoreCard key={c.label} {...c} />)}
               </CardGrid>
             </Panel>
-            <Panel title="Environment">
+            <Panel title="Environment" chip={<Chip tone="info">{period.short}</Chip>}>
               <CardGrid cols={2}>
                 {[
+                  { label: 'Energy Used (kWh)', value: fint(num('Energy Used (kWh)')) },
                   { label: 'Energy / Unit (kWh)', value: f1(num('Energy per Unit (latest month, kWh)')) },
-                  { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')) },
                   { label: "Waste Cost (UGX '000)", value: fint(num("Waste Cost (period, UGX '000)")) },
+                  { label: 'Waste / Unit (kg)', value: f1(num('Waste per Unit (period, kg)')), sheet: true },
                 ].map(c => <ScoreCard key={c.label} {...c} />)}
               </CardGrid>
             </Panel>
           </Row>
+
+          {/* Registers for the selected period — counts on the board, full
+              rows on click and in the Production Report's annexes. */}
+          <SectionLabel right={<Chip tone="info">{period.short}</Chip>}>Changes, Incidents, Kaizen &amp; Downtime</SectionLabel>
+          <CardGrid cols={4}>
+            {registerCards.map(c => (
+              <RegisterCard key={c.key} {...c} onOpen={() => setDetail(c.key)} />
+            ))}
+          </CardGrid>
 
           {/* Live "what's down right now" — sits directly under the period
               breakdown it complements: that panel answers "how much downtime
@@ -1632,29 +2061,11 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
                 fill
               />
             </Panel>
-            <Panel title="Engineering Change Control (ECR)">
-              <MiniTable
-                headers={['ECR', 'Description', 'Area', 'Status', 'Target']}
-                rows={d.ecr.map(r => [r[0], r[1], r[2], r[4], r[5]])}
-                empty="No ECRs logged."
-                fill
-              />
-            </Panel>
-          </Row>
-          <Row cols={w => (w >= 700 ? 2 : 1)} grow>
-            <Panel title="Kaizen / Improvement Ideas">
-              <MiniTable
-                headers={['Idea', 'Workshop', 'Proposed By', 'Status', 'Impact']}
-                rows={kaizenSorted.map(r => [r[1], r[2], r[3], r[4], r[5]])}
-                empty="No kaizen ideas yet."
-                fill
-              />
-            </Panel>
-            <Panel title="Production Waste (Period)">
+            <Panel title="Production Waste" chip={<Chip tone="info">{period.short}</Chip>}>
               <MiniTable
                 headers={['Date', 'Type', 'Qty', 'Unit', "Cost (UGX '000)", 'Workshop']}
-                rows={d.waste.map(r => r.slice(0, 6))}
-                empty="No waste entries this period."
+                rows={(live ? derived.wasteRows : d.waste).map(r => r.slice(0, 6))}
+                empty="No waste entries in this period."
                 fill
               />
             </Panel>
@@ -1681,7 +2092,8 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
             </div>
             <div style={{ width: '100%', height: 1, background: C.line }} />
             <div style={{ fontSize: 9.5, lineHeight: 1.65, color: C.muted, maxWidth: 1080 }}>
-              KPIs read live from the <b>Calc</b>/<b>Targets</b> tabs; Planned figures from the Targets sheet's <b>Monthly Workshop Plan</b>; downtime and kaizen from their own logs. Production Operational Cost = Labour + Energy + Machine, each priced off the Cost Estimation module's time-bounded rate history, so a rate change never rewrites past costing.
+              Period figures follow the selected range (<b>{period.label}</b>): line status, downtime, cost, safety, quality, environment, waste, and the ECR, incident, kaizen and downtime registers, each read from its own log. Planned figures come from the Targets sheet's <b>Monthly Workshop Plan</b>. Production Operational Cost = Labour + Energy + Machine, each priced off the Cost Estimation module's time-bounded rate history, so a rate change never rewrites past costing.
+              <br /><span style={{ color: C.amber }}>†</span> Calculated by the workbook for its own Scoreboard Period ({raw('Scoreboard Period Start')} – {raw('Scoreboard Period End')}); there are no dated rows to re-slice it by. Overall Progress is programme-to-date.
             </div>
           </div>
         </Page>
@@ -1695,9 +2107,16 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
           onClose={() => setReportOpen(false)}
           capturePages={capturePages}
           buses={d.busUnits || []}
-          month={reportMonth}
-          setMonth={setReportMonth}
-          applyMonthRange={applyMonthRange}
+          initialRange={range}
+          setRange={setRange}
+          registersFor={registersFor}
+        />
+      )}
+      {detail && (
+        <RegisterDetailModal
+          detail={registerCards.find(c => c.key === detail).detail}
+          periodLabel={period.label}
+          onClose={() => setDetail(null)}
         />
       )}
     </div>
@@ -1746,7 +2165,7 @@ function ScoreboardToolbar({
       <button
         style={{ ...btn, background: selectorOpen ? C.redWash : C.surface2, color: selectorOpen ? C.red : C.ink2 }}
         onClick={() => setSelectorOpen(o => !o)}
-      >⚙ {selectorOpen ? 'Hide' : 'Set'} Range &amp; Targets</button>
+      >⚙ {selectorOpen ? 'Hide' : 'Set'} Line Targets</button>
       <button style={btn} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
