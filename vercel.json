@@ -1,27 +1,13 @@
 {
   "rewrites": [
-    {
-      "source": "/ncr",
-      "destination": "/ncr.html"
-    },
-    {
-      "source": "/ncr/(.*)",
-      "destination": "/ncr.html"
-    },
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/ncr", "destination": "/ncr.html" },
+    { "source": "/ncr/(.*)", "destination": "/ncr.html" },
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
   "functions": {
-    "api/build-report.js": {
-      "maxDuration": 60
-    }
-  }
+    "api/build-report.js": { "maxDuration": 60 }
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
 }

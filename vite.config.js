@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
+// Machine Shop Job Orders and the Operations Daily Log each live in their own
+// repo (kmc-job-orders, kmc-daily-log); this config builds only the tracker.
+
 export default defineConfig({
   plugins: [react()],
   server: {

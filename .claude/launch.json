@@ -1,12 +1,33 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "kmc-tracker",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
-      "autoPort": true
-    }
-  ]
+﻿{
+    "version":  "0.0.1",
+    "configurations":  [
+                           {
+                               "name":  "kmc-tracker",
+                               "runtimeExecutable":  "C:\\Users\\KMC-PC\\AppData\\Local\\Microsoft\\WinGet\\Packages\\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\\node-v24.19.0-win-x64\\node.exe",
+                               "runtimeArgs":  [
+                                                   "node_modules/vite/bin/vite.js"
+                                               ],
+                               "port":  5173,
+                               "autoPort":  true
+                           },
+                           {
+                               "name":  "kmc-daily-log",
+                               "runtimeExecutable":  "C:\\Users\\KMC-PC\\AppData\\Local\\Microsoft\\WinGet\\Packages\\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\\node-v24.19.0-win-x64\\node.exe",
+                               "runtimeArgs":  [
+                                                   "C:\\Users\\KMC-PC\\kmc-daily-log\\node_modules\\vite\\bin\\vite.js",
+                                                   "C:\\Users\\KMC-PC\\kmc-daily-log"
+                                               ],
+                               "port":  5174,
+                               "autoPort":  true
+                           },
+                           {
+                               "name":  "kmc-daily-log-api",
+                               "runtimeExecutable":  "C:\\Users\\KMC-PC\\AppData\\Local\\Microsoft\\WinGet\\Packages\\OpenJS.NodeJS.LTS_Microsoft.Winget.Source_8wekyb3d8bbwe\\node-v24.19.0-win-x64\\node.exe",
+                               "runtimeArgs":  [
+                                                   "C:\\Users\\KMC-PC\\kmc-daily-log\\scripts\\dev-api.mjs"
+                                               ],
+                               "port":  3001,
+                               "autoPort":  false
+                           }
+                       ]
 }
