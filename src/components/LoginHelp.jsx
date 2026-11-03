@@ -10,7 +10,7 @@ const STEPS = [
   { t: 'Get an account', d: 'On this page click Request Access, fill in your details with a preferred username and password, and submit. Sign in once an admin approves you.' },
   { t: 'Sign in', d: 'Enter your username and password and click Sign In. Tick "Keep me signed in" only on your own device.' },
   { t: 'Open the Travel Card', d: 'Pick the Project, Bus Model, Bus VIN, Production Line and Station from the drop-downs. Note the designated time shown for the station.' },
-  { t: 'Add the team', d: 'Type each staff member\'s name and click Add, enter the HSE resources used, then Continue to Activities.' },
+  { t: 'Add the team', d: 'Type each staff member\'s name and click Add, check the PPE quantities (prefilled from the crew size), then Continue to Activities.' },
   { t: 'Report the work', d: 'Set your clock-in time, then mark every activity Complete, Incomplete, Issue noted or Rework needed.' },
   { t: 'Consumables', d: 'Enter the quantity of each consumable used. Use Add for anything not listed — it stays on that station for everyone\'s next fill-in until someone removes it with ×. Leave the quantity empty if it wasn\'t used this time.' },
   { t: 'Downtime (if over time)', d: 'If the work ran past the designated time, choose the root causes, the minutes each one cost, and complete the root-cause analysis and corrective actions.' },

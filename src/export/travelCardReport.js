@@ -6,6 +6,7 @@
 // symbols, text that wraps instead of being cut to one line, and tables that
 // flow onto as many pages as they need — cut only between rows/cards.
 import { STATIONS, LINES, modelFamilyOf, stationNameForModel, isSubassembly } from '../data/stations';
+import { parsePpe } from '../utils/ppe';
 
 const PAGE_W_PX = 794;           // A4 width at 96 dpi
 const DOC_CODE = 'KMC.DPN.05/26-FM004 · Rev #01';
@@ -79,6 +80,15 @@ const APPROVAL = {
   approved: ['ok', 'Approved'], rejected: ['crit', 'Rejected'], pending: ['warn', 'Further review'],
   pending_review: ['warn', 'Pending review'],
 };
+// PPE line for the Team card: "Safety helmet ×4 · Safety boots ×4", or the bare
+// count older cards stored.
+function ppeText(raw) {
+  const { items, total, legacy } = parsePpe(raw);
+  if (legacy) return esc(total);
+  const parts = Object.entries(items).map(([k, v]) => `${esc(k)} ×${v}`);
+  return parts.length ? parts.join(' · ') : '—';
+}
+
 const pill = (tone, text) => `<span class="pill p-${tone}">${esc(text)}</span>`;
 const actPill = st => { const [t, l] = ACT_STATUS[st] || ['none', st || 'Not set']; return pill(t, l); };
 const approvalPill = st => { const [t, l] = APPROVAL[st] || ['slate', st || 'Not reviewed']; return pill(t, l); };
@@ -220,7 +230,7 @@ export function stationReportHTML(sub, { theme = 'light' } = {}) {
   const team = `<div class="card" data-break><h3>Team &amp; HSE</h3>
     <div class="ops">${(sub.operators || []).map(o => `<span class="op">${esc(o)}</span>`).join('') || '<span class="empty">No operators recorded</span>'}</div>
     <dl class="kv" style="margin-top:12px">
-      <dt>HSE resources</dt><dd>${esc(sub.hseResources || 0)}</dd>
+      <dt>PPE issued</dt><dd>${ppeText(sub.hseResources)}</dd>
       <dt>Submitted by</dt><dd>${esc(sub.submittedBy || '—')}</dd>
       <dt>Submitted</dt><dd>${fmtDateTime(sub.timestamp)}</dd></dl></div>`;
 
@@ -285,7 +295,7 @@ export function stationReportHTML(sub, { theme = 'light' } = {}) {
       { lab: 'Productive time', val: fmtDur(sub.actualTime), cls: 'dark' },
       { lab: 'Variance', val: `${v > 0 ? '+' : ''}${v} min`, dot: late ? t.crit : t.ok, sub: late ? 'over designed' : 'on or under' },
       { lab: 'Activities complete', val: `${done}/${acts.length}`, cls: 'gold', sub: acts.length ? `${Math.round((done / acts.length) * 100)}%` : '' },
-      { lab: 'Team size', val: String((sub.operators || []).length), sub: `${sub.hseResources || 0} HSE` },
+      { lab: 'Team size', val: String((sub.operators || []).length), sub: `${parsePpe(sub.hseResources).total} PPE` },
     ])}
     <div class="grid2">${timing}${team}</div>
     ${actTable}${consTable}${downtime}${notes}${signoff}

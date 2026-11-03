@@ -106,6 +106,7 @@ import { useStationPresets, presetFor } from '../hooks/useStationPresets';
 import { workingMinutes } from '../utils/workTime';
 import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
+import { PPE_ITEMS, prefillPpe, encodePpe, parsePpe } from '../utils/ppe';
 // Older imports read the seed from this file; keep them working.
 export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { useStationConsumables } from '../hooks/useStationConsumables';
@@ -328,7 +329,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   // Reviewers — global list, separate from station operators
   const [reviewers, setReviewers] = useState(() => LS.get("kmc_reviewers", []));
-  const [hseCount, setHseCount] = useState("");
+  // PPE issued: { item: qty }. Prefilled to the crew size until someone edits it.
+  const [ppe, setPpe] = useState({});
+  const [ppeTouched, setPpeTouched] = useState(false);
+  const [otherPpeName, setOtherPpeName] = useState("");
 
   // Activities
   const [clockIn, setClockIn] = useState("");
@@ -417,6 +421,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   useEffect(() => { LS.set("kmc_projects", projects); }, [projects]);
   useEffect(() => { LS.set("kmc_reviewers", reviewers); }, [reviewers]);
 
+  // Prefill PPE from the crew on duty until the operator changes a quantity.
+  useEffect(() => {
+    if (!ppeTouched) setPpe(prev => prefillPpe(selOps.length, prev));
+  }, [selOps.length, ppeTouched]);
+
   // Pre-fill every field from the submission being edited. Runs once per
   // edit session (keyed on recordId) — after this, the fields behave like
   // normal form state so the user can correct anything before re-submitting.
@@ -430,7 +439,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCurCode(s.stationCode || "");
     setCurSt(s.station || "");
     setSelOps(s.operators || []);
-    setHseCount(s.hseResources ?? "");
+    setPpe(parsePpe(s.hseResources).items); setPpeTouched(true);
     setClockIn(s.clockIn ? isoToLocalInput(s.clockIn) || s.clockIn : "");
     setClockOut(s.clockOut || "");
     setActStatuses(s.activityStatuses || {});
@@ -457,7 +466,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     return {
       savedAt: new Date().toISOString(),
       page, curProj, busModel, vin, curLine, curSt, curCode, designedTime,
-      operators, selOps, hseCount, clockIn, clockOut,
+      operators, selOps, ppe, clockIn, clockOut,
       actualTime, grossTime, breakTime,
       actStatuses, otherActs, resQtys, removedRes, otherRes,
       ohs, ohsTxt, waste,
@@ -484,7 +493,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCurLine(snap.curLine ?? ""); setCurSt(snap.curSt ?? ""); setCurCode(snap.curCode ?? "");
     setDesignedTime(snap.designedTime ?? 0);
     setOperators(snap.operators ?? []); setSelOps(snap.selOps ?? []);
-    setHseCount(snap.hseCount ?? ""); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? "");
+    setPpe(snap.ppe ?? parsePpe(snap.hseCount).items); setPpeTouched(true); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? "");
     setActualTime(snap.actualTime ?? 0); setGrossTime(snap.grossTime ?? 0); setBreakTime(snap.breakTime ?? 0);
     setActStatuses(snap.actStatuses ?? {}); setOtherActs(snap.otherActs ?? []);
     setResQtys(snap.resQtys ?? {}); setRemovedRes(snap.removedRes ?? []); setOtherRes(snap.otherRes ?? []);
@@ -713,12 +722,14 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!curSt) { alert("Select a station."); return; }
     // Editing an existing card shouldn't silently reset its original
     // clock-out to "now" — only a fresh submission auto-stamps it.
-    if (!isEditMode && !fromTask) setClockOut(new Date().toISOString());
+    if (!isEditMode && !fromTask && !clockOut) setClockOut(new Date().toISOString());
     goTo(1);
   }
 
   function p1next() {
     if (!clockIn) { alert("Enter a clock-in time."); return; }
+    if (!clockOut) { alert("Enter a clock-out time."); return; }
+    if (new Date(clockOut) <= new Date(clockIn)) { alert("Clock-out must be after clock-in."); return; }
     const { gross, breaks: brkMin, net: actual } = productiveMinutes(clockIn, clockOut);
     setGrossTime(gross);
     setBreakTime(brkMin);
@@ -744,7 +755,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       recordId: editSubmission.recordId,
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
-      operators: selOps, hseResources: hseCount,
+      operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, actualTime: actual, designedTime,
       grossTime: gross, breakMinutes: brkMin,
       activityStatuses: actStatuses,
@@ -783,7 +794,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
-      operators: selOps, hseResources: hseCount,
+      operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, actualTime: actual, designedTime,
       hasDowntime: false,
       grossTime: gross, breakMinutes: brkMin,
@@ -873,7 +884,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
-      operators: selOps, hseResources: hseCount,
+      operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, actualTime, designedTime, hasDowntime,
       grossTime, breakMinutes: breakTime,
       activityStatuses: actStatuses,
@@ -946,7 +957,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function another() {
     const km = busModel, kp = curProj, kv = vin;
     setActStatuses({}); setOtherActs([]); setOtherActName(""); setResQtys({}); setRemovedRes([]); setOtherRes([]);
-    setClockIn(""); setClockOut(""); setOhs(false); setOhsTxt(""); setWaste("");
+    setClockIn(""); setClockOut(""); setPpe({}); setPpeTouched(false); setOtherPpeName(""); setOhs(false); setOhsTxt(""); setWaste("");
     setHasDowntime(false); setActualTime(0); setGrossTime(0); setBreakTime(0); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); setCustomCauseName("");
     setAttachmentFile(null); setAttachmentB64(null); setAttachmentName(''); setAttachmentMime('');
     setCorrAction(""); setOrComments("");
@@ -1153,8 +1164,18 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             </div>
             <AddRow placeholder="Add staff member name…" onAdd={n => { if (!n.trim()) return; const newOps = [...operators, n.trim()]; setOperators(newOps); setSelOps(prev => [...prev, n.trim()]); if (curCode) LS.set(`kmc_station_ops_${curCode}`, newOps); }} />
             <div style={{ ...css.fld, marginTop: 14 }}>
-              <label style={css.lbl_}>HSE resources required (count)</label>
-              <input type="number" style={{ ...css.inp, maxWidth: 120 }} value={hseCount} onChange={e => setHseCount(e.target.value)} min="0" placeholder="0" />
+              <label style={css.lbl_}>PPE required</label>
+              {!ppeTouched && selOps.length > 0 && <div style={{ ...css.note, marginBottom: 6 }}>Prefilled with one per staff member on duty — correct any that differ.</div>}
+              {[...PPE_ITEMS, ...Object.keys(ppe).filter(k => !PPE_ITEMS.includes(k))].map((item, i, arr) => <div key={item} className="tc-res-row" style={{ ...css.resRow, ...(i === arr.length - 1 ? { borderBottom: "none" } : {}), gridTemplateColumns: "1fr 70px 28px" }}>
+                <div style={css.resName}>{item}</div>
+                <input type="number" style={css.qty} min="0" placeholder="0" value={ppe[item] ?? ""} onChange={e => { setPpeTouched(true); setPpe(p => ({ ...p, [item]: e.target.value })); }} />
+                {PPE_ITEMS.includes(item) ? <span /> : <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 16, lineHeight: 1, padding: 0, textAlign: "center" }} title="Remove PPE item"
+                  onClick={() => { setPpeTouched(true); setPpe(p => { const n = { ...p }; delete n[item]; return n; }); }}>×</button>}
+              </div>)}
+              <div style={css.addRow}>
+                <input style={css.addInp} value={otherPpeName} onChange={e => setOtherPpeName(e.target.value)} placeholder="Other PPE (e.g. welding mask)…" />
+                <button style={css.addBtn} onClick={() => { const n = otherPpeName.trim(); if (!n) return; setPpeTouched(true); setPpe(p => (n in p ? p : { ...p, [n]: selOps.length ? String(selOps.length) : "" })); setOtherPpeName(""); }}>+ ADD</button>
+              </div>
             </div>
           </div>}
         </>}
@@ -1167,22 +1188,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       {/* ── PAGE 1: ACTIVITIES ── */}
       {page === 1 && <>
         <div style={css.card}>
-          <div style={css.cardHd}>Clock in{isAdmin || fromTask ? " / out" : ""}</div>
-          {/* change 4: clock-out removed; only clock-in here */}
+          <div style={css.cardHd}>Clock in / out</div>
           <Inp label="Clock in time" type="datetime-local" value={clockIn} onChange={e => setClockIn(e.target.value)} />
-          {isAdmin || fromTask ? (
-            <>
-              <Inp
-                label={fromTask ? "Clock out time" : "Clock out time (admin)"}
-                type="datetime-local"
-                value={isoToLocalInput(clockOut)}
-                onChange={e => setClockOut(e.target.value ? new Date(e.target.value).toISOString() : "")}
-              />
-              <div style={css.note}>{fromTask ? "Start and end were recorded when you pressed Start and Close. Correct them here if needed." : "Admin can adjust the auto-recorded clock-out time."}</div>
-            </>
-          ) : (
-            <div style={css.note}>Clock-out was recorded automatically when you completed the identity page.</div>
-          )}
+          <Inp
+            label="Clock out time"
+            type="datetime-local"
+            value={isoToLocalInput(clockOut)}
+            onChange={e => setClockOut(e.target.value ? new Date(e.target.value).toISOString() : "")}
+          />
+          <div style={css.note}>{fromTask
+            ? "Start and end were recorded when you pressed Start and Close. Correct them here if needed."
+            : "Enter when work on this station started and finished. Clock-out is prefilled with the time you left the identity page — change it if the work ended earlier."}</div>
           <div style={{ ...css.note, marginTop: 8 }}>
             ⏱ Time used excludes scheduled breaks (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}). Default shift {SCHEDULE.shiftStart}–{SCHEDULE.shiftEnd}; weekday time counts 08:00–18:00 only, Sundays are not counted and Saturday counts 08:00–13:00.
           </div>
