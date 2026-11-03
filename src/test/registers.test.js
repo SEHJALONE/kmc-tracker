@@ -48,12 +48,13 @@ const ECR_CSV = [
   '626002,15th June 2026 ,S.L.O,45 Units,12m KDC,SIDE GLASS,desc,Design,Minor,Trim,Critical,SFM- TRIM,DPN,Approved,15th June 2026,Install,16th June 2026,17.09.2026,Implemented,',
   'CHG-023,21.09.2026,G.Z,45 Units,7m EVS,MIRROR,,Design,,Body Shop,Low,SPE,DPN,Approved,,,,,,',
   'CHG-026,14.10.2026,RGT,45 Units,7M EVS,ANCHORING,,Design,Major,Body,Medium,SFM,DPN,Pending Assessment,,,,,,',
+  'CHG-027,,,45 Units,8M EVS,COMPRESSOR,,Design,Minor,Chassis,Low,SFM,DPN,Approved,,,,,,',
 ].join('\n');
 
 describe('ECR register', () => {
   const rows = parseEcrRegister(parseGrid(ECR_CSV), { today });
   it('finds the header below the summary block and reads every change', () => {
-    expect(rows.map(r => r.id)).toEqual(['626002', 'CHG-023', 'CHG-026']);
+    expect(rows.map(r => r.id)).toEqual(['626002', 'CHG-023', 'CHG-026', 'CHG-027']);
     expect(rows[0]).toMatchObject({ title: 'SIDE GLASS', decision: 'Approved', status: 'Implemented', risk: 'Critical' });
   });
   it('counts a change in a period when it was raised OR implemented in it', () => {
@@ -64,11 +65,12 @@ describe('ECR register', () => {
     const q3 = summarizeEcr(rows, quarterPeriod(2026, 1));
     expect(q3.total).toBe(2);
   });
-  it('lists every date not written dd.mm.yyyy', () => {
+  it('lists every date not written dd.mm.yyyy, and a blank Date Raised', () => {
     const { flagged } = summarizeEcr(rows, { start: '2026-01-01', end: '2026-12-31' });
     expect(flagged.map(f => `${f.name}/${f.field}`)).toEqual([
-      '626002/Date Raised', '626002/Decision Date',
+      '626002/Date Raised', '626002/Decision Date', 'CHG-027/Date Raised',
     ]);
+    expect(flagged[2]).toMatchObject({ flag: 'missing', reason: 'left blank' });
   });
 });
 

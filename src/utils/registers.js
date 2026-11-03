@@ -37,6 +37,7 @@ export const FLAG_TEXT = {
   format: 'not dd.mm.yyyy',
   unreadable: 'cannot be read as one date',
   future: 'dated in the future',
+  missing: 'left blank',
 };
 
 /**
@@ -169,7 +170,7 @@ export function summarizeEcr(rows, range) {
     implementedCount: implemented.length,
     total: inPeriod.length,
     byDecision,
-    flagged: flaggedRows(rows, e => [['Date Raised', e.raised], ['Decision Date', e.decided],
+    flagged: flaggedRows(rows, e => [['Date Raised', e.raised, true], ['Decision Date', e.decided],
       ['Actual Implementation Date', e.implemented], ['Closure Date', e.closed]], e => e.id || e.title),
   };
 }
@@ -214,7 +215,7 @@ export function summarizeIncidents(rows, range) {
     rows: inPeriod,
     total: inPeriod.length,
     bySeverity,
-    flagged: flaggedRows(rows, x => [['Date', x.date]], x => `#${x.no}`),
+    flagged: flaggedRows(rows, x => [['Date', x.date, true]], x => `#${x.no}`),
   };
 }
 
@@ -250,14 +251,18 @@ export function summarizeKaizen(rows, range) {
     total: inPeriod.length,
     implemented,
     open: inPeriod.length - implemented,
-    flagged: flaggedRows(rows, k => [['Date', k.date]], k => k.idea),
+    flagged: flaggedRows(rows, k => [['Date', k.date, true]], k => k.idea),
   };
 }
 
+// `required` marks the date a row is placed in a period by (Date Raised,
+// incident Date, kaizen Date): left blank, the row would drop out of every
+// period without a trace, so it is listed for correction like a bad date.
 function flaggedRows(rows, datesOf, nameOf) {
   const out = [];
-  rows.forEach(r => datesOf(r).forEach(([field, d]) => {
-    if (d.flag) out.push({ name: nameOf(r), sheetRow: r.sheetRow, field, raw: d.raw, flag: d.flag, reason: FLAG_TEXT[d.flag] });
+  rows.forEach(r => datesOf(r).forEach(([field, d, required]) => {
+    const flag = d.flag || (required && !d.raw ? 'missing' : null);
+    if (flag) out.push({ name: nameOf(r), sheetRow: r.sheetRow, field, raw: d.raw, flag, reason: FLAG_TEXT[flag] });
   }));
   return out;
 }
