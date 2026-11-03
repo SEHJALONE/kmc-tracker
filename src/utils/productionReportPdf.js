@@ -341,7 +341,7 @@ function flaggedTable(flow, flagged) {
 }
 
 function drawRegisterAnnexes(flow, regs, model) {
-  const { ecr, incidents, kaizen, downtimeEvents = [] } = regs;
+  const { ecr, incidents, kaizen, downtimeEvents = [], activeDowntime = [] } = regs;
   const p = model.monthName;
 
   annexHeading(flow, `Annex B: Engineering Changes (ECR) — ${p}`);
@@ -385,6 +385,25 @@ function drawRegisterAnnexes(flow, regs, model) {
   flaggedTable(flow, kaizen.flagged);
 
   annexHeading(flow, `Annex E: Production Downtime Events — ${p}`);
+  // Faults still open as the report is generated, whenever they started — the
+  // board's "Active Downtime Events" panel. The period table below only holds
+  // events that started in the period, so a fault open since an earlier month
+  // would otherwise be missing from this report altogether.
+  flow.para(`Active downtime events: ${activeDowntime.length
+    ? `${activeDowntime.length} fault${activeDowntime.length === 1 ? '' : 's'} still open as at ${dateOf(new Date())}.`
+    : `none open as at ${dateOf(new Date())}.`}`, { pt: 10, bold: true });
+  if (activeDowntime.length) {
+    flow.table(
+      ['WORKSHOP', 'MACHINE', 'FAULT', 'STARTED', 'HOURS OPEN', 'REASON'],
+      activeDowntime.map(e => [
+        clip(e.workshop, 50), clip(e.machineName, 60), clip(e.description, 160),
+        `${dateOf(e.startDate)} ${e.startTime || ''}`.trim(), (e.minutes / 60).toFixed(1), e.reasonCode || '–',
+      ]),
+      [1.8, 2, 3.2, 1.4, 1.1, 1.8],
+      ['left', 'left', 'left', 'center', 'right', 'left'],
+      { bodyPt: 9 });
+  }
+
   const hours = downtimeEvents.reduce((s, e) => s + e.minutes, 0) / 60;
   flow.para(`${downtimeEvents.length} event${downtimeEvents.length === 1 ? '' : 's'} started in the period, ${hours.toFixed(1)} hours lost.`, { pt: 10 });
   flow.table(

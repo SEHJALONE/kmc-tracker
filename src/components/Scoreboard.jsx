@@ -1602,7 +1602,10 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
   const derived = useMemo(() => deriveRangeKpis(d, range), [d, range]);
   const period = describeRange(range);
   const highlight = useMemo(() => monthLabelsIn(range), [range]);
-  const registersFor = useCallback(p => deriveRangeKpis(d, p), [d]);
+  // Open faults go into the report whatever the period: one that started
+  // before it is still stopping production now.
+  const registersFor = useCallback(
+    p => ({ ...deriveRangeKpis(d, p), activeDowntime: d.activeDowntimeEvents || [] }), [d]);
   const kv = live ? { ...d.kv, ...derived.kv } : d.kv;
   const g = (key) => kv[key] || {};
   const num = (key) => g(key).num ?? null;
@@ -2043,7 +2046,10 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               breakdown it complements: that panel answers "how much downtime
               this period", this one answers "what's actually stopped as of
               this refresh", full history regardless of the selected period. */}
-          <Row cols={1} grow>
+          {/* Not `grow`: sized to its rows, so every open fault shows (and
+              is in the report's page capture) instead of one row and a
+              scrollbar. */}
+          <Row cols={1}>
           <Panel title="Active Downtime Events" chip={
             <Chip tone={activeDowntime.length ? 'crit' : 'ok'}>
               {activeDowntime.length ? `${activeDowntime.length} OPEN` : 'ALL CLEAR'}
@@ -2053,7 +2059,6 @@ function ScoreboardInner({ view, setView, onHome, onLogout, hideHome }) {
               headers={['Workshop', 'Machine', 'Fault', 'Started', 'Hours Open', 'Reason']}
               rows={activeDowntimeRows}
               empty="No open breakdowns right now."
-              fill
             />
           </Panel>
           </Row>
