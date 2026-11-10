@@ -86,7 +86,7 @@ export function useAccessRequests() {
   useEffect(() => {
     mounted.current = true;
     fetchRequests();
-    const id = setInterval(fetchRequests, REFRESH_INTERVAL);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetchRequests(); }, REFRESH_INTERVAL);
     return () => { mounted.current = false; clearInterval(id); };
   }, [fetchRequests]);
 

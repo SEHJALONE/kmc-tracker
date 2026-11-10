@@ -44,7 +44,7 @@ export function useDynamicUsers() {
   useEffect(() => {
     mounted.current = true;
     fetchUsers();
-    const id = setInterval(fetchUsers, REFRESH_INTERVAL);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetchUsers(); }, REFRESH_INTERVAL);
     return () => { mounted.current = false; clearInterval(id); };
   }, [fetchUsers]);
 

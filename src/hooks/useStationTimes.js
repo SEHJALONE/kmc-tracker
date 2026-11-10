@@ -162,7 +162,7 @@ export function useStationTimes() {
 
   useEffect(() => {
     fetchTimes();
-    const interval = setInterval(fetchTimes, REFRESH_INTERVAL);
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') fetchTimes(); }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchTimes]);
 

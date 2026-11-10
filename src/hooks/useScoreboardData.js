@@ -1412,7 +1412,7 @@ export function useScoreboardData() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, REFRESH_INTERVAL);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') load(); }, REFRESH_INTERVAL);
     return () => clearInterval(id);
   }, [load]);
 

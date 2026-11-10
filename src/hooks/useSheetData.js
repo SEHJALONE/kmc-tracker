@@ -206,7 +206,7 @@ export function useSheetData() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, REFRESH_INTERVAL);
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(); }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchData]);
 

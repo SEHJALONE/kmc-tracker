@@ -122,7 +122,7 @@ export function useNCRData() {
 
   useEffect(() => {
     fetchData();
-    const id = setInterval(fetchData, REFRESH_INTERVAL);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetchData(); }, REFRESH_INTERVAL);
     return () => clearInterval(id);
   }, [fetchData]);
 

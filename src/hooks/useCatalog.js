@@ -91,7 +91,7 @@ export function useCatalog() {
   useEffect(() => {
     mounted.current = true;
     fetchCatalog();
-    const id = setInterval(fetchCatalog, REFRESH_INTERVAL);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') fetchCatalog(); }, REFRESH_INTERVAL);
     return () => { mounted.current = false; clearInterval(id); };
   }, [fetchCatalog]);
 
