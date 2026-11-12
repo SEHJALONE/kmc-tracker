@@ -23,8 +23,8 @@ describe('manpower allocation presets', () => {
     expect(manpowerFor('C02-04', 'KDC')).toEqual(['Mathias Kasumba', 'Ivan Ssekide', 'Peter Ochom']);
     expect(manpowerFor('C02-04', 'EVS')).toEqual(['Isaac Wandwasi', 'Nasser Kato', 'Peter Ochom']);
     expect(manpowerFor('C02-04', 'KEC')).toEqual(['Isaac Wandwasi', 'Nasser Kato', 'Peter Ochom']);
-    expect(manpowerFor('P07-02', 'EVS')).toEqual([]);
-    expect(manpowerFor('P07-02', 'KEC')).toEqual(['Sam Mikataro', 'Steven Ssenkaayi', 'Mark Kimula Musaazi']);
+    expect(manpowerFor('P07-02', 'EVS')).toEqual([]);   // Branding: nobody allocated
+    expect(manpowerFor('P07-03', 'EVS')).toEqual(['Sam Mikataro', 'Steven Ssenkaayi', 'Mark Kimula Musaazi']);
     expect(manpowerFor('B01-01', 'EVS')).toEqual([]);
   });
 

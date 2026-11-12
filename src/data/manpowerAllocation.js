@@ -80,28 +80,27 @@ export const MANPOWER = {
   'KDC:C02-06': [],                     // Air intake & exhaust: nobody allocated
   'KDC:C02-07': TYRES,
 
-  // ── Paint Shop (placed by activity) ─────────────────────────────────────────
+  // ── Paint Shop (placed by activity; process from the Nov 2026 travel tool form) ──
+  'PQ-01': ['Deo Ssenkindu'],
   'P01-01': MASKING,                    // Body panel masking
-  'P01-02': FOAMING,
-  'P01-03': FOAMING,                    // Underbody anti-corrosion
+  'P01-02': FOAMING,                    // Foam application
+  'P01-03': FOAMING,                    // Foam trimming and cleaning
   'P02-01': GRINDING,
   'P02-03': PRIMER,                     // Epoxy primer painting
-  'P02-05': GRINDING,                   // Epoxy primer polishing
   'P03-01': GRINDING,                   // Panel beating, filler & fibre
-  'P03-02': GRINDING,                   // Filler & fibre polishing
-  'P04-01': PRIMER,                     // NC primer painting
+  'P04-01': PRIMER,                     // High build primer painting
   'P05-01': GRINDING,                   // Defects rectification
   'P05-02': PUTTY,
   'P05-03': PUTTY,
-  'PQ-01': ['Deo Ssenkindu'],
   'P06-01': PRIMER,                     // Intermediate coat painting
   'P06-03': PUTTY,                      // Intermediate coat polishing
   'P07-01': TOPCOAT,
-  'KDC:P07-02': TOPCOAT,                // Clear coat painting (KDC; KEC follows KDC)
-  'KEC:P07-02': TOPCOAT,
+  'P07-03': TOPCOAT,                    // Clear coat painting
   'P08-01': MASKING,
   'P08-02': TOPCOAT,
-  'P08-04': MASKING,                    // Unmasking
+  'P08-04': MASKING,
+  'P08-05': FOAMING,                    // Anticorrosion underbody black
+  'P08-06': MASKING,                    // Unmasking
   'PQ-02': ['Deo Ssenkindu'],
 
   // ── Trim Line & Final Assembly ──────────────────────────────────────────────

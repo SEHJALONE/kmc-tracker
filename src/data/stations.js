@@ -2,6 +2,7 @@
 // Each station: { name, line, lineLabel, order, models }
 // models: ['KDC'] | ['EVS'] | ['KDC','EVS']
 
+import { PAINT_STATIONS } from './paintShopProcess';
 import { alignKecStations, kecNameFamily } from './kecTemplate.js';
 
 export const SEED_LINES = [
@@ -179,37 +180,8 @@ const RAW_SEED_STATIONS = {
 
   // ─── PAINT SHOP ───────────────────────────────────────────────────────────────
   // Order follows the document sequence exactly
-  'P01-01': { name: 'Bus Body Panel Masking',                             line: 'PAINT', order: 1,  models: ['KDC','EVS','KEC'] },
-  'P01-02': { name: 'Foaming Application and Trimming',                   line: 'PAINT', order: 2,  models: ['KDC','EVS','KEC'] },
-  'P01-03': { name: 'Underbody Anti-Corrosion Painting',                  line: 'PAINT', order: 3,  models: ['KDC','EVS','KEC'] },
-  'P02-01': { name: 'Body Panel Surface Grinding and Sanding',            line: 'PAINT', order: 4,  models: ['KDC','EVS','KEC'] },
-  'P02-02': { name: 'Ground Body Manual Surface-Cleaning',                line: 'PAINT', order: 5,  models: ['KDC','EVS','KEC'] },
-  'P02-03': { name: 'Epoxy Primer Painting',                              line: 'PAINT', order: 6,  models: ['KDC','EVS','KEC'] },
-  'P02-04': { name: 'Epoxy Primer Drying',                                line: 'PAINT', order: 7,  models: ['KDC','EVS','KEC'] },
-  'P02-05': { name: 'Epoxy Primer Polishing',                             line: 'PAINT', order: 8,  models: ['KDC','EVS','KEC'] },
-  'P03-01': { name: 'Panel Beating; Filler and Fibre Application',        line: 'PAINT', order: 9,  models: ['KDC','EVS','KEC'] },
-  'P03-02': { name: 'Filler and Fibre Polishing',                         line: 'PAINT', order: 10, models: ['KDC','EVS','KEC'] },
-  'P03-03': { name: 'Filler Polish Manual Surface-Cleaning',              line: 'PAINT', order: 11, models: ['KDC','EVS','KEC'] },
-  'P04-01': { name: 'NC Primer Painting',                                 line: 'PAINT', order: 12, models: ['KDC','EVS','KEC'] },
-  'P04-02': { name: 'NC Primer Drying',                                   line: 'PAINT', order: 13, models: ['KDC','EVS','KEC'] },
-  'P05-01': { name: 'Defects Rectification',                              line: 'PAINT', order: 14, models: ['KDC','EVS','KEC'] },
-  'P05-02': { name: 'Putty Application and Drying',                       line: 'PAINT', order: 15, models: ['KDC','EVS','KEC'] },
-  'P05-03': { name: 'Putty Polishing',                                    line: 'PAINT', order: 16, models: ['KDC','EVS','KEC'] },
-  'P05-04': { name: 'Putty Polish Manual Surface-Cleaning',               line: 'PAINT', order: 17, models: ['KDC','EVS','KEC'] },
-  'PQ-01':  { name: 'Paint Inspection',                                   line: 'PAINT', order: 18, models: ['KDC','EVS','KEC'] },
-  'P06-01': { name: 'Intermediate Coat Painting',                         line: 'PAINT', order: 19, models: ['KDC','EVS','KEC'] },
-  'P06-02': { name: 'Intermediate Coat Paint-Drying',                     line: 'PAINT', order: 20, models: ['KDC','EVS','KEC'] },
-  'P06-03': { name: 'Intermediate Coat Polishing',                        line: 'PAINT', order: 21, models: ['KDC','EVS','KEC'] },
-  'P07-01': { name: 'AutoCryl TopCoat Painting',                          line: 'PAINT', order: 22, models: ['KDC','EVS','KEC'] },
-  // EVS: P07-02 = AutoCryl TopCoat Paint-Drying (no P07-03)
-  // KDC: P07-02 = Clear Coat Painting, P07-03 = TopCoat Paint-Drying
-  'P07-02': { name: 'AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)', line: 'PAINT', order: 23, models: ['KDC','EVS','KEC'] },
-  'P07-03': { name: 'TopCoat Paint-Drying',                               line: 'PAINT', order: 24, models: ['KDC'] },
-  'P08-01': { name: 'Color Strip and Pattern Masking',                    line: 'PAINT', order: 25, models: ['KDC','EVS','KEC'] },
-  'P08-02': { name: 'Color Strip and Pattern Painting',                   line: 'PAINT', order: 26, models: ['KDC','EVS','KEC'] },
-  'P08-03': { name: 'Color Strip and Pattern Drying',                     line: 'PAINT', order: 27, models: ['KDC','EVS','KEC'] },
-  'P08-04': { name: 'Color Strip and Pattern Unmasking',                  line: 'PAINT', order: 28, models: ['KDC','EVS','KEC'] },
-  'PQ-02':  { name: 'Finishing and Inspection',                           line: 'PAINT', order: 29, models: ['KDC','EVS','KEC'] },
+  // Paint Shop: same for every model (src/data/paintShopProcess.js)
+  ...PAINT_STATIONS,
 
   // ─── TRIM LINE & FINAL ASSEMBLY ───────────────────────────────────────────────
   // Stations follow document station codes. "EE" suffix = electrical sub-station at same physical station.
@@ -368,7 +340,6 @@ export const STATION_MODEL_NAMES = {
   'C02-06': { evs: 'Wheel Arch Profile & Customer Tyres', kdc: 'Air Cleaner, Air Intake, Emissions System & Silencer' },
   'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
   // PAINT SHOP
-  'P07-02': { evs: 'AutoCryl TopCoat Paint-Drying', kdc: 'Clear Coat Painting' },
   // TRIM LINE & FINAL ASSEMBLY
   'T01-01-EE': { kdc: 'Rear Wall & Rear Side Compartment Components' },
   'T01-02-EE': { evs: 'Installation and Termination of HV Components' },

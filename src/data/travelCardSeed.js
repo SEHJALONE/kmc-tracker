@@ -4,6 +4,7 @@
 // src/utils/tcCatalog.js, which the Travel Card, the Start/End task view and
 // Catalog Admin all use so they agree on what a station shows.
 import { applyKecTemplate } from "./kecTemplate";
+import { PAINT_TC_LINE, PAINT_ACTS, PAINT_RES } from "./paintShopProcess";
 
 // ── Station data ──────────────────────────────────────────────────────────────
 export const TC_LINES = {
@@ -218,38 +219,8 @@ export const TC_LINES = {
     "CQ-02: Quality Gate",
   ],
 
-  // ── Paint Shop (shared; P07-02 differs, P07-03 KDC-only) ────────────────────
-  "Paint Shop": [
-    "P01-01: Bus Body Panel Masking",
-    "P01-02: Foaming Application and Trimming",
-    "P01-03: Underbody Anti-corrosion Painting",
-    "P02-01: Body Panel Surface Grinding and Sanding",
-    "P02-02: Ground Body Manual Surface-Cleaning",
-    "P02-03: Epoxy Primer Painting",
-    "P02-04: Epoxy Primer Drying",
-    "P02-05: Epoxy Primer Polishing",
-    "P03-01: Panel Beating; Filler and Fibre Application",
-    "P03-02: Filler and Fibre Polishing",
-    "P03-03: Filler Polish Manual Surface-Cleaning",
-    "P04-01: NC Primer Painting",
-    "P04-02: NC Primer Drying",
-    "P05-01: Defects Rectification",
-    "P05-02: Putty Application and Drying",
-    "P05-03: Putty Polishing",
-    "P05-04: Putty Polish Manual Surface-Cleaning",
-    "PQ-01: Inspection",
-    "P06-01: Intermediate Coat Painting",
-    "P06-02: Intermediate Coat Paint-Drying",
-    "P06-03: Intermediate Coat Polishing",
-    "P07-01: AutoCryl TopCoat Painting",
-    "P07-02: AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)",
-    "P07-03: TopCoat Paint-Drying (KDC only)",
-    "P08-01: Color Strip and Pattern Masking",
-    "P08-02: Color Strip and Pattern Painting",
-    "P08-03: Color Strip and Pattern Drying",
-    "P08-04: Color Strip and Pattern Unmasking",
-    "PQ-02: Finishing and Inspection",
-  ],
+  // ── Paint Shop (same for every model; src/data/paintShopProcess.js) ──────────
+  "Paint Shop": PAINT_TC_LINE,
 
   // ── Trim Line & Final Assembly — model-specific ─────────────────────────────
   "Trim Line & Final Assembly — EVS": [
@@ -392,7 +363,6 @@ export const STATION_MODELS = {
   "B05-01": ["EVS"], "B05-02": ["EVS"], "B05-03": ["EVS"], "B05-04": ["EVS"],
   "B06-01": ["EVS"], "B06-02": ["EVS"], "B06-03": ["EVS"], "B06-04": ["EVS"],
   "B10-01a": ["KDC", "KEC"], "B10-01b": ["KDC", "KEC"], "B10-02": ["KDC", "KEC"], "B10-03": ["KDC", "KEC"],
-  "P07-03": ["KDC"], // KDC has an extra TopCoat drying stage (clear-coat process)
 };
 
 // ── Activities per station (from the Build Process Summary documents) ─────────
@@ -549,37 +519,8 @@ export const ACTS = {
   "KDC:C02-07-01": ["Tyre sub-assembly build", "Wheel balancing"],
   "KDC:C02-07": ["Installation of tyres"],
 
-  // ── Paint Shop (shared, with model-specific P07-02) ─────────────────────────
-  "P01-01": ["Bus body panel masking", "Glass & trim protection"],
-  "P01-02": ["Foaming application", "Foam trimming"],
-  "P01-03": ["Underbody anti-corrosion painting", "Coverage inspection"],
-  "P02-01": ["Body panel surface grinding and sanding", "Surface uniformity check"],
-  "P02-02": ["Ground body manual surface-cleaning"],
-  "P02-03": ["Epoxy primer painting", "Coverage inspection"],
-  "P02-04": ["Epoxy primer drying"],
-  "P02-05": ["Epoxy primer polishing"],
-  "P03-01": ["Panel beating", "Filler and fibre application"],
-  "P03-02": ["Filler and fibre polishing"],
-  "P03-03": ["Filler polish manual surface-cleaning"],
-  "P04-01": ["NC primer painting"],
-  "P04-02": ["NC primer drying"],
-  "P05-01": ["Defects rectification"],
-  "P05-02": ["Putty application and drying"],
-  "P05-03": ["Putty polishing"],
-  "P05-04": ["Putty polish manual surface-cleaning"],
-  "PQ-01": ["Paint inspection", "Defect marking", "Sign-off"],
-  "P06-01": ["Intermediate coat painting", "Coverage inspection"],
-  "P06-02": ["Intermediate coat paint-drying"],
-  "P06-03": ["Intermediate coat polishing"],
-  "P07-01": ["AutoCryl topcoat painting", "Wet film thickness check"],
-  "EVS:P07-02": ["AutoCryl topcoat paint-drying"],
-  "KDC:P07-02": ["Clear coat painting"],
-  "P07-03": ["TopCoat paint-drying"],
-  "P08-01": ["Color strip and pattern masking"],
-  "P08-02": ["Color strip and pattern painting"],
-  "P08-03": ["Color strip and pattern drying"],
-  "P08-04": ["Color strip and pattern unmasking"],
-  "PQ-02": ["Finishing and inspection", "Colour match verification", "Sign-off"],
+  // ── Paint Shop (same for every model; src/data/paintShopProcess.js) ──────────
+  ...PAINT_ACTS,
 
   // ── Trim Line — EVS ─────────────────────────────────────────────────────────
   "EVS:T01-01": ["Installation of floor boards", "Installation of A/C", "Installation of heat shield"],
@@ -702,7 +643,6 @@ export const ACTS = {
   "KEC:TQ-01": ["Debugging", "Quality inspection", "Rectification"],
   // 13m KEC on shared lines: electric, so EVS-style topcoat drying (no clear
   // coat stage) and a speed test with no exhaust test.
-  "KEC:P07-02": ["AutoCryl topcoat paint-drying"],
 
   // ── Quality Inspection & Testing (shared, with model-specific Q01-02) ───────
   "Q01-01": ["Test registration", "Pre-test checklist"],
@@ -822,21 +762,7 @@ export const RES = {
     "C02-06": ["Air Cleaner Kit", "Air Intake", "Emissions System", "Silencer", "Exhaust Clamps"],
     "C02-07": ["Customer Tyres", "Valve Cores"],
   },
-  "Paint Shop": {
-    "P01-01": ["Masking Tape 25mm (roll)", "Masking Tape 50mm (roll)", "Masking Paper (m)"],
-    "P01-02": ["PU Foam Canister", "Utility Knife"],
-    "P01-03": ["Anti-Corrosion Primer (L)", "Applicator Brush", "Respirator Cartridge"],
-    "P02-01": ["Grinding Disc 115mm", "DA Sander Pad 150mm", "Sandpaper 80 grit", "Sandpaper 120 grit"],
-    "P02-03": ["Epoxy Primer (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"],
-    "P03-01": ["Body Filler (kg)", "Glass Fibre Mat (m²)", "Polyester Resin (L)", "Body Hammer Set"],
-    "P04-01": ["NC Primer (L)", "NC Thinner (L)", "Spray Gun Tip 1.6mm"],
-    "P05-02": ["Spot Putty (kg)", "Spreading Knife"],
-    "P06-01": ["Intermediate Coat Paint (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"],
-    "P07-01": ["AutoCryl Top Coat (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.3mm"],
-    "P07-03": ["(KDC) Clear Coat (L)", "Hardener (L)", "Thinner (L)"],
-    "P08-02": ["Colour Strip Paint (L)", "Thinner (L)", "Spray Gun Tip 1.2mm"],
-    "PQ-02": ["Inspection Light", "Touch-up Paint (ml)", "Polish Compound (g)", "Buffer Pad"],
-  },
+  "Paint Shop": PAINT_RES,
   "Trim Line & Final Assembly — EVS": {
     "T01-02 EE": ["HV Component Set", "Connector Pins", "Cable Ties (pack)"],
     "T01-10 EE": ["BMS Unit", "USB Harness", "Side Cameras", "Cable Ties (pack)"],

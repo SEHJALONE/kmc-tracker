@@ -7,6 +7,63 @@ import * as XLSX2 from "xlsx";
 import * as mod from "jspdf";
 var jspdf_node_shim_default = mod.jsPDF ?? mod.default?.jsPDF ?? mod.default;
 
+// src/data/paintShopProcess.js
+var STEPS = [
+  // PQ — Incoming quality inspection
+  ["PQ-01", "Inspection", ["Incoming quality inspection", "Defect marking", "Sign-off"], []],
+  // P01 — Bus body masking and foaming
+  ["P01-01", "Bus Body Panel Masking", ["Bus body panel masking", "Glass & trim protection"], ["Masking Tape 25mm (roll)", "Masking Tape 50mm (roll)", "Masking Paper (m)"]],
+  ["P01-02", "Foam Application", ["Foam application"], ["PU Foam Canister"]],
+  ["P01-03", "Foam Trimming and Cleaning", ["Foam trimming", "Cleaning"], ["Utility Knife"]],
+  // P02 — Epoxy primer
+  ["P02-01", "Surface Grinding and Sanding", ["Surface grinding and sanding", "Surface uniformity check"], ["Grinding Disc 115mm", "DA Sander Pad 150mm", "Sandpaper 80 grit", "Sandpaper 120 grit"]],
+  ["P02-02", "Surface Cleaning", ["Surface cleaning"], []],
+  ["P02-03", "Epoxy Primer Painting", ["Epoxy primer painting", "Coverage inspection"], ["Epoxy Primer (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"]],
+  ["P02-04", "Epoxy Primer Drying", ["Epoxy primer drying"], []],
+  // P03 — Body filling
+  ["P03-01", "Panel Beating, Filler and Fibre Application", ["Panel beating", "Filler and fibre application"], ["Body Filler (kg)", "Glass Fibre Mat (m\xB2)", "Polyester Resin (L)", "Body Hammer Set"]],
+  ["P03-02", "Manual Surface Cleaning", ["Manual surface cleaning"], []],
+  // P04 — High build primer
+  ["P04-01", "High Build Primer Painting", ["High build primer painting", "Coverage inspection"], ["High Build Primer (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.6mm"]],
+  ["P04-02", "High Build Primer Drying", ["High build primer drying"], []],
+  // P05 — Defect rectification and putty
+  ["P05-01", "Defects Rectification", ["Defects rectification"], []],
+  ["P05-02", "Putty Application and Drying", ["Putty application and drying"], ["Spot Putty (kg)", "Spreading Knife"]],
+  ["P05-03", "Putty Polishing", ["Putty polishing"], []],
+  ["P05-04", "Manual Surface Cleaning", ["Manual surface cleaning"], []],
+  // P06 — Intermediate coat
+  ["P06-01", "Intermediate Coat Painting", ["Intermediate coat painting", "Coverage inspection"], ["Intermediate Coat Paint (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.4mm"]],
+  ["P06-02", "Intermediate Coat Drying", ["Intermediate coat drying"], []],
+  ["P06-03", "Intermediate Coat Polishing", ["Intermediate coat polishing"], []],
+  // P07 — Top coat, branding and clear coat
+  ["P07-01", "Top Coat Painting", ["Top coat painting", "Wet film thickness check"], ["Top Coat Paint (L)", "Hardener (L)", "Thinner (L)", "Spray Gun Tip 1.3mm"]],
+  ["P07-02", "Branding", ["Branding"], []],
+  ["P07-03", "Clear Coat Painting", ["Clear coat painting"], ["Clear Coat (L)", "Hardener (L)", "Thinner (L)"]],
+  ["P07-04", "Clear Coat Drying", ["Clear coat drying"], []],
+  // P08 — Colour strip and pattern (compartments and underbody)
+  ["P08-01", "Colour Strip and Pattern Masking 1", ["Colour strip and pattern masking"], ["Masking Tape 25mm (roll)", "Masking Paper (m)"]],
+  ["P08-02", "Colour Strip and Pattern Painting (Compartments)", ["Colour strip and pattern painting (compartments)"], ["Colour Strip Paint (L)", "Thinner (L)", "Spray Gun Tip 1.2mm"]],
+  ["P08-03", "Colour Strip and Pattern Drying", ["Colour strip and pattern drying"], []],
+  ["P08-04", "Colour Strip and Pattern Masking 2", ["Colour strip and pattern masking"], ["Masking Tape 25mm (roll)", "Masking Paper (m)"]],
+  ["P08-05", "Colour Strip and Pattern Painting (Anticorrosion Underbody Black)", ["Anticorrosion underbody black painting", "Underbody coverage check"], ["Underbody Anti-Corrosion Paint, Black (L)", "Applicator Brush", "Respirator Cartridge"]],
+  ["P08-06", "Unmasking", ["Unmasking"], []],
+  // PQ — Finishing and final inspection (the form's quality gate checklist)
+  ["PQ-02", "Finishing and Inspection", ["Finishing and inspection", "Dry film thickness (DFT) check", "Surface defects check", "Masking line crispness check", "Underbody coverage check", "Supervisor sign-off"], ["Inspection Light", "Touch-up Paint (ml)", "Polish Compound (g)", "Buffer Pad"]]
+];
+var PAINT_LINE_ID = "PAINT";
+var ALL_MODELS = ["KDC", "EVS", "KEC"];
+var RETIRED_PAINT_CODES = {
+  "P02-05": "Epoxy Primer Polishing (retired Nov 2026)",
+  "P03-03": "Filler Polish Manual Surface-Cleaning (retired Nov 2026)"
+};
+var PAINT_TC_LINE = STEPS.map(([code, name]) => `${code}: ${name}`);
+var PAINT_ACTS = Object.fromEntries(STEPS.map(([code, , acts]) => [code, [...acts]]));
+var PAINT_RES = Object.fromEntries(STEPS.filter((s) => s[3].length).map(([code, , , res]) => [code, [...res]]));
+var PAINT_STATIONS = Object.fromEntries([
+  ...STEPS.map(([code, name], i) => [code, { name, line: PAINT_LINE_ID, order: i + 1, models: [...ALL_MODELS] }]),
+  ...Object.entries(RETIRED_PAINT_CODES).map(([code, name], i) => [code, { name, line: PAINT_LINE_ID, order: STEPS.length + 1 + i, models: [...ALL_MODELS], active: false }])
+]);
+
 // src/data/kecTemplate.js
 var KEC_STATION_SOURCE = {
   CHASSIS1: "EVS",
@@ -200,37 +257,8 @@ var RAW_SEED_STATIONS = {
   "C02-07-01": { name: "Tires Sub-Assembly", line: "CHASSIS2", order: 11, models: ["KDC"] },
   // ─── PAINT SHOP ───────────────────────────────────────────────────────────────
   // Order follows the document sequence exactly
-  "P01-01": { name: "Bus Body Panel Masking", line: "PAINT", order: 1, models: ["KDC", "EVS", "KEC"] },
-  "P01-02": { name: "Foaming Application and Trimming", line: "PAINT", order: 2, models: ["KDC", "EVS", "KEC"] },
-  "P01-03": { name: "Underbody Anti-Corrosion Painting", line: "PAINT", order: 3, models: ["KDC", "EVS", "KEC"] },
-  "P02-01": { name: "Body Panel Surface Grinding and Sanding", line: "PAINT", order: 4, models: ["KDC", "EVS", "KEC"] },
-  "P02-02": { name: "Ground Body Manual Surface-Cleaning", line: "PAINT", order: 5, models: ["KDC", "EVS", "KEC"] },
-  "P02-03": { name: "Epoxy Primer Painting", line: "PAINT", order: 6, models: ["KDC", "EVS", "KEC"] },
-  "P02-04": { name: "Epoxy Primer Drying", line: "PAINT", order: 7, models: ["KDC", "EVS", "KEC"] },
-  "P02-05": { name: "Epoxy Primer Polishing", line: "PAINT", order: 8, models: ["KDC", "EVS", "KEC"] },
-  "P03-01": { name: "Panel Beating; Filler and Fibre Application", line: "PAINT", order: 9, models: ["KDC", "EVS", "KEC"] },
-  "P03-02": { name: "Filler and Fibre Polishing", line: "PAINT", order: 10, models: ["KDC", "EVS", "KEC"] },
-  "P03-03": { name: "Filler Polish Manual Surface-Cleaning", line: "PAINT", order: 11, models: ["KDC", "EVS", "KEC"] },
-  "P04-01": { name: "NC Primer Painting", line: "PAINT", order: 12, models: ["KDC", "EVS", "KEC"] },
-  "P04-02": { name: "NC Primer Drying", line: "PAINT", order: 13, models: ["KDC", "EVS", "KEC"] },
-  "P05-01": { name: "Defects Rectification", line: "PAINT", order: 14, models: ["KDC", "EVS", "KEC"] },
-  "P05-02": { name: "Putty Application and Drying", line: "PAINT", order: 15, models: ["KDC", "EVS", "KEC"] },
-  "P05-03": { name: "Putty Polishing", line: "PAINT", order: 16, models: ["KDC", "EVS", "KEC"] },
-  "P05-04": { name: "Putty Polish Manual Surface-Cleaning", line: "PAINT", order: 17, models: ["KDC", "EVS", "KEC"] },
-  "PQ-01": { name: "Paint Inspection", line: "PAINT", order: 18, models: ["KDC", "EVS", "KEC"] },
-  "P06-01": { name: "Intermediate Coat Painting", line: "PAINT", order: 19, models: ["KDC", "EVS", "KEC"] },
-  "P06-02": { name: "Intermediate Coat Paint-Drying", line: "PAINT", order: 20, models: ["KDC", "EVS", "KEC"] },
-  "P06-03": { name: "Intermediate Coat Polishing", line: "PAINT", order: 21, models: ["KDC", "EVS", "KEC"] },
-  "P07-01": { name: "AutoCryl TopCoat Painting", line: "PAINT", order: 22, models: ["KDC", "EVS", "KEC"] },
-  // EVS: P07-02 = AutoCryl TopCoat Paint-Drying (no P07-03)
-  // KDC: P07-02 = Clear Coat Painting, P07-03 = TopCoat Paint-Drying
-  "P07-02": { name: "AutoCryl TopCoat Paint-Drying (EVS) / Clear Coat Painting (KDC)", line: "PAINT", order: 23, models: ["KDC", "EVS", "KEC"] },
-  "P07-03": { name: "TopCoat Paint-Drying", line: "PAINT", order: 24, models: ["KDC"] },
-  "P08-01": { name: "Color Strip and Pattern Masking", line: "PAINT", order: 25, models: ["KDC", "EVS", "KEC"] },
-  "P08-02": { name: "Color Strip and Pattern Painting", line: "PAINT", order: 26, models: ["KDC", "EVS", "KEC"] },
-  "P08-03": { name: "Color Strip and Pattern Drying", line: "PAINT", order: 27, models: ["KDC", "EVS", "KEC"] },
-  "P08-04": { name: "Color Strip and Pattern Unmasking", line: "PAINT", order: 28, models: ["KDC", "EVS", "KEC"] },
-  "PQ-02": { name: "Finishing and Inspection", line: "PAINT", order: 29, models: ["KDC", "EVS", "KEC"] },
+  // Paint Shop: same for every model (src/data/paintShopProcess.js)
+  ...PAINT_STATIONS,
   // ─── TRIM LINE & FINAL ASSEMBLY ───────────────────────────────────────────────
   // Stations follow document station codes. "EE" suffix = electrical sub-station at same physical station.
   "T01-01": { name: "Installation of Floor Boards, A/C & Heat Shield", line: "TRIM", order: 1, models: ["KDC", "EVS", "KEC"] },

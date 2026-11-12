@@ -41,8 +41,7 @@ export function applyKecTemplate({ tcLines = {}, acts = {}, res = {}, stationMod
       if (na[`${src}:${code}`]) na[`KEC:${code}`] = [...na[`${src}:${code}`]];
     }
   }
-  // Paint is one shared line; the KDC-only top-coat drying stage applies to KEC.
-  nm['P07-03'] = [...new Set([...(nm['P07-03'] || ['KDC']), 'KEC'])];
+  // Paint is one shared line, the same for every model (paintShopProcess.js).
   return { tcLines: nl, acts: na, res: nr, stationModels: nm };
 }
 
