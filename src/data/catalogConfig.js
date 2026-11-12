@@ -34,6 +34,7 @@ export const EMPTY_CATALOG = {
   lineModels: {},    // travel-card line model gating  { "Line Label": ["EVS"] }
   stationModels: {}, // travel-card station model gating { CODE: ["KDC"] }
   dwi: {},           // digital work instructions  { CODE: { title, revision, reference, description, warnings[], steps[], parts[], modelUrl, variants: { KDC?: { steps, parts, warnings, modelUrl }, EVS?: {...} } } }
+  departments: null, // departments and their lines/divisions [ { name, units: [] } ] | null = defaults (data/departments.js)
   projectVins: {},   // travel-card project fleet  { "Project name": [ { vin, model } ] } — model matches the Bus model dropdown (e.g. "7m EVS")
 };
 
@@ -53,6 +54,7 @@ export function normalizeCatalog(raw) {
     stationModels: raw.stationModels && typeof raw.stationModels === 'object' ? raw.stationModels : {},
     dwi:           raw.dwi && typeof raw.dwi === 'object' ? raw.dwi : {},
     projectVins:   raw.projectVins && typeof raw.projectVins === 'object' ? raw.projectVins : {},
+    departments:   Array.isArray(raw.departments) ? raw.departments : null,
   };
 }
 

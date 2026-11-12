@@ -3,6 +3,7 @@ import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
+import { useDepartments } from '../data/departments';
 
 // Manager removed from selection for now — kept out of the picker, but any
 // existing manager-role user still displays fine (falls back to the color/
@@ -65,6 +66,7 @@ const SAVE_ERRORS = {
 // `role` is the signed-in admin's role: only a system admin may rename accounts.
 export default function UserManagement({ onBack, onToggleTheme = null, theme = 'dark', role = '', initialUsername = null }) {
   const canRename = role === 'systemadmin';
+  const departments = useDepartments();
   const isDark = theme === 'dark';
   const bg     = 'transparent';
   const card   = 'var(--bg-card)';
@@ -114,6 +116,8 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       fullName:         user.fullName || '',
       email:            user.email || '',
       username:         user.username || '',
+      department:       user.department || '',
+      units:            user.productionLines?.length ? [...user.productionLines] : user.productionLine ? [user.productionLine] : [],
       role:             user.role || 'user',
       password:         '',
       assignedStation:  user.assignedStation || '',
@@ -190,6 +194,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
     if (edit.fullName.trim() && edit.fullName.trim() !== (selected.fullName || '')) patch.fullName = edit.fullName.trim();
     if (edit.email.trim() && edit.email.trim() !== (selected.email || '')) patch.email = edit.email.trim();
     if (renaming) patch.newUsername = newUsername;
+    const oldUnits = selected.productionLines?.length ? selected.productionLines : selected.productionLine ? [selected.productionLine] : [];
+    if (edit.department && (edit.department !== (selected.department || '') || edit.units.join('|') !== oldUnits.join('|'))) {
+      patch.department = edit.department;
+      patch.productionLines = edit.units;
+      patch.productionLine = edit.units[0] || '';
+    }
 
     const result = await persistUpdateUser(selected.username, patch);
     setSelected(null);
@@ -358,6 +368,40 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                 <input style={{ ...inp, opacity: canRename ? 1 : 0.6 }} value={edit.username} onChange={e => setE('username', e.target.value)} disabled={!canRename} autoCapitalize="none" spellCheck={false} />
               </div>
             </div>
+            {(() => {
+              const known = departments.some(d => d.name === edit.department);
+              const options = departments.find(d => d.name === edit.department)?.units || [];
+              // Lines/divisions saved on the account that are no longer in the list still show, so they can be kept or removed.
+              const shown = [...options, ...edit.units.filter(u => !options.includes(u))];
+              return (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={lbl}>Department</label>
+                  <select style={inp} value={edit.department} onChange={e => setEdit(x => ({ ...x, department: e.target.value, units: [] }))}>
+                    <option value="">Select department…</option>
+                    {!known && edit.department && <option value={edit.department}>{edit.department} (no longer in the list)</option>}
+                    {departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
+                  </select>
+                  {shown.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <label style={lbl}>Line(s) / Division(s)</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {shown.map(u => {
+                          const on = edit.units.includes(u);
+                          return (
+                            <button key={u} type="button"
+                              onClick={() => setEdit(x => ({ ...x, units: on ? x.units.filter(v => v !== u) : [...x.units, u] }))}
+                              style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontFamily: fm,
+                                border: `1px solid ${on ? GR + '80' : border}`, background: on ? `${GR}18` : 'transparent', color: on ? GR : muted }}>
+                              {on ? '✓ ' : ''}{u}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {canRename && edit.username.trim().toLowerCase() !== selected.username.toLowerCase() && (
               <div style={{ fontSize: 11, color: AM, marginTop: -10, marginBottom: 16, fontFamily: fm }}>
                 The person signs in with the new username (or their email) from now on. Their travel cards, open tasks and report schedules move to the new name.

@@ -41,7 +41,7 @@ function parseCSV(text) {
 // The tab holds rows of [key, value]. A large catalog is split across several
 // rows ('catalog', 'catalog.1', 'catalog.2', …) because a single Sheets cell
 // caps at 50k characters — so we gather every chunk, order them, and join.
-function extractCatalog(csvText) {
+export function extractCatalog(csvText) {
   const rows = parseCSV(csvText);
   if (rows.length < 2) return null;
   const chunks = [];

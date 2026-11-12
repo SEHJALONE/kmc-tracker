@@ -508,6 +508,7 @@ export default function App() {
           saving={catalogSaving}
           listCatalogBackups={listCatalogBackups}
           restoreCatalogBackup={restoreCatalogBackup}
+          role={role}
           initialTab="Travel Card"
           onClose={() => setAdminOpen(false)}
         />
@@ -1024,6 +1025,7 @@ export default function App() {
           saving={catalogSaving}
           listCatalogBackups={listCatalogBackups}
           restoreCatalogBackup={restoreCatalogBackup}
+          role={role}
           onClose={() => setAdminOpen(false)}
         />
       )}

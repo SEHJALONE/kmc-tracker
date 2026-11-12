@@ -384,3 +384,16 @@ describe('backup export', () => {
     expect(JSON.stringify(r)).not.toContain('session_secret');
   });
 });
+
+describe('editing a user department', () => {
+  it('saves the department and its lines on the account', async () => {
+    const env = load();
+    await addUser(env, { username: 'op.one', role: 'user', department: 'Production', productionLines: ['Paint Shop'] });
+    await addUser(env, { username: 'boss', role: 'systemadmin' });
+    const session = await signIn(env, 'boss');
+    const r = await env.call({ action: 'updateDynamicUser', session, payload: JSON.stringify({ username: 'op.one', department: 'Quality, Health, Safety and Environment', productionLines: ['Quality'], productionLine: 'Quality' }) });
+    expect(r.status).toBe('ok');
+    const u = (await env.call({ action: 'login', username: 'op.one', password: 'Passw0rd-123' })).user;
+    expect(u).toMatchObject({ department: 'Quality, Health, Safety and Environment', productionLines: ['Quality'] });
+  });
+});

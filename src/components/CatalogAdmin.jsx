@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import DepartmentsTab from './catalog/DepartmentsTab';
+import { departmentsFrom, normalizeDepartments } from '../data/departments';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
@@ -37,7 +39,9 @@ const PROJECT_MODEL_OPTS = [
 // "Travel Card" edits the card the way it is filled (model → line → station →
 // activities / consumables). Activities and Resources are the same data as raw
 // per-code lists; Lines and Stations are the bus tracker's own structure.
-const TABS = ['Travel Card', 'Projects', 'Vehicles', 'Lines', 'Stations', 'Activities', 'Resources', 'Work Instructions', 'Backups'];
+const TABS = ['Travel Card', 'Projects', 'Vehicles', 'Lines', 'Stations', 'Activities', 'Resources', 'Work Instructions', 'Departments', 'Backups'];
+// Tabs only a system admin sees.
+const SYSTEMADMIN_TABS = ['Departments'];
 
 const BUS_MODEL_OPTS = ['10.5m KDC', '12m KDC', '7m EVS', '8.5m EVS', '10.5m EVS', '12m EVS', '13m KEC'];
 
@@ -77,6 +81,7 @@ function buildInitial(catalog) {
     stationModels: { ...STATION_MODELS, ...(catalog.stationModels || {}) },
     dwi: catalog.dwi && typeof catalog.dwi === 'object' ? catalog.dwi : {},
     projectVins,
+    departments: departmentsFrom(catalog).map(d => ({ name: d.name, units: [...d.units] })),
   };
 }
 
@@ -105,8 +110,9 @@ const th = { fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', 
 const td = { padding: '4px 6px', verticalAlign: 'top' };
 const sectionHd = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '4px 0 10px', fontWeight: 700 };
 
-export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose, initialTab = 'Projects' }) {
-  const [tab, setTab] = useState(TABS.includes(initialTab) ? initialTab : 'Projects');
+export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose, initialTab = 'Projects', role = '' }) {
+  const tabs = TABS.filter(t => role === 'systemadmin' || !SYSTEMADMIN_TABS.includes(t));
+  const [tab, setTab] = useState(tabs.includes(initialTab) ? initialTab : 'Projects');
   const [draft, setDraft] = useState(() => buildInitial(catalog));
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState('');
@@ -132,6 +138,8 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
       stationModels: draft.stationModels,
       dwi: draft.dwi,
       projectVins: draft.projectVins,
+      // A non-system-admin cannot see this tab; keep what is saved as it is.
+      departments: role === 'systemadmin' ? normalizeDepartments(draft.departments) : (catalog.departments ?? null),
     };
     const r = await saveCatalog(payload);
     if (r?.ok) { setStatus('✅ Saved — visible to everyone.'); setDirty(false); }
@@ -154,7 +162,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, padding: '10px 18px 0', flexWrap: 'wrap' }}>
-          {TABS.map(t => (
+          {tabs.map(t => (
             <button key={t} onClick={() => setTab(t)}
               style={{ ...btn, ...(tab === t ? btnAccent : {}) }}>{t}</button>
           ))}
@@ -169,6 +177,7 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
           {tab === 'Activities'         && <ActivitiesTab draft={draft} touch={touch} />}
           {tab === 'Resources'          && <ResourcesTab draft={draft} touch={touch} lineOptions={lineOptions} />}
           {tab === 'Work Instructions'  && <DWITab draft={draft} touch={touch} />}
+          {tab === 'Departments' && role === 'systemadmin' && <DepartmentsTab draft={draft} touch={touch} />}
           {tab === 'Backups'    && <BackupsTab listCatalogBackups={listCatalogBackups} restoreCatalogBackup={restoreCatalogBackup} />}
         </div>
       </div>

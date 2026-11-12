@@ -2,33 +2,14 @@ import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { submitAccessRequest } from '../hooks/useAccessRequests';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
-
-const DEPARTMENTS = ['Production', 'Product Development'];
-
-const PRODUCTION_LINES = [
-  'Machine Shop',
-  'Frame Parts Making',
-  'Electrophoresis',
-  'Frame & Body Welding',
-  'Chassis Line 01',
-  'Chassis Line 02',
-  'Paint Shop',
-  'Trim Line & Final Assembly',
-  'Quality Inspection & Testing',
-];
-
-const PRODUCT_DEV_LINES = [
-  'Vehicle Integration Division',
-  'Design and Engineering Division',
-  'EE and HV Division',
-  'Battery and Energy Storage System',
-  'Information Systems Division',
-  'Charger Systems Network',
-];
+import { useDepartments } from '../data/departments';
 
 export default function SignUpModal({ onClose, theme = 'dark' }) {
   const isDark = theme === 'dark';
 
+  // Departments and their lines/divisions are edited by the system admin in
+  // Catalog Admin → Departments (see data/departments.js).
+  const departments = useDepartments();
   const [step, setStep]   = useState(1);
   const [busy, setBusy]   = useState(false);
   const [error, setError] = useState('');
@@ -71,8 +52,8 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     }));
   }
 
-  // Only "Production" department lines have a real station catalog
-  // (Product Development lines/divisions aren't in SEED_STATIONS).
+  // Only lines that match a tracker line have stations to prefer (e.g. the
+  // Production lines); other divisions simply show none.
   const stationsByLineLabel = useMemo(() => {
     const map = {};
     SEED_LINES.forEach(l => { map[l.label] = []; });
@@ -84,11 +65,8 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     return map;
   }, []);
 
-  const lineOptions = form.department === 'Production'
-    ? PRODUCTION_LINES
-    : form.department === 'Product Development'
-      ? PRODUCT_DEV_LINES
-      : [];
+  const lineOptions = departments.find(d => d.name === form.department)?.units || [];
+  const hasStations = form.productionLines.some(l => stationsByLineLabel[l]?.length);
 
   async function handleSubmit() {
     setError('');
@@ -96,7 +74,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     if (!form.email.trim() || !form.email.includes('@')) return setError('A valid email is required.');
     if (!form.username.trim())    return setError('Please choose a username.');
     if (!form.department)         return setError('Select your department.');
-    if (!form.productionLines.length) return setError('Select at least one production line.');
+    if (lineOptions.length && !form.productionLines.length) return setError('Select at least one line or division.');
     if (!form.position.trim())    return setError('Enter your job title / position.');
     if (!form.password || form.password.length < 8) return setError('Password must be at least 8 characters.');
     if (form.password !== form.confirmPassword)      return setError('Passwords do not match.');
@@ -247,14 +225,14 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
               <label style={lbl}>Department <span style={{ color: R }}>*</span></label>
               <select style={inp} value={form.department} onChange={e => set('department', e.target.value)}>
                 <option value="">Select department…</option>
-                {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                {departments.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
               </select>
             </div>
 
             {/* Production Line(s) — shows once department is picked, multi-select */}
-            {form.department && (
+            {form.department && lineOptions.length > 0 && (
               <div>
-                <label style={lbl}>Production Line(s) <span style={{ color: R }}>*</span> <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(select one or more)</span></label>
+                <label style={lbl}>Line(s) / Division(s) <span style={{ color: R }}>*</span> <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(select one or more)</span></label>
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 200, overflowY: 'auto' }}>
                   {lineOptions.map(l => (
                     <label key={l} style={{
@@ -278,11 +256,11 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             {/* Preferred station(s) — optional, only for lines with a real
                 station catalog (Production dept). Preselected on the admin's
                 approval screen so they can accept as-is or adjust. */}
-            {form.department === 'Production' && form.productionLines.length > 0 && (
+            {hasStations && (
               <div>
                 <label style={lbl}>Preferred Station(s) <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — helps the admin pre-fill your assignment)</span></label>
                 <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 220, overflowY: 'auto' }}>
-                  {form.productionLines.map(line => (
+                  {form.productionLines.filter(l => stationsByLineLabel[l]?.length).map(line => (
                     <div key={line}>
                       <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: dim, letterSpacing: '0.08em', textTransform: 'uppercase', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>{line}</div>
                       {(stationsByLineLabel[line] || []).map(s => (
