@@ -1,3 +1,4 @@
+import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback } from 'react';
 
 // Daily Activities Log — a supervisor's own, independently-entered record of
@@ -80,7 +81,7 @@ export function useBusSightings() {
       prows.forEach(r => {
         const project = col(ph, r, 'project');
         const vin = col(ph, r, 'vin');
-        if (!project || !vin) return;
+        if (!project || !vin || isTestVin(vin)) return;
         (byProject[project] ||= new Set()).add(vin);
       });
       const asArrays = {};

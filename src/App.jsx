@@ -147,6 +147,19 @@ export default function App() {
   // but only sees developed modules on the home screen for now.
   const canEditCatalog = role === 'systemadmin' || role === 'useradmin';
 
+  // "Open this account in User Management" link from a password-help email:
+  // /?manage=<username>. Opens after sign-in, for admins only.
+  const [manageUser, setManageUser] = useState(() => {
+    try { const q = new URLSearchParams(window.location.search); return q.has('manage') ? q.get('manage') : null; }
+    catch { return null; }
+  });
+  useEffect(() => {
+    if (!authed || manageUser === null) return;
+    try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+    if (canEditCatalog) setMode('user-management');
+    else setManageUser(null);
+  }, [authed, manageUser, canEditCatalog]);
+
   const [tcPrefill, setTcPrefill] = useState(null);
   const [editingSubmission, setEditingSubmission] = useState(null);
   const { editSubmission: saveSubmissionEdit } = useSubmissionsData();
@@ -339,7 +352,7 @@ export default function App() {
   );
 
   if (mode === 'user-management') return (
-    <UserManagement theme={theme} onToggleTheme={toggleTheme} onBack={() => setMode('home')} />
+    <UserManagement theme={theme} onToggleTheme={toggleTheme} role={role} initialUsername={manageUser} onBack={() => { setManageUser(null); setMode('home'); }} />
   );
 
   if (mode === 'daily-fleet-log') return (

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useId, useMemo, createContext
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { sendViaAppsScript } from '../data/mailer.js';
+import { saveReportSchedule, describeSchedule } from '../data/reportSchedules.js';
 import { jsPDF } from 'jspdf';
 import { useScoreboardData, computeLineCard, deriveRangeKpis, DOWNTIME_REASON_CODES } from '../hooks/useScoreboardData';
 import { buildProductionReport, defaultReference } from '../utils/productionReportPdf';
@@ -893,7 +894,8 @@ function TrendChart({ points, color, fmt, axisTitle, axisFmt, highlight }) {
   );
 }
 
-// ── Email modal (posts to the Vercel /api/send-report function) ───────────
+// ── Email modal (Send now: the Apps Script mails the captured pages; Daily/
+// Weekly: saved as a server schedule — src/data/reportSchedules.js) ─────────
 function ScoreboardEmailModal({ onClose, capturePages }) {
   const C = useC();
   const [to, setTo] = useState('');
@@ -907,6 +909,18 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
   async function send() {
     if (!to.trim()) { setStatus({ ok: false, msg: 'Enter a recipient email.' }); return; }
     setBusy(true); setStatus(null);
+    if (schedule !== 'now') {
+      // Saved on the server and sent at the chosen time without a browser open.
+      try {
+        const saved = await saveReportSchedule({ kind: 'scoreboard', to, subject, schedule, scheduledTime, weekday: schedule === 'weekly' ? weekday : null });
+        setStatus({ ok: true, msg: `Scheduled: ${describeSchedule(saved)} (Kampala time).` });
+      } catch (e) {
+        setStatus({ ok: false, msg: e.message });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
       const canvases = await capturePages();
       const stamp = localISODate();
@@ -914,7 +928,7 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
         filename: `KMC_Scoreboard_p${i + 1}_${stamp}.png`,
         dataUrl: cv.toDataURL('image/png'),
       }));
-      await sendViaAppsScript('sendReportEmail', { to, subject, schedule, scheduledTime, weekday, busCount: 0, attachments });
+      await sendViaAppsScript('sendReportEmail', { to, subject, busCount: 0, attachments });
       setStatus({ ok: true, msg: 'Report sent.' });
     } catch (e) {
       setStatus({ ok: false, msg: e.message });
@@ -959,6 +973,11 @@ function ScoreboardEmailModal({ onClose, capturePages }) {
               </div>
             )}
           </div>
+          {schedule !== 'now' && (
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.45 }}>
+              Scheduled emails carry the production report built from live data (Slide PDF, Dashboard PDF, Excel) and a link to open the live scoreboard; the scoreboard pictures go with Send now only. Each email has a stop link, and schedules can be cancelled in the dashboard's Email Report box.
+            </div>
+          )}
           {status && (
             <div style={{ fontSize: 11.5, color: status.ok ? C.green : C.red }}>{status.msg}</div>
           )}

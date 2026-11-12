@@ -64,10 +64,10 @@ function isoToLocalInput(iso) {
 }
 
 // ── Production schedule ─────────────────────────────────────────────────────
-// Default shift is 08:00–18:00 (the user overrides this by entering their own
+// Usual shift is 07:00–18:00 (the user overrides this by entering their own
 // clock-in / clock-out). Non-productive breaks are excluded from "time used".
 const SCHEDULE = {
-  shiftStart: "08:00",
+  shiftStart: "07:00",
   shiftEnd:   "18:00",
   breaks: [
     { start: "10:00", end: "10:30", label: "Tea break" },
@@ -75,17 +75,84 @@ const SCHEDULE = {
   ],
 };
 
-// Net productive minutes between a local clock-in string and an ISO clock-out.
-// Sundays and the part of Saturday outside 08:00–13:00 are not worked time, and
-// scheduled breaks are excluded (see utils/workTime.js). Returns
-// { gross, breaks, net } where gross is elapsed minutes and breaks is EVERYTHING
-// excluded, so gross − breaks = net.
-function productiveMinutes(clockInLocal, clockOutISO) {
-  const start = new Date(clockInLocal);
-  const end = new Date(new Date(clockOutISO).toLocaleString("sv-SE").replace(" ", "T"));
-  if (isNaN(start) || isNaN(end)) return { gross: 0, breaks: 0, net: 0 };
-  const w = workingMinutes(start, end);
+// Clock-in (local "YYYY-MM-DDTHH:MM") and clock-out (ISO) as local wall-clock Dates.
+function clockSpan(clockInLocal, clockOutISO) {
+  const start = clockInLocal ? new Date(clockInLocal) : null;
+  const end = clockOutISO ? new Date(new Date(clockOutISO).toLocaleString("sv-SE").replace(" ", "T")) : null;
+  return { start, end };
+}
+
+// Net productive minutes between clock-in and clock-out. Within a day all of
+// it counts except scheduled breaks; over several days, the hours given for
+// each day (workDays) count (see utils/workTime.js). Returns { gross, breaks,
+// net } where gross is elapsed minutes and breaks is EVERYTHING not counted,
+// so gross − breaks = net.
+function productiveMinutes(clockInLocal, clockOutISO, workDays) {
+  const { start, end } = clockSpan(clockInLocal, clockOutISO);
+  if (!start || !end || isNaN(start) || isNaN(end)) return { gross: 0, breaks: 0, net: 0 };
+  const w = workingMinutes(start, end, workDays);
   return { gross: w.gross, breaks: Math.max(0, w.gross - w.net), net: w.net };
+}
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const dayLabel = key => { const [y, m, d] = key.split("-").map(Number); const dt = new Date(y, m - 1, d); return `${DOW[dt.getDay()]} ${dt.getDate()} ${dt.toLocaleString("en-GB", { month: "short" })}`; };
+
+// One row per calendar day of a card that runs over several days: when work
+// started and ended that day. Saturday asks whether work went past 14:00;
+// Sunday asks whether there was work at all.
+function WorkDaysEditor({ days, onChange, T, css }) {
+  const set = (date, patch) => onChange(days.map(d => (d.date === date ? { ...d, ...patch } : d)));
+  const time = (d, k) => (
+    <input type="time" value={d[k]} onChange={e => e.target.value && set(d.date, { [k]: e.target.value })}
+      style={{ ...css.inp, width: 110, padding: "6px 8px" }} aria-label={`${dayLabel(d.date)} ${k === "start" ? "start" : "end"} time`} />
+  );
+  const fixed = v => <span style={{ fontFamily: T.mono, fontSize: 13, padding: "6px 4px" }}>{v}</span>;
+  const yesNo = (value, onPick, labels = ["No", "Yes"]) => (
+    <div style={{ display: "inline-flex", gap: 4 }}>
+      {[false, true].map((v, i) => (
+        <button key={i} type="button" onClick={() => onPick(v)} style={{
+          padding: "5px 12px", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600,
+          border: `1px solid ${value === v ? "rgba(16,185,129,0.6)" : T.border}`,
+          background: value === v ? "rgba(16,185,129,0.12)" : "transparent", color: value === v ? "#10b981" : T.dim,
+        }}>{labels[i]}</button>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {days.map(d => {
+        const fixedDay = d.fixedStart || d.fixedEnd;
+        const sat = d.dow === 6, sun = d.dow === 0;
+        const late = sat && d.end > "14:00";
+        return (
+          <div key={d.date} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <strong style={{ minWidth: 92, fontSize: 13 }}>{dayLabel(d.date)}</strong>
+              {sun && !fixedDay && <>
+                <span style={{ fontSize: 12, color: T.dim }}>Did you work on Sunday?</span>
+                {yesNo(d.worked, v => set(d.date, { worked: v }))}
+              </>}
+            </div>
+            {d.worked && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: T.dim, minWidth: 40 }}>Start</span>
+                {d.fixedStart ? fixed(`${d.start} (clock-in)`) : time(d, "start")}
+                <span style={{ fontSize: 12, color: T.dim }}>End</span>
+                {d.fixedEnd ? fixed(`${d.end} (clock-out)`)
+                  : sat ? (late ? time(d, "end") : fixed(d.end)) : time(d, "end")}
+              </div>
+            )}
+            {sat && d.worked && !d.fixedEnd && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: T.dim }}>Did you work on Saturday after 2:00 pm?</span>
+                {yesNo(late, v => set(d.date, { end: v ? (late ? d.end : "16:00") : "14:00" }))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // This device's own copy of the cards it filed per VIN — a fallback for the
@@ -100,10 +167,11 @@ function appendBusLog(vin, sub) {
 
 import { useState, useEffect, useRef } from "react";
 import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
-import { busCardsFor, emailCardReports, describeCardEmail } from '../utils/cardEmail';
-import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { busCardsFor, notifyApprovers, needsApproval, describeCardEmail } from '../utils/cardEmail';
+import { SEED_LINES, SEED_STATIONS, modelFamilyOf } from '../data/stations';
+import { manpowerFor } from '../data/manpowerAllocation';
 import { useStationPresets, presetFor } from '../hooks/useStationPresets';
-import { workingMinutes } from '../utils/workTime';
+import { workingMinutes, defaultWorkDays, mergeWorkDays } from '../utils/workTime';
 import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
 import { PPE_ITEMS, prefillPpe, encodePpe, parsePpe } from '../utils/ppe';
@@ -337,6 +405,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Activities
   const [clockIn, setClockIn] = useState("");
   const [clockOut, setClockOut] = useState(""); // set automatically in p0next (change 4)
+  // Hours worked on each day when a card runs over several days (see WorkDaysEditor).
+  const [workDays, setWorkDays] = useState([]);
   const [actStatuses, setActStatuses] = useState({});
   const [otherActs, setOtherActs] = useState([]);   // ad-hoc activities added on the card
   const [otherActName, setOtherActName] = useState("");
@@ -442,6 +512,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setPpe(parsePpe(s.hseResources).items); setPpeTouched(true);
     setClockIn(s.clockIn ? isoToLocalInput(s.clockIn) || s.clockIn : "");
     setClockOut(s.clockOut || "");
+    setWorkDays(Array.isArray(s.workDays) ? s.workDays : []);
     setActStatuses(s.activityStatuses || {});
     setOtherActs(s.addedActivities || []);
     setResQtys(s.resourcesUsed || {});
@@ -466,7 +537,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     return {
       savedAt: new Date().toISOString(),
       page, curProj, busModel, vin, curLine, curSt, curCode, designedTime,
-      operators, selOps, ppe, clockIn, clockOut,
+      operators, selOps, ppe, clockIn, clockOut, workDays,
       actualTime, grossTime, breakTime,
       actStatuses, otherActs, resQtys, removedRes, otherRes,
       ohs, ohsTxt, waste,
@@ -493,7 +564,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCurLine(snap.curLine ?? ""); setCurSt(snap.curSt ?? ""); setCurCode(snap.curCode ?? "");
     setDesignedTime(snap.designedTime ?? 0);
     setOperators(snap.operators ?? []); setSelOps(snap.selOps ?? []);
-    setPpe(snap.ppe ?? parsePpe(snap.hseCount).items); setPpeTouched(true); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? "");
+    setPpe(snap.ppe ?? parsePpe(snap.hseCount).items); setPpeTouched(true); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? ""); setWorkDays(snap.workDays ?? []);
     setActualTime(snap.actualTime ?? 0); setGrossTime(snap.grossTime ?? 0); setBreakTime(snap.breakTime ?? 0);
     setActStatuses(snap.actStatuses ?? {}); setOtherActs(snap.otherActs ?? []);
     setResQtys(snap.resQtys ?? {}); setRemovedRes(snap.removedRes ?? []); setOtherRes(snap.otherRes ?? []);
@@ -693,7 +764,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!mins && preset?.designedTime) setDesignedTime(preset.designedTime);
 
     // Load station-specific operator pool and remembered selection
-    const stationOps = nz(LS.get(`kmc_station_ops_${code}`, null)) ?? preset?.operators ?? [];
+    // Fallback: the manpower allocation, for stations nobody has filed yet.
+    const stationOps = nz(LS.get(`kmc_station_ops_${code}`, null))
+      ?? nz(preset?.operators)
+      ?? manpowerFor(code, modelFamilyOf(busModel));
     setOperators(stationOps);
     const savedSel = LS.get(`kmc_sel_${code}`, stationOps);
     setSelOps(savedSel.filter(s => stationOps.includes(s)));
@@ -726,11 +800,22 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     goTo(1);
   }
 
+  // The days this card spans, with what was entered for each (prefilled).
+  const spanDays = (() => {
+    const { start, end } = clockSpan(clockIn, clockOut);
+    if (!start || !end || isNaN(start) || isNaN(end) || end <= start) return [];
+    const days = mergeWorkDays(defaultWorkDays(start, end), workDays);
+    return days.length > 1 ? days : [];
+  })();
+  const workDaysToSave = spanDays.length ? spanDays.map(({ date, worked, start, end }) => ({ date, worked, start, end })) : null;
+
   function p1next() {
     if (!clockIn) { alert("Enter a clock-in time."); return; }
     if (!clockOut) { alert("Enter a clock-out time."); return; }
     if (new Date(clockOut) <= new Date(clockIn)) { alert("Clock-out must be after clock-in."); return; }
-    const { gross, breaks: brkMin, net: actual } = productiveMinutes(clockIn, clockOut);
+    const badDay = spanDays.find(d => d.worked && d.end <= d.start && d.end !== "23:59");
+    if (badDay) { alert(`On ${dayLabel(badDay.date)}, the end time must be after the start time.`); return; }
+    const { gross, breaks: brkMin, net: actual } = productiveMinutes(clockIn, clockOut, workDaysToSave);
     setGrossTime(gross);
     setBreakTime(brkMin);
     setActualTime(actual);
@@ -756,7 +841,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
-      clockIn, clockOut, actualTime: actual, designedTime,
+      clockIn, clockOut, workDays: workDaysToSave, actualTime: actual, designedTime,
       grossTime: gross, breakMinutes: brkMin,
       activityStatuses: actStatuses,
       addedActivities: otherActs,
@@ -795,7 +880,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
-      clockIn, clockOut, actualTime: actual, designedTime,
+      clockIn, clockOut, workDays: workDaysToSave, actualTime: actual, designedTime,
       hasDowntime: false,
       grossTime: gross, breakMinutes: brkMin,
       activityStatuses: actStatuses,
@@ -885,7 +970,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
-      clockIn, clockOut, actualTime, designedTime, hasDowntime,
+      clockIn, clockOut, workDays: workDaysToSave, actualTime, designedTime, hasDowntime,
       grossTime, breakMinutes: breakTime,
       activityStatuses: actStatuses,
       addedActivities: otherActs,
@@ -934,14 +1019,15 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Every card filed for this VIN from ANY device (the sheet), plus this
   // device's own recent cards the sheet hasn't caught up with yet (a card
   // submitted seconds ago), de-duplicated by station + submit time.
-  // A card was filed: tell the hub (closes the Start/End task it came from) and
-  // email the submitter + approvers with both reports attached.
+  // A card was filed: tell the hub (closes the Start/End task it came from) and,
+  // only when it needs approval, email its approvers. No reports are emailed.
   function afterFiled(sub) {
     if (onCardSubmitted) onCardSubmitted(sub, taskPrefill);
-    setEmailStatus("📧 Emailing your station and bus reports…");
-    emailCardReports(sub)
+    if (!needsApproval(sub)) { setEmailStatus(""); return; }
+    setEmailStatus("📧 Asking approvers to review…");
+    notifyApprovers(sub)
       .then(reply => setEmailStatus(describeCardEmail(reply)))
-      .catch(e => setEmailStatus(`⚠️ Email not sent: ${e.message}`));
+      .catch(e => setEmailStatus(`⚠️ Approval email not sent: ${e.message}`));
   }
 
   async function dlBusReport() {
@@ -957,7 +1043,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function another() {
     const km = busModel, kp = curProj, kv = vin;
     setActStatuses({}); setOtherActs([]); setOtherActName(""); setResQtys({}); setRemovedRes([]); setOtherRes([]);
-    setClockIn(""); setClockOut(""); setPpe({}); setPpeTouched(false); setOtherPpeName(""); setOhs(false); setOhsTxt(""); setWaste("");
+    setClockIn(""); setClockOut(""); setWorkDays([]); setPpe({}); setPpeTouched(false); setOtherPpeName(""); setOhs(false); setOhsTxt(""); setWaste("");
     setHasDowntime(false); setActualTime(0); setGrossTime(0); setBreakTime(0); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); setCustomCauseName("");
     setAttachmentFile(null); setAttachmentB64(null); setAttachmentName(''); setAttachmentMime('');
     setCorrAction(""); setOrComments("");
@@ -1200,9 +1286,19 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             ? "Start and end were recorded when you pressed Start and Close. Correct them here if needed."
             : "Enter when work on this station started and finished. Clock-out is prefilled with the time you left the identity page — change it if the work ended earlier."}</div>
           <div style={{ ...css.note, marginTop: 8 }}>
-            ⏱ Time used excludes scheduled breaks (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}). Default shift {SCHEDULE.shiftStart}–{SCHEDULE.shiftEnd}; weekday time counts 08:00–18:00 only, Sundays are not counted and Saturday counts 08:00–13:00.
+            ⏱ All time between clock-in and clock-out counts, including work before 07:00 or after 18:00. Only the scheduled breaks are taken off (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}).
           </div>
         </div>
+
+        {spanDays.length > 0 && (
+          <div style={css.card}>
+            <div style={css.cardHd}>Hours on each day</div>
+            <div style={{ ...css.note, marginBottom: 10 }}>
+              This work ran over {spanDays.length} days. Enter when work started and ended on each day. The times are prefilled with the usual hours (weekdays 07:00–18:00, Saturday 08:00–14:00, no Sunday work), so change only what was different.
+            </div>
+            <WorkDaysEditor days={spanDays} onChange={setWorkDays} T={T} css={css} />
+          </div>
+        )}
 
         <div style={css.card}>
           <div style={{ ...css.cardHd, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1376,7 +1472,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>
         {breakTime > 0 && (
           <div style={{ ...css.note, textAlign: "center", margin: "-6px 20px 8px" }}>
-            Actual excludes {breakTime} min of breaks and non-working time — nights, Sundays and Saturday outside 08:00–13:00 (gross {grossTime} min).
+            Actual excludes {breakTime} min of scheduled breaks{spanDays.length ? " and the hours not worked between days" : ""} (gross {grossTime} min).
           </div>
         )}
 

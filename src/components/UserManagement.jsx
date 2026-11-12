@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
@@ -55,7 +55,16 @@ function userLineStationsFor(stationsByLine, lineId) {
   return stationsByLine[lineId] || [];
 }
 
-export default function UserManagement({ onBack, onToggleTheme = null, theme = 'dark' }) {
+const SAVE_ERRORS = {
+  'username-taken': 'That username is already in use.',
+  'invalid-username': 'Usernames use 3–40 letters, numbers, dots, dashes or underscores (no spaces).',
+  'invalid-email': 'That email address is not valid.',
+  'only-systemadmin-can-rename': 'Only a system admin can change a username.',
+};
+
+// `role` is the signed-in admin's role: only a system admin may rename accounts.
+export default function UserManagement({ onBack, onToggleTheme = null, theme = 'dark', role = '', initialUsername = null }) {
+  const canRename = role === 'systemadmin';
   const isDark = theme === 'dark';
   const bg     = 'transparent';
   const card   = 'var(--bg-card)';
@@ -102,6 +111,9 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       ? user.assignedStations
       : user.assignedStation ? [user.assignedStation] : [];
     setEdit({
+      fullName:         user.fullName || '',
+      email:            user.email || '',
+      username:         user.username || '',
       role:             user.role || 'user',
       password:         '',
       assignedStation:  user.assignedStation || '',
@@ -119,6 +131,16 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       roles: Object.fromEntries((user.roles || []).map(r => [r, true])),
     });
   }
+
+  // Opened from a password-help email (?manage=<username>): go straight to that account.
+  const openedInitial = useRef(false);
+  useEffect(() => {
+    if (openedInitial.current || !initialUsername || !users.length) return;
+    const u = users.find(x => String(x.username).toLowerCase() === String(initialUsername).toLowerCase());
+    openedInitial.current = true;
+    if (u) openEdit(u); else setSearch(initialUsername);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUsername, users]);
 
   function setE(k, v) { setEdit(e => ({ ...e, [k]: v })); }
 
@@ -140,6 +162,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       const pickedU = Object.keys(edit.assignedStations).filter(k => edit.assignedStations[k]);
       if (!pickedU.length) return alert('Assign at least one station to this user.');
     }
+    const newUsername = edit.username.trim().toLowerCase();
+    const renaming = canRename && newUsername && newUsername !== selected.username.toLowerCase();
+    if (renaming && !/^[a-z0-9._-]{3,40}$/.test(newUsername)) return alert(SAVE_ERRORS['invalid-username']);
+    if (edit.email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(edit.email.trim())) return alert(SAVE_ERRORS['invalid-email']);
+    if (renaming && selected.username === localStorage.getItem('kmc_username')
+      && !window.confirm('You are renaming your own account. You will need to sign in again with the new username. Continue?')) return;
     setBusy(true);
 
     const assignedCodes = (edit.role === 'supervisor' || edit.role === 'user')
@@ -159,12 +187,15 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       roles: Object.keys(edit.roles || {}).filter(k => edit.roles[k]),
     };
     if (edit.password.length >= 8) patch.password = edit.password;
+    if (edit.fullName.trim() && edit.fullName.trim() !== (selected.fullName || '')) patch.fullName = edit.fullName.trim();
+    if (edit.email.trim() && edit.email.trim() !== (selected.email || '')) patch.email = edit.email.trim();
+    if (renaming) patch.newUsername = newUsername;
 
     const result = await persistUpdateUser(selected.username, patch);
     setSelected(null);
     setEdit(null);
     setBusy(false);
-    if (!result.ok) return alert(`Could not save changes: ${result.error || 'unknown error'}`);
+    if (!result.ok) return alert(`Could not save changes: ${SAVE_ERRORS[result.error] || result.error || 'unknown error'}`);
     showToast('User updated ✓');
   }
 
@@ -311,6 +342,28 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
           {/* Edit form */}
           <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '18px 20px', background: card, marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Account Details</div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
+              <div>
+                <label style={lbl}>Full name</label>
+                <input style={inp} value={edit.fullName} onChange={e => setE('fullName', e.target.value)} placeholder="Full name" />
+              </div>
+              <div>
+                <label style={lbl}>Email</label>
+                <input style={inp} type="email" value={edit.email} onChange={e => setE('email', e.target.value)} placeholder="name@kmc.co.ug" />
+              </div>
+              <div>
+                <label style={lbl}>Username {!canRename && <span style={{ textTransform: 'none', letterSpacing: 0 }}>(system admin only)</span>}</label>
+                <input style={{ ...inp, opacity: canRename ? 1 : 0.6 }} value={edit.username} onChange={e => setE('username', e.target.value)} disabled={!canRename} autoCapitalize="none" spellCheck={false} />
+              </div>
+            </div>
+            {canRename && edit.username.trim().toLowerCase() !== selected.username.toLowerCase() && (
+              <div style={{ fontSize: 11, color: AM, marginTop: -10, marginBottom: 16, fontFamily: fm }}>
+                The person signs in with the new username (or their email) from now on. Their travel cards, open tasks and report schedules move to the new name.
+              </div>
+            )}
+
             <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Edit Rights & Responsibilities</div>
 
             {/* Role selector */}

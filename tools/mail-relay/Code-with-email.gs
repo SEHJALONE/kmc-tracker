@@ -66,13 +66,20 @@ function doPost(e) {
     if (e && e.parameter && e.parameter.action === "login") {
       return login_(e.parameter.username, e.parameter.password, e.parameter.remember === "1");
     }
+    // Forgot password (public: the emailed code is the proof).
+    if (e && e.parameter && e.parameter.action === "requestPasswordReset") return requestPasswordReset_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "resetPassword")        return resetPassword_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "submitPasswordHelp")   return submitPasswordHelp_(e.parameter);
 
     // ── Email (functions live in the separate Mail file — tools/mail-relay/Mail.gs) ──
     if (e && e.parameter && e.parameter.action === "sendReportEmail") return sendReportEmail_(e.parameter);
+    // Daily/weekly report schedules saved from the site's email boxes (Mail.gs).
+    if (e && e.parameter && e.parameter.action === "saveReportSchedule")   return saveReportSchedule_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "listReportSchedules")  return listReportSchedules_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "cancelReportSchedule") return cancelReportSchedule_(e.parameter);
     if (e && e.parameter && e.parameter.action === "notifyApproved")  return notifyApproved_(e.parameter);
-    // Confirmation to the person who filed a Travel Card (with the station and
-    // bus reports) and an approval request to the supervisors/managers who can
-    // review it. Admin alerts for new access requests and the "access granted"
+    // Approval request to the supervisors/managers who can review a Travel Card
+    // that needs approval (no reports attached). Admin alerts for new access requests and the "access granted"
     // email are sent by submitAccessRequest_/updateAccessRequest_ themselves.
     if (e && e.parameter && e.parameter.action === "notifyCardSubmitted") return notifyCardSubmitted_(e.parameter);
 
@@ -108,7 +115,7 @@ function doPost(e) {
     }
     if (e && e.parameter && e.parameter.action === "updateDynamicUser") {
       if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
-      return updateDynamicUser_(e.parameter.payload);
+      return updateDynamicUser_(e.parameter.payload, verifySession_(e.parameter.session));
     }
     if (e && e.parameter && e.parameter.action === "deleteDynamicUser") {
       if (!isAdminRequest_(e.parameter)) return response({ status: "error", message: "unauthorized" });
@@ -219,7 +226,9 @@ function doPost(e) {
   }
 }
 
-function doGet() {
+function doGet(e) {
+  // The "Stop receiving this report" link in the daily report email (Mail.gs).
+  if (e && e.parameter && e.parameter.action === "stopReport") return stopScheduledReport_(e.parameter);
   return response({ status: "ok", message: "KMC Travel Card endpoint is live." });
 }
 
@@ -750,6 +759,7 @@ const SUBMISSION_HEADERS = [
   "general_comments","unexpected_delay",
   // Who submitted it — lets "My Submissions"/edit find a user's own cards.
   "submitted_by",
+  "work_days",
 ];
 function writeSubmission(ss, d, id) {
   const sh = getOrCreate(ss, "submissions", SUBMISSION_HEADERS);
@@ -767,6 +777,7 @@ function writeSubmission(ss, d, id) {
     general_comments: d.generalComments || "",
     unexpected_delay: d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "",
     submitted_by: d.submittedBy || "",
+    work_days: Array.isArray(d.workDays) && d.workDays.length ? JSON.stringify(d.workDays) : "",
   }]);
 }
 
@@ -922,6 +933,11 @@ function updateSubmission_(d) {
         if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key]);
       }
     });
+    if (d.workDays !== undefined) {
+      // Adds the column on sheets created before per-day hours existed.
+      const wdCol = headerIndex_(sh, ["work_days"]).indexOf("work_days");
+      if (wdCol > -1) sh.getRange(rowNum, wdCol + 1).setValue(Array.isArray(d.workDays) && d.workDays.length ? JSON.stringify(d.workDays) : "");
+    }
     if (d.unexpectedDelay !== undefined) {
       const udCol = headers.indexOf("unexpected_delay");
       if (udCol > -1) sh.getRange(rowNum, udCol + 1).setValue(d.unexpectedDelay ? JSON.stringify(d.unexpectedDelay) : "");
@@ -1060,10 +1076,16 @@ function login_(username, password, remember) {
   const headers = data[0].map(h => String(h).toLowerCase().trim());
   const col = name => headers.indexOf(name);
   const passwordCol = col("password");
+  // People may sign in with their username or with the email on their account.
+  const id = String(username).toLowerCase().trim();
+  const byEmail = id.indexOf("@") > -1;
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     const stored = row[passwordCol];
-    if (String(row[col("username")]).toLowerCase() === String(username).toLowerCase() && verifyPassword_(password, String(stored))) {
+    const matches = byEmail
+      ? String(row[col("email")] || "").toLowerCase().trim() === id
+      : String(row[col("username")]).toLowerCase() === id;
+    if (matches && verifyPassword_(password, String(stored))) {
       if (!isHashedPassword_(String(stored))) {
         sh.getRange(i + 1, passwordCol + 1).setValue(hashPassword_(password));
       }
@@ -1075,6 +1097,135 @@ function login_(username, password, remember) {
   }
   cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), LOGIN_LOCK_SECONDS);
   return response({ status: "error", message: "invalid-credentials" });
+}
+
+// ── Forgot password ───────────────────────────────────────────────────────────
+// 1. requestPasswordReset (username or email) emails a 6-digit code to the email
+//    on the account and answers { delivery: "email" }. When there is no
+//    account or no email on it, it answers { delivery: "admin" } and the site
+//    offers the help request (submitPasswordHelp) that goes to the system admin.
+// 2. resetPassword (same username or email + code + new password) sets it.
+// Codes last 15 minutes and allow 5 tries; 3 code emails per account per hour.
+const RESET_TTL_SECONDS = 900;
+const RESET_MAX_TRIES = 5;
+const PASSWORD_MIN_LENGTH = 8;
+
+// Accounts a username or email points at (an email can be on several accounts).
+function accountsFor_(identifier) {
+  const id = String(identifier || "").toLowerCase().trim();
+  if (!id) return [];
+  return allUsers_().filter(function (u) {
+    return id.indexOf("@") > -1
+      ? String(u.email || "").toLowerCase().trim() === id
+      : String(u.username).toLowerCase() === id;
+  });
+}
+function resetKey_(username) { return "pwreset_" + String(username).toLowerCase(); }
+
+function requestPasswordReset_(params) {
+  const generic = response({ status: "ok", sent: true, delivery: "email" });
+  const toAdmin = response({ status: "ok", sent: false, delivery: "admin" });
+  const accounts = accountsFor_(params.identifier);
+  if (!accounts.length) return toAdmin;
+  const email = String(accounts[0].email || "").trim();
+  if (!email || !MAIL_EMAIL_RE.test(email)) return toAdmin;
+  if (!mailRateOk_("pwreset_" + String(params.identifier).toLowerCase().trim(), 3)) return generic;
+
+  if (accounts.length > 1) {
+    mailSend_({
+      to: [email], subject: "[KMC Tracker] Password reset",
+      html: mailCard_("#f59e0b", "Password Reset", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+        mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0;">This email is on more than one account (' +
+          accounts.map(function (a) { return "<strong>" + mailEsc_(a.username) + "</strong>"; }).join(", ") +
+          "). Go back to the sign-in page, choose <strong>Forgot password?</strong> and enter the username of the account you want to reset.</p>")),
+    });
+    return generic;
+  }
+
+  const u = accounts[0];
+  const n = parseInt(Utilities.getUuid().replace(/-/g, "").slice(0, 8), 16) % 1000000;
+  const code = ("000000" + n).slice(-6);
+  CacheService.getScriptCache().put(resetKey_(u.username), JSON.stringify({ h: sign_(u.username + "|" + code), t: 0 }), RESET_TTL_SECONDS);
+  mailSend_({
+    to: [email], subject: "[KMC Tracker] Your password reset code",
+    html: mailCard_("#dc2626", "Password Reset", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+      mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Hi ' + mailEsc_(u.fullName || u.username) +
+        ", use this code to set a new password for <strong>" + mailEsc_(u.username) + "</strong>. It expires in 15 minutes.</p>" +
+        '<p style="font-family:monospace;font-size:28px;letter-spacing:.3em;color:#fff;margin:0;">' + code + "</p>" +
+        '<p style="color:#64748b;font-size:11px;margin:12px 0 0;">If you did not ask for this, ignore this email; your password stays the same.</p>')),
+  });
+  return generic;
+}
+
+// Help request from the sign-in page when a reset code cannot be emailed: sent
+// to the production mailbox (MAIL_FROM) with a link that opens the account in
+// User Management, where a system admin can set a new password.
+function submitPasswordHelp_(params) {
+  const d = (function () { try { return JSON.parse(params.payload || "{}"); } catch (err) { return {}; } })();
+  const clip = function (v, n) { return String(v == null ? "" : v).trim().slice(0, n); };
+  const name = clip(d.fullName, 100), id = clip(d.identifier, 100), contact = clip(d.contact, 120), message = clip(d.message, 1000);
+  if (!name || !id || !contact) return response({ status: "error", message: "missing-fields" });
+  if (!mailRateOk_("pwhelp_" + id.toLowerCase(), 3) || !mailRateOk_("pwhelp_all", 30)) {
+    return response({ status: "error", message: "too-many-requests" });
+  }
+  const accounts = accountsFor_(id);
+  const e = function (v) { return mailEsc_(v || "—"); };
+  const rows = [
+    ["Name given", e(name)],
+    ["Username / email given", e(id), "font-family:monospace;"],
+    ["How to reach them", e(contact)],
+    ["Matching account", accounts.length
+      ? accounts.map(function (a) { return mailEsc_(a.username) + " (" + mailEsc_(a.fullName || "no name") + ", " + mailEsc_(a.role) + (a.email ? ", " + mailEsc_(a.email) : ", no email") + ")"; }).join("<br>")
+      : "None found — check the spelling with them"],
+  ];
+  if (message) rows.push(["Message", e(message)]);
+  const link = MAIL_APP_URL + (accounts.length === 1 ? "/?manage=" + encodeURIComponent(accounts[0].username) : "/?manage=");
+  try {
+    mailSend_({
+      to: [MAIL_FROM], subject: "[KMC Tracker] Password help request — " + id,
+      html: mailCard_("#dc2626", "Password Help Request", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+        mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 14px;">Someone could not reset their password by email and asked the system admin for help.</p>' + mailTable_(rows)) +
+        '<p style="color:#94a3b8;font-size:12px;">Confirm who they are, then set a new password for the account in User Management and tell them.</p>' +
+        '<div style="text-align:center;margin:14px 0;"><a href="' + mailEsc_(link) + '" style="display:inline-block;background:#dc2626;color:#fff;font-weight:700;font-size:13px;text-decoration:none;padding:11px 20px;border-radius:6px;">Open this account in User Management →</a></div>'),
+    });
+  } catch (err) {
+    return response({ status: "error", message: String(err && err.message || err).slice(0, 200) });
+  }
+  return response({ status: "ok" });
+}
+
+function resetPassword_(params) {
+  const bad = response({ status: "error", message: "invalid-code" });
+  const accounts = accountsFor_(params.identifier);
+  if (accounts.length !== 1) return bad;
+  const u = accounts[0];
+  const pw = String(params.password || "");
+  if (pw.length < PASSWORD_MIN_LENGTH) return response({ status: "error", message: "weak-password" });
+  const cache = CacheService.getScriptCache();
+  let entry = null;
+  try { entry = JSON.parse(cache.get(resetKey_(u.username)) || "null"); } catch (err) { entry = null; }
+  if (!entry) return bad;
+  if (entry.h !== sign_(u.username + "|" + String(params.code || "").trim())) {
+    entry.t = (entry.t || 0) + 1;
+    if (entry.t >= RESET_MAX_TRIES) cache.remove(resetKey_(u.username));
+    else cache.put(resetKey_(u.username), JSON.stringify(entry), RESET_TTL_SECONDS);
+    return bad;
+  }
+  cache.remove(resetKey_(u.username));
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  const uCol = headers.indexOf("username"), pCol = headers.indexOf("password");
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][uCol]).toLowerCase() === String(u.username).toLowerCase()) {
+      sh.getRange(i + 1, pCol + 1).setValue(hashPassword_(pw));
+      break;
+    }
+  }
+  // A forgotten password often comes after a lock-out: clear it.
+  cache.remove("loginfail_" + String(u.username).toLowerCase().slice(0, 60));
+  if (u.email) cache.remove("loginfail_" + String(u.email).toLowerCase().trim().slice(0, 60));
+  return response({ status: "ok", username: u.username });
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -1388,10 +1539,21 @@ function createDynamicUser_(payload) {
 // overwritten when explicitly included (a non-empty new password) — omitting
 // it (the normal case) leaves the stored password untouched, since reads
 // never send it back to any client.
-function updateDynamicUser_(payload) {
+// `newUsername` renames the account (system admin only); the old name is also
+// replaced on that person's travel cards, open tasks and report schedules.
+function updateDynamicUser_(payload, actor) {
   let d;
   try { d = JSON.parse(payload); } catch (err) { return response({ status: "error", message: "bad-json" }); }
   if (!d.username) return response({ status: "error", message: "missing-username" });
+  if (d.email !== undefined && d.email !== "" && !/^[^@\s<>(),;:"]+@[^@\s<>(),;:"]+\.[^@\s<>(),;:"]{2,}$/.test(String(d.email).trim())) {
+    return response({ status: "error", message: "invalid-email" });
+  }
+  let newName = d.newUsername !== undefined ? String(d.newUsername).trim().toLowerCase() : "";
+  if (newName === String(d.username).toLowerCase()) newName = "";
+  if (newName) {
+    if (!actor || actor.role !== "systemadmin") return response({ status: "error", message: "only-systemadmin-can-rename" });
+    if (!/^[a-z0-9._-]{3,40}$/.test(newName)) return response({ status: "error", message: "invalid-username" });
+  }
   const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
   if (!sh) return response({ status: "error", message: "no-sheet" });
   const data = sh.getDataRange().getValues();
@@ -1407,9 +1569,17 @@ function updateDynamicUser_(payload) {
   const jsonFieldMap = { productionLines: "production_lines", assignedLines: "assigned_lines", assignedStations: "assigned_stations", roles: "roles" };
   const boolFieldMap = { canAccessTracker: "can_access_tracker" };
 
+  if (newName && data.some(function (r, i) { return i > 0 && String(r[usernameCol]).toLowerCase() === newName; })) {
+    return response({ status: "error", message: "username-taken" });
+  }
+
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][usernameCol]).toLowerCase() === d.username.toLowerCase()) {
       const rowNum = i + 1;
+      if (newName) {
+        sh.getRange(rowNum, usernameCol + 1).setValue(newName);
+        renameUserEverywhere_(String(data[i][usernameCol]), newName);
+      }
       if (d.password !== undefined && d.password !== "") {
         const colIdx = headers.indexOf("password");
         if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(hashPassword_(d.password));
@@ -1432,10 +1602,33 @@ function updateDynamicUser_(payload) {
           if (colIdx > -1) sh.getRange(rowNum, colIdx + 1).setValue(d[key] === false ? "NO" : "YES");
         }
       });
-      return response({ status: "ok", username: d.username });
+      return response({ status: "ok", username: newName || d.username });
     }
   }
   return response({ status: "error", message: "user-not-found" });
+}
+
+// Replaces a renamed account's old username in the tracker sheet (travel cards'
+// submitted_by, open tasks' owner) and in report schedules (createdBy).
+function renameUserEverywhere_(oldName, newName) {
+  const lower = String(oldName).toLowerCase();
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  [["submissions", "submitted_by"], [TRAVEL_TASKS_TAB, "owner"]].forEach(function (pair) {
+    const sh = ss.getSheetByName(pair[0]);
+    if (!sh) return;
+    const data = sh.getDataRange().getValues();
+    const c = data[0].map(function (h) { return String(h).toLowerCase().trim(); }).indexOf(pair[1]);
+    if (c < 0) return;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][c]).toLowerCase() === lower) sh.getRange(i + 1, c + 1).setValue(newName);
+    }
+  });
+  if (typeof reportSchedules_ === "function") {
+    const list = reportSchedules_();
+    let changed = false;
+    list.forEach(function (x) { if (String(x.createdBy).toLowerCase() === lower) { x.createdBy = newName; changed = true; } });
+    if (changed) saveReportSchedules_(list);
+  }
 }
 
 function deleteDynamicUser_(username) {

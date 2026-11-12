@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { LOGO_WHITE, LOGO_DARK } from '../../data/logoData.js';
@@ -6,17 +6,7 @@ import { buildSlidePDF } from '../../export/buildSlidePDF';
 import { buildPDF } from '../../export/buildPDF';
 import { summarizeFilters, summarizeFiltersText } from '../../utils/filterSummary';
 import { sendViaAppsScript } from '../../data/mailer.js';
-
-// ── localStorage schedule helpers ────────────────────────────
-const SCHEDULES_KEY = 'kmc_email_schedules';
-
-function loadSchedules() {
-  try { return JSON.parse(localStorage.getItem(SCHEDULES_KEY) || '[]'); }
-  catch { return []; }
-}
-function saveSchedules(list) {
-  localStorage.setItem(SCHEDULES_KEY, JSON.stringify(list));
-}
+import { listReportSchedules, saveReportSchedule, cancelReportSchedule, forgetLocalSchedules, describeSchedule } from '../../data/reportSchedules.js';
 
 async function captureElement(el, landscape = false) {
   const canvas = await html2canvas(el, {
@@ -55,20 +45,23 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
   const [status, setStatus]               = useState(null);
   const [emailStartDate, setEmailStartDate] = useState('');
   const [emailEndDate,   setEmailEndDate]   = useState('');
-  const [savedSchedules, setSavedSchedules] = useState(loadSchedules);
+  // Schedules live on the server (Apps Script), so they run without a browser
+  // open and show the same on every device.
+  const [savedSchedules, setSavedSchedules] = useState([]);
 
-  function refreshSchedules() { setSavedSchedules(loadSchedules()); }
+  async function refreshSchedules() {
+    try { setSavedSchedules(await listReportSchedules()); }
+    catch { /* list is a convenience; Send Now still works */ }
+  }
+  useEffect(() => { forgetLocalSchedules(); refreshSchedules(); }, []);
 
-  function cancelSchedule(id) {
-    const updated = loadSchedules().filter(s => s.id !== id);
-    saveSchedules(updated);
+  async function cancelSchedule(id) {
+    try { await cancelReportSchedule(id); setStatus({ ok: true, msg: 'Schedule cancelled ✓' }); }
+    catch (e) { setStatus({ ok: false, msg: `Could not cancel: ${e.message}` }); }
     refreshSchedules();
   }
 
-  function cancelAllSchedules() {
-    saveSchedules([]);
-    refreshSchedules();
-  }
+  function cancelAllSchedules() { return cancelSchedule('all'); }
 
   function getFilteredRows() {
     if (!emailStartDate && !emailEndDate) return rows;
@@ -87,6 +80,24 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
   async function handleSend() {
     if (!to.trim()) { setStatus({ ok: false, msg: 'Enter at least one recipient.' }); return; }
     setBusy(true); setStatus(null);
+    if (schedule !== 'now') {
+      // Saved on the server; each run builds the report from live data then.
+      try {
+        const saved = await saveReportSchedule({
+          kind: 'dashboard', to: to.trim(),
+          subject: subject.trim() || 'KMC Bus Production Dashboard Report',
+          schedule, scheduledTime, weekday: schedule === 'weekly' ? weekday : null,
+          dataStartDate: emailStartDate || null, dataEndDate: emailEndDate || null,
+          filterSummary,
+        });
+        setStatus({ ok: true, msg: `Scheduled: ${describeSchedule(saved)} (Kampala time) ✓` });
+        refreshSchedules();
+      } catch (e) {
+        setStatus({ ok: false, msg: `Could not schedule: ${e.message}` });
+      }
+      setBusy(false);
+      return;
+    }
     try {
       const filteredRows = getFilteredRows();
       const date = new Date().toISOString().slice(0, 10);
@@ -133,8 +144,6 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
 
       const result = await postEmailRequest({
         to: to.trim(), subject: subject.trim() || 'KMC Bus Production Dashboard Report',
-        schedule, scheduledTime: schedule !== 'now' ? scheduledTime : null,
-        weekday: schedule === 'weekly' ? weekday : null,
         busCount: buses.length, attachments,
         filterSummary,
         filters,
@@ -144,31 +153,12 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
         totalDowntimeMin:  metrics.totalDowntimeMin  ?? null,
       });
 
-      if (schedule !== 'now' && !result.fallback) {
-        const entry = {
-          id:        Date.now().toString(),
-          to:        to.trim(),
-          subject:   subject.trim(),
-          schedule,
-          scheduledTime,
-          weekday:   schedule === 'weekly' ? weekday : null,
-          startDate: emailStartDate || null,
-          endDate:   emailEndDate   || null,
-          filterSummary,
-          createdAt: new Date().toISOString(),
-        };
-        saveSchedules([...loadSchedules(), entry]);
-        refreshSchedules();
-      }
-
       setStatus({
         ok: true,
         msg: result.fallback
           ? `Mail client opened — ${attachments.length} attachment(s) included in payload (PNG + 2 PDFs). Attach manually if needed.`
-          : schedule === 'now'
-            ? `Report sent to ${(result.accepted || []).join(', ') || to.trim()} with ${attachments.length} attachment(s) ✓` +
-              (result.rejected?.length ? ` — not delivered to: ${result.rejected.join(', ')}` : '')
-            : `Scheduled: ${schedule === 'daily' ? `Daily at ${scheduledTime}` : `Every ${weekday} at ${scheduledTime}`} ✓`,
+          : `Report sent to ${(result.accepted || []).join(', ') || to.trim()} with ${attachments.length} attachment(s) ✓` +
+            (result.rejected?.length ? ` — not delivered to: ${result.rejected.join(', ')}` : ''),
       });
     } catch (e) {
       setStatus({ ok: false, msg: `Send failed: ${e.message}` });
@@ -382,13 +372,13 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(6,182,212,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
-            ⚙ Server-Side Scheduled Send (Vercel)
+            ⚙ How Daily and Weekly sends work
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5 }}>
-            A Vercel Cron Job runs at <strong style={{ color: 'var(--text-primary)' }}>07:00 UTC daily</strong> and automatically generates fresh PDFs + Excel from live Google Sheets data, then emails them to the addresses set in the <code style={{ background: 'rgba(255,255,255,0.07)', padding: '1px 5px', borderRadius: 3, fontSize: 10 }}>SCHEDULED_EMAIL_TO</code> Vercel environment variable. No browser session needed.
+            The schedule is saved on the tracker's server and sent at the chosen time (Kampala) without a browser open. Each send is built from live data: Slide PDF, Dashboard PDF and Excel, limited to the data range above if you set one. Dashboard filters apply to Send Now only.
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em' }}>
-            Use <strong>Send Now</strong> below for an immediate on-demand send (includes the cover PNG from your browser). The Vercel send runs independently in the cloud and includes 3 attachments: Slide PDF, Dashboard PDF, Excel.
+            Every scheduled email has a <strong>Stop receiving this report</strong> link, and you can cancel a schedule below at any time.
           </div>
         </div>
 
@@ -518,7 +508,8 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
                       )}
                     </div>
                     <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 4 }}>
-                      Created {new Date(s.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      Created {new Date(s.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} by {s.createdBy}
+                      {s.lastSent ? ` · last sent ${s.lastSent}` : ' · not sent yet'}
                     </div>
                   </div>
 

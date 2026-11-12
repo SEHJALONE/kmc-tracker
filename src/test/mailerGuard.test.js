@@ -19,10 +19,10 @@ describe('sendViaAppsScript guard', () => {
   it('sends once the script answers the probe like the current one', async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce({ json: async () => ({ status: 'error', message: 'unauthorized' }) })
-      .mockResolvedValueOnce({ json: async () => ({ status: 'ok', confirmedTo: 'me@kmc.example' }) });
+      .mockResolvedValueOnce({ json: async () => ({ status: 'ok', approvers: 1 }) });
     vi.stubGlobal('fetch', fetch);
     const { sendViaAppsScript } = await import('../data/mailer');
-    expect(await sendViaAppsScript('notifyCardSubmitted', { vin: 'X' })).toMatchObject({ confirmedTo: 'me@kmc.example' });
+    expect(await sendViaAppsScript('notifyCardSubmitted', { vin: 'X' })).toMatchObject({ approvers: 1 });
     expect(String(fetch.mock.calls[1][1].body)).toContain('payload');
   });
 });

@@ -57,7 +57,8 @@ export function useDynamicUsers() {
       const body = new URLSearchParams({ action: 'createDynamicUser', ...sessionParam(), payload: JSON.stringify(user) });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
-      return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
+      if (json.status !== 'ok') fetchUsers();   // undo the optimistic change
+      return json.status === 'ok' ? { ok: true, username: json.username } : { ok: false, error: json.message };
     } catch (e) {
       return { ok: false, error: e.message };
     } finally {
@@ -69,19 +70,22 @@ export function useDynamicUsers() {
   // patch when the admin entered a new one (>= 8 chars) — omitting it leaves
   // the stored password untouched server-side, since it's never read back.
   const updateUser = useCallback(async (username, patch) => {
-    setUsers(prev => { const next = prev.map(u => u.username === username ? { ...u, ...patch } : u); saveCache(next); return next; });
+    // `newUsername` renames the account; show it under the new name right away.
+    const { newUsername, ...fields } = patch;
+    setUsers(prev => { const next = prev.map(u => u.username === username ? { ...u, ...fields, username: newUsername || u.username } : u); saveCache(next); return next; });
     setSaving(true);
     try {
       const body = new URLSearchParams({ action: 'updateDynamicUser', ...sessionParam(), payload: JSON.stringify({ username, ...patch }) });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
-      return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
+      if (json.status !== 'ok') fetchUsers();   // undo the optimistic change
+      return json.status === 'ok' ? { ok: true, username: json.username } : { ok: false, error: json.message };
     } catch (e) {
       return { ok: false, error: e.message };
     } finally {
       if (mounted.current) setSaving(false);
     }
-  }, []);
+  }, [fetchUsers]);
 
   const deleteUser = useCallback(async (username) => {
     setUsers(prev => { const next = prev.filter(u => u.username !== username); saveCache(next); return next; });
@@ -89,7 +93,8 @@ export function useDynamicUsers() {
       const body = new URLSearchParams({ action: 'deleteDynamicUser', ...sessionParam(), username });
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
-      return json.status === 'ok' ? { ok: true } : { ok: false, error: json.message };
+      if (json.status !== 'ok') fetchUsers();   // undo the optimistic change
+      return json.status === 'ok' ? { ok: true, username: json.username } : { ok: false, error: json.message };
     } catch (e) {
       return { ok: false, error: e.message };
     }

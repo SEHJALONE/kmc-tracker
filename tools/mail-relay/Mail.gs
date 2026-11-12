@@ -8,10 +8,10 @@
  * 2. File → New → Script, name it "Mail", and paste this whole file. The main
  *    file must be Code-with-email.gs (its doPost already routes to this one).
  * 3. Add kmcproductiondept@gmail.com as a "Send mail as" address (see MAIL_FROM below).
- *    Run runScheduledReport once from the editor and accept the "Send email as you"
+ *    Run checkSender once from the editor and accept the "Send email as you"
  *    permission prompt (only needed the first time; adds the gmail.send scope).
- *    (Also needs the "connect to an external service" permission — it fetches the
- *    daily report from the site. Run runScheduledReport once to grant it.)
+ *    The daily report stays off until installDailyReportTrigger is run (see
+ *    "Scheduled daily report"); a trigger left from an older version removes itself.
  * 4. Run installTravelTaskReminderTrigger once (reminders to close open
  *    Start/End travel cards; see the bottom of this file).
  * 5. Deploy → Manage deployments → pencil → Version: New version → Deploy.
@@ -23,13 +23,17 @@
  *                          (sent by submitAccessRequest_ once the request is stored)
  *   Access approved      → the applicant (sent by updateAccessRequest_ when an
  *                          administrator first marks the request approved)
- *   Travel card filed    → the signed-in submitter, with the station report and
- *                          the full bus report attached; and, while it awaits
- *                          review, its approvers (notifyCardSubmitted_)
+ *   Travel card filed    → only when it needs approval: its approvers, with a
+ *                          short summary and no reports attached
+ *                          (notifyCardSubmitted_). The submitter gets nothing.
  *   Open task reminder   → the task's owner, at the expected end of the station
  *                          time and every 6 hours after (runTravelTaskReminders)
  *   Report buttons       → whoever the signed-in sender types (sendReportEmail_)
- *   Daily 07:00 report   → the saved list (see "Scheduled daily report")
+ *   Daily 07:00 report   → the saved list, only while switched on, each with a
+ *                          stop link (see "Scheduled daily report")
+ *   Daily/weekly reports → the recipients saved with each schedule from the
+ *                          site's email boxes, each with a stop link (see
+ *                          "Daily / weekly report schedules")
  *
  * Limits: MailApp allows ~100 recipients/day on a consumer Gmail account and
  * ~1,500/day on Google Workspace; 25 MB per message.
@@ -287,16 +291,17 @@ function cardApproverEmails_(stationCode, lineId, submitter) {
 function notifyCardSubmitted_(params) {
   const user = verifySession_(params.session);
   if (!user) return mailError_("unauthorized");
-  if (!mailRateOk_("cardmail_" + String(user.username).toLowerCase(), 40)) return mailError_("Too many emails from this account in the last hour.");
   const d = mailPayload_(params);
   if (!d.stationCode && !d.vin) return mailError_("Missing required fields.");
+  const status = String(d.approvalStatus || "");
+  // Only cards that need a decision send anything; nothing goes to the submitter.
+  if (CARD_PENDING_STATUSES.indexOf(status) === -1) return response({ status: "ok", approvers: 0 });
+  if (!mailRateOk_("cardmail_" + String(user.username).toLowerCase(), 40)) return mailError_("Too many emails from this account in the last hour.");
 
   const me = userRecord_(user.username) || {};
   const e = function (s) { return mailEsc_(String(s == null || s === "" ? "—" : s).slice(0, 300)); };
-  const attachments = mailAttachments_(d.attachments);
   const acts = d.activities || {};
-  const status = String(d.approvalStatus || "");
-  const statusLabel = { pending_review: "Pending review", pending: "Needs further review", rejected: "Rejected / rework", approved: "Approved" }[status] || status || "Pending review";
+  const statusLabel = { pending_review: "Pending review", pending: "Needs further review", rejected: "Rejected / rework" }[status] || "Pending review";
   const timeRow = d.designedTime ? e(d.actualTime) + " min of " + e(d.designedTime) + " min designed" : e(d.actualTime) + " min";
   const summary = mailTable_([
     ["Project", e(d.project)],
@@ -310,45 +315,23 @@ function notifyCardSubmitted_(params) {
     ["Status", e(statusLabel), "font-weight:700;"],
     ["Filed by", e(me.fullName || d.submittedBy || user.username)],
   ]);
-  const files = attachments.length
-    ? '<p style="color:#64748b;font-size:11px;margin:12px 0 0;font-family:monospace;">Attached: ' + attachments.map(function (b) { return mailEsc_(b.getName()); }).join(" · ") + "</p>"
-    : "";
   const subjectTail = String(d.stationCode || "") + " · " + String(d.vin || "").slice(0, 40);
 
-  const result = { status: "ok", confirmedTo: "", approvers: 0 };
-  const errors = [];
-  if (me.email && MAIL_EMAIL_RE.test(me.email)) {
-    try {
-      mailSend_({
-        to: [me.email], attachments: attachments,
-        subject: "[KMC Tracker] Travel card received — " + subjectTail,
-        html: mailCard_("#10b981", "Travel Card Received", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
-          mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 14px;">Hi ' + mailEsc_(me.fullName || user.username) +
-            ", your travel card has been saved. The station report and the full bus report are attached." +
-            (CARD_PENDING_STATUSES.indexOf(status) > -1 ? " Your supervisor has been asked to review it." : "") + "</p>" + summary + files)),
-      });
-      result.confirmedTo = me.email;
-    } catch (err) { errors.push(String(err && err.message || err)); }
+  const approvers = cardApproverEmails_(d.stationCode, d.lineId, user.username);
+  if (!approvers.length) return response({ status: "ok", approvers: 0 });
+  try {
+    mailSend_({
+      to: [approvers[0]], bcc: approvers.slice(1),
+      subject: "[KMC Tracker] Approval needed — " + subjectTail,
+      html: mailCard_("#f59e0b", "Travel Card Awaiting Approval", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+        mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 14px;">A travel card is waiting for your review.</p>' + summary) +
+        '<p style="color:#fcd34d;font-size:12px;">Sign in and open <strong>Pending Reviews</strong> to approve it or send it back.</p>' +
+        mailButton_("Open Pending Reviews", "#f59e0b")),
+    });
+  } catch (err) {
+    return mailError_(String(err && err.message || err).slice(0, 300));
   }
-  if (CARD_PENDING_STATUSES.indexOf(status) > -1) {
-    const approvers = cardApproverEmails_(d.stationCode, d.lineId, user.username);
-    if (approvers.length) {
-      try {
-        mailSend_({
-          to: [approvers[0]], bcc: approvers.slice(1), attachments: attachments,
-          subject: "[KMC Tracker] Approval needed — " + subjectTail,
-          html: mailCard_("#f59e0b", "Travel Card Awaiting Approval", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
-            mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 14px;">A travel card is waiting for your review.</p>' + summary + files) +
-            '<p style="color:#fcd34d;font-size:12px;">Sign in and open <strong>Pending Reviews</strong> to approve it or send it back.</p>' +
-            mailButton_("Open Pending Reviews", "#f59e0b")),
-        });
-        result.approvers = approvers.length;
-      } catch (err) { errors.push(String(err && err.message || err)); }
-    }
-  }
-  if (errors.length && !result.confirmedTo && !result.approvers) return mailError_(errors[0].slice(0, 300));
-  if (!me.email) result.note = "no-email-on-account";
-  return response(result);
+  return response({ status: "ok", approvers: approvers.length });
 }
 
 // ── Reminders to close open Start/End tasks ───────────────────────────────────
@@ -436,9 +419,19 @@ function runTravelTaskReminders(nowMs) {
 //   1. setScheduledReportRecipients("a@kmc.com, b@kmc.com")
 //   2. installDailyReportTrigger()        — every day at 07:00 Kampala time
 //   3. runScheduledReport()               — optional test: sends one right now
-// Change the list later by running step 1 again. To stop the daily email, run
-// removeDailyReportTrigger().
+// Change the list later by running step 1 again.
+//
+// SWITCHING IT OFF
+//   • deactivateScheduledReports() stops the daily email for everyone. The
+//     recipient list is kept, so installDailyReportTrigger() turns it back on.
+//   • Every report email carries a "Stop receiving this report" link. It takes
+//     that one recipient off the list, and switches the report off when nobody
+//     is left.
+//   • A daily trigger left over from before Nov 2026 switches itself off: the
+//     report only sends while installDailyReportTrigger() has marked it active,
+//     and a trigger without that mark removes itself the next time it fires.
 const REPORT_PARTS = ["slide", "dashboard", "workbook"];
+const REPORT_ACTIVE_KEY = "scheduled_report_active";
 
 function setScheduledReportRecipients(list) {
   const r = mailRecipients_(list);
@@ -452,6 +445,7 @@ function setScheduledReportRecipients(list) {
 function installDailyReportTrigger() {
   removeDailyReportTrigger();
   ScriptApp.newTrigger("runScheduledReport").timeBased().everyDays(1).atHour(7).inTimezone("Africa/Kampala").create();
+  PropertiesService.getScriptProperties().setProperty(REPORT_ACTIVE_KEY, "1");
   Logger.log("Daily report scheduled for 07:00 Kampala time.");
 }
 
@@ -461,8 +455,74 @@ function removeDailyReportTrigger() {
   });
 }
 
+// Stops the daily email for everyone. The recipient list is kept.
+function deactivateScheduledReports() {
+  removeDailyReportTrigger();
+  PropertiesService.getScriptProperties().deleteProperty(REPORT_ACTIVE_KEY);
+  Logger.log("Daily report switched off. Run installDailyReportTrigger() to switch it back on.");
+}
+
+// Stop-link token for one recipient of the 07:00 report (sid empty) or of one
+// site schedule (sid = its id), so nobody can take someone else off.
+function reportStopToken_(email, sid) {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty("report_stop_secret");
+  if (!secret) { secret = Utilities.getUuid() + Utilities.getUuid(); props.setProperty("report_stop_secret", secret); }
+  const msg = (sid ? String(sid) + "|" : "") + String(email).trim().toLowerCase();
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(msg, secret)).replace(/=+$/, "");
+}
+
+function reportStopUrl_(email, sid) {
+  let base = "";
+  try { base = ScriptApp.getService().getUrl() || ""; } catch (err) { base = ""; }
+  if (!base) return "";
+  return base + "?action=stopReport&email=" + encodeURIComponent(email) +
+    (sid ? "&sid=" + encodeURIComponent(sid) : "") + "&token=" + reportStopToken_(email, sid);
+}
+
+// GET ?action=stopReport&email=…[&sid=…]&token=… (the link in the email). Returns a page.
+function stopScheduledReport_(params) {
+  const email = String(params.email || "").trim().toLowerCase();
+  const sid = String(params.sid || "");
+  const ok = !!email && !!params.token && params.token === reportStopToken_(email, sid);
+  let msg;
+  if (!ok) {
+    msg = "This link is not valid. Ask an administrator to take you off this report.";
+  } else if (sid) {
+    const lock = LockService.getScriptLock(); lock.waitLock(10000);
+    try {
+      const list = reportSchedules_();
+      const out = [];
+      list.forEach(function (s) {
+        if (s.id === sid) s.to = s.to.filter(function (a) { return a.toLowerCase() !== email; });
+        if (s.to.length) out.push(s);
+      });
+      saveReportSchedules_(out);
+    } finally { lock.releaseLock(); }
+    msg = mailEsc_(email) + " will no longer receive this scheduled KMC report.";
+  } else {
+    const props = PropertiesService.getScriptProperties();
+    const left = mailRecipients_(props.getProperty("scheduled_report_to")).valid
+      .filter(function (a) { return a.toLowerCase() !== email; });
+    if (left.length) props.setProperty("scheduled_report_to", left.join(","));
+    else { props.deleteProperty("scheduled_report_to"); deactivateScheduledReports(); }
+    msg = mailEsc_(email) + " will no longer receive the KMC daily production report.";
+  }
+  return HtmlService.createHtmlOutput(
+    '<div style="font-family:Arial,sans-serif;max-width:480px;margin:60px auto;padding:24px;border-top:3px solid #dc2626;">' +
+    '<h2 style="margin:0 0 12px;">KMC Bus Production Tracker</h2><p>' + msg + "</p></div>"
+  ).setTitle("KMC scheduled report");
+}
+
 function runScheduledReport() {
   const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(REPORT_ACTIVE_KEY) !== "1") {
+    // A trigger from before the on/off switch existed, or one left behind after
+    // switching off: remove it instead of sending.
+    removeDailyReportTrigger();
+    Logger.log("Daily report is switched off; removed its trigger. Run installDailyReportTrigger() to switch it on.");
+    return;
+  }
   const to = mailRecipients_(props.getProperty("scheduled_report_to")).valid;
   if (!to.length) throw new Error("No recipients: run setScheduledReportRecipients(\"a@kmc.com, b@kmc.com\") first.");
 
@@ -476,26 +536,209 @@ function runScheduledReport() {
   });
 
   const date = Utilities.formatDate(new Date(), "Africa/Kampala", "yyyy-MM-dd");
-  const html =
-    '<div style="font-family:Arial,sans-serif;background:#07090f;color:#e2e8f0;padding:32px;max-width:600px;margin:0 auto;border-radius:8px;">' +
-      '<div style="border-top:3px solid #dc2626;padding-top:20px;margin-bottom:24px;">' +
-        '<h1 style="color:#fff;font-size:20px;margin:0 0 4px;letter-spacing:.1em;text-transform:uppercase;">KMC Bus Production Tracker</h1>' +
-        '<p style="color:#475569;font-size:12px;margin:0;font-family:monospace;">Scheduled Report · ' + mailEsc_(mailKampalaNow_()) + "</p>" +
-      "</div>" +
-      '<div style="background:rgba(13,21,38,.8);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:20px;">' +
-        '<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Please find attached the latest KMC Bus Production Dashboard report.</p>' +
-        '<p style="color:#64748b;font-size:12px;margin:0;font-family:monospace;">Buses on floor: <strong style="color:#f1f5f9;">' + mailEsc_(busCount) + "</strong></p>" +
-        '<p style="color:#64748b;font-size:12px;margin:8px 0 0;font-family:monospace;">Attachments: Slide PDF · Dashboard PDF · Excel Workbook</p>' +
-      "</div>" +
-    "</div>";
-
-  mailSend_({
-    to: to,
-    subject: props.getProperty("scheduled_report_subject") || "KMC Bus Production Report — " + date,
-    html: html,
-    attachments: attachments,
+  const subject = props.getProperty("scheduled_report_subject") || "KMC Bus Production Report — " + date;
+  // One email per recipient, so each stop link only removes that person.
+  to.forEach(function (addr) {
+    const stopUrl = reportStopUrl_(addr);
+    const stop = stopUrl
+      ? '<p style="color:#475569;font-size:11px;margin:16px 0 0;font-family:monospace;">You get this report every day at 07:00. ' +
+        '<a href="' + mailEsc_(stopUrl) + '" style="color:#f87171;">Stop receiving this report</a></p>'
+      : "";
+    const html =
+      '<div style="font-family:Arial,sans-serif;background:#07090f;color:#e2e8f0;padding:32px;max-width:600px;margin:0 auto;border-radius:8px;">' +
+        '<div style="border-top:3px solid #dc2626;padding-top:20px;margin-bottom:24px;">' +
+          '<h1 style="color:#fff;font-size:20px;margin:0 0 4px;letter-spacing:.1em;text-transform:uppercase;">KMC Bus Production Tracker</h1>' +
+          '<p style="color:#475569;font-size:12px;margin:0;font-family:monospace;">Scheduled Report · ' + mailEsc_(mailKampalaNow_()) + "</p>" +
+        "</div>" +
+        '<div style="background:rgba(13,21,38,.8);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:20px;">' +
+          '<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Please find attached the latest KMC Bus Production Dashboard report.</p>' +
+          '<p style="color:#64748b;font-size:12px;margin:0;font-family:monospace;">Buses on floor: <strong style="color:#f1f5f9;">' + mailEsc_(busCount) + "</strong></p>" +
+          '<p style="color:#64748b;font-size:12px;margin:8px 0 0;font-family:monospace;">Attachments: Slide PDF · Dashboard PDF · Excel Workbook</p>' +
+        "</div>" + stop +
+      "</div>";
+    mailSend_({ to: [addr], subject: subject, html: html, attachments: attachments });
   });
   Logger.log("Scheduled report sent to " + to.join(", "));
+}
+
+// ── Daily / weekly report schedules (set up from the site) ───────────────────
+// The Daily and Weekly options in the site's email boxes save a schedule here
+// (saveReportSchedule_). A 15-minute trigger (runReportSchedules) sends each
+// schedule once on its day, at or just after its time (Kampala), with the
+// report built from live data by the site's /api/build-report. The trigger is
+// installed by the first saved schedule, so no editor step is needed.
+//
+// Switching them off: the creator (or an admin) cancels one in the site's
+// email box; each recipient can stop it with the link in the email; and
+// deactivateAllReportSchedules() switches every schedule off from the editor.
+const REPORT_SCHEDULES_KEY = "report_schedules";
+const REPORT_SCHEDULE_FN = "runReportSchedules";
+const REPORT_DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const REPORT_MAX_PER_USER = 10;
+const KAMPALA_OFFSET_MS = 3 * 3600000; // Uganda is UTC+3 all year
+
+function reportSchedules_() {
+  try { const v = JSON.parse(PropertiesService.getScriptProperties().getProperty(REPORT_SCHEDULES_KEY) || "[]"); return Array.isArray(v) ? v : []; }
+  catch (err) { return []; }
+}
+function saveReportSchedules_(list) {
+  PropertiesService.getScriptProperties().setProperty(REPORT_SCHEDULES_KEY, JSON.stringify(list));
+}
+function ensureReportScheduleTrigger_() {
+  const has = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === REPORT_SCHEDULE_FN; });
+  if (!has) ScriptApp.newTrigger(REPORT_SCHEDULE_FN).timeBased().everyMinutes(15).create();
+}
+function isReportAdmin_(user) { return ADMIN_ROLES.indexOf(user.role) > -1; }
+
+// What the site shows: no internal fields.
+function publicSchedule_(s) {
+  return { id: s.id, kind: s.kind, to: s.to.join(", "), subject: s.subject, schedule: s.schedule,
+    scheduledTime: s.time, weekday: s.weekday || null, startDate: s.from || null, endDate: s.to_date || null,
+    filterSummary: s.filterSummary || "", createdBy: s.createdBy, createdAt: s.createdAt, lastSent: s.lastSent || "" };
+}
+
+function saveReportSchedule_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return mailError_("unauthorized");
+  const d = mailPayload_(params);
+  const r = mailRecipients_(d.to);
+  if (r.invalid.length) return mailError_("Not a valid email address: " + r.invalid.join(", "));
+  if (!r.valid.length) return mailError_("Enter at least one recipient.");
+  if (r.valid.length > MAIL_MAX_RECIPIENTS) return mailError_("At most " + MAIL_MAX_RECIPIENTS + " recipients.");
+  const schedule = String(d.schedule || "");
+  if (schedule !== "daily" && schedule !== "weekly") return mailError_("Choose Daily or Weekly.");
+  const time = String(d.scheduledTime || "");
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return mailError_("Choose a send time.");
+  const weekday = schedule === "weekly" ? String(d.weekday || "").toUpperCase() : "";
+  if (schedule === "weekly" && REPORT_DAYS.indexOf(weekday) === -1) return mailError_("Choose a day of the week.");
+  const isDate = function (v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")); };
+
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const list = reportSchedules_();
+    const mine = list.filter(function (s) { return String(s.createdBy).toLowerCase() === String(user.username).toLowerCase(); });
+    if (mine.length >= REPORT_MAX_PER_USER) return mailError_("You already have " + REPORT_MAX_PER_USER + " schedules. Cancel one first.");
+    const s = {
+      id: Utilities.getUuid(), kind: d.kind === "scoreboard" ? "scoreboard" : "dashboard",
+      to: r.valid, subject: String(d.subject || "KMC Bus Production Report").slice(0, 200),
+      schedule: schedule, time: time, weekday: weekday,
+      from: isDate(d.dataStartDate) ? d.dataStartDate : "", to_date: isDate(d.dataEndDate) ? d.dataEndDate : "",
+      filterSummary: String(d.filterSummary || "").slice(0, 300),
+      createdBy: String(user.username), createdAt: new Date().toISOString(), lastSent: "",
+    };
+    list.push(s);
+    saveReportSchedules_(list);
+    ensureReportScheduleTrigger_();
+    return response({ status: "ok", schedule: publicSchedule_(s) });
+  } finally { lock.releaseLock(); }
+}
+
+function listReportSchedules_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return mailError_("unauthorized");
+  const all = isReportAdmin_(user);
+  const list = reportSchedules_().filter(function (s) {
+    return all || String(s.createdBy).toLowerCase() === String(user.username).toLowerCase();
+  });
+  return response({ status: "ok", schedules: list.map(publicSchedule_) });
+}
+
+// id = one schedule; id "all" = every schedule this user may cancel.
+function cancelReportSchedule_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return mailError_("unauthorized");
+  const id = String(mailPayload_(params).id || params.id || "");
+  if (!id) return mailError_("Missing schedule.");
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const mayCancel = function (s) { return isReportAdmin_(user) || String(s.createdBy).toLowerCase() === String(user.username).toLowerCase(); };
+    const list = reportSchedules_();
+    const keep = list.filter(function (s) { return !(mayCancel(s) && (id === "all" || s.id === id)); });
+    if (keep.length === list.length) return mailError_("Schedule not found, or not yours to cancel.");
+    saveReportSchedules_(keep);
+    return response({ status: "ok", removed: list.length - keep.length });
+  } finally { lock.releaseLock(); }
+}
+
+// Run from the editor to switch every site schedule off (the list is cleared).
+function deactivateAllReportSchedules() {
+  saveReportSchedules_([]);
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === REPORT_SCHEDULE_FN) ScriptApp.deleteTrigger(t);
+  });
+  Logger.log("Every daily/weekly report schedule is switched off.");
+}
+
+function kampalaParts_(ms) {
+  const k = new Date(ms + KAMPALA_OFFSET_MS);
+  const pad = function (n) { return (n < 10 ? "0" : "") + n; };
+  return { date: k.toISOString().slice(0, 10), hhmm: pad(k.getUTCHours()) + ":" + pad(k.getUTCMinutes()), day: REPORT_DAYS[k.getUTCDay()] };
+}
+
+// The report files for a date range, fetched once per run and shared.
+function reportAttachments_(from, to, cache) {
+  const key = (from || "") + "|" + (to || "");
+  if (cache[key]) return cache[key];
+  let busCount = "—";
+  const range = (from ? "&from=" + from : "") + (to ? "&to=" + to : "");
+  const files = REPORT_PARTS.map(function (part) {
+    const res = UrlFetchApp.fetch(MAIL_APP_URL + "/api/build-report?part=" + part + range, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error("The report service answered " + res.getResponseCode() + " for " + part + ".");
+    busCount = res.getHeaders()["X-Bus-Count"] || busCount;
+    const m = /filename="([^"]+)"/.exec(res.getHeaders()["Content-Disposition"] || "");
+    return res.getBlob().setName(m ? m[1] : "KMC_" + part);
+  });
+  cache[key] = { files: files, busCount: busCount };
+  return cache[key];
+}
+
+function scheduledReportHtml_(s, busCount, stopUrl) {
+  const when = s.schedule === "daily" ? "every day at " + s.time : "every " + s.weekday + " at " + s.time;
+  const range = s.from || s.to_date ? (s.from || "start") + " → " + (s.to_date || "today") : "";
+  return '<div style="font-family:Arial,sans-serif;background:#07090f;color:#e2e8f0;padding:32px;max-width:600px;margin:0 auto;border-radius:8px;">' +
+    '<div style="border-top:3px solid #dc2626;padding-top:20px;margin-bottom:24px;">' +
+      '<h1 style="color:#fff;font-size:20px;margin:0 0 4px;letter-spacing:.1em;text-transform:uppercase;">KMC Bus Production Tracker</h1>' +
+      '<p style="color:#475569;font-size:12px;margin:0;font-family:monospace;">Scheduled Report · ' + mailEsc_(mailKampalaNow_()) + "</p>" +
+    "</div>" +
+    '<div style="background:rgba(13,21,38,.8);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:20px;">' +
+      '<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Please find attached the latest KMC Bus Production report, built from live data.</p>' +
+      '<p style="color:#64748b;font-size:12px;margin:0;font-family:monospace;">Buses on floor: <strong style="color:#f1f5f9;">' + mailEsc_(busCount) + "</strong></p>" +
+      (range ? '<p style="color:#64748b;font-size:12px;margin:8px 0 0;font-family:monospace;">Data range: <strong style="color:#f1f5f9;">' + mailEsc_(range) + "</strong></p>" : "") +
+      '<p style="color:#64748b;font-size:12px;margin:8px 0 0;font-family:monospace;">Attachments: Slide PDF · Dashboard PDF · Excel Workbook</p>' +
+      (s.kind === "scoreboard" ? '<p style="margin:14px 0 0;">' + mailButton_("Open the live scoreboard", "#dc2626") + "</p>" : "") +
+    "</div>" +
+    '<p style="color:#475569;font-size:11px;margin:16px 0 0;font-family:monospace;">Scheduled by ' + mailEsc_(s.createdBy) + ", sent " + mailEsc_(when) + " (Kampala)." +
+      (stopUrl ? ' <a href="' + mailEsc_(stopUrl) + '" style="color:#f87171;">Stop receiving this report</a>' : "") + "</p>" +
+  "</div>";
+}
+
+// Time trigger, every 15 minutes. nowMs is for tests.
+function runReportSchedules(nowMs) {
+  const k = kampalaParts_(typeof nowMs === "number" ? nowMs : Date.now());
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  let sent = 0;
+  try {
+    const list = reportSchedules_();
+    const cache = {};
+    list.forEach(function (s) {
+      if (s.lastSent === k.date) return;
+      if (s.schedule === "weekly" && s.weekday !== k.day) return;
+      if (k.hhmm < s.time) return;
+      try {
+        const rep = reportAttachments_(s.from, s.to_date, cache);
+        s.to.forEach(function (addr) {
+          mailSend_({ to: [addr], subject: s.subject, html: scheduledReportHtml_(s, rep.busCount, reportStopUrl_(addr, s.id)), attachments: rep.files });
+          sent++;
+        });
+        s.lastSent = k.date; s.lastError = "";
+      } catch (err) {
+        s.lastError = String(err && err.message || err).slice(0, 200);
+        Logger.log("Schedule " + s.id + " failed: " + s.lastError);
+      }
+    });
+    saveReportSchedules_(list);
+  } finally { lock.releaseLock(); }
+  return sent;
 }
 
 // Run from the editor to see who the emails will come from. "Send mail as" must

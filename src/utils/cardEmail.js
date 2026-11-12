@@ -1,8 +1,6 @@
-// After a Travel Card is filed: build the station report and the full bus report
-// as PDFs and hand them to the Apps Script, which emails the submitter a
-// confirmation and asks the card's approvers to review it (recipients are chosen
-// server-side from the accounts sheet — see notifyCardSubmitted_ in Mail.gs).
-import { downloadStationReport, downloadBusReport, stationReportFileName, busReportFileName } from '../export/travelCardReport';
+// After a Travel Card is filed and needs approval, the Apps Script emails the
+// card's approvers (chosen server-side from the accounts sheet — see
+// notifyCardSubmitted_ in Mail.gs). busCardsFor also feeds the bus report download.
 import { fetchSubmissions } from '../hooks/useSubmissionsData';
 import { SEED_STATIONS } from '../data/stations';
 import { sendViaAppsScript } from '../data/mailer';
@@ -23,7 +21,6 @@ export async function busCardsFor(vin) {
   return [...fromSheet, ...local.filter(c => !seen.has(`${c.stationCode}|${c.timestamp}`))];
 }
 
-const pdfDataUrl = pdf => 'data:application/pdf;base64,' + btoa(pdf.output());
 const when = iso => (iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 export function cardEmailSummary(sub) {
@@ -43,26 +40,21 @@ export function cardEmailSummary(sub) {
   };
 }
 
-// Resolves with the server's reply ({ confirmedTo, approvers, note? }); rejects
-// with a message fit to show. A report that fails to render is left out rather
-// than stopping the email.
-export async function emailCardReports(sub) {
-  const attachments = [];
-  try {
-    attachments.push({ filename: stationReportFileName(sub), dataUrl: pdfDataUrl(await downloadStationReport(sub, { save: false })) });
-  } catch (e) { console.warn('Card email: station report failed', e); }
-  try {
-    const cards = await busCardsFor(sub.vin);
-    attachments.push({ filename: busReportFileName(sub.vin), dataUrl: pdfDataUrl(await downloadBusReport(cards.length ? cards : [sub], { vin: sub.vin, save: false })) });
-  } catch (e) { console.warn('Card email: bus report failed', e); }
-  return sendViaAppsScript('notifyCardSubmitted', { ...cardEmailSummary(sub), attachments });
+// Cards that still need a supervisor's or manager's decision. Only these send
+// an email, and only to the approvers: no confirmation to the submitter and no
+// station or bus report attached.
+export const CARD_NEEDS_APPROVAL = ['pending_review', 'pending', 'rejected', ''];
+export const needsApproval = sub => CARD_NEEDS_APPROVAL.includes(String(sub?.approvalStatus ?? ''));
+
+// Resolves with the server's reply ({ approvers }), or null when the card needs
+// no approval; rejects with a message fit to show.
+export async function notifyApprovers(sub) {
+  if (!needsApproval(sub)) return null;
+  return sendViaAppsScript('notifyCardSubmitted', cardEmailSummary(sub));
 }
 
 // One line for the Done page.
 export function describeCardEmail(reply) {
-  const parts = [];
-  if (reply.confirmedTo) parts.push(`confirmation sent to ${reply.confirmedTo}`);
-  else if (reply.note === 'no-email-on-account') parts.push('no confirmation sent (your account has no email address — ask an admin to add one)');
-  if (reply.approvers) parts.push(`${reply.approvers} approver${reply.approvers === 1 ? '' : 's'} notified`);
-  return parts.length ? `📧 ${parts.join(' · ')}` : '📧 Nothing to send.';
+  if (reply?.approvers) return `📧 ${reply.approvers} approver${reply.approvers === 1 ? '' : 's'} asked to review this card`;
+  return '';
 }

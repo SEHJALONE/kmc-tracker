@@ -1,32 +1,59 @@
 import { describe, it, expect } from 'vitest';
-import { workingMinutes, recomputeActual } from '../utils/workTime';
+import { workingMinutes, recomputeActual, defaultWorkDays, mergeWorkDays } from '../utils/workTime';
 
 const d = s => new Date(s.replace(' ', 'T'));
 
 describe('working time', () => {
-  it('weekday daytime is elapsed minus breaks', () => {
+  it('within one day everything counts except the scheduled breaks', () => {
     // Tue 2026-09-29 08:00 → 12:00 includes the 10:00–10:30 tea break
     expect(workingMinutes(d('2026-09-29 08:00'), d('2026-09-29 12:00'))).toMatchObject({ gross: 240, counted: 240, breaks: 30, net: 210 });
+    // Before 07:00 and after 18:00 count too
+    expect(workingMinutes(d('2026-09-29 05:30'), d('2026-09-29 07:00')).net).toBe(90);
+    expect(workingMinutes(d('2026-09-29 17:00'), d('2026-09-29 20:00')).net).toBe(180);
+    // Saturday and Sunday work on the day it happened counts in full
+    expect(workingMinutes(d('2026-09-26 14:00'), d('2026-09-26 17:00')).net).toBe(180);
+    expect(workingMinutes(d('2026-09-27 08:00'), d('2026-09-27 09:00')).net).toBe(60);
   });
-  it('weekday nights count nothing', () => {
-    expect(workingMinutes(d('2026-09-29 18:00'), d('2026-09-30 08:00')).net).toBe(0);
-    expect(workingMinutes(d('2026-09-29 16:00'), d('2026-09-30 09:00'))).toMatchObject({ gross: 1020, counted: 180, net: 180 });
+
+  it('prefills each day of a multi-day card with the usual hours', () => {
+    // Fri 15:00 → Mon 09:00
+    const days = defaultWorkDays(d('2026-09-25 15:00'), d('2026-09-28 09:00'));
+    expect(days.map(x => [x.date, x.worked, x.start, x.end])).toEqual([
+      ['2026-09-25', true, '15:00', '18:00'],   // clock-in day, usual end
+      ['2026-09-26', true, '08:00', '14:00'],   // Saturday
+      ['2026-09-27', false, '08:00', '14:00'],  // Sunday: not worked unless said
+      ['2026-09-28', true, '07:00', '09:00'],   // clock-out day, usual start
+    ]);
   });
-  it('Sunday counts nothing', () => {
-    expect(workingMinutes(d('2026-09-27 08:00'), d('2026-09-27 17:00')).net).toBe(0);
+
+  it('a multi-day card counts the prefilled hours, or what was entered', () => {
+    const start = d('2026-09-25 15:00'), end = d('2026-09-28 09:00');
+    // Fri 15–18 (180) + Sat 08–14 (360 − 30 tea − 60 lunch = 270) + Sun 0 + Mon 07–09 (120)
+    expect(workingMinutes(start, end).net).toBe(180 + 270 + 120);
+    const entered = [
+      { date: '2026-09-25', worked: true, start: '15:00', end: '20:00' },  // stayed late Friday
+      { date: '2026-09-26', worked: true, start: '08:00', end: '16:00' },  // worked after 2 pm Saturday
+      { date: '2026-09-27', worked: true, start: '09:00', end: '12:00' },  // came in Sunday
+    ];
+    // Fri 300 + Sat (480 − 90 = 390) + Sun (180 − 30 = 150) + Mon 120
+    expect(workingMinutes(start, end, entered).net).toBe(300 + 390 + 150 + 120);
   });
-  it('Saturday counts 08:00–13:00 only (tea break removed)', () => {
-    expect(workingMinutes(d('2026-09-26 07:00'), d('2026-09-26 18:00'))).toMatchObject({ counted: 300, breaks: 30, net: 270 });
-    expect(workingMinutes(d('2026-09-26 14:00'), d('2026-09-26 17:00')).net).toBe(0);
+
+  it('keeps the clock-in and clock-out ends fixed whatever was entered', () => {
+    const days = mergeWorkDays(defaultWorkDays(d('2026-09-29 16:00'), d('2026-09-30 09:00')),
+      [{ date: '2026-09-29', worked: false, start: '01:00', end: '19:00' }]);
+    expect(days[0]).toMatchObject({ worked: true, start: '16:00', end: '19:00' });
   });
-  it('a Fri→Mon span skips Sunday and trims Saturday', () => {
-    const w = workingMinutes(d('2026-09-25 10:15'), d('2026-09-28 17:45'));
-    // Fri 10:15–18:00 (465 − 15 tea − 60 lunch = 390) + Sat 270 + Sun 0 + Mon 08:00–17:45 (585 − 90 = 495)
-    expect(w.net).toBe(390 + 270 + 495);
-    expect(w.gross).toBe(4770);
+
+  it('work that starts after the usual end runs to midnight by default', () => {
+    const days = defaultWorkDays(d('2026-09-29 19:00'), d('2026-09-30 02:00'));
+    expect(days.map(x => [x.start, x.end])).toEqual([['19:00', '23:59'], ['00:00', '02:00']]);
+    expect(workingMinutes(d('2026-09-29 19:00'), d('2026-09-30 02:00')).net).toBe(420);
   });
-  it('recomputes a stored card from clock-in + recorded elapsed minutes', () => {
-    expect(recomputeActual('2026-09-25 10:15', 4770).net).toBe(1155);
+
+  it('recomputes a stored card from clock-in + recorded elapsed minutes (+ its days)', () => {
+    expect(recomputeActual('2026-09-25 15:00', 3960).net).toBe(570);
+    expect(recomputeActual('2026-09-25 15:00', 3960, [{ date: '2026-09-27', worked: true, start: '09:00', end: '12:00' }]).net).toBe(720);
     expect(recomputeActual('', 30)).toBeNull();
     expect(recomputeActual('2026-09-25 10:15', 0)).toBeNull();
   });
@@ -106,10 +133,10 @@ describe('addWorkingMinutes', () => {
     const hhmm = d => `${d.getDay()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     // Monday 2026-10-12 09:30 + 60 working min → tea 10:00–10:30 skipped → 11:00
     expect(hhmm(addWorkingMinutes(new Date(2026, 9, 12, 9, 30), 60))).toBe('1 11:00');
-    // Monday 17:30 + 60 → 30 today, 30 Tuesday from 08:00 → Tue 08:30
-    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 12, 17, 30), 60))).toBe('2 08:30');
-    // Saturday 12:30 + 60 → 30 Saturday, Sunday skipped → Monday 08:30
-    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 17, 12, 30), 60))).toBe('1 08:30');
+    // Monday 17:30 + 60 → 30 today, 30 Tuesday from 07:00 → Tue 07:30
+    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 12, 17, 30), 60))).toBe('2 07:30');
+    // Saturday 12:30 + 60 → 30 Saturday, Sunday skipped → Monday 07:30
+    expect(hhmm(addWorkingMinutes(new Date(2026, 9, 17, 12, 30), 60))).toBe('1 07:30');
     expect(addWorkingMinutes(new Date(), 0)).toBeNull();
   });
 });

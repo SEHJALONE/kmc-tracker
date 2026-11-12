@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SignUpModal from './SignUpModal';
 import LoginHelp from './LoginHelp';
+import ForgotPassword from './ForgotPassword';
 import { CATALOG_WRITE_URL } from '../data/catalogConfig';
 import { setSession } from '../data/session';
 
@@ -13,13 +14,14 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
   const [loading,  setLoading]  = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
   const handleSubmit = async () => {
     setError('');
     if (!username.trim() || !password) {
-      setError('Please enter your username and password.');
+      setError('Please enter your username or email, and your password.');
       return;
     }
     setLoading(true);
@@ -88,7 +90,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
     } else {
       setError(json && json.message === 'too-many-attempts'
         ? 'Too many wrong attempts. Please wait 10 minutes, then try again.'
-        : 'Incorrect username or password.');
+        : 'Incorrect username/email or password.');
       setLoading(false);
     }
   };
@@ -304,12 +306,12 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
             fontFamily: "'Inter', system-ui, sans-serif",
             marginBottom: 7,
           }}>
-            Username
+            Username or email
           </label>
           <input
             className="login-input"
             type="text"
-            placeholder="Enter username"
+            placeholder="Enter username or email"
             value={username}
             onChange={e => setUsername(e.target.value)}
             onKeyDown={handleKey}
@@ -351,7 +353,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           </div>
         </div>
 
-        {/* Remember me */}
+        {/* Remember me + forgot password */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 24 }}>
           <input
             className="remember-check"
@@ -369,6 +371,13 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           }}>
             Keep me signed in
           </label>
+          <button
+            type="button"
+            onClick={() => setShowForgot(true)}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 13, color: 'var(--accent-text)', fontFamily: "'Inter', system-ui, sans-serif" }}
+          >
+            Forgot password?
+          </button>
         </div>
 
         {/* Submit */}
@@ -419,6 +428,13 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
 
     {showSignUp && <SignUpModal theme={theme} onClose={() => setShowSignUp(false)} />}
     {showHelp && <LoginHelp theme={theme} onClose={() => setShowHelp(false)} />}
+    {showForgot && (
+      <ForgotPassword
+        initialIdentifier={username}
+        onClose={() => setShowForgot(false)}
+        onDone={id => { setShowForgot(false); setUsername(id); setPassword(''); setError(''); }}
+      />
+    )}
   </>
   );
 }

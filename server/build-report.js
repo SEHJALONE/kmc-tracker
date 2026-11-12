@@ -1,5 +1,5 @@
 /**
- * GET /api/build-report?part=slide|dashboard|workbook
+ * GET /api/build-report?part=slide|dashboard|workbook[&from=YYYY-MM-DD][&to=YYYY-MM-DD]
  *
  * Builds one scheduled-report file from the live Google Sheet and returns it as
  * a download. It sends no email and needs no key: the data is the same public
@@ -16,6 +16,7 @@ import { LINES, STATIONS, isMajorStation, lookupStation } from '../src/data/stat
 import { isKDC, isEVS } from '../src/export/exportHelpers.js';
 import { parseStationTimes, STATION_TIMES_URL } from '../src/hooks/useStationTimes.js';
 import { LOGO_WHITE, LOGO_DARK } from '../src/data/logoData.js';
+import { isTestVin } from '../src/utils/testData.js';
 
 // ── Google Sheets data URL ──────────────────────────────────────────────────────
 const SHEET_URL =
@@ -62,7 +63,7 @@ function parseCSV(text) {
     const stCode = cells[stationIdx]?.trim().toUpperCase().replace(/\s+/g, '-');
     const ts     = timestampIdx >= 0 ? cells[timestampIdx]?.trim() : '';
 
-    if (!vin || !stCode) continue;
+    if (!vin || !stCode || isTestVin(vin)) continue;
 
     const downtimeRaw = reworkFlagIdx >= 0 ? cells[reworkFlagIdx]?.trim() : null;
     rows.push({
@@ -236,6 +237,18 @@ const PARTS = {
   workbook:  { name: d => `KMC_Dashboard_${d}.xlsx`,   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
 };
 
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+export function rowsInRange(rows, from, to) {
+  const start = DAY_RE.test(from || '') ? new Date(from + 'T00:00:00').getTime() : null;
+  const end   = DAY_RE.test(to || '')   ? new Date(to + 'T23:59:59.999').getTime() : null;
+  if (start === null && end === null) return rows;
+  return rows.filter(r => {
+    const t = new Date(r.rawTimestamp).getTime();
+    if (!r.rawTimestamp || isNaN(t)) return false;
+    return (start === null || t >= start) && (end === null || t <= end);
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
   const part = PARTS[req.query?.part];
@@ -253,15 +266,18 @@ export default async function handler(req, res) {
     const stationTimesRaw = parseStationTimes(stTimesText);
     const stationTimes    = Object.fromEntries(Object.entries(stationTimesRaw).map(([k, v]) => [k, v.minutes]));
     const metrics = computeMetrics(buses, allRows, stationTimes);
+    // A schedule's data range limits the report rows, as "Override Data Range"
+    // does for Send Now in the site's email box. Bus positions stay current.
+    const rows = rowsInRange(allRows, req.query.from, req.query.to);
 
     const date = new Date().toISOString().slice(0, 10);
     let body;
     if (req.query.part === 'slide') {
-      body = Buffer.from((await buildSlidePDF(buses, allRows, metrics, LOGO_DARK)).output('arraybuffer'));
+      body = Buffer.from((await buildSlidePDF(buses, rows, metrics, LOGO_DARK)).output('arraybuffer'));
     } else if (req.query.part === 'dashboard') {
-      body = Buffer.from((await buildPDF(buses, allRows, metrics, LOGO_WHITE)).output('arraybuffer'));
+      body = Buffer.from((await buildPDF(buses, rows, metrics, LOGO_WHITE)).output('arraybuffer'));
     } else {
-      body = Buffer.from(XLSX.write(buildWorkbook(buses, allRows, metrics), { bookType: 'xlsx', type: 'buffer' }));
+      body = Buffer.from(XLSX.write(buildWorkbook(buses, rows, metrics), { bookType: 'xlsx', type: 'buffer' }));
     }
 
     res.setHeader('Content-Type', part.type);

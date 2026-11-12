@@ -50,7 +50,8 @@ export function loadScripts(sources, { aliases = [], quota = 100 } = {}) {
     Logger: { log() {} },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ setMimeType() { return this; }, getContent: () => s }) },
     CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v), deleteProperty: k => props.delete(k) }) },
+    HtmlService: { createHtmlOutput: h => ({ setTitle() { return this; }, getContent: () => h }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     SpreadsheetApp: { openById: id => (id.startsWith('1TS2') ? sheets.priv : sheets.tracker) },
     Utilities: {
@@ -73,14 +74,15 @@ export function loadScripts(sources, { aliases = [], quota = 100 } = {}) {
       getAliases: () => aliases,
       sendEmail: (to, subject, _text, o) => mail.push({ to: split(to), bcc: split(o.bcc), subject, html: o.htmlBody, attachments: o.attachments || [], from: o.from }),
     },
-    ScriptApp: { getProjectTriggers: () => [], newTrigger: () => noop, deleteTrigger() {} },
+    ScriptApp: { getProjectTriggers: () => [], newTrigger: () => noop, deleteTrigger() {}, getService: () => ({ getUrl: () => 'https://script.example/exec' }) },
     UrlFetchApp: { fetch: noop },
     Session: { getEffectiveUser: () => ({ getEmail: () => 'owner@example.com' }) },
   };
   runInNewContext(sources.join('\n;\n'), sandbox);
   const call = async params => JSON.parse(sandbox.doPost({ parameter: params }).getContent());
   return {
-    sandbox, sheets, mail, call, cache,
+    sandbox, sheets, mail, call, cache, props,
+    get: params => sandbox.doGet({ parameter: params }).getContent(),
     rows: name => (sheets.priv.getSheetByName(name) || sheets.tracker.getSheetByName(name))?.rows ?? [],
   };
 }

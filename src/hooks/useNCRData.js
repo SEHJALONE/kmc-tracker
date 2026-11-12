@@ -1,3 +1,4 @@
+import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 
 const SHEET_ID = '1npt7Tf2yFVZxb93wsFxj3SGLuTLFMVc2GQBTdaMw_es';
@@ -75,6 +76,7 @@ function parseNCRCSV(text) {
     const c = parseCells(lines[i]);
     const id = idxId >= 0 ? c[idxId]?.trim() : null;
     if (!id) continue;
+    if (idxVin >= 0 && isTestVin(c[idxVin])) continue;
     rows.push({
       id,
       timestamp:        idxTs       >= 0 ? c[idxTs]?.trim()       || null : null,

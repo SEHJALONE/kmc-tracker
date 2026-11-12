@@ -1,4 +1,5 @@
 import { recomputeActual } from '../utils/workTime';
+import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback } from 'react';
 
 // Reads Travel Card submissions live from NI Travel Tool Data — the sheet-of-
@@ -44,11 +45,11 @@ export function parseCSV(text) {
 }
 
 // Actual/break minutes under the CURRENT working-time rules (no Sundays, Saturday
-// 08:00–13:00), re-derived from the raw clock-in + elapsed minutes so cards filed
+// 07:00–13:00), re-derived from the raw clock-in + elapsed minutes so cards filed
 // before the rule change line up with new ones. The sheet is never touched, and
 // the originally recorded figures stay available as recordedActualTime/-Break.
-function timingFor(clockIn, actual, gross, brk) {
-  const w = recomputeActual(clockIn, gross);
+function timingFor(clockIn, actual, gross, brk, workDays) {
+  const w = recomputeActual(clockIn, gross, workDays);
   return {
     actualTime: w ? w.net : actual,
     grossTime: gross,
@@ -152,16 +153,23 @@ export async function fetchSubmissions({ withDowntime = false } = {}) {
   const parsed = subCsv.rows.map(r => {
     const id = col(subCsv.headers, r, 'record_id');
     if (!id) return null;
+    // Test cards and blank rows (no VIN and no station) are not production data.
+    const vin = col(subCsv.headers, r, 'vin');
+    if (isTestVin(vin) || (!vin && !col(subCsv.headers, r, 'station_code'))) return null;
     let unexpectedDelay = null;
     const rawDelay = col(subCsv.headers, r, 'unexpected_delay');
     if (rawDelay) { try { unexpectedDelay = JSON.parse(rawDelay); } catch { /* ignore */ } }
+    // Hours worked on each day, for cards that ran over several days.
+    let workDays = null;
+    const rawDays = col(subCsv.headers, r, 'work_days');
+    if (rawDays) { try { workDays = JSON.parse(rawDays); } catch { /* ignore */ } }
     return {
       id,
       recordId: id,
       timestamp: col(subCsv.headers, r, 'timestamp'),
       busModel: col(subCsv.headers, r, 'bus_model'),
       project: col(subCsv.headers, r, 'project'),
-      vin: col(subCsv.headers, r, 'vin'),
+      vin,
       line: col(subCsv.headers, r, 'production_line'),
       station: col(subCsv.headers, r, 'station'),
       stationCode: col(subCsv.headers, r, 'station_code'),
@@ -173,7 +181,9 @@ export async function fetchSubmissions({ withDowntime = false } = {}) {
         Number(col(subCsv.headers, r, 'actual_time_min')) || 0,
         Number(col(subCsv.headers, r, 'gross_time_min')) || 0,
         Number(col(subCsv.headers, r, 'break_min')) || 0,
+        workDays,
       ),
+      workDays,
       designedTime: Number(col(subCsv.headers, r, 'designed_time_min')) || 0,
       hasOverrun: col(subCsv.headers, r, 'has_overrun') === 'YES',
       ohsIssue: col(subCsv.headers, r, 'ohs_issue') || null,

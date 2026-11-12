@@ -1,3 +1,4 @@
+import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { lookupStation } from '../data/stations';
 import { fetchSubmissions } from './useSubmissionsData';
@@ -60,7 +61,7 @@ export function parseCSV(text) {
     const stCode    = cells[stationIdx]?.trim().toUpperCase().replace(/\s+/g, '-');
     const timestamp = timestampIdx >= 0 ? cells[timestampIdx]?.trim() : '';
 
-    if (!vin || !stCode) continue;
+    if (!vin || !stCode || isTestVin(vin)) continue;
 
     // Phase 3 fields — null when column is absent or value is empty
     const designedTime   = designedIdx >= 0 ? (parseFloat(cells[designedIdx])  || null) : null;

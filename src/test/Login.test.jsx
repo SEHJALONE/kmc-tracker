@@ -61,14 +61,14 @@ describe('Login', () => {
   it('shows error when submitting empty fields', () => {
     render(<Login {...defaultProps} />)
     fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
-    expect(screen.getByText(/please enter your username and password/i)).toBeInTheDocument()
+    expect(screen.getByText(/please enter your username or email, and your password/i)).toBeInTheDocument()
   })
 
   it('has no built-in accounts: the old published passwords are rejected', async () => {
     const onLogin = vi.fn()
     render(<Login {...defaultProps} onLogin={onLogin} />)
     fill('systemadmin', 'admin1234!')
-    await waitFor(() => expect(screen.getByText(/incorrect username or password/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/incorrect username\/email or password/i)).toBeInTheDocument())
     expect(onLogin).not.toHaveBeenCalled()
     expect(getSession()).toBeNull()
   })
