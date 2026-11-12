@@ -369,3 +369,18 @@ describe('sign-in by email, forgot password, renaming accounts', () => {
     expect((await login('op.one')).status).toBe('error');
   });
 });
+
+describe('backup export', () => {
+  it('hands the script-only data to the backup job with the right key, and nothing to anyone else', async () => {
+    const env = load();
+    env.sandbox.setScheduledReportRecipients('a@kmc.example');
+    expect((await env.call({ action: 'exportBackup', key: '' })).message).toBe('unauthorized');
+    env.sandbox.setBackupKey();
+    const key = env.props.get('backup_key');
+    expect((await env.call({ action: 'exportBackup', key: key.slice(0, -1) + 'x' })).message).toBe('unauthorized');
+    const r = await env.call({ action: 'exportBackup', key });
+    expect(r.status).toBe('ok');
+    expect(r.properties.scheduled_report_to).toBe('a@kmc.example');
+    expect(JSON.stringify(r)).not.toContain('session_secret');
+  });
+});

@@ -74,6 +74,9 @@ function doPost(e) {
     // ── Email (functions live in the separate Mail file — tools/mail-relay/Mail.gs) ──
     if (e && e.parameter && e.parameter.action === "sendReportEmail") return sendReportEmail_(e.parameter);
     // Daily/weekly report schedules saved from the site's email boxes (Mail.gs).
+    // Nightly off-Google backup (SEHJALONE/kmc-data-backup) reads what this
+    // script keeps outside the sheets. Needs the backup key, nothing else.
+    if (e && e.parameter && e.parameter.action === "exportBackup") return exportBackup_(e.parameter);
     if (e && e.parameter && e.parameter.action === "saveReportSchedule")   return saveReportSchedule_(e.parameter);
     if (e && e.parameter && e.parameter.action === "listReportSchedules")  return listReportSchedules_(e.parameter);
     if (e && e.parameter && e.parameter.action === "cancelReportSchedule") return cancelReportSchedule_(e.parameter);
@@ -1293,6 +1296,38 @@ function isAdminRequest_(p) {
   return !!(p && p.token && legacyTokenEnabled_() && p.token === LEGACY_ADMIN_TOKEN);
 }
 // Run ONCE from the editor after the new site is live: the shared token stops working.
+// ── Backup export ─────────────────────────────────────────────────────────────
+// The nightly backup job copies the sheets itself (read-only service account);
+// this hands it the data that lives only in this script's properties: the
+// daily/weekly report schedules and the 07:00 report settings. Secrets
+// (session and link-signing keys) are never exported: a restored script makes
+// new ones, which only means people sign in again.
+// SET UP: run setBackupKey() once from the editor and copy the key it logs into
+// the backup repository's TRACKER_BACKUP_KEY secret.
+const BACKUP_EXPORT_KEYS = ["report_schedules", "scheduled_report_to", "scheduled_report_active", "scheduled_report_subject"];
+
+function setBackupKey() {
+  const key = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
+  PropertiesService.getScriptProperties().setProperty("backup_key", key);
+  Logger.log("Backup key (copy into the GitHub secret TRACKER_BACKUP_KEY): " + key);
+}
+
+function exportBackup_(params) {
+  const props = PropertiesService.getScriptProperties();
+  const want = props.getProperty("backup_key") || "";
+  const got = String(params.key || "");
+  let diff = want.length === got.length && want.length >= 32 ? 0 : 1;
+  for (let i = 0; i < Math.min(want.length, got.length); i++) diff |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  if (diff !== 0) return response({ status: "error", message: "unauthorized" });
+  const out = {};
+  BACKUP_EXPORT_KEYS.forEach(function (k) {
+    const v = props.getProperty(k);
+    if (v === null) return;
+    try { out[k] = JSON.parse(v); } catch (err) { out[k] = v; }
+  });
+  return response({ status: "ok", exportedAt: new Date().toISOString(), properties: out });
+}
+
 function disableLegacyToken() {
   PropertiesService.getScriptProperties().setProperty("legacy_token_off", "1");
   Logger.log("Legacy shared admin token is now DISABLED.");
