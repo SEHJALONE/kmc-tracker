@@ -2,7 +2,7 @@
 // card's approvers (chosen server-side from the accounts sheet — see
 // notifyCardSubmitted_ in Mail.gs). busCardsFor also feeds the bus report download.
 import { fetchSubmissions } from '../hooks/useSubmissionsData';
-import { SEED_STATIONS } from '../data/stations';
+import { stationLineOf } from '../data/stations';
 import { sendViaAppsScript } from '../data/mailer';
 
 const LS_GET = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
@@ -27,7 +27,7 @@ export function cardEmailSummary(sub) {
   const statuses = Object.values(sub.activityStatuses || {});
   return {
     project: sub.project, busModel: sub.busModel, vin: sub.vin,
-    line: sub.line, lineId: SEED_STATIONS[sub.stationCode]?.line || '',
+    line: sub.line, lineId: stationLineOf(sub.stationCode),
     station: sub.station, stationCode: sub.stationCode, operators: sub.operators || [],
     clockInText: when(sub.clockIn), clockOutText: when(sub.clockOut),
     actualTime: sub.actualTime, designedTime: sub.designedTime,

@@ -1,6 +1,6 @@
 import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { lookupStation } from '../data/stations';
+import { lookupStation, canonicalStationCode } from '../data/stations';
 import { fetchSubmissions } from './useSubmissionsData';
 
 // NI Travel Tool Data → "Travel Card Data" tab.
@@ -94,7 +94,7 @@ export function parseCSV(text) {
 // built from it. Older Travel Card Data rows with no matching submission (from
 // before submissions were kept) are still shown, just without those fields.
 export const normVin = (v) => String(v || '').trim().replace(/^VIN\s+/i, '');
-const normCode = (c) => String(c || '').trim().toUpperCase().replace(/\s+/g, '-');
+const normCode = (c) => canonicalStationCode(c);
 
 export function submissionToRow(s) {
   const ts = s.clockOut || s.timestamp || '';

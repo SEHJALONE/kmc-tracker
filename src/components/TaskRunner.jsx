@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { sameStationCode } from '../data/stations';
 import { resolveTcCatalog, BUS_MODELS, modelKindOf, codeOf } from '../utils/tcCatalog';
 import { stationLabelForModel } from '../data/travelCardSeed';
 import { fetchStationTimes } from '../hooks/useStationTimes';
@@ -80,7 +81,7 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
     for (const code of lockedCodes) {
       let found = null;
       for (const ln of tc.visibleLines(busModel)) {
-        const s = tc.stationsFor(ln, busModel).find(x => codeOf(x) === code);
+        const s = tc.stationsFor(ln, busModel).find(x => sameStationCode(codeOf(x), code));
         if (s) { found = { line: ln, station: s }; break; }
       }
       if (found) out.push(found);
@@ -89,6 +90,10 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
   }, [lockedCodes.join('|'), busModel, tc]);
 
   const stationOptions = lockedCodes.length ? lockedOptions.map(o => o.station) : (line ? tc.stationsFor(line, busModel) : []);
+  // Assigned stations that this bus model does not use (e.g. U-hoop stations on an EVS).
+  const notOnModel = lockedCodes.length && busModel
+    ? lockedCodes.filter(c => !lockedOptions.some(o => sameStationCode(codeOf(o.station), c)))
+    : [];
   const code = codeOf(station);
   const acts = tc.actsFor(code, busModel);
 
@@ -152,6 +157,11 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
             <option value="">Select station…</option>
             {stationOptions.map(s => <option key={s} value={s}>{stationLabelForModel(s, kind)}</option>)}
           </select>
+          {notOnModel.length > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+              Not used on a {busModel}: {notOnModel.join(', ')}. Pick another model to see {notOnModel.length === 1 ? 'it' : 'them'}.
+            </div>
+          )}
         </div>
         <div>
           <label style={lbl}>Designed time (min)</label>

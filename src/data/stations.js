@@ -317,6 +317,18 @@ export function canonicalStationCode(rawCode) {
   return CODE_ALIASES[code] || code;
 }
 
+// The station list (what admins assign people to) and the Travel Card write
+// some codes differently: "B10-01A" / "B10-01a", "T01-02-EE" / "T01-02 EE",
+// "WASHING" / "Washing Bay". Compare codes with this, never with ===.
+export function sameStationCode(a, b) {
+  return !!a && !!b && canonicalStationCode(a) === canonicalStationCode(b);
+}
+
+// The tracker line id (e.g. 'TRIM') for any spelling of a station code.
+export function stationLineOf(rawCode) {
+  return lookupStation(rawCode)?.line || '';
+}
+
 export function lookupStation(rawCode) {
   if (!rawCode) return null;
   const code = canonicalStationCode(rawCode);

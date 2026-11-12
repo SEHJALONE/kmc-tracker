@@ -1,7 +1,7 @@
 import { useSubmissionsData } from '../hooks/useSubmissionsData';
 import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
-import { SEED_STATIONS } from '../data/stations';
+import { stationLineOf } from '../data/stations';
 
 const LINE_IMAGE = {
   MACHINE:  '/Machine Shop.jpg',
@@ -82,7 +82,7 @@ export default function MySubmissions({ onBack, onToggleTheme = null, onEdit, th
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: '100%' }}>
         {mine.map(item => {
-          const lineId = SEED_STATIONS[item.stationCode]?.line;
+          const lineId = stationLineOf(item.stationCode);
           const img = lineId ? LINE_IMAGE[lineId] : null;
           const canEdit = item.approvalStatus !== 'approved';
           return (

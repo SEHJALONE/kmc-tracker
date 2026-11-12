@@ -275,13 +275,21 @@ function notifyAdminsOfRequest_(d) {
 //     none). If nobody matches, the administrators (ADMIN_NOTIFICATION_EMAILS).
 const CARD_PENDING_STATUSES = ["pending_review", "pending", "rejected", ""];
 
+// Station codes are written differently in places ("B10-01a" / "B10-01A",
+// "T01-02 EE" / "T01-02-EE", "Washing Bay" / "WASHING"); compare them like this.
+function stationKey_(code) {
+  const k = String(code || "").trim().toUpperCase().replace(/\s+/g, "-");
+  return k === "WASHING-BAY" ? "WASHING" : k;
+}
+
 function cardApproverEmails_(stationCode, lineId, submitter) {
   const seen = {}, out = [];
+  const want = stationKey_(stationCode);
   allUsers_().forEach(function (u) {
     if (!u.email || !MAIL_EMAIL_RE.test(u.email)) return;
     if (String(u.username).toLowerCase() === String(submitter || "").toLowerCase()) return;
     const stations = u.assignedStations || [], lines = u.assignedLines || [];
-    const ok = (u.role === "supervisor" && (!stations.length || stations.indexOf(stationCode) > -1)) ||
+    const ok = (u.role === "supervisor" && (!stations.length || stations.some(function (s) { return stationKey_(s) === want; }))) ||
                (u.role === "manager" && (!lines.length || (lineId && lines.indexOf(lineId) > -1)));
     if (ok && !seen[u.email.toLowerCase()]) { seen[u.email.toLowerCase()] = true; out.push(u.email); }
   });

@@ -397,3 +397,18 @@ describe('editing a user department', () => {
     expect(u).toMatchObject({ department: 'Quality, Health, Safety and Environment', productionLines: ['Quality'] });
   });
 });
+
+describe('approval emails find supervisors whatever the station spelling', () => {
+  it('a supervisor assigned T01-02-EE is asked to approve a "T01-02 EE" card', async () => {
+    const env = load();
+    await addUser(env, { username: 'op.one', role: 'user', email: 'op@kmc.example' });
+    await addUser(env, { username: 'sup.ee', role: 'supervisor', email: 'sup.ee@kmc.example', assignedStations: ['T01-02-EE'] });
+    await addUser(env, { username: 'sup.uh', role: 'supervisor', email: 'sup.uh@kmc.example', assignedStations: ['B10-01A'] });
+    const session = await signIn(env, 'op.one');
+    const send = code => env.call({ action: 'notifyCardSubmitted', session, payload: JSON.stringify({ vin: 'X1', stationCode: code, approvalStatus: 'pending_review' }) });
+    await send('T01-02 EE');
+    await send('B10-01a');
+    expect([...env.mail[0].to, ...env.mail[0].bcc]).toEqual(['sup.ee@kmc.example']);
+    expect([...env.mail[1].to, ...env.mail[1].bcc]).toEqual(['sup.uh@kmc.example']);
+  });
+});

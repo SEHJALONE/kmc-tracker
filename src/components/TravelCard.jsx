@@ -168,7 +168,7 @@ function appendBusLog(vin, sub) {
 import { useState, useEffect, useRef } from "react";
 import { downloadStationReport, downloadBusReport } from '../export/travelCardReport';
 import { busCardsFor, notifyApprovers, needsApproval, describeCardEmail } from '../utils/cardEmail';
-import { SEED_LINES, SEED_STATIONS, modelFamilyOf } from '../data/stations';
+import { SEED_LINES, SEED_STATIONS, modelFamilyOf, sameStationCode, lookupStation } from '../data/stations';
 import { manpowerFor } from '../data/manpowerAllocation';
 import { useStationPresets, presetFor } from '../hooks/useStationPresets';
 import { workingMinutes, defaultWorkDays, mergeWorkDays } from '../utils/workTime';
@@ -600,7 +600,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       //    variant that matches the current bus model.
       let found = null;
       for (const [lineName, stns] of Object.entries(LINES_L)) {
-        const match = stns.find(s => s.split(":")[0].trim() === code);
+        const match = stns.find(s => sameStationCode(s.split(":")[0].trim(), code));
         if (!match) continue;
         const suffixed = /— (EVS|KDC|KEC)$/.test(lineName);
         if (!suffixed || lineName.endsWith(`— ${kind}`)) { found = { lineName, station: match }; break; }
@@ -610,7 +610,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       //    TC_LINES (welding QA, chassis sub-stations, trim electrics, …).
       //    Derive the line from the seed record and synthesise the station label.
       if (!found) {
-        const seed = SEED_STATIONS[code];
+        const seed = lookupStation(code);
         if (seed) {
           const seedLabel = SEED_LINES.find(l => l.id === seed.line)?.label || "";
           const names = Object.keys(LINES_L);
@@ -618,7 +618,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             names.find(n => n === `${seedLabel} — ${kind}`) ||
             names.find(n => n === seedLabel) ||
             names.find(n => n.startsWith(seedLabel)) || "";
-          found = { lineName, station: `${code}: ${seed.name}` };
+          found = { lineName, station: `${seed.code}: ${seed.name}` };
         }
       }
       return found;

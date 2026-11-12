@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
-import { SEED_STATIONS } from '../data/stations';
+import { sameStationCode, stationLineOf } from '../data/stations';
 import { useSubmissionsData } from '../hooks/useSubmissionsData';
 
 const LINE_IMAGE = {
@@ -43,8 +43,8 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   // director/admin sees everything. Scoped to still-pending items only —
   // already-approved cards don't belong in this queue.
   const pending = submissions.filter(r => PENDING_STATUSES.includes(r.approvalStatus)).filter(r => {
-    if (role === 'supervisor' && assignedStations?.length) return assignedStations.includes(r.stationCode);
-    if (role === 'manager' && assignedLines?.length) return assignedLines.includes(SEED_STATIONS[r.stationCode]?.line);
+    if (role === 'supervisor' && assignedStations?.length) return assignedStations.some(c => sameStationCode(c, r.stationCode));
+    if (role === 'manager' && assignedLines?.length) return assignedLines.includes(stationLineOf(r.stationCode));
     return true;
   });
 
@@ -129,7 +129,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
       {!selected && pending.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: '100%' }}>
           {pending.map(item => {
-            const lineId = SEED_STATIONS[item.stationCode]?.line;
+            const lineId = stationLineOf(item.stationCode);
             const img = lineId ? LINE_IMAGE[lineId] : null;
             return (
               <div key={item.id} onClick={() => openReview(item)} style={{
