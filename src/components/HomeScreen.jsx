@@ -357,7 +357,7 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
             {onSelectJobOrders && (
               <button
                 className="home-card-btn"
-                style={{ backgroundImage: `url('/Machine Shop.jpg'), linear-gradient(135deg, #b45309 0%, #101623 100%)` }}
+                style={{ backgroundImage: `url('/Job order bg.webp'), linear-gradient(135deg, #b45309 0%, #101623 100%)`, backgroundPosition: 'center' }}
                 onClick={onSelectJobOrders}
               >
                 <div className="home-card-overlay">

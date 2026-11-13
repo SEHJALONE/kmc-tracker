@@ -364,7 +364,7 @@ export default function App() {
 
   // Open to anyone who reaches it; changes are refused unless Machine Shop supervisor/admin.
   if (mode === 'job-orders') return (
-    <JobOrdersPage catalog={catalog} theme={theme} onBack={() => setMode('home')} />
+    <JobOrdersPage catalog={catalog} onBack={() => setMode('home')} />
   );
 
   if (mode === 'shop-floor') return (
