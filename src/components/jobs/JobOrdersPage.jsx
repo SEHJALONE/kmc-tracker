@@ -189,11 +189,28 @@ function MaterialsTab({ catalog, jobData }) {
   );
 }
 
-export default function JobOrdersPage({ catalog, onBack }) {
+// The laser cutter photo sits on black, so the page backdrop is black too and the
+// photo is fitted whole (contain), never stretched past its 765×1024 size. A scrim
+// in the theme's base colour keeps headings and panels readable over it.
+function PageBackdrop({ theme }) {
+  const scrim = theme === 'dark' ? 'rgba(7, 9, 15, 0.45)' : 'rgba(241, 245, 249, 0.82)';
+  return (
+    <div aria-hidden="true" style={{
+      position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+      backgroundColor: '#000',
+      backgroundImage: `linear-gradient(${scrim}, ${scrim}), url('/Job order bg.webp')`,
+      backgroundSize: 'cover, contain', backgroundPosition: 'center, center', backgroundRepeat: 'no-repeat',
+    }} />
+  );
+}
+
+export default function JobOrdersPage({ catalog, onBack, theme }) {
   const jobData = useJobData();
   const [tab, setTab] = useState(TABS[0]);
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px 60px', color: 'var(--text-primary)' }}>
+    <>
+    <PageBackdrop theme={theme} />
+    <div style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto', padding: '20px 16px 60px', color: 'var(--text-primary)' }}>
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Machine Shop</div>
       <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: 34, letterSpacing: '.04em', margin: '2px 0 14px', color: 'var(--text-heading)' }}>Job orders</h1>
@@ -210,5 +227,6 @@ export default function JobOrdersPage({ catalog, onBack }) {
       {tab === 'Cut lists' && <CutListsTab jobData={jobData} />}
       {tab === 'Materials & machines' && <MaterialsTab catalog={catalog} jobData={jobData} />}
     </div>
+    </>
   );
 }
