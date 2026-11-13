@@ -1,6 +1,6 @@
 import ThemeSwitch from './ui/ThemeSwitch';
 
-export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onSelectCostEstimation, onSelectMySubmissions, onLogout, theme, toggleTheme, role, canAccessTracker = true, hasCeeAccess = false }) {
+export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews, onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onSelectCostEstimation, onSelectMySubmissions, onSelectTypeApprovals = null, onSelectJobOrders = null, onSelectShopFloor = null, onLogout, theme, toggleTheme, role, canAccessTracker = true, hasCeeAccess = false }) {
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
   const isSystemAdmin = role === 'systemadmin';
   const isSupervisor  = role === 'supervisor';
@@ -333,6 +333,58 @@ export default function HomeScreen({ onSelectTravelCard, onSelectTracker, onSele
                 </div>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Supervision — shop floor (open tasks) and Machine Shop job orders */}
+      {(onSelectShopFloor || onSelectJobOrders) && (
+        <div className="home-section">
+          <div className="home-section-heading">Supervision</div>
+          <div className="home-cards-row">
+            {onSelectShopFloor && (
+              <button
+                className="home-card-btn"
+                style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background.png' : '/Bus background 2.png'}'), linear-gradient(135deg, #16a34a 0%, #101623 100%)` }}
+                onClick={onSelectShopFloor}
+              >
+                <div className="home-card-overlay">
+                  <div className="home-card-title">Shop Floor</div>
+                  <div className="home-card-sub">Who is working where — open tasks and running clocks</div>
+                </div>
+              </button>
+            )}
+            {onSelectJobOrders && (
+              <button
+                className="home-card-btn"
+                style={{ backgroundImage: `url('/Machine Shop.jpg'), linear-gradient(135deg, #b45309 0%, #101623 100%)` }}
+                onClick={onSelectJobOrders}
+              >
+                <div className="home-card-overlay">
+                  <div className="home-card-title">Job Orders</div>
+                  <div className="home-card-sub">Machine Shop · cut lists · machines</div>
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Type Approvals — VIN register per bus project */}
+      {onSelectTypeApprovals && (
+        <div className="home-section">
+          <div className="home-section-heading">Type Approvals</div>
+          <div className="home-cards-row">
+            <button
+              className="home-card-btn"
+              style={{ backgroundImage: `url('${theme === 'dark' ? '/Bus background 4.png' : '/Bus background 3.png'}'), linear-gradient(135deg, #4338ca 0%, #101623 100%)` }}
+              onClick={onSelectTypeApprovals}
+            >
+              <div className="home-card-overlay">
+                <div className="home-card-title">VIN Register</div>
+                <div className="home-card-sub">Upload a project's VINs from a CSV</div>
+              </div>
+            </button>
           </div>
         </div>
       )}

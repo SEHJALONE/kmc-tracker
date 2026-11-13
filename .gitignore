@@ -51,3 +51,7 @@ cad-pipeline/__pycache__/
 
 # Archived email keys (kept locally for later, never committed)
 archive/email-keys/.env*
+
+# Company data kept off GitHub (this repository is public): cut lists, VIN lists.
+# Loaded into the live sheets with tools/load-private-data.mjs.
+private-data/

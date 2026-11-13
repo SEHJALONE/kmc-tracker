@@ -30,7 +30,8 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [help, setHelp] = useState({ fullName: '', contact: '', message: '' });
-  const [noEmail, setNoEmail] = useState(false);   // help reached because no code could be emailed
+  const [noEmail, setNoEmail] = useState('');      // why help was reached: 'no-email' | 'no-account' | 'mail-failed'
+  const [sentInfo, setSentInfo] = useState({ recent: false, from: '', accounts: 1 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,8 +44,8 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
     try {
       const r = await post({ action: 'requestPasswordReset', identifier: identifier.trim().toLowerCase() });
       if (r?.status !== 'ok') setError('Password reset is not available right now. Ask the system admin for help below.');
-      else if (r.delivery === 'admin') { setNoEmail(true); go('help'); }
-      else go('code');
+      else if (r.delivery === 'admin') { setNoEmail(r.reason || 'no-email'); go('help'); }
+      else { setSentInfo({ recent: r.note === 'recent', from: r.from || '', accounts: r.accounts || 1 }); go('code'); }
     } catch { setError(OFFLINE); }
     setBusy(false);
   }
@@ -79,7 +80,7 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
   const note = { fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, margin: '0 0 16px' };
   const linkBtn = { marginTop: 12, width: '100%', background: 'none', border: 'none', color: 'var(--accent-text)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' };
   const onKey = fn => e => { if (e.key === 'Enter') fn(); };
-  const askAdmin = <button type="button" style={linkBtn} onClick={() => { setNoEmail(false); go('help'); }}>Can't reset it yourself? Ask the system admin for help</button>;
+  const askAdmin = <button type="button" style={linkBtn} onClick={() => { setNoEmail(''); go('help'); }}>Can't reset it yourself? Ask the system admin for help</button>;
 
   return createPortal(
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -102,7 +103,13 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
         </>)}
 
         {step === 'code' && (<>
-          <p style={note}>We've emailed a code to the address on <strong>{identifier.trim()}</strong>. It expires in 15 minutes.</p>
+          <p style={note}>
+            {sentInfo.recent
+              ? <>A code was already emailed for <strong>{identifier.trim()}</strong> in the last hour — use that one (it lasts 15 minutes), or wait and ask again.</>
+              : <>We've emailed a code to the address on <strong>{identifier.trim()}</strong>. It expires in 15 minutes.</>}
+            {sentInfo.accounts > 1 && <> That email is on {sentInfo.accounts} accounts, so it lists one code per account: use the one for the account you want.</>}
+            {' '}Not in your inbox? Check <strong>Spam</strong> and <strong>Promotions</strong>{sentInfo.from ? <> for mail from <strong>{sentInfo.from}</strong></> : null}.
+          </p>
           <label style={label}>Code</label>
           <input className="login-input" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6 digits" autoFocus />
           <label style={{ ...label, marginTop: 14 }}>New password</label>
@@ -116,9 +123,9 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
 
         {step === 'help' && (<>
           <p style={note}>
-            {noEmail
-              ? <>There is no email address on file for <strong>{identifier.trim()}</strong>, so we can't send you a code. </>
-              : null}
+            {noEmail === 'no-email' && <>There is no email address on file for <strong>{identifier.trim()}</strong>, so we can't send you a code. </>}
+            {noEmail === 'no-account' && <>We couldn't find an account for <strong>{identifier.trim()}</strong>. Check the spelling, or ask for help. </>}
+            {noEmail === 'mail-failed' && <>The reset email could not be sent just now (the mail service refused it). </>}
             Send this request to the system admin. They will check who you are, set a new password and contact you.
           </p>
           <label style={label}>Your full name</label>

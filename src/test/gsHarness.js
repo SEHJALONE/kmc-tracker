@@ -15,6 +15,13 @@ class Sheet {
   appendRow(r) { this.rows.push([...r]); return this; }
   getDataRange() { return { getValues: () => this.rows.map(r => [...r]) }; }
   getRange(r, c, nr = 1, nc = 1) {
+    if (typeof r === 'string') {   // A1 notation, e.g. "A1:B1"
+      const col = l => [...l].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
+      const m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/.exec(r);
+      const [c1, r1] = [col(m[1]), Number(m[2])];
+      const [c2, r2] = m[3] ? [col(m[3]), Number(m[4])] : [c1, r1];
+      return this.getRange(r1, c1, r2 - r1 + 1, c2 - c1 + 1);
+    }
     const self = this;
     const api = {
       getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => (self.rows[r - 1 + i] || [])[c - 1 + j] ?? '')),
@@ -25,6 +32,8 @@ class Sheet {
     return new Proxy(api, { get: (t, k) => (k in t ? t[k] : noop) });
   }
   deleteRow(n) { this.rows.splice(n - 1, 1); }
+  clear() { this.rows = []; return this; }
+  clearContents() { this.rows = []; return this; }
   setFrozenRows() {} autoResizeColumns() {}
 }
 

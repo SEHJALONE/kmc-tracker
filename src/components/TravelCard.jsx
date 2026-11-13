@@ -690,6 +690,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     (taskPrefill.activities || []).forEach(a => { if (a.doneAt) done[a.name] = "complete"; });
     setActStatuses(done);
     setOtherActs((taskPrefill.activities || []).filter(a => a.added).map(a => a.name));
+    if (taskPrefill.jobOrderId) {
+      const vins = (taskPrefill.vins || []).filter(Boolean);
+      setGenComments(g => g || `Machine Shop job order ${taskPrefill.jobOrderId}${vins.length ? ` — VINs: ${vins.join(", ")}` : ""}.`);
+    }
     setClockIn(isoToLocalInput(taskPrefill.startedAt));
     setClockOut(taskPrefill.endedAt || new Date().toISOString());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -719,7 +723,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // shared (from the catalog, admin-managed) merged with locally-remembered ones
   // (which carry no model tag, so they always show once a project is picked).
   const catalogFleet = (curProj && catalog.projectVins && catalog.projectVins[curProj]) || [];
-  const catalogVinsForModel = catalogFleet.filter(v => v && v.vin && (!busModel || v.model === busModel)).map(v => v.vin);
+  const catalogVinsForModel = catalogFleet.filter(v => v && v.vin && (!busModel || !v.model || v.model === busModel)).map(v => v.vin);
   const localVins = (curProj && projects[curProj] && projects[curProj].vins) || [];
   const vinOptions = [...new Set([...catalogVinsForModel, ...localVins])];
   const revName = reviewer === "__other__" ? revOther : reviewer;
@@ -791,9 +795,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function p0next() {
     if (!curProj) { alert("Select or add a bus project."); return; }
     if (!busModel) { alert("Select a bus model."); return; }
-    if (!vin) { alert("Select or add a Bus VIN."); return; }
     if (!curLine) { alert("Select a production line."); return; }
     if (!curSt) { alert("Select a station."); return; }
+    if (!vin) { alert("Select or add a Bus VIN."); return; }
     // Editing an existing card shouldn't silently reset its original
     // clock-out to "now" — only a fresh submission auto-stamps it.
     if (!isEditMode && !fromTask && !clockOut) setClockOut(new Date().toISOString());
@@ -1176,20 +1180,6 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             </optgroup>
           </Sel>
 
-          {busModel && <>
-            <div style={css.fld}>
-              <label style={css.lbl_}>Bus VIN</label>
-              <select style={css.inp} value={vin} onChange={e => setVin(e.target.value)}>
-                <option value="">Select VIN…</option>
-                {vinOptions.map(v => <option key={v}>{v}</option>)}
-              </select>
-              <AddRow placeholder="Add VIN for this project…" onAdd={n => { if (!n.trim() || !curProj) return; setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: [...(p[curProj]?.vins || []), n.trim()] } })); setVin(n.trim()); }} />
-              <div style={css.tagRow}>
-                {catalogVinsForModel.map(v => <Tag key={'c_' + v} label={v} />)}
-                {localVins.filter(v => !catalogVinsForModel.includes(v)).map(v => <Tag key={'l_' + v} label={v} onDel={() => setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: p[curProj].vins.filter(x => x !== v) } }))} />)}
-              </div>
-            </div>
-          </>}
         </div>
 
         {busModel && <>
@@ -1237,6 +1227,23 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               </div>
             )}
           </div>
+
+          {/* VIN after the bus model, line and station */}
+          {curSt && <div style={css.card}>
+            <div style={css.cardHd}>Bus VIN</div>
+            <div style={css.fld}>
+              <label style={css.lbl_}>Bus VIN</label>
+              <select style={css.inp} value={vin} onChange={e => setVin(e.target.value)}>
+                <option value="">Select VIN…</option>
+                {vinOptions.map(v => <option key={v}>{v}</option>)}
+              </select>
+              <AddRow placeholder="Add VIN for this project…" onAdd={n => { if (!n.trim() || !curProj) return; setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: [...(p[curProj]?.vins || []), n.trim()] } })); setVin(n.trim()); }} />
+              <div style={css.tagRow}>
+                {catalogVinsForModel.map(v => <Tag key={'c_' + v} label={v} />)}
+                {localVins.filter(v => !catalogVinsForModel.includes(v)).map(v => <Tag key={'l_' + v} label={v} onDel={() => setProjects(p => ({ ...p, [curProj]: { ...p[curProj], vins: p[curProj].vins.filter(x => x !== v) } }))} />)}
+              </div>
+            </div>
+          </div>}
 
           {/* change 3: Staff on duty after station selection */}
           {curSt && <div style={css.card}>

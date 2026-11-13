@@ -21,6 +21,7 @@ const ROLE_OPTIONS = [
 // every other role check in the app still looks at the primary `role` field.
 const SUPPLEMENTARY_ROLE_OPTIONS = [
   { value: 'cee', label: 'Cost Estimations Engineer', color: '#0f766e' },
+  { value: 'typeapproval', label: 'Type Approvals (VIN register)', color: '#4338ca' },
 ];
 
 function buildStationsByLine() {

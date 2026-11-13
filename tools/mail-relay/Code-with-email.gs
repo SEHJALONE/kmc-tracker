@@ -89,6 +89,16 @@ function doPost(e) {
     // ── Start/End Travel Card tasks (signed-in; see "Open tasks" below) ─────────
     if (e && e.parameter && e.parameter.action === "saveTravelTask")  return saveTravelTask_(e.parameter);
     if (e && e.parameter && e.parameter.action === "listTravelTasks") return listTravelTasks_(e.parameter);
+    // Supervisors watching their shops' open tasks (see listShopTasks_).
+    if (e && e.parameter && e.parameter.action === "listShopTasks")   return listShopTasks_(e.parameter);
+
+    // ── VIN register (Type Approvals) and Machine Shop job orders ───────────────
+    if (e && e.parameter && e.parameter.action === "uploadProjectVins")  return uploadProjectVins_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "listJobData")        return listJobData_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "saveJobOrder")       return saveJobOrder_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "assignJobMachines")  return assignJobMachines_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "saveCutList")        return saveCutList_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "saveJoMaterials")    return saveJoMaterials_(e.parameter);
 
     // ── Access requests ─────────────────────────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "submitAccessRequest") {
@@ -1126,38 +1136,48 @@ function accountsFor_(identifier) {
 function resetKey_(username) { return "pwreset_" + String(username).toLowerCase(); }
 
 function requestPasswordReset_(params) {
-  const generic = response({ status: "ok", sent: true, delivery: "email" });
-  const toAdmin = response({ status: "ok", sent: false, delivery: "admin" });
+  const toAdmin = function (reason) { return response({ status: "ok", sent: false, delivery: "admin", reason: reason || "" }); };
   const accounts = accountsFor_(params.identifier);
-  if (!accounts.length) return toAdmin;
+  if (!accounts.length) return toAdmin("no-account");
   const email = String(accounts[0].email || "").trim();
-  if (!email || !MAIL_EMAIL_RE.test(email)) return toAdmin;
-  if (!mailRateOk_("pwreset_" + String(params.identifier).toLowerCase().trim(), 3)) return generic;
-
-  if (accounts.length > 1) {
-    mailSend_({
-      to: [email], subject: "[KMC Tracker] Password reset",
-      html: mailCard_("#f59e0b", "Password Reset", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
-        mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0;">This email is on more than one account (' +
-          accounts.map(function (a) { return "<strong>" + mailEsc_(a.username) + "</strong>"; }).join(", ") +
-          "). Go back to the sign-in page, choose <strong>Forgot password?</strong> and enter the username of the account you want to reset.</p>")),
-    });
-    return generic;
+  if (!email || !MAIL_EMAIL_RE.test(email)) return toAdmin("no-email");
+  // A code sent in the last hour still works; don't send more than 3 an hour.
+  // Its own key: "pwreset_<username>" holds the code itself (resetKey_).
+  if (!mailRateOk_("pwresetrate_" + String(params.identifier).toLowerCase().trim(), 3)) {
+    return response({ status: "ok", sent: false, delivery: "email", note: "recent", from: MAIL_FROM });
   }
 
-  const u = accounts[0];
-  const n = parseInt(Utilities.getUuid().replace(/-/g, "").slice(0, 8), 16) % 1000000;
-  const code = ("000000" + n).slice(-6);
-  CacheService.getScriptCache().put(resetKey_(u.username), JSON.stringify({ h: sign_(u.username + "|" + code), t: 0 }), RESET_TTL_SECONDS);
-  mailSend_({
-    to: [email], subject: "[KMC Tracker] Your password reset code",
-    html: mailCard_("#dc2626", "Password Reset", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
-      mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Hi ' + mailEsc_(u.fullName || u.username) +
-        ", use this code to set a new password for <strong>" + mailEsc_(u.username) + "</strong>. It expires in 15 minutes.</p>" +
-        '<p style="font-family:monospace;font-size:28px;letter-spacing:.3em;color:#fff;margin:0;">' + code + "</p>" +
-        '<p style="color:#64748b;font-size:11px;margin:12px 0 0;">If you did not ask for this, ignore this email; your password stays the same.</p>')),
+  // One code per account. When an email is on several accounts (shared admin
+  // mailboxes), each account gets its own code in the same email, so whichever
+  // account the person means can be reset with the email address alone.
+  const cache = CacheService.getScriptCache();
+  const lines = accounts.map(function (u) {
+    const n = parseInt(Utilities.getUuid().replace(/-/g, "").slice(0, 8), 16) % 1000000;
+    const code = ("000000" + n).slice(-6);
+    cache.put(resetKey_(u.username), JSON.stringify({ h: sign_(u.username + "|" + code), t: 0 }), RESET_TTL_SECONDS);
+    return { u: u, code: code };
   });
-  return generic;
+  const codeBlock = function (x) {
+    return (lines.length > 1 ? '<p style="color:#94a3b8;font-size:12px;margin:12px 0 2px;">Account <strong>' + mailEsc_(x.u.username) + "</strong>" + (x.u.fullName ? " (" + mailEsc_(x.u.fullName) + ")" : "") + "</p>" : "") +
+      '<p style="font-family:monospace;font-size:28px;letter-spacing:.3em;color:#fff;margin:0;">' + x.code + "</p>";
+  };
+  const who = lines.length > 1
+    ? "This email is on " + lines.length + " accounts. Use the code of the account you want to reset; each works only for its own account."
+    : "use this code to set a new password for <strong>" + mailEsc_(lines[0].u.username) + "</strong>.";
+  try {
+    mailSend_({
+      to: [email], subject: "[KMC Tracker] Your password reset code",
+      html: mailCard_("#dc2626", "Password Reset", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+        mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 12px;">Hi ' + mailEsc_(lines.length > 1 ? "there" : (lines[0].u.fullName || lines[0].u.username)) +
+          ", " + who + " Codes expire in 15 minutes.</p>" + lines.map(codeBlock).join("") +
+          '<p style="color:#64748b;font-size:11px;margin:12px 0 0;">If you did not ask for this, ignore this email; your password stays the same.</p>')),
+    });
+  } catch (err) {
+    lines.forEach(function (x) { cache.remove(resetKey_(x.u.username)); });
+    Logger.log("Password reset email failed: " + (err && err.message || err));
+    return toAdmin("mail-failed");
+  }
+  return response({ status: "ok", sent: true, delivery: "email", from: MAIL_FROM, accounts: lines.length });
 }
 
 // Help request from the sign-in page when a reset code cannot be emailed: sent
@@ -1200,18 +1220,28 @@ function submitPasswordHelp_(params) {
 function resetPassword_(params) {
   const bad = response({ status: "error", message: "invalid-code" });
   const accounts = accountsFor_(params.identifier);
-  if (accounts.length !== 1) return bad;
-  const u = accounts[0];
+  if (!accounts.length) return bad;
   const pw = String(params.password || "");
   if (pw.length < PASSWORD_MIN_LENGTH) return response({ status: "error", message: "weak-password" });
   const cache = CacheService.getScriptCache();
-  let entry = null;
-  try { entry = JSON.parse(cache.get(resetKey_(u.username)) || "null"); } catch (err) { entry = null; }
-  if (!entry) return bad;
-  if (entry.h !== sign_(u.username + "|" + String(params.code || "").trim())) {
-    entry.t = (entry.t || 0) + 1;
-    if (entry.t >= RESET_MAX_TRIES) cache.remove(resetKey_(u.username));
-    else cache.put(resetKey_(u.username), JSON.stringify(entry), RESET_TTL_SECONDS);
+  const code = String(params.code || "").trim();
+  // The account whose code this is (an email can be on several accounts).
+  let u = null;
+  accounts.forEach(function (a) {
+    if (u) return;
+    let entry = null;
+    try { entry = JSON.parse(cache.get(resetKey_(a.username)) || "null"); } catch (err) { entry = null; }
+    if (entry && entry.h === sign_(a.username + "|" + code)) u = a;
+  });
+  if (!u) {
+    accounts.forEach(function (a) {
+      let entry = null;
+      try { entry = JSON.parse(cache.get(resetKey_(a.username)) || "null"); } catch (err) { entry = null; }
+      if (!entry) return;
+      entry.t = (entry.t || 0) + 1;
+      if (entry.t >= RESET_MAX_TRIES) cache.remove(resetKey_(a.username));
+      else cache.put(resetKey_(a.username), JSON.stringify(entry), RESET_TTL_SECONDS);
+    });
     return bad;
   }
   cache.remove(resetKey_(u.username));
@@ -1710,6 +1740,7 @@ const TRAVEL_TASK_HEADERS = [
   "task_id", "owner", "owner_name", "status", "started_at", "expected_end", "closed_at",
   "project", "bus_model", "vin", "production_line", "station", "station_code", "designed_min",
   "activities", "record_id", "reminder_count", "last_reminder_at", "updated_at",
+  "job_order_id", "vins",
 ];
 const TRAVEL_TASK_STATUSES = ["open", "closed", "discarded"];
 
@@ -1727,6 +1758,7 @@ function travelTaskRow_(headers, row) {
     activities: Array.isArray(activities) ? activities : [], recordId: String(at("record_id") || ""),
     reminderCount: Number(at("reminder_count")) || 0, lastReminderAt: iso(at("last_reminder_at")),
     updatedAt: iso(at("updated_at")),
+    jobOrderId: String(at("job_order_id") || ""), vins: (function () { try { const v = JSON.parse(at("vins") || "[]"); return Array.isArray(v) ? v : []; } catch (err) { return []; } })(),
   };
 }
 
@@ -1779,6 +1811,7 @@ function saveTravelTask_(params) {
       production_line: clip(d.line), station: clip(d.station), station_code: clip(d.stationCode, 40),
       designed_min: Number(d.designedMin) || 0, activities: acts, record_id: "",
       reminder_count: 0, last_reminder_at: "", updated_at: now,
+      job_order_id: clip(d.jobOrderId, 40), vins: JSON.stringify((Array.isArray(d.vins) ? d.vins : []).slice(0, 200).map(v => clip(v, 20))),
     }]);
     return response({ status: "ok", id: d.id, created: true });
   } finally { lock.releaseLock(); }
@@ -1796,6 +1829,318 @@ function listTravelTasks_(params) {
   const tasks = data.slice(1).map(r => travelTaskRow_(headers, r)).filter(t =>
     t.id && t.owner.toLowerCase() === String(user.username).toLowerCase() &&
     (t.status === "open" || new Date(t.closedAt || t.updatedAt).getTime() > since));
+  return response({ status: "ok", tasks: tasks });
+}
+
+// ── Project VIN register (Type Approvals) ─────────────────────────────────────
+// People with the "typeapproval" additional role (or an admin) upload a CSV of
+// VINs for a bus project. The server merges it into the shared catalog's
+// projectVins: VINs already on the project are left as they are (their bus
+// model is filled in or corrected if the upload gives one), new ones are added,
+// and VINs that belong to another project or are not valid are refused.
+const VIN_RE = /^[A-HJ-NPR-Z0-9]{17}$/;
+
+function readCatalogJson_() {
+  const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName("Catalog");
+  if (!sh) return {};
+  const rows = sh.getDataRange().getValues().slice(1)
+    .filter(function (r) { return /^catalog(\.\d+)?$/.test(String(r[0]).trim()); })
+    .map(function (r) { const k = String(r[0]).trim(); return { i: k === "catalog" ? 0 : Number(k.split(".")[1]), v: String(r[1]) }; })
+    .sort(function (a, b) { return a.i - b.i; });
+  if (!rows.length) return {};
+  try { return JSON.parse(rows.map(function (r) { return r.v; }).join("")) || {}; } catch (err) { return null; }
+}
+
+function hasExtraRole_(username, role) {
+  const me = userRecord_(username);
+  return !!(me && Array.isArray(me.roles) && me.roles.indexOf(role) > -1);
+}
+
+function uploadProjectVins_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (ADMIN_ROLES.indexOf(user.role) < 0 && !hasExtraRole_(user.username, "typeapproval")) {
+    return response({ status: "error", message: "not-type-approvals" });
+  }
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const project = String(d.project || "").trim();
+  if (!project) return response({ status: "error", message: "missing-project" });
+  const rows = Array.isArray(d.rows) ? d.rows.slice(0, 2000) : [];
+
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const cat = readCatalogJson_();
+    if (cat === null) return response({ status: "error", message: "catalog-unreadable" });
+    const known = (cat.projects || []).some(function (p) { return p && String(p.name).trim() === project; });
+    if (!known) return response({ status: "error", message: "unknown-project" });
+    cat.projectVins = cat.projectVins || {};
+    const list = (cat.projectVins[project] || []).map(function (v) { return { vin: String(v.vin || "").toUpperCase(), model: v.model || "" }; });
+    const elsewhere = {};
+    Object.keys(cat.projectVins).forEach(function (p) {
+      if (p === project) return;
+      (cat.projectVins[p] || []).forEach(function (v) { elsewhere[String(v.vin || "").toUpperCase()] = p; });
+    });
+    const out = { added: [], existing: [], updated: [], otherProject: [], wrongProject: [], invalid: [], repeated: [] };
+    const seen = {};
+    rows.forEach(function (r) {
+      const vin = String(r && r.vin || "").trim().toUpperCase().replace(/\s+/g, "");
+      const rowProject = String(r && r.project || "").trim();
+      const model = String(r && r.model || "").trim().slice(0, 40);
+      if (!vin) return;
+      if (rowProject && rowProject.toLowerCase() !== project.toLowerCase()) { out.wrongProject.push(vin); return; }
+      if (!VIN_RE.test(vin)) { out.invalid.push(vin); return; }
+      if (seen[vin]) { out.repeated.push(vin); return; }
+      seen[vin] = true;
+      if (elsewhere[vin]) { out.otherProject.push(vin + " (" + elsewhere[vin] + ")"); return; }
+      const cur = list.filter(function (v) { return v.vin === vin; })[0];
+      if (cur) {
+        if (model && cur.model !== model) { cur.model = model; out.updated.push(vin); }
+        else out.existing.push(vin);
+        return;
+      }
+      list.push({ vin: vin, model: model });
+      out.added.push(vin);
+    });
+    if (out.added.length || out.updated.length) {
+      cat.projectVins[project] = list;
+      const saved = JSON.parse(saveCatalog_(JSON.stringify(cat)).getContent());
+      if (saved.status !== "ok") return response({ status: "error", message: "save-failed" });
+    }
+    return response({ status: "ok", project: project, total: list.length, result: out });
+  } finally { lock.releaseLock(); }
+}
+
+// ── Machine Shop job orders ───────────────────────────────────────────────────
+// A Machine Shop supervisor sets up a job order: project, bus model, VINs and
+// the parts to cut (copied from that model's cut list, then edited). Operators
+// pick a machine for each material specification (remembered for next time),
+// then run each machine as a Start/End task whose activities are its parts.
+const JOB_ORDERS_TAB = "job_orders";
+const JOB_ORDER_HEADERS = ["id", "project", "bus_model", "vins", "status", "items", "spec_machines", "notes",
+  "created_by", "created_by_name", "created_at", "updated_at"];
+const CUT_LISTS_TAB = "cut_lists";
+const CUT_LIST_HEADERS = ["bus_model", "items", "updated_by", "updated_at"];
+const JO_SETTINGS_TAB = "jo_settings";
+const JO_CELL_MAX = 45000;
+
+function canManageJobs_(user) {
+  if (!user) return false;
+  if (ADMIN_ROLES.indexOf(user.role) > -1) return true;
+  if (["supervisor", "manager", "director"].indexOf(user.role) < 0) return false;
+  const me = userRecord_(user.username) || {};
+  const stations = me.assignedStations || [], lines = me.assignedLines || [];
+  return stations.some(function (c) { return /^B0[1-3]-/i.test(String(c)); }) || lines.indexOf("MACHINE") > -1;
+}
+
+function joJson_(v, fallback) { try { const x = JSON.parse(v || ""); return x == null ? fallback : x; } catch (err) { return fallback; } }
+const joClip_ = function (v, n) { return String(v == null ? "" : v).trim().slice(0, n || 200); };
+
+// One cut-list / job-order line, tidied.
+function joItem_(x, i) {
+  x = x || {};
+  return {
+    id: joClip_(x.id || ("i" + i), 40), balloon: joClip_(x.balloon, 20), code: joClip_(x.code, 60), name: joClip_(x.name, 120),
+    qty: Math.max(0, Math.min(100000, Number(x.qty) || 0)), spec: joClip_(x.spec, 60), remarks: joClip_(x.remarks, 300),
+    length: joClip_(x.length, 30), mitre: joClip_(x.mitre, 60), material: joClip_(x.material, 60),
+    groupNote: joClip_(x.groupNote, 200), vin: joClip_(x.vin, 20), cut: x.cut !== false,
+  };
+}
+
+function joSettingsGet_() {
+  const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName(JO_SETTINGS_TAB);
+  const out = {};
+  if (!sh) return out;
+  sh.getDataRange().getValues().slice(1).forEach(function (r) { if (r[0]) out[String(r[0])] = joJson_(r[1], null); });
+  return out;
+}
+function joSettingsSet_(key, value) {
+  const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), JO_SETTINGS_TAB, ["key", "value", "updated_at"]);
+  const text = JSON.stringify(value);
+  if (text.length > JO_CELL_MAX) throw new Error("too-big");
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === key) { sh.getRange(i + 1, 2, 1, 2).setValues([[text, new Date().toISOString()]]); return; }
+  }
+  sh.appendRow([key, text, new Date().toISOString()]);
+}
+
+function jobOrderRow_(h, r) {
+  const at = function (n) { return r[h.indexOf(n)]; };
+  const iso = function (v) { return v instanceof Date ? v.toISOString() : String(v || ""); };
+  return {
+    id: String(at("id") || ""), project: String(at("project") || ""), busModel: String(at("bus_model") || ""),
+    vins: joJson_(at("vins"), []), status: String(at("status") || "open"), items: joJson_(at("items"), []),
+    specMachines: joJson_(at("spec_machines"), {}), notes: String(at("notes") || ""),
+    createdBy: String(at("created_by") || ""), createdByName: String(at("created_by_name") || ""),
+    createdAt: iso(at("created_at")), updatedAt: iso(at("updated_at")),
+  };
+}
+
+function listJobData_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const since = Date.now() - 60 * 24 * 3600 * 1000;
+  let jobOrders = [];
+  const jsh = ss.getSheetByName(JOB_ORDERS_TAB);
+  if (jsh) {
+    const data = jsh.getDataRange().getValues();
+    const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+    jobOrders = data.slice(1).map(function (r) { return jobOrderRow_(h, r); })
+      .filter(function (j) { return j.id && (j.status === "open" || new Date(j.updatedAt).getTime() > since); });
+  }
+  const cutLists = {};
+  const csh = ss.getSheetByName(CUT_LISTS_TAB);
+  if (csh) {
+    const data = csh.getDataRange().getValues();
+    const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+    data.slice(1).forEach(function (r) {
+      const m = String(r[h.indexOf("bus_model")] || "");
+      if (m) cutLists[m] = { items: joJson_(r[h.indexOf("items")], []), updatedBy: String(r[h.indexOf("updated_by")] || ""), updatedAt: String(r[h.indexOf("updated_at")] || "") };
+    });
+  }
+  const s = joSettingsGet_();
+  return response({ status: "ok", jobOrders: jobOrders, cutLists: cutLists,
+    settings: { materials: s.materials || null, specMachines: s.specMachines || {} }, canManage: canManageJobs_(user) });
+}
+
+function saveJobOrder_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (!canManageJobs_(user)) return response({ status: "error", message: "not-machine-shop-supervisor" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const project = joClip_(d.project, 120), busModel = joClip_(d.busModel, 40);
+  const vins = (Array.isArray(d.vins) ? d.vins : []).map(function (v) { return joClip_(v, 20).toUpperCase(); }).filter(Boolean).slice(0, 200);
+  const items = (Array.isArray(d.items) ? d.items : []).slice(0, 400).map(joItem_);
+  if (!project || !busModel) return response({ status: "error", message: "missing-project-or-model" });
+  if (!vins.length) return response({ status: "error", message: "missing-vins" });
+  if (!items.length) return response({ status: "error", message: "missing-items" });
+  const status = ["open", "closed"].indexOf(d.status) > -1 ? d.status : "open";
+  const itemsText = JSON.stringify(items);
+  if (itemsText.length > JO_CELL_MAX) return response({ status: "error", message: "too-many-items" });
+  const now = new Date().toISOString();
+
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), JOB_ORDERS_TAB, JOB_ORDER_HEADERS);
+    const data = sh.getDataRange().getValues();
+    const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+    if (d.id) {
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][h.indexOf("id")]) !== String(d.id)) continue;
+        const set = function (n, v) { const c = h.indexOf(n); if (c > -1) sh.getRange(i + 1, c + 1).setValue(v); };
+        set("project", project); set("bus_model", busModel); set("vins", JSON.stringify(vins)); set("status", status);
+        set("items", itemsText); set("notes", joClip_(d.notes, 500)); set("updated_at", now);
+        if (d.specMachines && typeof d.specMachines === "object") set("spec_machines", JSON.stringify(d.specMachines));
+        return response({ status: "ok", id: String(d.id) });
+      }
+      return response({ status: "error", message: "job-order-not-found" });
+    }
+    const stamp = new Date(Date.now() + 3 * 3600000).toISOString().slice(2, 10).replace(/-/g, "");   // yyMMdd, Kampala (UTC+3)
+    const id = "JO-" + stamp + "-" + Utilities.getUuid().replace(/-/g, "").slice(0, 4).toUpperCase();
+    const me = userRecord_(user.username) || {};
+    appendRecords_(sh, JOB_ORDER_HEADERS, [{
+      id: id, project: project, bus_model: busModel, vins: JSON.stringify(vins), status: status, items: itemsText,
+      spec_machines: JSON.stringify(d.specMachines && typeof d.specMachines === "object" ? d.specMachines : {}),
+      notes: joClip_(d.notes, 500), created_by: user.username, created_by_name: joClip_(me.fullName || user.username, 120),
+      created_at: now, updated_at: now,
+    }]);
+    return response({ status: "ok", id: id });
+  } finally { lock.releaseLock(); }
+}
+
+// Operators choose which machine cuts each material specification. Saved on
+// the job order and as the default for that bus model next time.
+function assignJobMachines_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const map = {};
+  Object.keys(d.specMachines || {}).slice(0, 100).forEach(function (k) {
+    const v = joClip_(d.specMachines[k], 40);
+    if (v) map[joClip_(k, 60)] = v;
+  });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName(JOB_ORDERS_TAB);
+    if (!sh) return response({ status: "error", message: "job-order-not-found" });
+    const data = sh.getDataRange().getValues();
+    const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][h.indexOf("id")]) !== String(d.id)) continue;
+      const job = jobOrderRow_(h, data[i]);
+      const merged = Object.assign({}, job.specMachines, map);
+      sh.getRange(i + 1, h.indexOf("spec_machines") + 1).setValue(JSON.stringify(merged));
+      sh.getRange(i + 1, h.indexOf("updated_at") + 1).setValue(new Date().toISOString());
+      const s = joSettingsGet_();
+      const defaults = s.specMachines || {};
+      Object.keys(map).forEach(function (spec) { defaults[job.busModel + "|" + spec] = map[spec]; });
+      joSettingsSet_("specMachines", defaults);
+      return response({ status: "ok", specMachines: merged });
+    }
+    return response({ status: "error", message: "job-order-not-found" });
+  } finally { lock.releaseLock(); }
+}
+
+function saveCutList_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (!canManageJobs_(user)) return response({ status: "error", message: "not-machine-shop-supervisor" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const busModel = joClip_(d.busModel, 40);
+  if (!busModel) return response({ status: "error", message: "missing-model" });
+  const items = (Array.isArray(d.items) ? d.items : []).slice(0, 400).map(joItem_);
+  const text = JSON.stringify(items);
+  if (text.length > JO_CELL_MAX) return response({ status: "error", message: "too-many-items" });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), CUT_LISTS_TAB, CUT_LIST_HEADERS);
+    const data = sh.getDataRange().getValues();
+    const now = new Date().toISOString();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === busModel) { sh.getRange(i + 1, 1, 1, 4).setValues([[busModel, text, user.username, now]]); return response({ status: "ok", items: items.length }); }
+    }
+    sh.appendRow([busModel, text, user.username, now]);
+    return response({ status: "ok", items: items.length });
+  } finally { lock.releaseLock(); }
+}
+
+function saveJoMaterials_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (!canManageJobs_(user)) return response({ status: "error", message: "not-machine-shop-supervisor" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const seen = {};
+  const materials = (Array.isArray(d.materials) ? d.materials : []).slice(0, 60).map(function (m) {
+    return { name: joClip_(m && m.name, 60), machines: (Array.isArray(m && m.machines) ? m.machines : []).map(function (c) { return joClip_(c, 40); }).filter(Boolean).slice(0, 40) };
+  }).filter(function (m) { const k = m.name.toLowerCase(); if (!m.name || seen[k]) return false; seen[k] = true; return true; });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try { joSettingsSet_("materials", materials); } finally { lock.releaseLock(); }
+  return response({ status: "ok", materials: materials });
+}
+
+// Supervisors, managers, directors and admins: every open Start/End task (and
+// those closed in the last 12 hours), to watch the shop floor. The site shows
+// each person the lines and stations they look after.
+function listShopTasks_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (["supervisor", "manager", "director"].indexOf(user.role) < 0 && ADMIN_ROLES.indexOf(user.role) < 0) {
+    return response({ status: "error", message: "not-a-supervisor" });
+  }
+  const sh = SpreadsheetApp.openById(TRACKER_SHEET_ID).getSheetByName(TRAVEL_TASKS_TAB);
+  if (!sh) return response({ status: "ok", tasks: [] });
+  const data = sh.getDataRange().getValues();
+  const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+  const since = Date.now() - 12 * 3600 * 1000;
+  const tasks = data.slice(1).map(function (r) { return travelTaskRow_(h, r); }).filter(function (t) {
+    return t.id && (t.status === "open" || (t.status === "closed" && new Date(t.closedAt).getTime() > since));
+  });
   return response({ status: "ok", tasks: tasks });
 }
 

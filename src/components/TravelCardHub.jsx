@@ -89,11 +89,12 @@ function OpenTaskRibbon({ n, task, now, onOpen, onClose }) {
       <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <span className="tch-timer">{fmtClock(elapsed)}</span>
         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-text)', fontSize: 14 }}>{task.stationCode}</span>
+        {task.jobOrderId && <span className="kmc-chip"><span>{task.jobOrderId}</span><b style={{ background: grad('teal') }}>JO</b></span>}
         {overdue && <span className="kmc-chip"><span>past expected end</span><b style={{ background: grad('red') }}>!</b></span>}
         {task.synced === false && <span style={{ fontSize: 11, color: 'var(--warning-color)' }}>saved on this device</span>}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{task.vin}</span> · started {fmtTime(task.startedAt)}
+        {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{(task.vins && task.vins.length > 1) ? `${task.vins.length} VINs` : task.vin}</span> · started {fmtTime(task.startedAt)}
       </div>
       <div className="kmc-track" style={{ height: 8, marginTop: 8, maxWidth: 320 }} title={`${done} of ${acts.length} activities`}>
         <div className="kmc-fill" style={{ height: '100%', width: `${acts.length ? (done / acts.length) * 100 : 0}%`, background: grad('lime', 90) }} />
@@ -129,7 +130,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, lock
     return (
       <div className="tch"><style>{css}</style>{back}
         <div className="kmc-panel" style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 14px', padding: '12px 16px', lineHeight: 1.5 }}>
-          Closing <strong style={{ color: 'var(--text-heading)' }}>{current.stationCode}</strong> · {current.vin}. Start ({fmtTime(current.startedAt)}) and end ({fmtTime(view.endedAt)}) times and the ticked activities are filled in — check them and submit. The task stays open until the card is submitted.
+          Closing <strong style={{ color: 'var(--text-heading)' }}>{current.stationCode}</strong> · {current.vin}{current.jobOrderId ? ` (job order ${current.jobOrderId}${current.vins?.length > 1 ? `, ${current.vins.length} VINs — the card is filed under the first and lists them all` : ''})` : ''}. Start ({fmtTime(current.startedAt)}) and end ({fmtTime(view.endedAt)}) times and the ticked activities are filled in — check them and submit. The task stays open until the card is submitted.
         </div>
         {renderLegacy({
           taskPrefill: prefill, onExit: home,
@@ -141,7 +142,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, lock
 
   if (view.kind === 'new') return (
     <div className="tch"><style>{css}</style>{back}
-      <TaskSetup catalog={catalog} lockedCodes={lockedCodes} onCancel={home}
+      <TaskSetup catalog={catalog} lockedCodes={lockedCodes} openTasks={tasks.openTasks} onCancel={home}
         onStart={fields => { const t = tasks.start({ ...fields, ownerName: currentUserName || '' }); go({ kind: 'task', id: t.id }); }} />
     </div>
   );

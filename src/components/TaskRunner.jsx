@@ -4,6 +4,8 @@ import { resolveTcCatalog, BUS_MODELS, modelKindOf, codeOf } from '../utils/tcCa
 import { stationLabelForModel } from '../data/travelCardSeed';
 import { fetchStationTimes } from '../hooks/useStationTimes';
 import { workingMinutes, addWorkingMinutes } from '../utils/workTime';
+import { isMachineShopLine } from '../data/jobOrders';
+import { MachineShopJobsLive } from './jobs/MachineShopJobs';
 
 // Start/End Travel Card: pick the bus and station, press Start, tick activities
 // off as they are done, press Close. Closing opens the normal card with the
@@ -50,7 +52,9 @@ export function expectedEndFor(startedAt, designedMin) {
 }
 
 // ── Setup: choose the job, then Start ─────────────────────────────────────────
-export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
+// Order: project, bus model, line, station, then VIN. Machine Shop work runs
+// from job orders instead (MachineShopJobs).
+export function TaskSetup({ catalog, lockedCodes = [], openTasks = [], onStart, onCancel }) {
   const tc = useMemo(() => resolveTcCatalog(catalog), [catalog]);
   const localProjects = LS_GET('kmc_projects', {});
   const projectNames = [...new Set([
@@ -70,7 +74,8 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
 
   const kind = modelKindOf(busModel);
   const vinOptions = [...new Set([
-    ...((catalog.projectVins || {})[project] || []).filter(v => v && v.vin && (!busModel || v.model === busModel)).map(v => v.vin),
+    // VINs uploaded without a bus model show for every model.
+    ...((catalog.projectVins || {})[project] || []).filter(v => v && v.vin && (!busModel || !v.model || v.model === busModel)).map(v => v.vin),
     ...((localProjects[project] && localProjects[project].vins) || []),
   ])];
 
@@ -96,6 +101,11 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
     : [];
   const code = codeOf(station);
   const acts = tc.actsFor(code, busModel);
+  // Machine Shop: job orders instead of station + VIN. Station-assigned users
+  // with Machine Shop stations open it with a button (they have no line pick).
+  const [jobMode, setJobMode] = useState(false);
+  const lockedMachineShop = lockedOptions.some(o => isMachineShopLine(o.line));
+  const machineShop = !!project && !!busModel && (lockedCodes.length ? jobMode : isMachineShopLine(line));
 
   function pickStation(s) {
     setStation(s);
@@ -108,8 +118,8 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
   function start() {
     if (!project) return alert('Select a bus project.');
     if (!busModel) return alert('Select a bus model.');
-    if (!vin.trim()) return alert('Select or type the bus VIN.');
     if (!station) return alert('Select a station.');
+    if (!vin.trim()) return alert('Select or type the bus VIN.');
     const startedAt = new Date().toISOString();
     const designedMin = Number(designed) || 0;
     onStart({
@@ -120,7 +130,7 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
   }
 
   return (
-    <div style={{ ...card, maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ ...card, maxWidth: machineShop ? 1100 : 720, margin: '0 auto' }}>
       <div style={hd}>New task — what are you starting?</div>
       <div className="tr-grid">
         <div>
@@ -132,18 +142,13 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
         </div>
         <div>
           <label style={lbl}>Bus model</label>
-          <select style={inp} value={busModel} onChange={e => { setBusModel(e.target.value); setLine(''); setStation(''); }}>
+          <select style={inp} value={busModel} onChange={e => { setBusModel(e.target.value); setLine(''); setStation(''); setVin(''); setJobMode(false); }}>
             <option value="">Select model…</option>
             {BUS_MODELS.map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
-        <div>
-          <label style={lbl}>Bus VIN</label>
-          <input style={{ ...inp, fontFamily: 'monospace' }} list="tr-vins" value={vin} onChange={e => setVin(e.target.value.toUpperCase())} placeholder="Select or type…" />
-          <datalist id="tr-vins">{vinOptions.map(v => <option key={v} value={v} />)}</datalist>
-        </div>
         {!lockedCodes.length && (
-          <div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={lbl}>Production line</label>
             <select style={inp} value={line} disabled={!busModel} onChange={e => { setLine(e.target.value); setStation(''); }}>
               <option value="">{busModel ? 'Select line…' : 'Pick a model first'}</option>
@@ -151,39 +156,62 @@ export function TaskSetup({ catalog, lockedCodes = [], onStart, onCancel }) {
             </select>
           </div>
         )}
-        <div style={{ gridColumn: lockedCodes.length ? 'auto' : '1 / -1' }}>
-          <label style={lbl}>{lockedCodes.length ? 'Station (assigned to you)' : 'Station'}</label>
-          <select style={inp} value={station} disabled={!busModel || (!lockedCodes.length && !line)} onChange={e => pickStation(e.target.value)}>
-            <option value="">Select station…</option>
-            {stationOptions.map(s => <option key={s} value={s}>{stationLabelForModel(s, kind)}</option>)}
-          </select>
-          {notOnModel.length > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              Not used on a {busModel}: {notOnModel.join(', ')}. Pick another model to see {notOnModel.length === 1 ? 'it' : 'them'}.
+        {lockedMachineShop && project && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <button className={`kmc-btn${jobMode ? ' primary' : ''}`} onClick={() => setJobMode(m => !m)}>
+              {jobMode ? '← Back to station pick' : 'Machine Shop job orders →'}
+            </button>
+          </div>
+        )}
+        {!machineShop && (
+          <>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={lbl}>{lockedCodes.length ? 'Station (assigned to you)' : 'Station'}</label>
+              <select style={inp} value={station} disabled={!busModel || (!lockedCodes.length && !line)} onChange={e => pickStation(e.target.value)}>
+                <option value="">Select station…</option>
+                {stationOptions.map(s => <option key={s} value={s}>{stationLabelForModel(s, kind)}</option>)}
+              </select>
+              {notOnModel.length > 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                  Not used on a {busModel}: {notOnModel.join(', ')}. Pick another model to see {notOnModel.length === 1 ? 'it' : 'them'}.
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        <div>
-          <label style={lbl}>Designed time (min)</label>
-          <input style={inp} type="number" min="0" value={designed} onChange={e => setDesigned(e.target.value)} placeholder={station ? 'Not set — enter' : '—'} />
-        </div>
+            <div>
+              <label style={lbl}>Bus VIN</label>
+              <input style={{ ...inp, fontFamily: 'monospace' }} list="tr-vins" value={vin} disabled={!station} onChange={e => setVin(e.target.value.toUpperCase())} placeholder={station ? 'Select or type…' : 'Pick the station first'} />
+              <datalist id="tr-vins">{vinOptions.map(v => <option key={v} value={v} />)}</datalist>
+            </div>
+            <div>
+              <label style={lbl}>Designed time (min)</label>
+              <input style={inp} type="number" min="0" value={designed} onChange={e => setDesigned(e.target.value)} placeholder={station ? 'Not set — enter' : '—'} />
+            </div>
+          </>
+        )}
       </div>
+      {machineShop && (
+        <div style={{ marginTop: 16 }}>
+          <MachineShopJobsLive catalog={catalog} project={project} busModel={busModel} openTasks={openTasks}
+            lockedCodes={lockedCodes} onStart={fields => onStart({ ...fields, expectedEnd: expectedEndFor(fields.startedAt, fields.designedMin) })} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}><button className="kmc-btn ghost" onClick={onCancel}>Cancel</button></div>
+        </div>
+      )}
       {station && (
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
           {acts.length} activit{acts.length === 1 ? 'y' : 'ies'} to tick off at {code}.
           {Number(designed) > 0 && <> Expected to finish around <strong>{fmtDay(expectedEndFor(new Date().toISOString(), Number(designed)))}</strong> if you start now.</>}
         </div>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 22 }}>
+      {!machineShop && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 22 }}>
         <button className={`kmc-orb${station ? ' live' : ''}`} style={{ '--orb': '178px' }} onClick={start} aria-label="Start the task">
           <span className="face" style={{ background: 'linear-gradient(150deg, #8ff5b0, #20c464 45%, #0f8a52)' }}>
             <svg className="orb-icon" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.2v13.6a1 1 0 0 0 1.5.86l11-6.8a1 1 0 0 0 0-1.72l-11-6.8A1 1 0 0 0 8 5.2z" /></svg>
             <span className="orb-text">START</span>
           </span>
         </button>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{station ? 'The clock starts the moment you press it.' : 'Choose the bus and station first.'}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{station && vin ? 'The clock starts the moment you press it.' : 'Choose the line, station and VIN first.'}</span>
         <button className="kmc-btn ghost" onClick={onCancel}>Cancel</button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -249,7 +277,9 @@ function TaskClock({ task, now }) {
         {over && <text x="110" y="148" textAnchor="middle" fontFamily="var(--font-label)" fontWeight="800" fontSize="9" fill="#dc2626">+{work - designed} MIN OVER</text>}
       </svg>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
-        <span className="tr-pulse kmc-label" style={{ color: tone[1] }}>● Running</span>
+        {task.status === 'closed'
+          ? <span className="kmc-label">■ Closed</span>
+          : <span className="tr-pulse kmc-label" style={{ color: tone[1] }}>● Running</span>}
         <span className="kmc-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: 'linear-gradient(135deg,#ffb4c9,#e14fd6)' }} />Activities</span>
       </div>
     </div>
@@ -257,8 +287,11 @@ function TaskClock({ task, now }) {
 }
 
 // ── Running task ──────────────────────────────────────────────────────────────
-export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack }) {
-  const now = useNow(1000);
+// readOnly: a supervisor watching someone else's task (no ticking, no buttons).
+export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOnly = false }) {
+  const live = useNow(1000);
+  // A closed task's clock stops where it was closed.
+  const now = task.status === 'closed' && task.closedAt ? new Date(task.closedAt).getTime() : live;
   const [confirming, setConfirming] = useState(null);   // activity name awaiting confirm
   const [newAct, setNewAct] = useState('');
   const acts = task.activities || [];
@@ -289,7 +322,9 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack }) {
           <span style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600 }}>{stationLabelForModel(task.station, modelKindOf(task.busModel)).replace(/^[^:]+:\s*/, '')}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-          {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{task.vin}</span> · {task.project}
+          {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{task.vins?.length > 1 ? task.vins.join(' · ') : task.vin}</span> · {task.project}
+          {task.jobOrderId && <> · job order <strong style={{ fontFamily: 'monospace' }}>{task.jobOrderId}</strong></>}
+          {task.ownerName && readOnly && <> · run by <strong>{task.ownerName}</strong></>}
         </div>
         <TaskClock task={task} now={now} />
         <div className="tr-facts">
@@ -300,11 +335,13 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack }) {
         </div>
         {overdue && <div style={{ fontSize: 12, color: R, margin: '10px 0 0', textAlign: 'center' }}>Past the expected end — reminders are emailed every 6 hours until you close it.</div>}
         {task.synced === false && <div style={{ fontSize: 11, color: AM, margin: '8px 0 0', textAlign: 'center' }}>Saved on this device; not yet on the server (reminders start once it syncs).</div>}
-        <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {readOnly
+          ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}><button className="kmc-btn" onClick={onBack}>← Back</button></div>
+          : <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="kmc-btn primary" style={{ fontSize: 14, padding: '13px 28px' }} onClick={onClose}>■ Close &amp; fill card</button>
           <button className="kmc-btn" onClick={onBack}>← Back (keeps running)</button>
           <button className="kmc-btn ghost" onClick={() => { if (confirm('Discard this task? Nothing is filed and the timer is thrown away.')) onDiscard(); }}>Discard</button>
-        </div>
+        </div>}
       </div>
 
       <div style={card}>
@@ -316,7 +353,7 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack }) {
         {acts.map(a => (
           <div key={a.name} style={{ borderBottom: '1px solid var(--border-subtle)', padding: '8px 0' }}>
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
-              <input type="checkbox" checked={!!a.doneAt || confirming === a.name} style={{ accentColor: GR, width: 17, height: 17, marginTop: 1, flexShrink: 0 }}
+              <input type="checkbox" disabled={readOnly} checked={!!a.doneAt || confirming === a.name} style={{ accentColor: GR, width: 17, height: 17, marginTop: 1, flexShrink: 0 }}
                 onChange={e => (a.doneAt ? untick(a.name) : setConfirming(e.target.checked ? a.name : null))} />
               <span style={{ fontSize: 13, lineHeight: 1.4, color: a.doneAt ? 'var(--text-dim)' : 'var(--text-primary)', textDecoration: a.doneAt ? 'line-through' : 'none' }}>
                 {a.name}{a.added && <em style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>(added)</em>}
@@ -332,10 +369,10 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack }) {
             )}
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+        {!readOnly && <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
           <input style={inp} value={newAct} onChange={e => setNewAct(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Other activity (not in list)…" />
           <button style={btn} onClick={add}>+ Add</button>
-        </div>
+        </div>}
       </div>
     </div>
   );

@@ -28,6 +28,10 @@ import UserManagement from './components/UserManagement';
 import DailyFleetLog from './components/DailyFleetLog';
 import CostEstimation from './components/CostEstimation';
 import MySubmissions from './components/MySubmissions';
+import TypeApprovals from './components/TypeApprovals';
+import JobOrdersPage from './components/jobs/JobOrdersPage';
+import ShopFloor from './components/ShopFloor';
+import { isMachineShopLead } from './data/jobOrders';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
@@ -187,7 +191,7 @@ export default function App() {
 
   // Shared catalog — drives travel-card dropdowns AND the bus tracker so admin
   // edits to lines/stations/projects reflect everywhere.
-  const { catalog, saveCatalog, saving: catalogSaving, listCatalogBackups, restoreCatalogBackup } = useCatalog();
+  const { catalog, saveCatalog, saving: catalogSaving, listCatalogBackups, restoreCatalogBackup, refreshCatalog } = useCatalog();
   const [adminOpen, setAdminOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -287,6 +291,12 @@ export default function App() {
   const roles = (() => { try { return JSON.parse(localStorage.getItem('kmc_roles') || '[]'); } catch { return []; } })();
   const username = localStorage.getItem('kmc_username') || '';
   const hasCeeAccess = role === 'systemadmin' || role === 'cee' || roles.includes('cee');
+  // Type Approvals (VIN register): an additional role, like CEE. The server checks it too.
+  const hasTypeApproval = role === 'systemadmin' || role === 'useradmin' || roles.includes('typeapproval');
+  // Machine Shop job orders: its supervisors/managers and admins (see isMachineShopLead).
+  const hasJobOrders = isMachineShopLead(role, assignedStations, assignedLines);
+  // Shop floor: everyone who supervises.
+  const hasShopFloor = ['supervisor', 'manager', 'director', 'systemadmin', 'useradmin'].includes(role);
 
   // Belt-and-braces: bounce back home if tracker access is off, even if
   // `mode` somehow got set to 'tracker' some other way (e.g. stale state).
@@ -296,7 +306,9 @@ export default function App() {
 
   useEffect(() => {
     if (mode === 'cost-estimation' && !hasCeeAccess) setMode('home');
-  }, [mode, hasCeeAccess]);
+    if (mode === 'type-approvals' && !hasTypeApproval) setMode('home');
+    if (mode === 'shop-floor' && !hasShopFloor) setMode('home');
+  }, [mode, hasCeeAccess, hasTypeApproval, hasShopFloor]);
 
   const handleLogout = () => {
     clearSession();
@@ -337,10 +349,26 @@ export default function App() {
       onSelectDailyFleetLog={() => setMode('daily-fleet-log')}
       onSelectCostEstimation={() => setMode('cost-estimation')}
       onSelectMySubmissions={() => setMode('my-submissions')}
+      onSelectTypeApprovals={hasTypeApproval ? () => setMode('type-approvals') : null}
+      onSelectJobOrders={hasJobOrders ? () => setMode('job-orders') : null}
+      onSelectShopFloor={hasShopFloor ? () => setMode('shop-floor') : null}
       role={role}
       canAccessTracker={canAccessTracker}
       hasCeeAccess={hasCeeAccess}
     />
+  );
+
+  if (mode === 'type-approvals') return (
+    <TypeApprovals catalog={catalog} refreshCatalog={refreshCatalog} onBack={() => setMode('home')} />
+  );
+
+  // Open to anyone who reaches it; changes are refused unless Machine Shop supervisor/admin.
+  if (mode === 'job-orders') return (
+    <JobOrdersPage catalog={catalog} onBack={() => setMode('home')} />
+  );
+
+  if (mode === 'shop-floor') return (
+    <ShopFloor role={role} assignedStations={assignedStations} assignedLines={assignedLines} onBack={() => setMode('home')} />
   );
 
   if (mode === 'access-requests') return (
