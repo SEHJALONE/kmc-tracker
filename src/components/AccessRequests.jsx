@@ -87,6 +87,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
     supervisorLines: {},     // supervisor: { [lineId]: true } — which lines to show stations for
     canAccessTracker: true,  // whether this account can open the Bus Tracker module
     ceeAccess: false,        // supplementary role, independent of the primary role above
+    typeApprovalAccess: false, // supplementary role: Type Approvals (VIN register)
   });
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -114,6 +115,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       assignedStation: '', assignedLines: {}, assignedStations: preselectedStations,
       stationLine: preselectedStationLine, supervisorLines: preselectedLines, canAccessTracker: true,
       ceeAccess: !!req.ceeInterest,
+      typeApprovalAccess: !!req.typeApprovalInterest,
     });
   }
 
@@ -166,7 +168,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       canAccessTracker: form.canAccessTracker,
       // Supplementary roles on top of the primary role above — see the
       // DYNAMIC_USERS_HEADERS "roles" comment in APPS_SCRIPT_CATALOG.md.
-      roles: form.ceeAccess ? ['cee'] : [],
+      roles: [form.ceeAccess && 'cee', form.typeApprovalAccess && 'typeapproval'].filter(Boolean),
     };
 
     const result = await createUser(newUser);
@@ -382,6 +384,11 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
             {selected.ceeInterest && (
               <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 6, borderLeft: `2px solid ${R}` }}>
                 <div style={{ fontSize: 12, color: muted }}>Applicant also requested <strong style={{ color: text }}>Cost Estimations Engineer (CEE)</strong> access (preselected below).</div>
+              </div>
+            )}
+            {selected.typeApprovalInterest && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 6, borderLeft: `2px solid ${R}` }}>
+                <div style={{ fontSize: 12, color: muted }}>Applicant also requested <strong style={{ color: text }}>Type Approvals</strong> access (preselected below).</div>
               </div>
             )}
           </div>
@@ -627,6 +634,22 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                   style={{ accentColor: R, width: 14, height: 14 }}
                 />
                 <span style={{ fontSize: 12, color: text }}>Cost Estimations Engineer (CEE) access</span>
+                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
+                  Supplementary — added on top of the role above
+                </span>
+              </label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg, marginTop: 8,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.typeApprovalAccess}
+                  onChange={() => setForm(f => ({ ...f, typeApprovalAccess: !f.typeApprovalAccess }))}
+                  style={{ accentColor: R, width: 14, height: 14 }}
+                />
+                <span style={{ fontSize: 12, color: text }}>Type Approvals (VIN register) access</span>
                 <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
                   Supplementary — added on top of the role above
                 </span>

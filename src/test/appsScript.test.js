@@ -39,6 +39,15 @@ describe('submitAccessRequest', () => {
     expect(row[9]).toBe('pending');
   });
 
+  it('keeps the CEE and Type Approvals access asks for the admin screen', async () => {
+    expect((await submit(env, applicant({ ceeInterest: true, typeApprovalInterest: true }))).status).toBe('ok');
+    expect((await submit(env, applicant({ id: '2', username: 'plain.user' }))).status).toBe('ok');
+    const { requests } = await env.call({ action: 'listAccessRequests', ...ADMIN });
+    const by = Object.fromEntries(requests.map(r => [r.username, r]));
+    expect(by['amina.o']).toMatchObject({ ceeInterest: true, typeApprovalInterest: true, status: 'pending' });
+    expect(by['plain.user']).toMatchObject({ ceeInterest: false, typeApprovalInterest: false });
+  });
+
   it('says why it refuses', async () => {
     expect((await submit(env, applicant({ password: 'short' }))).message).toBe('missing-fields');
     expect((await submit(env, applicant({ email: 'nope' }))).message).toBe('missing-fields');

@@ -18,7 +18,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
     fullName: '', email: '', username: '',
     department: '', productionLines: [], position: '',
     password: '', confirmPassword: '', reason: '',
-    preferredStations: [], ceeInterest: false,
+    preferredStations: [], ceeInterest: false, typeApprovalInterest: false,
   });
   const [showPass, setShowPass] = useState(false);
 
@@ -90,6 +90,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
       productionLine:  form.productionLines[0] || '',
       preferredStations: form.preferredStations,
       ceeInterest:    form.ceeInterest,
+      typeApprovalInterest: form.typeApprovalInterest,
       position:       form.position.trim(),
       password:       form.password,
       reason:         form.reason.trim(),
@@ -302,6 +303,26 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
               </label>
               <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
                 Machine/staff/energy cost rates and reporting — separate from your main role above.
+              </div>
+            </div>
+
+            {/* Type Approvals — the project VIN register; also supplementary. */}
+            <div>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.typeApprovalInterest}
+                  onChange={() => set('typeApprovalInterest', !form.typeApprovalInterest)}
+                  style={{ accentColor: R, width: 13, height: 13, flexShrink: 0 }}
+                />
+                <span style={{ fontSize: 12, color: text }}>I also need Type Approvals access</span>
+              </label>
+              <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                Project VIN register uploads — separate from your main role above.
               </div>
             </div>
 

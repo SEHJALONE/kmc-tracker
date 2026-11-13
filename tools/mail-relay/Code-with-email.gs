@@ -39,6 +39,9 @@ const ACCESS_REQUESTS_HEADERS = [
   // a supplementary role granted independent of the primary role, same as
   // "preferred_stations" this is a hint the admin can act on or ignore.
   "cee_interest",
+  // Applicant asked for Type Approvals (VIN register) access — another
+  // supplementary role hint, written by name so older sheets gain the column.
+  "type_approval_interest",
 ];
 
 const DYNAMIC_USERS_TAB = "DynamicUsers";
@@ -1464,14 +1467,16 @@ function submitAccessRequest_(payload) {
   }
 
   const id = Utilities.getUuid();
-  sh.appendRow([
-    id, String(d.fullName).trim(), String(d.email).trim().toLowerCase(), username, d.department || "",
-    JSON.stringify(d.productionLines || []), d.position || "", hashPassword_(String(d.password)),
-    d.reason || "", "pending", new Date().toISOString(),
-    "", "", "",
-    JSON.stringify(d.preferredStations || []),
-    d.ceeInterest ? "YES" : "NO",
-  ]);
+  appendRecords_(sh, ACCESS_REQUESTS_HEADERS, [{
+    id: id, full_name: String(d.fullName).trim(), email: String(d.email).trim().toLowerCase(),
+    username: username, department: d.department || "",
+    production_lines: JSON.stringify(d.productionLines || []), position: d.position || "",
+    password: hashPassword_(String(d.password)),
+    reason: d.reason || "", status: "pending", submitted_at: new Date().toISOString(),
+    preferred_stations: JSON.stringify(d.preferredStations || []),
+    cee_interest: d.ceeInterest ? "YES" : "NO",
+    type_approval_interest: d.typeApprovalInterest ? "YES" : "NO",
+  }]);
   // Tell the administrators. The request is already stored, so a mail failure
   // (quota, no alias) never loses it; the reply says whether the alert went.
   let adminNotified = false;
@@ -1499,6 +1504,7 @@ function listAccessRequests_() {
       password: col(r, "password") || "",
       preferredStations: jsonArr(col(r, "preferred_stations")),
       ceeInterest: col(r, "cee_interest") === "YES",
+      typeApprovalInterest: col(r, "type_approval_interest") === "YES",
       reason: col(r, "reason") || "",
       status: col(r, "status") || "pending",
       submittedAt: col(r, "submitted_at") || "",

@@ -251,7 +251,7 @@ function notifyAdminsOfRequest_(d) {
         ["Department", e(d.department || "—")],
         ["Production lines", e(lines || "—")],
         ["Position", e(d.position || "—")],
-        ["Requested Access", badge + (d.ceeInterest ? " · CEE interest" : ""), "font-weight:700;"],
+        ["Requested Access", badge + (d.ceeInterest ? " · CEE interest" : "") + (d.typeApprovalInterest ? " · Type Approvals interest" : ""), "font-weight:700;"],
       ]) +
       (d.reason ? '<p style="color:#94a3b8;font-size:12px;margin:14px 0 0;">Reason: ' + e(d.reason) + "</p>" : "")) +
     '<p style="color:#a5b4fc;font-size:12px;">Sign in as an administrator and open <strong>Access Requests</strong> to approve or deny.</p>' +
