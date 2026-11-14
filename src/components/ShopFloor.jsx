@@ -101,7 +101,9 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
       <style>{`
         .sf-line { padding: 14px 16px; margin-bottom: 14px; }
         .sf-stations { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
-        .sf-station { min-width: 170px; background: var(--socket-bg); border-radius: 14px; padding: 10px; }
+        .sf-station { min-width: 170px; background: var(--socket-bg); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; }
+        /* Bus cards sit at the bottom of every station, whatever the length of its name. */
+        .sf-buses { margin-top: auto; }
         .sf-code { font-family: monospace; font-weight: 800; color: var(--accent-text); font-size: 13px; }
         .sf-name { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3; }
         .sf-bus { display: block; width: 100%; text-align: left; background: var(--panel-bg); border: 1px solid var(--border-subtle); border-left: 4px solid var(--tone);
@@ -147,7 +149,7 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
                 <div key={code} className="sf-station">
                   <div className="sf-code">{code}</div>
                   <div className="sf-name">{lookupStation(code)?.name || ts[0].station.replace(/^[^:]+:\s*/, '')}</div>
-                  {ts.map(t => <BusBadge key={t.id} task={t} now={now} onOpen={() => setWatching(t.id)} />)}
+                  <div className="sf-buses">{ts.map(t => <BusBadge key={t.id} task={t} now={now} onOpen={() => setWatching(t.id)} />)}</div>
                 </div>
               ))}
             </div>
