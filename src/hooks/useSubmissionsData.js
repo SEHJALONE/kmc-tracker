@@ -125,8 +125,10 @@ export async function fetchSubmissions({ withDowntime = false } = {}) {
     const activity = col(actCsv.headers, r, 'activity');
     const status = col(actCsv.headers, r, 'status') || 'not_set';
     const isAdded = col(actCsv.headers, r, 'is_added') === 'YES';
-    (activitiesById[id] ||= { statuses: {}, added: [] });
+    (activitiesById[id] ||= { statuses: {}, added: [], times: {} });
     activitiesById[id].statuses[activity] = status;
+    const mins = Number(col(actCsv.headers, r, 'time_min'));
+    if (Number.isFinite(mins) && mins > 0) activitiesById[id].times[activity] = mins;
     if (isAdded) activitiesById[id].added.push(activity);
   });
 
@@ -197,6 +199,7 @@ export async function fetchSubmissions({ withDowntime = false } = {}) {
       submittedBy: col(subCsv.headers, r, 'submitted_by') || null,
       activityStatuses: activitiesById[id]?.statuses || {},
       addedActivities: activitiesById[id]?.added || [],
+      activityTimes: activitiesById[id]?.times || {},
       resourcesUsed: resourcesById[id]?.used || {},
       otherResources: resourcesById[id]?.other || [],
       operators: operatorsById[id] || [],
@@ -248,6 +251,25 @@ export function useSubmissionsData() {
     }
   }, [fetchData]);
 
+  // Supervisor approving and correcting a card in one go (VIN, times,
+  // activities…). `changes` is the full card in the shape editSubmission
+  // sends; the review fields ride along on the same call.
+  const reviewAndEditSubmission = useCallback(async ({ changes, review }) => {
+    const body = new URLSearchParams({ payload: JSON.stringify({
+      action: 'updateSubmission', _fullEdit: true, ...changes, ...review,
+    }) });
+    try {
+      const res = await fetch(SHEETS_URL, { method: 'POST', body });
+      let json = null;
+      try { json = await res.json(); } catch { /* opaque */ }
+      setTimeout(fetchData, 3000);
+      if (json && json.status !== 'ok') return { ok: false, error: json.message };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }, [fetchData]);
+
   // General user editing their own still-pending card — full field set,
   // server rejects if a supervisor has already reviewed it in the meantime.
   const editSubmission = useCallback(async (data) => {
@@ -266,5 +288,5 @@ export function useSubmissionsData() {
     }
   }, [fetchData]);
 
-  return { submissions, loading, error, lastFetched, refresh: fetchData, reviewSubmission, editSubmission };
+  return { submissions, loading, error, lastFetched, refresh: fetchData, reviewSubmission, reviewAndEditSubmission, editSubmission };
 }

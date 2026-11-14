@@ -3,6 +3,35 @@ import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
 import { sameStationCode, stationLineOf } from '../data/stations';
 import { useSubmissionsData } from '../hooks/useSubmissionsData';
+import { workingMinutes } from '../utils/workTime';
+import { delayLabel } from '../utils/delay';
+import { cleanActivityTimes } from '../utils/activityTimes';
+
+// "2026-11-14T08:30" for a datetime-local box, from whatever the sheet holds.
+function toLocalInput(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T');
+}
+
+const STATUS_OPTS = [
+  ['complete', '✅ Complete'], ['incomplete', '⏳ Incomplete'], ['issue', '⚠️ Issue noted'],
+  ['rework', '🔁 Rework needed'], ['na', '— N/A'],
+];
+
+// The editable copy of a card a supervisor corrects while reviewing it.
+function draftOf(item) {
+  return {
+    project: item.project || '', busModel: item.busModel || '', vin: item.vin || '',
+    clockIn: toLocalInput(item.clockIn), clockOut: toLocalInput(item.clockOut),
+    operators: (item.operators || []).join(', '),
+    activityStatuses: { ...(item.activityStatuses || {}) },
+    activityTimes: Object.fromEntries(Object.entries(item.activityTimes || {}).map(([a, m]) => [a, String(m)])),
+    ohsIssue: item.ohsIssue || '', wasteGenerated: item.wasteGenerated || '',
+    generalComments: item.generalComments || '',
+  };
+}
 
 const LINE_IMAGE = {
   MACHINE:  '/Machine Shop.jpg',
@@ -37,7 +66,9 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   const fm      = "'Inter', system-ui, sans-serif";
   const mono    = "'Inter', system-ui, sans-serif";
 
-  const { submissions, loading, reviewSubmission } = useSubmissionsData();
+  const { submissions, loading, reviewSubmission, reviewAndEditSubmission } = useSubmissionsData();
+  const knownModels = [...new Set(submissions.map(s => s.busModel).filter(Boolean))].sort();
+  const knownProjects = [...new Set(submissions.map(s => s.project).filter(Boolean))].sort();
 
   // Filter by role scope: supervisor sees only their assigned stations,
   // director/admin sees everything. Scoped to still-pending items only —
@@ -51,33 +82,77 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   const [selected, setSelected] = useState(null);
   const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState(null); // non-null while "Edit details" is open
   const [toast, setToast] = useState(null);
 
   function showToast(msg, ok = true) { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); }
 
   function openReview(item) {
     setSelected(item);
+    setDraft(null);
     setReviewFields({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   }
 
   async function saveReview() {
     if (!reviewFields.approvalStatus) { alert('Select an approval status.'); return; }
     if (!reviewFields.reviewer) { alert('Enter reviewer name.'); return; }
-    setSaving(true);
-
-    const result = await reviewSubmission({
+    const review = {
       recordId: selected.recordId,
       approvalStatus: reviewFields.approvalStatus,
       reviewComments: reviewFields.reviewComments,
       reviewer: reviewFields.reviewer,
       reviewDate: new Date().toISOString().slice(0, 10),
-    });
+    };
+    let changes = null;
+    if (draft && JSON.stringify(draft) !== JSON.stringify(draftOf(selected))) {
+      changes = cardChanges(selected, draft);
+      if (typeof changes === 'string') { alert(changes); return; }
+    }
+    setSaving(true);
+
+    const result = changes
+      ? await reviewAndEditSubmission({ changes, review })
+      : await reviewSubmission(review);
 
     setSelected(null);
+    setDraft(null);
     setSaving(false);
-    if (result.ok) showToast('Review submitted ✓');
+    if (result.ok) showToast(changes ? 'Card corrected and review submitted ✓' : 'Review submitted ✓');
     else showToast(`Could not save review: ${result.error || 'unknown error'}`, false);
   }
+
+  // The full corrected card for updateSubmission (it rewrites the card's
+  // activity/consumable/operator rows), or an error message to show.
+  function cardChanges(item, d) {
+    if (!d.vin.trim()) return 'VIN cannot be empty.';
+    if (!d.clockIn || !d.clockOut) return 'Enter both clock-in and clock-out.';
+    const start = new Date(d.clockIn), end = new Date(d.clockOut);
+    if (isNaN(start) || isNaN(end) || end <= start) return 'Clock-out must be after clock-in.';
+    const clocksSame = d.clockIn === toLocalInput(item.clockIn) && d.clockOut === toLocalInput(item.clockOut);
+    // Per-day hours only still fit if the clock times did not move.
+    const workDays = clocksSame && Array.isArray(item.workDays) ? item.workDays : null;
+    const w = workingMinutes(start, end, workDays);
+    const acts = Object.keys(d.activityStatuses);
+    return {
+      recordId: item.recordId, timestamp: item.timestamp,
+      project: d.project.trim(), busModel: d.busModel.trim(), vin: d.vin.trim(),
+      line: item.line, station: item.station, stationCode: item.stationCode,
+      hseResources: item.hseResources,
+      clockIn: d.clockIn, clockOut: end.toISOString(), workDays,
+      actualTime: w.net, grossTime: w.gross, breakMinutes: Math.max(0, w.gross - w.net),
+      designedTime: item.designedTime,
+      operators: d.operators.split(',').map(x => x.trim()).filter(Boolean),
+      activityStatuses: d.activityStatuses,
+      activityTimes: cleanActivityTimes(d.activityTimes, acts),
+      addedActivities: item.addedActivities || [],
+      resourcesUsed: item.resourcesUsed || {},
+      otherResources: item.otherResources || [],
+      ohsIssue: d.ohsIssue.trim() || null,
+      wasteGenerated: d.wasteGenerated,
+      generalComments: d.generalComments.trim() || null,
+    };
+  }
+  const setD = (k, v) => setDraft(p => ({ ...p, [k]: v }));
 
   const inp = { width: '100%', fontSize: 13, padding: '8px 10px', border: `1px solid ${inpBor}`, borderRadius: 4, background: inpBg, color: text, outline: 'none', boxSizing: 'border-box', fontFamily: fm, colorScheme: isDark ? 'dark' : 'light' };
 
@@ -162,12 +237,60 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: mono, letterSpacing: '0.08em' }}>← List</button>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.vin} — {selected.stationCode}</div>
+            <button onClick={() => setDraft(d => d ? null : draftOf(selected))} className="kmc-btn" style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 11, borderColor: draft ? border : AM, color: draft ? muted : AM }}>
+              {draft ? 'Discard edits' : '✎ Edit details'}
+            </button>
           </div>
+          {draft && (
+            <div style={{ fontSize: 11, color: AM, marginBottom: 10 }}>
+              Correct anything that's wrong (VIN, project, times, activities…). Your changes are saved together with your review when you press Submit Review.
+            </div>
+          )}
 
           {/* Summary card */}
           <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '16px 20px', background: card, marginBottom: 14 }}>
             <div style={{ fontSize: 9, fontWeight: 600, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: mono, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)` }}>Travel Card Details</div>
-            {[
+            {draft && (() => {
+              const lbl = { display: 'block', fontSize: 10, color: muted, fontFamily: mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 };
+              const fld = { marginBottom: 12 };
+              const acts = Object.keys(draft.activityStatuses);
+              return (
+                <div>
+                  <datalist id="pr-models">{knownModels.map(m => <option key={m} value={m} />)}</datalist>
+                  <datalist id="pr-projects">{knownProjects.map(m => <option key={m} value={m} />)}</datalist>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0 12px' }}>
+                    <div style={fld}><label style={lbl}>Project</label><input style={inp} list="pr-projects" value={draft.project} onChange={e => setD('project', e.target.value)} /></div>
+                    <div style={fld}><label style={lbl}>Bus model</label><input style={inp} list="pr-models" value={draft.busModel} onChange={e => setD('busModel', e.target.value)} /></div>
+                    <div style={fld}><label style={lbl}>VIN</label><input style={inp} value={draft.vin} onChange={e => setD('vin', e.target.value)} /></div>
+                    <div style={fld}><label style={lbl}>Station</label><input style={{ ...inp, opacity: 0.6 }} value={`${selected.stationCode} · ${selected.line}`} disabled /></div>
+                    <div style={fld}><label style={lbl}>Clock in</label><input type="datetime-local" style={inp} value={draft.clockIn} onChange={e => setD('clockIn', e.target.value)} /></div>
+                    <div style={fld}><label style={lbl}>Clock out</label><input type="datetime-local" style={inp} value={draft.clockOut} onChange={e => setD('clockOut', e.target.value)} /></div>
+                  </div>
+                  <div style={fld}><label style={lbl}>Operators (comma-separated)</label><input style={inp} value={draft.operators} onChange={e => setD('operators', e.target.value)} /></div>
+                  {acts.length > 0 && (
+                    <div style={fld}>
+                      <label style={lbl}>Activities · status and minutes taken (optional)</label>
+                      {acts.map(a => (
+                        <div key={a} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: `1px solid ${border}`, flexWrap: 'wrap' }}>
+                          <span style={{ flex: '1 1 180px', fontSize: 11, color: muted }}>{a}</span>
+                          <select style={{ ...inp, width: 150, fontSize: 12, padding: '5px 8px' }} value={draft.activityStatuses[a] || ''} onChange={e => setD('activityStatuses', { ...draft.activityStatuses, [a]: e.target.value })}>
+                            <option value="">Status…</option>
+                            {STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                          <input type="number" min="0" placeholder="min" aria-label={`Minutes taken: ${a}`} style={{ ...inp, width: 80, fontSize: 12, padding: '5px 8px' }}
+                            value={draft.activityTimes[a] ?? ''} onChange={e => setD('activityTimes', { ...draft.activityTimes, [a]: e.target.value })} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={fld}><label style={lbl}>OHS issue (blank = none)</label><input style={inp} value={draft.ohsIssue} onChange={e => setD('ohsIssue', e.target.value)} /></div>
+                  <div style={fld}><label style={lbl}>Waste generated</label><input style={inp} value={draft.wasteGenerated} onChange={e => setD('wasteGenerated', e.target.value)} /></div>
+                  <div style={fld}><label style={lbl}>Operator's comments</label><textarea style={{ ...inp, resize: 'vertical', minHeight: 54 }} value={draft.generalComments} onChange={e => setD('generalComments', e.target.value)} /></div>
+                </div>
+              );
+            })()}
+
+            {!draft && [
               ['Project', selected.project],
               ['Bus model', selected.busModel],
               ['VIN', selected.vin],
@@ -188,29 +311,29 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
             ))}
 
             {/* Activities */}
-            {Object.keys(selected.activityStatuses || {}).length > 0 && (
+            {!draft && Object.keys(selected.activityStatuses || {}).length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 10, color: dim, fontFamily: mono, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Activities</div>
                 {Object.entries(selected.activityStatuses).map(([act, status]) => (
                   <div key={act} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11, borderBottom: `1px solid ${border}` }}>
                     <span style={{ color: muted, maxWidth: '70%' }}>{act}</span>
-                    <span style={{ fontFamily: mono, fontSize: 10, color: status === 'complete' ? GR : status === 'issue' ? AM : muted }}>{status}</span>
+                    <span style={{ fontFamily: mono, fontSize: 10, color: status === 'complete' ? GR : status === 'issue' ? AM : muted }}>{status}{selected.activityTimes?.[act] ? ` · ${selected.activityTimes[act]} min` : ''}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Additional notes (comments + unexpected delay/time lost) */}
-            {(selected.generalComments || selected.unexpectedDelay?.types?.length > 0) && (
+            {!draft && (selected.generalComments || selected.unexpectedDelay?.types?.length > 0) && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 10, color: dim, fontFamily: mono, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Additional Notes</div>
-                {selected.generalComments && (
+                {!draft && selected.generalComments && (
                   <div style={{ fontSize: 11, color: muted, padding: '5px 0', borderBottom: `1px solid ${border}` }}>{selected.generalComments}</div>
                 )}
-                {selected.unexpectedDelay?.types?.map(t => (
+                {!draft && selected.unexpectedDelay?.types?.map(t => (
                   <div key={t} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 11, borderBottom: `1px solid ${border}` }}>
                     <span style={{ color: muted }}>{t}</span>
-                    <span style={{ fontFamily: mono, fontSize: 10, color: AM }}>{selected.unexpectedDelay.ranges?.[t] ? `${selected.unexpectedDelay.ranges[t].replace('-', '–')} min` : 'flagged'}</span>
+                    <span style={{ fontFamily: mono, fontSize: 10, color: AM }}>{delayLabel(selected.unexpectedDelay, t)}</span>
                   </div>
                 ))}
               </div>

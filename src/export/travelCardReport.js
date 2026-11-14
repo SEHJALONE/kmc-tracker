@@ -7,6 +7,7 @@
 // flow onto as many pages as they need — cut only between rows/cards.
 import { STATIONS, LINES, modelFamilyOf, stationNameForModel, isSubassembly } from '../data/stations';
 import { parsePpe } from '../utils/ppe';
+import { delayLabel } from '../utils/delay';
 
 const PAGE_W_PX = 794;           // A4 width at 96 dpi
 const DOC_CODE = 'KMC.DPN.05/26-FM004 · Rev #01';
@@ -212,6 +213,9 @@ export function stationReportHTML(sub, { theme = 'light' } = {}) {
   const t = TOKENS[theme] || TOKENS.light;
   const acts = Object.entries(sub.activityStatuses || {});
   const added = new Set(sub.addedActivities || []);
+  // Optional minutes per activity (Nov 2026); the column shows only when any were given.
+  const times = sub.activityTimes || {};
+  const hasTimes = acts.some(([a]) => Number(times[a]) > 0);
   const done = acts.filter(([, s]) => s === 'complete').length;
   const v = variance(sub);
   const late = hasDowntime(sub) || v > 0;
@@ -235,8 +239,8 @@ export function stationReportHTML(sub, { theme = 'light' } = {}) {
       <dt>Submitted</dt><dd>${fmtDateTime(sub.timestamp)}</dd></dl></div>`;
 
   const actTable = `<div class="card"><h3>Activities <span class="cnt">${done} of ${acts.length} complete</span></h3>
-    ${acts.length ? `<table><thead><tr><th>#</th><th>Activity</th><th class="num">Status</th></tr></thead><tbody>
-      ${acts.map(([a, s], i) => `<tr data-break><td class="idx">${i + 1}</td><td>${esc(a)}${added.has(a) ? '<span class="tag">ADDED</span>' : ''}</td><td class="num">${actPill(s)}</td></tr>`).join('')}
+    ${acts.length ? `<table><thead><tr><th>#</th><th>Activity</th>${hasTimes ? '<th class="num">Time</th>' : ''}<th class="num">Status</th></tr></thead><tbody>
+      ${acts.map(([a, s], i) => `<tr data-break><td class="idx">${i + 1}</td><td>${esc(a)}${added.has(a) ? '<span class="tag">ADDED</span>' : ''}</td>${hasTimes ? `<td class="num">${times[a] ? fmtDur(times[a]) : '—'}</td>` : ''}<td class="num">${actPill(s)}</td></tr>`).join('')}
     </tbody></table>` : '<div class="empty">No activities recorded.</div>'}</div>`;
 
   const consTable = `<div class="card"><h3>Consumables &amp; materials <span class="cnt">${preset.length + other.length} items</span></h3>
@@ -266,7 +270,7 @@ export function stationReportHTML(sub, { theme = 'light' } = {}) {
   }
 
   const delay = sub.unexpectedDelay && (sub.unexpectedDelay.types || []).length
-    ? sub.unexpectedDelay.types.map(ty => `${ty}${sub.unexpectedDelay.ranges?.[ty] ? ` (${sub.unexpectedDelay.ranges[ty]})` : ''}`).join(', ')
+    ? sub.unexpectedDelay.types.map(ty => { const l = delayLabel(sub.unexpectedDelay, ty); return l === 'flagged' ? ty : `${ty} (${l})`; }).join(', ')
     : '';
   const notes = (sub.ohsIssue || sub.wasteGenerated || sub.generalComments || delay) ? `<div class="card" data-break><h3>HSE &amp; notes</h3><dl class="kv">
       <dt>OHS issue</dt><dd>${esc(sub.ohsIssue || 'None reported')}</dd>

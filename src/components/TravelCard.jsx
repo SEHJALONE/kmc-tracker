@@ -175,6 +175,18 @@ import { workingMinutes, defaultWorkDays, mergeWorkDays } from '../utils/workTim
 import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
 import { PPE_ITEMS, prefillPpe, encodePpe, parsePpe } from '../utils/ppe';
+import { buildDelay, delayFormState } from '../utils/delay';
+import { activityTimesFromTask, cleanActivityTimes } from '../utils/activityTimes';
+
+// The card's record id is made here (the server keeps it, see doPost) so the
+// Done page can reopen the card for editing straight away.
+function newRecordId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 // Older imports read the seed from this file; keep them working.
 export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { useStationConsumables } from '../hooks/useStationConsumables';
@@ -339,7 +351,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Editing an already-submitted card (general user, still pre-approval) —
   // see MySubmissions.jsx. Patches the existing sheet row instead of
   // creating a new one; see submitUserCard below.
-  const isEditMode = !!editSubmission;
+  // "← Back to edit" on the Done page reopens the card just filed (selfEdit),
+  // the same way My Submissions opens an older one (editSubmission).
+  const [selfEdit, setSelfEdit] = useState(null);
+  const editRec = selfEdit || editSubmission;
+  const isEditMode = !!editRec;
   // Recompute theme tokens on every render so styles react to theme changes
   T = makeTheme(theme === 'dark');
   INP_BG  = T.inpBg;
@@ -408,6 +424,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // Hours worked on each day when a card runs over several days (see WorkDaysEditor).
   const [workDays, setWorkDays] = useState([]);
   const [actStatuses, setActStatuses] = useState({});
+  const [actTimes, setActTimes] = useState({});      // optional minutes per activity
   const [otherActs, setOtherActs] = useState([]);   // ad-hoc activities added on the card
   const [otherActName, setOtherActName] = useState("");
   const [resQtys, setResQtys] = useState({});
@@ -438,12 +455,19 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // supervisor-only downtime/RCA flow above, which plain users never see).
   const [genComments, setGenComments] = useState("");
   const [delayTypes, setDelayTypes] = useState([]);       // selected 6M cause names, informal use
-  const [delayRanges, setDelayRanges] = useState({});      // { causeName: "15-30" }
-  const DELAY_RANGE_OPTIONS = ["0-15", "15-30", "30-60", "60-120", "120+"];
+  const [delayMins, setDelayMins] = useState({});          // { reason: "25" } — minutes the user typed
+  const [otherDelayName, setOtherDelayName] = useState(""); // "Other — specify" reason being typed
   function toggleDelayType(m) {
     setDelayTypes(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
-    setDelayRanges(prev => { const n = { ...prev }; delete n[m]; return n; });
+    setDelayMins(prev => { const n = { ...prev }; delete n[m]; return n; });
   }
+  function addOtherDelay() {
+    const n = otherDelayName.trim();
+    if (!n) return;
+    setDelayTypes(prev => prev.some(x => x.toLowerCase() === n.toLowerCase()) ? prev : [...prev, n]);
+    setOtherDelayName("");
+  }
+  const unexpectedDelayOut = () => buildDelay(delayTypes, delayMins);
   // Phase 1 CAPA fields
   const [rcaMethod, setRcaMethod] = useState("");
   const [why1, setWhy1] = useState("");
@@ -514,6 +538,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setClockOut(s.clockOut || "");
     setWorkDays(Array.isArray(s.workDays) ? s.workDays : []);
     setActStatuses(s.activityStatuses || {});
+    setActTimes(Object.fromEntries(Object.entries(s.activityTimes || {}).map(([a, m]) => [a, String(m)])));
     setOtherActs(s.addedActivities || []);
     setResQtys(s.resourcesUsed || {});
     setOtherRes(s.otherResources || []);
@@ -521,8 +546,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setOhsTxt(s.ohsIssue || "");
     setWaste(s.wasteGenerated || "");
     setGenComments(s.generalComments || "");
-    setDelayTypes(s.unexpectedDelay?.types || []);
-    setDelayRanges(s.unexpectedDelay?.ranges || {});
+    const dl = delayFormState(s.unexpectedDelay);
+    setDelayTypes(dl.types);
+    setDelayMins(dl.minutes);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editSubmission?.recordId]);
 
@@ -539,12 +565,12 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       page, curProj, busModel, vin, curLine, curSt, curCode, designedTime,
       operators, selOps, ppe, clockIn, clockOut, workDays,
       actualTime, grossTime, breakTime,
-      actStatuses, otherActs, resQtys, removedRes, otherRes,
+      actStatuses, actTimes, otherActs, resQtys, removedRes, otherRes,
       ohs, ohsTxt, waste,
       hasDowntime, selMs, subCauses, causeTimes, customCauses, corrAction, orComments,
       rcaMethod, why1, why2, why3, why4, why5, fiveCategory, preventiveAction,
       reviewer, revOther, appStatus, revDate, revComments,
-      genComments, delayTypes, delayRanges,
+      genComments, delayTypes, delayMins,
     };
   }
 
@@ -566,7 +592,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setOperators(snap.operators ?? []); setSelOps(snap.selOps ?? []);
     setPpe(snap.ppe ?? parsePpe(snap.hseCount).items); setPpeTouched(true); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? ""); setWorkDays(snap.workDays ?? []);
     setActualTime(snap.actualTime ?? 0); setGrossTime(snap.grossTime ?? 0); setBreakTime(snap.breakTime ?? 0);
-    setActStatuses(snap.actStatuses ?? {}); setOtherActs(snap.otherActs ?? []);
+    setActStatuses(snap.actStatuses ?? {}); setActTimes(snap.actTimes ?? {}); setOtherActs(snap.otherActs ?? []);
     setResQtys(snap.resQtys ?? {}); setRemovedRes(snap.removedRes ?? []); setOtherRes(snap.otherRes ?? []);
     setOhs(snap.ohs ?? false); setOhsTxt(snap.ohsTxt ?? ""); setWaste(snap.waste ?? "");
     setHasDowntime(snap.hasDowntime ?? false); setSelMs(snap.selMs ?? []);
@@ -577,7 +603,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setPreventiveAction(snap.preventiveAction ?? "");
     setReviewer(snap.reviewer ?? ""); setRevOther(snap.revOther ?? ""); setAppStatus(snap.appStatus ?? "");
     setRevDate(snap.revDate ?? new Date().toISOString().slice(0, 10)); setRevComments(snap.revComments ?? "");
-    setGenComments(snap.genComments ?? ""); setDelayTypes(snap.delayTypes ?? []); setDelayRanges(snap.delayRanges ?? {});
+    setGenComments(snap.genComments ?? ""); setDelayTypes(snap.delayTypes ?? []);
+    setDelayMins(snap.delayMins ?? delayFormState({ types: snap.delayTypes, ranges: snap.delayRanges }).minutes);
     setSessionBanner(false);
   }
 
@@ -689,6 +716,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     const done = {};
     (taskPrefill.activities || []).forEach(a => { if (a.doneAt) done[a.name] = "complete"; });
     setActStatuses(done);
+    setActTimes(Object.fromEntries(Object.entries(activityTimesFromTask(taskPrefill.startedAt, taskPrefill.activities)).map(([a, m]) => [a, String(m)])));
     setOtherActs((taskPrefill.activities || []).filter(a => a.added).map(a => a.name));
     if (taskPrefill.jobOrderId) {
       const vins = (taskPrefill.vins || []).filter(Boolean);
@@ -741,6 +769,28 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   function goTo(n) { setPage(n); window.scrollTo(0, 0); }
 
+  // Status plus an optional "how many minutes did it take" box, per activity.
+  function actControls(a) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <select style={css.stSel} value={actStatuses[a] || ""} onChange={e => setActStatuses(p => ({ ...p, [a]: e.target.value }))}>
+          <option value="">Status…</option>
+          <option value="complete">✅ Complete</option>
+          <option value="incomplete">⏳ Incomplete</option>
+          <option value="issue">⚠️ Issue noted</option>
+          <option value="rework">🔁 Rework needed</option>
+          <option value="na">— N/A</option>
+        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input type="number" min="0" step="1" inputMode="numeric" aria-label={`Minutes taken: ${a}`}
+            style={{ ...css.stSel, cursor: "text", width: "100%" }} placeholder="Time (optional)"
+            value={actTimes[a] ?? ""} onChange={e => setActTimes(p => ({ ...p, [a]: e.target.value }))} />
+          <span style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>min</span>
+        </div>
+      </div>
+    );
+  }
+
   function onStation(v) {
     setCurSt(v);
     const code = v.split(":")[0].trim();
@@ -751,7 +801,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       ? (stationTimesApi.getMinutes(`${modelKind}:${code}`) ?? stationTimesApi.getMinutes(code) ?? 0)
       : 0;
     setDesignedTime(mins);
-    setActStatuses({});
+    setActStatuses({}); setActTimes({});
     setOtherActs([]); setOtherActName("");
 
     // Load remembered quantities and custom consumables for this station.
@@ -840,30 +890,47 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
     if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
 
+    // A card that was rejected or sent back goes back into the approval queue
+    // as a fresh resubmission; one still awaiting its first look stays there.
+    const wasSentBack = ["rejected", "pending"].includes(editRec.approvalStatus);
     const patch = {
-      recordId: editSubmission.recordId,
+      recordId: editRec.recordId,
+      timestamp: editRec.timestamp,
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, workDays: workDaysToSave, actualTime: actual, designedTime,
       grossTime: gross, breakMinutes: brkMin,
       activityStatuses: actStatuses,
+      activityTimes: cleanActivityTimes(actTimes, [...acts, ...otherActs]),
       addedActivities: otherActs,
       resourcesUsed: resQtys,
       otherResources: usedOtherRes(otherRes),
       ohsIssue: ohs ? ohsTxt : null,
       wasteGenerated: waste,
       generalComments: genComments.trim() || null,
-      unexpectedDelay: delayTypes.length
-        ? { types: delayTypes, ranges: delayTypes.reduce((o, t) => { if (delayRanges[t]) o[t] = delayRanges[t]; return o; }, {}) }
-        : null,
+      unexpectedDelay: unexpectedDelayOut(),
+      approvalStatus: "pending_review",
+      ...(wasSentBack ? { reviewDate: "" } : {}),
     };
-    setGsStatus("Saving your changes…");
+    setGsStatus(wasSentBack ? "Resubmitting for review…" : "Saving your changes…");
     const result = await onEditSubmit(patch);
     if (result.ok) {
-      setSubmission({ ...editSubmission, ...patch, timestamp: editSubmission.timestamp });
-      setGsStatus("✅ Changes saved.");
+      const saved = { ...editRec, ...patch, submittedBy: editRec.submittedBy || currentUserName || null };
+      setSubmission(saved);
+      setGsStatus(wasSentBack ? "✅ Resubmitted. Awaiting supervisor review." : "✅ Changes saved.");
       goTo(4);
+      // Approvers were told about the card when it was first filed; tell them
+      // again only when it comes back to them after a rejection.
+      if (wasSentBack) {
+        setEmailStatus("📧 Asking approvers to review…");
+        notifyApprovers(saved)
+          .then(reply => setEmailStatus(describeCardEmail(reply)))
+          .catch(e => setEmailStatus(`⚠️ Approval email not sent: ${e.message}`));
+      }
+    } else if (result.error === "not-found") {
+      alert("This card hasn't reached the production records yet. Wait a minute and open it again from My Submissions.");
+      setGsStatus("");
     } else if (result.error === "already-approved") {
       alert("This card has already been approved by a supervisor and can no longer be edited.");
       setGsStatus("");
@@ -880,6 +947,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
 
     const sub = {
+      recordId: newRecordId(),
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
@@ -888,6 +956,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       hasDowntime: false,
       grossTime: gross, breakMinutes: brkMin,
       activityStatuses: actStatuses,
+      activityTimes: cleanActivityTimes(actTimes, [...acts, ...otherActs]),
       addedActivities: otherActs,
       resourcesUsed: resQtys,
       removedResources: removedRes,
@@ -896,9 +965,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       wasteGenerated: waste,
       downtime: null,
       generalComments: genComments.trim() || null,
-      unexpectedDelay: delayTypes.length
-        ? { types: delayTypes, ranges: delayTypes.reduce((o, t) => { if (delayRanges[t]) o[t] = delayRanges[t]; return o; }, {}) }
-        : null,
+      unexpectedDelay: unexpectedDelayOut(),
       submittedBy: currentUserName || null,
       reviewer: null,
       approvalStatus: "pending_review",
@@ -970,6 +1037,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (curCode) LS.set(`kmc_sel_${curCode}`, selOps);
 
     const sub = {
+      recordId: newRecordId(),
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
       line: curLine, station: curSt, stationCode: curCode,
@@ -977,6 +1045,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       clockIn, clockOut, workDays: workDaysToSave, actualTime, designedTime, hasDowntime,
       grossTime, breakMinutes: breakTime,
       activityStatuses: actStatuses,
+      activityTimes: cleanActivityTimes(actTimes, [...acts, ...otherActs]),
       addedActivities: otherActs,
       resourcesUsed: resQtys,
       removedResources: removedRes,
@@ -1046,7 +1115,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
   function another() {
     const km = busModel, kp = curProj, kv = vin;
-    setActStatuses({}); setOtherActs([]); setOtherActName(""); setResQtys({}); setRemovedRes([]); setOtherRes([]);
+    setActStatuses({}); setActTimes({}); setOtherActs([]); setOtherActName(""); setResQtys({}); setRemovedRes([]); setOtherRes([]);
+    setGenComments(""); setDelayTypes([]); setDelayMins({}); setOtherDelayName(""); setSelfEdit(null);
     setClockIn(""); setClockOut(""); setWorkDays([]); setPpe({}); setPpeTouched(false); setOtherPpeName(""); setOhs(false); setOhsTxt(""); setWaste("");
     setHasDowntime(false); setActualTime(0); setGrossTime(0); setBreakTime(0); setSelMs([]); setSubCauses({}); setCauseTimes({}); setCustomCauses([]); setCustomCauseName("");
     setAttachmentFile(null); setAttachmentB64(null); setAttachmentName(''); setAttachmentMime('');
@@ -1328,30 +1398,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             )}
           </div>
           {acts.length === 0 && otherActs.length === 0 && <div style={{ fontSize: 12, color: T.dim }}>No predefined activities for this station — add one below.</div>}
+          {(acts.length > 0 || otherActs.length > 0) && <div style={{ ...css.note, marginTop: 0, marginBottom: 4 }}>Minutes per activity are optional — fill them in where you know how long it took.</div>}
           {acts.map((a, i) => <div key={i} className="tc-act-row" style={{ ...css.actRow, ...(i === acts.length - 1 && otherActs.length === 0 ? { borderBottom: "none" } : {}) }}>
             <div style={css.actName}>{a}</div>
-            <select style={css.stSel} value={actStatuses[a] || ""} onChange={e => setActStatuses(p => ({ ...p, [a]: e.target.value }))}>
-              <option value="">Status…</option>
-              <option value="complete">✅ Complete</option>
-              <option value="incomplete">⏳ Incomplete</option>
-              <option value="issue">⚠️ Issue noted</option>
-              <option value="rework">🔁 Rework needed</option>
-              <option value="na">— N/A</option>
-            </select>
+            {actControls(a)}
           </div>)}
           {/* Ad-hoc activities added on this card (not in the predefined list) */}
           {otherActs.map((a, i) => <div key={`o${i}`} className="tc-act-row" style={{ ...css.actRow, gridTemplateColumns: "1fr 140px 28px", ...(i === otherActs.length - 1 ? { borderBottom: "none" } : {}) }}>
             <div style={css.actName}>{a}</div>
-            <select style={css.stSel} value={actStatuses[a] || ""} onChange={e => setActStatuses(p => ({ ...p, [a]: e.target.value }))}>
-              <option value="">Status…</option>
-              <option value="complete">✅ Complete</option>
-              <option value="incomplete">⏳ Incomplete</option>
-              <option value="issue">⚠️ Issue noted</option>
-              <option value="rework">🔁 Rework needed</option>
-              <option value="na">— N/A</option>
-            </select>
+            {actControls(a)}
             <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 16, lineHeight: 1 }} title="Remove activity"
-              onClick={() => { setOtherActs(prev => prev.filter(x => x !== a)); setActStatuses(prev => { const n = { ...prev }; delete n[a]; return n; }); }}>×</button>
+              onClick={() => { setOtherActs(prev => prev.filter(x => x !== a)); setActStatuses(prev => { const n = { ...prev }; delete n[a]; return n; }); setActTimes(prev => { const n = { ...prev }; delete n[a]; return n; }); }}>×</button>
           </div>)}
           <div style={css.subSec}>
             <div style={css.subHd}>Other activity (not in list)</div>
@@ -1436,19 +1493,29 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           </div>
           <div style={{ ...css.fld, marginTop: 12 }}>
             <label style={css.lbl_}>Unexpected delay / time lost</label>
-            <div style={css.mSub}>Select any that applied — no exact time needed, just a rough range.</div>
+            <div style={css.mSub}>Select any that applied and enter roughly how many minutes each one cost you.</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               {SIX.map(m => <div key={m.m} style={{ ...css.mCard, ...(delayTypes.includes(m.m) ? css.mCardSel : {}), flex: "0 0 auto", padding: "6px 10px", cursor: "pointer" }} onClick={() => toggleDelayType(m.m)}>
                 {m.icon} {m.m}
               </div>)}
             </div>
+            <div style={{ ...css.addRow, marginTop: 8 }}>
+              <input style={css.addInp} value={otherDelayName} onChange={e => setOtherDelayName(e.target.value)} placeholder="Other reason — specify (e.g. waiting for crane)"
+                onKeyDown={e => { if (e.key === "Enter") addOtherDelay(); }} />
+              <button style={css.addBtn} onClick={addOtherDelay}>+ ADD</button>
+            </div>
             {delayTypes.map(m => (
               <div key={m} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-                <span style={{ fontSize: 12, color: T.muted }}>{m}</span>
-                <select style={{ ...css.inp, maxWidth: 140 }} value={delayRanges[m] || ""} onChange={e => setDelayRanges(p => ({ ...p, [m]: e.target.value }))}>
-                  <option value="">Time range…</option>
-                  {DELAY_RANGE_OPTIONS.map(r => <option key={r} value={r}>{r === "120+" ? "120+ min" : `${r.replace("-", "–")} min`}</option>)}
-                </select>
+                <span style={{ fontSize: 12, color: T.muted, flex: 1, wordBreak: "break-word" }}>
+                  {SIX.some(x => x.m === m) ? m : <>Other: {m}</>}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <input type="number" min="0" step="1" inputMode="numeric" aria-label={`Minutes lost: ${m}`}
+                    style={{ ...css.inp, width: 90 }} placeholder="Minutes"
+                    value={delayMins[m] ?? ""} onChange={e => setDelayMins(p => ({ ...p, [m]: e.target.value }))} />
+                  <span style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>min</span>
+                  <button style={{ background: "none", border: "none", cursor: "pointer", color: T.dimmer, fontSize: 16, lineHeight: 1 }} title="Remove" onClick={() => toggleDelayType(m)}>×</button>
+                </div>
               </div>
             ))}
           </div>
@@ -1457,7 +1524,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         <div style={css.nav2}>
           <button style={{ ...css.btnS, marginTop: 0, flex: .35 }} onClick={() => goTo(0)}>← Back</button>
           <button style={{ ...css.btnP, marginTop: 0, flex: 1 }} onClick={p1next}>
-            {isEditMode ? "Save Changes →" : isUser ? "Submit for Review →" : "Continue →"}
+            {isEditMode ? (["rejected", "pending"].includes(editRec.approvalStatus) ? "Resubmit for Review →" : "Save Changes →") : isUser ? "Submit for Review →" : "Continue →"}
           </button>
         </div>
       </>}
@@ -1779,7 +1846,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               {entries.map(([a, s]) => (
                 <div key={a} style={css.confRow}>
                   <span style={css.confLbl}>{a}</span>
-                  <span style={css.confVal}>{statusLabel[s] || s}</span>
+                  <span style={css.confVal}>{statusLabel[s] || s}{submission.activityTimes?.[a] ? ` · ${submission.activityTimes[a]} min` : ""}</span>
                 </div>
               ))}
               {added.map(a => (
@@ -1939,6 +2006,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <button style={{ ...css.btnDl, opacity: dlBusy === "bus" ? 0.6 : 1 }} onClick={dlBusReport} disabled={!!dlBusy}>
             {dlBusy === "bus" ? "Generating PDF…" : "⬇ Download full bus report (PDF)"}
           </button>
+          {/* A general user's card can be reopened and corrected until a
+              supervisor approves it (the same edit as My Submissions). */}
+          {isUser && onEditSubmit && submission.recordId && submission.approvalStatus !== "approved" && (
+            <button style={{ ...css.btnS, borderColor: AM, color: AM }} onClick={() => { setSelfEdit(submission); setGsStatus(""); setEmailStatus(""); goTo(0); }}>
+              ← Back to edit this card
+            </button>
+          )}
           <button style={css.btnP} onClick={another}>Log another station →</button>
           <button style={css.btnS} onClick={() => { if (onReset) onReset(); if (onExit) onExit(); }}>{onExit ? "← Back to Travel Card home" : "← Back to tracker"}</button>
         </div>

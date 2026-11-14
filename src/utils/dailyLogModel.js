@@ -1,5 +1,6 @@
 import { ORG_UNITS, orgUnit } from '../data/orgStructure.js';
 import { lookupStation, LINES } from '../data/stations.js';
+import { delayMinutes } from './delay.js';
 
 // ── DPN Operations Daily Log (form KMC.DPN.07/26-FM013) ──────────────────
 // Builds the prefilled content of one unit's log for one day, from the
@@ -44,13 +45,6 @@ export function reasonFor6M(cause, detail = '') {
   return 'D6';
 }
 
-// "15–30" → 22.5, "120+" → 120: general users log delay as a range only.
-function rangeMidpoint(range) {
-  const nums = String(range || '').match(/\d+(\.\d+)?/g)?.map(Number) || [];
-  if (!nums.length) return 0;
-  return nums.length > 1 ? (nums[0] + nums[1]) / 2 : nums[0];
-}
-
 // Minutes lost on a card and the dominant cause, best source first:
 // supervisor's 6M minutes → general user's delay ranges → plain overrun.
 function cardDowntime(card) {
@@ -68,10 +62,10 @@ function cardDowntime(card) {
   }
   const ud = card.unexpectedDelay;
   if (ud && Array.isArray(ud.types) && ud.types.length) {
-    const entries = ud.types.map(t => [t, rangeMidpoint(ud.ranges?.[t])]);
+    const entries = ud.types.map(t => [t, delayMinutes(ud, t)]);
     const minutes = entries.reduce((s, [, m]) => s + m, 0);
     const [top] = [...entries].sort((a, b) => b[1] - a[1]);
-    return { minutes, reason: reasonFor6M(top[0]), note: `${ud.types.join(', ')} (approx.)` };
+    return { minutes, reason: reasonFor6M(top[0]), note: `${ud.types.join(', ')}${ud.minutes && Object.keys(ud.minutes).length ? '' : ' (approx.)'}` };
   }
   if (card.hasOverrun && card.designedTime > 0 && card.actualTime > card.designedTime) {
     return { minutes: card.actualTime - card.designedTime, reason: '', note: 'Over designed time' };

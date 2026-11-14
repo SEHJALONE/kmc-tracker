@@ -222,7 +222,11 @@ function doPost(e) {
     // ── Travel-card submission (existing, default) ────────────────────────────
     const ss        = SpreadsheetApp.openById(TRACKER_SHEET_ID);
     const trackerSs = SpreadsheetApp.openById(TRACKER_SHEET_ID);
-    const id        = Utilities.getUuid();
+    // The site makes the record id (so a card can be reopened for editing the
+    // moment it is filed). A resend of a card already on file is not filed twice.
+    const clientId  = cardRecordId_(data.recordId);
+    if (clientId && submissionExists_(ss, clientId)) return response({ status: "ok", id: clientId, duplicate: true });
+    const id        = clientId || Utilities.getUuid();
 
     ensureLegacyRepair_(); // one-time: label/move columns older versions left unlabelled
     writeSubmission(ss, data, id);
@@ -777,6 +781,19 @@ const SUBMISSION_HEADERS = [
   "submitted_by",
   "work_days",
 ];
+function cardRecordId_(v) {
+  const s = String(v || "").trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? s.toLowerCase() : "";
+}
+function submissionExists_(ss, id) {
+  const sh = ss.getSheetByName("submissions");
+  if (!sh || sh.getLastRow() < 2) return false;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(h => String(h).toLowerCase().trim());
+  const c = headers.indexOf("record_id");
+  if (c < 0) return false;
+  return sh.getRange(2, c + 1, sh.getLastRow() - 1, 1).getValues().some(r => String(r[0]).toLowerCase() === id);
+}
+
 function writeSubmission(ss, d, id) {
   const sh = getOrCreate(ss, "submissions", SUBMISSION_HEADERS);
   const down = downtimeOf_(d);
@@ -797,7 +814,8 @@ function writeSubmission(ss, d, id) {
   }]);
 }
 
-const ACTIVITY_HEADERS = ["record_id","timestamp","station_code","vin","project","activity","status","is_added"];
+// time_min: optional minutes the activity took (Nov 2026), blank when not given.
+const ACTIVITY_HEADERS = ["record_id","timestamp","station_code","vin","project","activity","status","is_added","time_min"];
 function writeActivities(ss, d, id) {
   const sh = getOrCreate(ss, "activities", ACTIVITY_HEADERS);
   const statuses = d.activityStatuses || {};
@@ -808,7 +826,12 @@ function writeActivities(ss, d, id) {
   appendRecords_(sh, ACTIVITY_HEADERS, Object.entries(all).map(([activity, status]) => ({
     record_id: id, timestamp: d.timestamp, station_code: d.stationCode, vin: d.vin, project: d.project,
     activity: activity, status: status || "not_set", is_added: added.indexOf(activity) > -1 ? "YES" : "NO",
+    time_min: activityMinutes_(d.activityTimes, activity),
   })));
+}
+function activityMinutes_(times, activity) {
+  const n = Number(times && times[activity]);
+  return isFinite(n) && n > 0 ? n : "";
 }
 
 // is_removed: preset consumables the operator deliberately removed from the
