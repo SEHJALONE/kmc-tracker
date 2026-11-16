@@ -58,6 +58,6 @@ describe('report HTML', () => {
   it('formats durations', () => {
     expect(fmtDur(45)).toBe('45 min');
     expect(fmtDur(125)).toBe('2h 05m');
-    expect(fmtDur(-3)).toBe('—');
+    expect(fmtDur(-3)).toBe('-');
   });
 });

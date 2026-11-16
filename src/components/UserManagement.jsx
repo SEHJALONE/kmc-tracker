@@ -275,7 +275,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
       {/* No users */}
       {users.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: muted }}>No dynamic users yet</div>
           <div style={{ fontSize: 13, marginTop: 6 }}>Approve access requests to create users.</div>
         </div>

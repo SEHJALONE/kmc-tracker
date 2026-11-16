@@ -323,7 +323,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
 
   if (report.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em', fontWeight: 500 }}>
           NO BUSES ON FLOOR
         </div>

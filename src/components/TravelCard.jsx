@@ -1531,7 +1531,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
       {/* ── PAGE 2: DOWNTIME ── */}
       {page === 2 && <>
-        <div style={css.banner}>
+        <div style={css.banner}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: AM, letterSpacing: "0.06em" }}>Station time exceeded</div>
             <div style={{ fontSize: 11, color: AM, marginTop: 3 }}>Please identify the root cause below before proceeding to sign-off.</div>
@@ -1708,7 +1708,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 accept="image/*,application/pdf"
                 style={{ display: "none" }}
                 onChange={handleAttachmentChange}
-              />
+              />
               <div>
                 <div style={{ fontSize: 12, color: attachmentFile ? T.text : T.dim, fontWeight: attachmentFile ? 600 : 400 }}>
                   {attachmentFile ? attachmentFile.name : "Tap to select file…"}

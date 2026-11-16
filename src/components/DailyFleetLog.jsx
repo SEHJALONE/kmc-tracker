@@ -245,7 +245,7 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
       {loading && dayRows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>Loading…</div>
       ) : dayRows.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim, maxWidth: 1100 }}>
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim, maxWidth: 1100 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: muted }}>No sightings logged for {date}</div>
           <div style={{ fontSize: 12, marginTop: 6 }}>Log a bus above as you spot it on the line.</div>
         </div>
