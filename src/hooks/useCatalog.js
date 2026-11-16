@@ -60,6 +60,10 @@ export function extractCatalog(csvText) {
 export function useCatalog() {
   const [catalog, setCatalog] = useState(() => ({ ...EMPTY_CATALOG }));
   const [loading, setLoading] = useState(true);
+  // True once the shared catalog has actually been read (not just the seed),
+  // so nothing mistakes the built-in defaults for the admin's edits.
+  const [loaded, setLoaded]   = useState(false);
+  const lastSave = useRef(0);
   const [error, setError]     = useState(null);
   const [saving, setSaving]   = useState(false);
   const mounted = useRef(true);
@@ -72,13 +76,16 @@ export function useCatalog() {
     return normalized;
   }, []);
 
-  const fetchCatalog = useCallback(async () => {
+  // A read right after a save can return the sheet's old copy (gviz lags), so
+  // routine refreshes wait a minute after a save; `force` reads regardless.
+  const fetchCatalog = useCallback(async (force = false) => {
+    if (force !== true && Date.now() - lastSave.current < 60000) return;
     try {
       const res = await fetch(CATALOG_READ_URL + '&t=' + Date.now());
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const raw = extractCatalog(await res.text());
       apply(raw); // raw may be null → normalizes to empty seed
-      if (mounted.current) setError(null);
+      if (mounted.current) { setError(null); if (raw) setLoaded(true); }
     } catch (e) {
       // Non-fatal: the app falls back to built-in seed data.
       console.warn('Catalog: could not load shared catalog, using defaults.', e.message);
@@ -102,6 +109,7 @@ export function useCatalog() {
   // optimistic state stays authoritative; the periodic refresh reconciles later.
   const saveCatalog = useCallback(async (next) => {
     const normalized = apply(next); // optimistic local update + tracker reflect
+    lastSave.current = Date.now();
     setSaving(true);
     try {
       const body = new URLSearchParams({
@@ -115,7 +123,8 @@ export function useCatalog() {
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') {
-        fetchCatalog(); // drop the optimistic local change — the server kept the old one
+        lastSave.current = 0;
+        fetchCatalog(true); // drop the optimistic local change — the server kept the old one
         return { ok: false, error: json.message || 'unknown-error' };
       }
       return { ok: true };
@@ -152,7 +161,8 @@ export function useCatalog() {
       const res = await fetch(CATALOG_WRITE_URL, { method: 'POST', body });
       const json = await res.json();
       if (json.status !== 'ok') return { ok: false, error: json.message || 'unknown-error' };
-      await fetchCatalog();
+      lastSave.current = 0;
+      await fetchCatalog(true);
       return { ok: true, rows: json.rows };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -160,7 +170,7 @@ export function useCatalog() {
   }, [fetchCatalog]);
 
   return {
-    catalog, loading, error, saving, saveCatalog, refreshCatalog: fetchCatalog,
+    catalog, loading, loaded, error, saving, saveCatalog, refreshCatalog: fetchCatalog,
     listCatalogBackups, restoreCatalogBackup,
   };
 }

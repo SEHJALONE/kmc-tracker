@@ -191,7 +191,7 @@ export default function App() {
 
   // Shared catalog — drives travel-card dropdowns AND the bus tracker so admin
   // edits to lines/stations/projects reflect everywhere.
-  const { catalog, saveCatalog, saving: catalogSaving, listCatalogBackups, restoreCatalogBackup, refreshCatalog } = useCatalog();
+  const { catalog, loaded: catalogLoaded, saveCatalog, saving: catalogSaving, listCatalogBackups, restoreCatalogBackup, refreshCatalog } = useCatalog();
   const [adminOpen, setAdminOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -503,6 +503,8 @@ export default function App() {
           username={username}
           currentUserName={currentUserName}
           catalog={catalog}
+          catalogLoaded={catalogLoaded}
+          onRefreshCatalog={refreshCatalog}
           lockedCodes={(assignedStations && assignedStations.length) ? assignedStations : (assignedStation ? [assignedStation] : [])}
           initialView={editingSubmission || tcPrefill ? 'legacy' : 'home'}
           onHome={() => { setTcPrefill(null); setEditingSubmission(null); }}

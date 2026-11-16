@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTravelTasks } from '../hooks/useTravelTasks';
 import { OUTDATED_SCRIPT } from '../data/mailer';
 import { useSubmissionsData } from '../hooks/useSubmissionsData';
 import { TaskSetup, TaskRunning, TASK_RUNNER_CSS, fmtClock, fmtTime, useNow } from './TaskRunner';
+import { resolveTcCatalog } from '../utils/tcCatalog';
+import { syncTaskActivities } from '../utils/taskActivities';
 import { StatTile, ColumnChart, RingGauge, Legend, Ribbon, SectionHead, grad } from './ui/Charts';
 
 // What tapping "Travel Card" opens: the two ways to fill a card on top, then the
@@ -105,14 +107,30 @@ function OpenTaskRibbon({ n, task, now, onOpen, onClose }) {
 
 const STATUS = { pending_review: ['Pending', 'amber'], pending: ['Review', 'amber'], rejected: ['Rework', 'red'], approved: ['Approved', 'lime'] };
 
-export default function TravelCardHub({ username, currentUserName, catalog, lockedCodes = [], initialView = 'home', renderLegacy, onHome = null }) {
+export default function TravelCardHub({ username, currentUserName, catalog, catalogLoaded = false, onRefreshCatalog = null, lockedCodes = [], initialView = 'home', renderLegacy, onHome = null }) {
   const tasks = useTravelTasks(username);
+
+  // Fresh catalog whenever the Travel Card opens, so Edit Catalog changes made
+  // elsewhere show on Start straight away instead of after the 2-minute refresh.
+  useEffect(() => { if (onRefreshCatalog) onRefreshCatalog(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Open tasks follow later catalog edits to their station's activity list
+  // (ticks are kept). Only once the shared catalog has really been read, so the
+  // built-in defaults never overwrite a task.
+  useEffect(() => {
+    if (!catalogLoaded) return;
+    const tc = resolveTcCatalog(catalog);
+    for (const t of tasks.openTasks) {
+      const next = syncTaskActivities(t, tc.actsFor(t.stationCode, t.busModel));
+      if (next) tasks.update(t.id, { activities: next });
+    }
+  }, [catalog, catalogLoaded, tasks.tasks]); // eslint-disable-line react-hooks/exhaustive-deps
   const { submissions, loading } = useSubmissionsData();
   const now = useNow(1000);
   // { kind: 'home' | 'legacy' | 'new' | 'task' | 'close', id?, endedAt? }
   const [view, setView] = useState({ kind: initialView });
   const home = () => { if (onHome) onHome(); setView({ kind: 'home' }); window.scrollTo(0, 0); };
-  const go = v => { setView(v); window.scrollTo(0, 0); };
+  const go = v => { if (v.kind === 'new' && onRefreshCatalog) onRefreshCatalog(); setView(v); window.scrollTo(0, 0); };
 
   const mine = useMemo(() => (currentUserName ? submissions.filter(s => s.submittedBy === currentUserName) : [])
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)), [submissions, currentUserName]);

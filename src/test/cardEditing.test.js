@@ -79,3 +79,26 @@ describe('activity minutes', () => {
     expect(t).toEqual({ A: 20, B: 30 });
   });
 });
+
+import { syncTaskActivities } from '../utils/taskActivities';
+describe('open Start/End tasks follow catalog edits', () => {
+  const task = { status: 'open', activities: [
+    { name: 'Old A', doneAt: '2026-11-16T08:10:00Z' }, { name: 'Old B', doneAt: '' }, { name: 'Mine', doneAt: '', added: true }, { name: 'C', doneAt: '' },
+  ] };
+  it('takes the catalog list and order, keeping ticks, ticked work and hand-added rows', () => {
+    const next = syncTaskActivities(task, ['C', 'New D', 'Old A']);
+    expect(next).toEqual([
+      { name: 'C', doneAt: '' }, { name: 'New D', doneAt: '' }, { name: 'Old A', doneAt: '2026-11-16T08:10:00Z' },
+      { name: 'Mine', doneAt: '', added: true },
+    ]);
+  });
+  it('changes nothing when the list already matches, or for job orders and closed tasks', () => {
+    expect(syncTaskActivities(task, ['Old A', 'Old B', 'C'])).toEqual([
+      { name: 'Old A', doneAt: '2026-11-16T08:10:00Z' }, { name: 'Old B', doneAt: '' }, { name: 'C', doneAt: '' }, { name: 'Mine', doneAt: '', added: true },
+    ]);
+    const same = { status: 'open', activities: [{ name: 'A', doneAt: '' }] };
+    expect(syncTaskActivities(same, ['A'])).toBeNull();
+    expect(syncTaskActivities({ ...task, jobOrderId: 'JO-1' }, ['X'])).toBeNull();
+    expect(syncTaskActivities({ ...task, status: 'closed' }, ['X'])).toBeNull();
+  });
+});
