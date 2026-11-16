@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { resolveTcCatalog, BUS_MODELS, modelKindOf, codeOf, activityModelTag } from '../../utils/tcCatalog';
 import { stationLabelForModel } from '../../data/travelCardSeed';
 import { fetchStationTimes } from '../../hooks/useStationTimes';
+import { canonicalStationCode } from '../../data/stations';
+import { syncStationToTravelCard } from '../../utils/catalogGaps';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -90,7 +92,15 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
   // "All models" is stored as an explicit list. Deleting the entry instead let
   // the built-in restriction (e.g. "EVS only") come back on the next load.
   const setLineModels = v => touch(d => { d.lineModels[line] = v || [...KINDS]; return d; });
-  const setStationModels = v => touch(d => { d.stationModels[code] = v || [...KINDS]; return d; });
+  // The station's ticks here and its models on the Bus Tracker are kept the same,
+  // and a model it gains gets the station on its own line (utils/catalogGaps.js).
+  const setStationModels = v => touch(d => {
+    const fams = v || [...KINDS];
+    d.stationModels[code] = fams;
+    const key = Object.keys(d.stations || {}).find(k => canonicalStationCode(k) === canonicalStationCode(code));
+    if (key) { d.stations[key].models = [...fams]; syncStationToTravelCard(d, key); }
+    return d;
+  });
   const setActs = next => touch(d => { d.acts[actsKey] = next; return d; });
   const splitActs = () => touch(d => { d.acts[`${kind}:${code}`] = [...(d.acts[code] || [])]; return d; });
   const mergeActs = () => {

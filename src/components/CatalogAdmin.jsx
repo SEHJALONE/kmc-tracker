@@ -6,6 +6,7 @@ import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
 import { catalogVisibilityChanges } from '../utils/catalogGuard';
+import { travelCardGaps, fixGap, syncStationToTravelCard } from '../utils/catalogGaps';
 
 // ── Admin catalog editor ────────────────────────────────────────────────────
 // Edits the shared catalog: bus projects, tracker lines & stations (with
@@ -206,6 +207,7 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
         </div>
 
         <div style={{ padding: 18, maxHeight: '70vh', overflowY: 'auto' }}>
+          {(tab === 'Travel Card' || tab === 'Stations') && <GapsBanner draft={draft} touch={touch} />}
           {tab === 'Travel Card' && <TravelCardTab draft={draft} touch={touch} inp={inp} btn={btn} ListEditor={ListEditor} />}
           {tab === 'Projects'   && <ProjectsTab draft={draft} touch={touch} />}
           {tab === 'Vehicles'   && <VehiclesTab draft={draft} touch={touch} />}
@@ -218,6 +220,48 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
           {tab === 'Backups'    && <BackupsTab listCatalogBackups={listCatalogBackups} restoreCatalogBackup={restoreCatalogBackup} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Stations the Bus Tracker gives to a model that the model's Travel Card does
+// not offer (see utils/catalogGaps.js). Shown on the Stations and Travel Card
+// tabs, with a button per row that puts the station on that card.
+const GAP_TEXT = {
+  missing: g => `${g.code} is ticked for ${g.fam} on the Bus Tracker but is not on "${g.target}"`,
+  filtered: g => `${g.code} is on "${g.target}" but its Travel Card ticks leave ${g.fam} out`,
+  'line-hidden': g => `"${g.target}" is hidden for ${g.fam} buses`,
+  'no-line': g => `${g.code} is ticked for ${g.fam} but no Travel Card line matches its Bus Tracker line`,
+};
+function GapsBanner({ draft, touch }) {
+  const gaps = travelCardGaps(draft);
+  if (!gaps.length) return null;
+  // One row per hidden line, not one per station on it.
+  const rows = [];
+  const seen = new Set();
+  for (const g of gaps) {
+    const key = g.reason === 'line-hidden' ? `L|${g.target}|${g.fam}` : `S|${g.code}|${g.fam}`;
+    if (!seen.has(key)) { seen.add(key); rows.push(g); }
+  }
+  return (
+    <div style={{ border: '1px solid rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)', borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', marginBottom: 4 }}>
+        {rows.length} place{rows.length === 1 ? '' : 's'} where the Travel Card does not match the Bus Tracker
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+        Operators of that model cannot pick these stations on the Start list. Add each one you meant, then Save all.
+        A station added this way starts with another model's activities; check them on the Travel Card tab.
+      </div>
+      {rows.map(g => (
+        <div key={`${g.reason}|${g.code}|${g.fam}|${g.target}`} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1, minWidth: 220, fontSize: 13 }}>{GAP_TEXT[g.reason](g)}</span>
+          {g.reason !== 'no-line' && (
+            <button style={btn} onClick={() => touch(d => { fixGap(d, g); return d; })}>
+              {g.reason === 'line-hidden' ? `Show it for ${g.fam}` : `Add for ${g.fam}`}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -497,7 +541,7 @@ function StationsTab({ draft, touch, lineOptions }) {
                 <input style={inp} type="number" value={s.order ?? ''} onChange={e => upd(code, 'order', Number(e.target.value) || 0)} />
               </label>
               <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Models
-                <select style={inp} value={modelsToOpt(s.models)} onChange={e => upd(code, 'models', optToModels(e.target.value))}>
+                <select style={inp} value={modelsToOpt(s.models)} onChange={e => { const v = optToModels(e.target.value); touch(d => { d.stations[code].models = v; syncStationToTravelCard(d, code); return d; }); }}>
                   {MODEL_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
               </label>
