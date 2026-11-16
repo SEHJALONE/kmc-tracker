@@ -5,6 +5,7 @@ import { fetchStationTimes } from '../../hooks/useStationTimes';
 import { canonicalStationCode } from '../../data/stations';
 import { syncStationToTravelCard } from '../../utils/catalogGaps';
 import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintShopProcess';
+import { eeProcessOutdated, applyEeProcess } from '../../data/eeTrimProcess';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -115,6 +116,12 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     const t = applyPaintProcess({ tcLines: d.tcLines, acts: d.acts, res: d.res, stationModels: d.stationModels, stations: d.stations });
     return { ...d, tcLines: t.tcLines, acts: t.acts, res: t.res, stationModels: t.stationModels, stations: t.stations };
   });
+  // EVS / KDC EE stations from the 2026 EE Trim Line travel card tools.
+  const eeOutdated = eeProcessOutdated({ tcLines: draft.tcLines, acts: draft.acts });
+  const useEeProcess = () => touch(d => {
+    const t = applyEeProcess({ tcLines: d.tcLines, acts: d.acts, stations: d.stations });
+    return { ...d, tcLines: t.tcLines, acts: t.acts, stations: t.stations };
+  });
   const setRes = next => touch(d => { if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d; });
 
   return (
@@ -224,6 +231,17 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
         </>
       )}
       {!line && <div style={note}>Pick a production line to see its stations.</div>}
+      {eeOutdated && (
+        <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
+          <div style={hd}>EE stations process</div>
+          <div style={{ ...note, marginBottom: 10 }}>
+            The EVS or KDC EE stations here are not the 2026 process (EVS and KDC EE Trim Line Production Travel Card Tool 2026).
+            Using it replaces their station names and activities, and adds T01-01 EE and T01-09 EE for EVS.
+            Consumables and KEC stay as they are. Nothing is saved until you press Save all.
+          </div>
+          <button style={btn} onClick={useEeProcess}>Use the 2026 EE process</button>
+        </div>
+      )}
       {paintOutdated && (
         <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
           <div style={hd}>Paint Shop process</div>

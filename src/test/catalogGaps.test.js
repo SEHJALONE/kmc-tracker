@@ -9,6 +9,13 @@ const draft = () => structuredClone({
   tcLines: TC_LINES, acts: ACTS, res: RES, lineModels: LINE_MODELS, stationModels: STATION_MODELS,
   lines: SEED_LINES, stations: SEED_STATIONS,
 });
+// The catalog as it was on 16 Nov 2026, before EVS had T01-01 EE.
+const withoutEvsRearEE = d => {
+  d.tcLines[EVS_TRIM] = d.tcLines[EVS_TRIM].filter(l => codeOf(l) !== 'T01-01 EE');
+  delete d.acts['EVS:T01-01 EE'];
+  d.stations['T01-01-EE'] = { ...d.stations['T01-01-EE'], models: ['KDC', 'KEC'] };
+  return d;
+};
 const startList = (d, line, model) => resolveTcCatalog({}, d).stationsFor(line, model).map(codeOf);
 
 describe('Bus Tracker stations vs Travel Card lines', () => {
@@ -19,7 +26,7 @@ describe('Bus Tracker stations vs Travel Card lines', () => {
   // 16 Nov 2026: T01-01-EE ticked for all models on the tracker, but the EVS
   // Trim line on the Travel Card never got it.
   it('finds and fixes a station missing from one model\'s line', () => {
-    const d = draft();
+    const d = withoutEvsRearEE(draft());
     d.stations['T01-01-EE'].models = ['KDC', 'EVS', 'KEC'];
     const gaps = travelCardGaps(d);
     expect(gaps).toEqual([expect.objectContaining({ code: 'T01-01-EE', fam: 'EVS', target: EVS_TRIM, reason: 'missing' })]);
@@ -56,7 +63,7 @@ describe('Bus Tracker stations vs Travel Card lines', () => {
   });
 
   it('syncs one station after its models change, and ignores archived stations', () => {
-    const d = draft();
+    const d = withoutEvsRearEE(draft());
     d.stations['T01-01-EE'].models = ['KDC', 'EVS', 'KEC'];
     d.stations['Q01-05'].active = false;
     expect(syncStationToTravelCard(d, 'T01-01-EE')).toBe(1);

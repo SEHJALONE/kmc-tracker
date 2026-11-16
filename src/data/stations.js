@@ -3,6 +3,7 @@
 // models: ['KDC'] | ['EVS'] | ['KDC','EVS']
 
 import { PAINT_STATIONS } from './paintShopProcess';
+import { EE_STATION_NAMES } from './eeTrimProcess';
 import { alignKecStations, kecNameFamily } from './kecTemplate.js';
 
 export const SEED_LINES = [
@@ -186,7 +187,7 @@ const RAW_SEED_STATIONS = {
   // ─── TRIM LINE & FINAL ASSEMBLY ───────────────────────────────────────────────
   // Stations follow document station codes. "EE" suffix = electrical sub-station at same physical station.
   'T01-01':    { name: 'Installation of Floor Boards, A/C & Heat Shield',                       line: 'TRIM', order: 1,  models: ['KDC','EVS','KEC'] },
-  'T01-01-EE': { name: 'Rear Wall & Rear Side Compartment Components (KDC) / — (EVS)',          line: 'TRIM', order: 2,  models: ['KDC','KEC'] },
+  'T01-01-EE': { name: 'Installation of Rear LV Components',                                    line: 'TRIM', order: 2,  models: ['KDC','EVS','KEC'] },
   'T01-01-01': { name: 'Floorboard Preparation (Sub-Assembly)',                                  line: 'TRIM', order: 3,  models: ['KDC','EVS','KEC'] },
   'T01-02':    { name: 'Carpet Installation',                                                    line: 'TRIM', order: 4,  models: ['KDC','EVS','KEC'] },
   'T01-02-EE': { name: 'Installation and Termination of HV Components',                         line: 'TRIM', order: 5,  models: ['EVS','KEC'] },
@@ -205,7 +206,7 @@ const RAW_SEED_STATIONS = {
   'T01-08':    { name: 'Driver Seat, Driver Cabins, Guard Rail, Barriers, Sun Visor Rods, Seat Brackets, Inspection Cover, Steering Column Cover, False Roof Panel, Rear Seats', line: 'TRIM', order: 18, models: ['KDC','EVS','KEC'] },
   'T01-08-EE': { name: 'Interior Cameras & Speakers / Reading Lights',                          line: 'TRIM', order: 19, models: ['KDC','EVS'] },
   'T01-09':    { name: 'Passenger Door & Locks; Exterior Body Accessories; Side Mirrors, Dampers & Wipers; Compartment Door Sealant & Aluminium Strips', line: 'TRIM', order: 20, models: ['KDC','EVS','KEC'] },
-  'T01-09-EE': { name: 'Interior EE Components and Lighting Systems',                           line: 'TRIM', order: 21, models: ['KDC','KEC'] },
+  'T01-09-EE': { name: 'Ceiling Driver Cabin Components and Destination Signages',              line: 'TRIM', order: 21, models: ['KDC','EVS','KEC'] },
   'T01-09-01': { name: 'Passenger Doors Sub-Assembly',                                          line: 'TRIM', order: 22, models: ['KDC','EVS','KEC'] },
   'T01-10':    { name: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks', line: 'TRIM', order: 23, models: ['KDC','EVS','KEC'] },
   'T01-10-EE': { name: 'BMS, USB, Steering Column, Exterior & Side Cameras; Underbody Routing & Termination', line: 'TRIM', order: 24, models: ['KDC','EVS'] },
@@ -341,17 +342,12 @@ export const STATION_MODEL_NAMES = {
   'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
   // PAINT SHOP
   // TRIM LINE & FINAL ASSEMBLY
-  'T01-01-EE': { kdc: 'Rear Wall & Rear Side Compartment Components' },
-  'T01-02-EE': { evs: 'Installation and Termination of HV Components' },
+  // EE stations: the 2026 EVS / KDC EE travel card tools (eeTrimProcess.js)
+  ...EE_STATION_NAMES,
   'T01-06': { evs: 'Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels', kdc: 'Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels' },
-  'T01-06-EE': { evs: 'Exterior Lights Installation & Termination', kdc: 'Exterior Lights, Front Camera & Step Decorative Lights' },
   'T01-07': { evs: 'Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant', kdc: 'Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant' },
-  'T01-07-EE': { evs: 'Final Dashboard Components & Display Screens', kdc: 'Dashboard Accessories & Display Screens' },
   'T01-08': { evs: 'Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof', kdc: 'Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats' },
-  'T01-08-EE': { evs: 'Interior Cameras & Speakers', kdc: 'Speakers/Reading Lights & Interior Cameras' },
-  'T01-09-EE': { kdc: 'Interior EE Components and Lighting Systems' },
   'T01-10': { evs: 'Installation of Seats; Filling Oils, Coolant & Mechanical Checks', kdc: 'Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks' },
-  'T01-10-EE': { evs: 'BMS, USB, Steering Column & Side Cameras', kdc: 'Accelerator, USB, Steering Column, Exterior Camera & Underbody Termination' },
   'T01-11': { evs: 'ECAS & Fine Tuning of Passenger Doors', kdc: 'A/C Refilling, Door Fine-Tuning & Quality Inspection' },
   'T01-12': { evs: 'Quality Inspection and Rectification (TQ-01)' },
   // QUALITY INSPECTION & TESTING
