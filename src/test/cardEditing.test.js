@@ -11,10 +11,20 @@ const card = (over = {}) => ({
   recordId: ID, timestamp: '2026-11-14T08:00:00.000Z', busModel: '12m KDC', project: '45 Bus Project', vin: 'VIN123',
   line: 'Paint Shop', station: 'Primer', stationCode: 'P01-01', clockIn: '2026-11-14T08:00', clockOut: '2026-11-14T09:00',
   actualTime: 60, designedTime: 55, activityStatuses: { Sanding: 'complete', Masking: 'complete' },
-  activityTimes: { Sanding: 25, Masking: '' }, resourcesUsed: {}, operators: ['A. Op'], approvalStatus: 'pending_review',
+  activityTimes: { Sanding: 25, Masking: '' }, resourcesUsed: {}, operators: ['A. Op'], approvalStatus: 'pending_review', submittedBy: 'A. Op',
   ...over,
 });
 const col = (rows, name) => rows[0].indexOf(name);
+const ADMIN = { token: 'kmcisgood' };
+// The card's filer (card().submittedBy), another operator, and a supervisor - each signed in.
+async function people(env) {
+  const make = async (username, role, fullName) => {
+    await env.call({ action: 'createDynamicUser', ...ADMIN, payload: JSON.stringify({ username, role, fullName, password: 'Passw0rd-123' }) });
+    return (await env.call({ action: 'login', username, password: 'Passw0rd-123' })).session;
+  };
+  return { op: await make('a.op', 'user', 'A. Op'), other: await make('b.op', 'user', 'B. Op'), sup: await make('sup', 'supervisor', 'Sup') };
+}
+const edit = (env, session, fields) => env.call({ session, payload: JSON.stringify({ action: 'updateSubmission', ...fields }) });
 
 describe('Travel Card record id and activity minutes (Apps Script)', () => {
   it('keeps the id the site made, records minutes per activity, and never files a resend twice', async () => {
@@ -39,9 +49,10 @@ describe('Travel Card record id and activity minutes (Apps Script)', () => {
 
   it('a resubmission after rejection goes back to pending review with the corrected VIN everywhere', async () => {
     const env = loadScripts([SOURCE]);
+    const { op, sup } = await people(env);
     await env.call({ payload: JSON.stringify(card()) });
-    await env.call({ payload: JSON.stringify({ action: 'updateSubmission', recordId: ID, reviewOnly: true, approvalStatus: 'rejected', reviewer: 'Sup', reviewComments: 'wrong VIN' }) });
-    const r = await env.call({ payload: JSON.stringify({ action: 'updateSubmission', requireStillPending: true, _fullEdit: true, ...card({ vin: 'VIN999', activityTimes: { Sanding: 30 } }), approvalStatus: 'pending_review' }) });
+    await edit(env, sup, { recordId: ID, reviewOnly: true, approvalStatus: 'rejected', reviewer: 'Sup', reviewComments: 'wrong VIN' });
+    const r = await edit(env, op, { requireStillPending: true, _fullEdit: true, ...card({ vin: 'VIN999', activityTimes: { Sanding: 30 } }), approvalStatus: 'pending_review' });
     expect(r.status).toBe('ok');
     const subs = env.rows('submissions');
     expect(subs[1][col(subs, 'vin')]).toBe('VIN999');
@@ -49,6 +60,42 @@ describe('Travel Card record id and activity minutes (Apps Script)', () => {
     const acts = env.rows('activities');
     expect(acts.slice(1).every(row => row[col(acts, 'vin')] === 'VIN999')).toBe(true);
     expect(acts.find(row => row[col(acts, 'activity')] === 'Sanding')[col(acts, 'time_min')]).toBe(30);
+  });
+});
+
+// Card edits used to need no sign-in at all (anyone with a card id could
+// change it). Nov 2026: a session is required and checked.
+describe('who may change a card', () => {
+  it('refuses an edit with no sign-in or a forged one', async () => {
+    const env = loadScripts([SOURCE]);
+    await env.call({ payload: JSON.stringify(card()) });
+    expect((await edit(env, '', { recordId: ID, line: 'Machine Shop' })).message).toBe('unauthorized');
+    expect((await edit(env, 'forged.x', { recordId: ID, line: 'Machine Shop' })).message).toBe('unauthorized');
+    expect(env.rows('submissions')[1][col(env.rows('submissions'), 'production_line')]).toBe('Paint Shop');
+  });
+
+  it("refuses someone else's card, and an owner deciding their own review", async () => {
+    const env = loadScripts([SOURCE]);
+    const { op, other } = await people(env);
+    await env.call({ payload: JSON.stringify(card()) });
+    expect((await edit(env, other, { recordId: ID, vin: 'HACK' })).message).toBe('not-your-card');
+    // The owner may correct the card, but an "approve" they send is ignored.
+    expect((await edit(env, op, { recordId: ID, vin: 'VIN555', approvalStatus: 'approved', reviewer: 'Me', reviewComments: 'fine' })).status).toBe('ok');
+    const subs = env.rows('submissions');
+    expect(subs[1][col(subs, 'vin')]).toBe('VIN555');
+    expect(subs[1][col(subs, 'approval_status')]).toBe('pending_review');
+    expect(subs[1][col(subs, 'reviewer')]).toBe('');
+  });
+
+  it('locks an approved card for its owner but not for a supervisor', async () => {
+    const env = loadScripts([SOURCE]);
+    const { op, sup } = await people(env);
+    await env.call({ payload: JSON.stringify(card()) });
+    expect((await edit(env, sup, { recordId: ID, reviewOnly: true, approvalStatus: 'approved', reviewer: 'Sup' })).status).toBe('ok');
+    expect((await edit(env, op, { recordId: ID, vin: 'LATE' })).message).toBe('already-approved');
+    expect((await edit(env, sup, { recordId: ID, line: 'Trim Line & Final Assembly — KDC' })).status).toBe('ok');
+    const subs = env.rows('submissions');
+    expect(subs[1][col(subs, 'production_line')]).toBe('Trim Line & Final Assembly — KDC');
   });
 });
 

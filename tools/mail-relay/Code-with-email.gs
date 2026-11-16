@@ -208,7 +208,9 @@ function doPost(e) {
     // operators too) and a supervisor's review decision (reviewOnly, just
     // patches reviewer/approvalStatus/reviewDate/reviewComments) go through
     // the same action. See updateSubmission_ below.
-    if (data && data.action === "updateSubmission") return updateSubmission_(data);
+    if (data && data.action === "updateSubmission") {
+      return updateSubmission_(data, verifySession_((e && e.parameter && e.parameter.session) || data.session));
+    }
 
     // ── Daily Activities Log (Bus Sightings) — supervisor's own independent
     // record of "bus X was at station Y on day Z", deliberately NOT derived
@@ -938,8 +940,19 @@ function writeProjects(ss, d) {
 //    and `_fullEdit: true` (also rewrites this record's
 //    activities/resources/operators rows — delete-then-rewrite, since those
 //    are one-row-per-item tables with no stable per-item id to patch).
-function updateSubmission_(d) {
+// Who may change a card (Nov 2026; it used to need no sign-in at all):
+//  - reviewers (supervisor, manager, director, system/user admin): any card,
+//    including the review decision;
+//  - anyone else: only a card they filed (submitted_by is their full name or
+//    username), only before it is approved, and never the review decision
+//    itself; resubmitting may only put it back to "pending_review".
+const CARD_REVIEW_ROLES = ["supervisor", "manager", "director", "systemadmin", "useradmin"];
+function updateSubmission_(d, actor) {
+  if (!actor) return response({ status: "error", message: "unauthorized" });
   if (!d.recordId) return response({ status: "error", message: "missing-record-id" });
+  d = Object.assign({}, d);
+  delete d.session;
+  const isReviewer = CARD_REVIEW_ROLES.indexOf(actor.role) > -1;
   const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = ss.getSheetByName("submissions");
   if (!sh) return response({ status: "error", message: "no-sheet" });
@@ -967,11 +980,20 @@ function updateSubmission_(d) {
     // Edit stays open through every pre-approval state (pending_review,
     // and "pending"/needs-further-review or "rejected" from a first pass) —
     // it's specifically "approved" that locks it, per the requirement.
-    if (d.requireStillPending) {
+    if (d.requireStillPending || !isReviewer) {
       const current = String(data[i][statusCol] || "").toLowerCase();
       if (current === "approved") {
         return response({ status: "error", message: "already-approved" });
       }
+    }
+    if (!isReviewer) {
+      const owner = String(data[i][headers.indexOf("submitted_by")] || "").trim().toLowerCase();
+      const me = userRecord_(actor.username) || {};
+      const names = [me.fullName, actor.username].map(function (n) { return String(n || "").trim().toLowerCase(); }).filter(Boolean);
+      if (!owner || names.indexOf(owner) < 0) return response({ status: "error", message: "not-your-card" });
+      delete d.reviewer; delete d.reviewComments;
+      if (d.reviewDate !== undefined && d.reviewDate !== "") delete d.reviewDate;
+      if (d.approvalStatus !== undefined && d.approvalStatus !== "pending_review") delete d.approvalStatus;
     }
 
     Object.entries(fieldMap).forEach(([key, colName]) => {

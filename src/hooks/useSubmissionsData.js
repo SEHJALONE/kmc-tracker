@@ -1,6 +1,29 @@
 import { recomputeActual } from '../utils/workTime';
 import { isTestVin } from '../utils/testData';
 import { useState, useEffect, useCallback } from 'react';
+import { sessionParam } from '../data/session';
+
+// What the server's answers to a card edit mean, in words.
+const EDIT_ERRORS = {
+  unauthorized: 'Your sign-in has expired. Sign out, sign in again, then retry.',
+  'not-your-card': 'Only the person who filed this card, or a supervisor, can change it.',
+  'already-approved': 'This card was approved in the meantime, so it can no longer be changed.',
+  'not-found': 'This card could not be found. It may have been removed.',
+};
+async function postCardEdit(fields) {
+  // The signed-in session goes with every edit: the server checks who is asking.
+  const body = new URLSearchParams({ payload: JSON.stringify({ action: 'updateSubmission', ...fields }), ...sessionParam() });
+  try {
+    const res = await fetch(SHEETS_URL, { method: 'POST', body });
+    let json = null;
+    try { json = await res.json(); } catch { /* unreadable reply */ }
+    if (!json) return { ok: false, error: 'The server did not answer. Check the connection and try again.' };
+    if (json.status !== 'ok') return { ok: false, error: EDIT_ERRORS[json.message] || json.message || 'unknown error' };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
 
 // Reads Travel Card submissions live from NI Travel Tool Data — the sheet-of-
 // record every write already targets (see APPS_SCRIPT_CATALOG.md) — instead
@@ -236,56 +259,27 @@ export function useSubmissionsData() {
     return () => clearInterval(id);
   }, [fetchData]);
 
-  // Supervisor review decision — approve/deny/etc. Only patches review fields.
+  // Supervisor review decision - approve/deny/etc. Only patches review fields.
   const reviewSubmission = useCallback(async ({ recordId, reviewer, approvalStatus, reviewDate, reviewComments }) => {
-    const body = new URLSearchParams({ payload: JSON.stringify({
-      action: 'updateSubmission', recordId, reviewOnly: true,
-      reviewer, approvalStatus, reviewDate, reviewComments,
-    }) });
-    try {
-      await fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body });
-      setTimeout(fetchData, 3000);
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+    const r = await postCardEdit({ recordId, reviewOnly: true, reviewer, approvalStatus, reviewDate, reviewComments });
+    setTimeout(fetchData, 3000);
+    return r;
   }, [fetchData]);
 
   // Supervisor approving and correcting a card in one go (VIN, times,
   // activities…). `changes` is the full card in the shape editSubmission
   // sends; the review fields ride along on the same call.
   const reviewAndEditSubmission = useCallback(async ({ changes, review }) => {
-    const body = new URLSearchParams({ payload: JSON.stringify({
-      action: 'updateSubmission', _fullEdit: true, ...changes, ...review,
-    }) });
-    try {
-      const res = await fetch(SHEETS_URL, { method: 'POST', body });
-      let json = null;
-      try { json = await res.json(); } catch { /* opaque */ }
-      setTimeout(fetchData, 3000);
-      if (json && json.status !== 'ok') return { ok: false, error: json.message };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+    const r = await postCardEdit({ _fullEdit: true, ...changes, ...review });
+    setTimeout(fetchData, 3000);
+    return r;
   }, [fetchData]);
 
-  // General user editing their own still-pending card — full field set,
-  // server rejects if a supervisor has already reviewed it in the meantime.
+  // Someone editing their own card before it is approved - full field set.
   const editSubmission = useCallback(async (data) => {
-    const body = new URLSearchParams({ payload: JSON.stringify({
-      action: 'updateSubmission', requireStillPending: true, _fullEdit: true, ...data,
-    }) });
-    try {
-      const res = await fetch(SHEETS_URL, { method: 'POST', body });
-      let json = null;
-      try { json = await res.json(); } catch { /* no-cors-style opaque response elsewhere; here we want the real one */ }
-      setTimeout(fetchData, 3000);
-      if (json && json.status !== 'ok') return { ok: false, error: json.message };
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message };
-    }
+    const r = await postCardEdit({ requireStillPending: true, _fullEdit: true, ...data });
+    setTimeout(fetchData, 3000);
+    return r;
   }, [fetchData]);
 
   return { submissions, loading, error, lastFetched, refresh: fetchData, reviewSubmission, reviewAndEditSubmission, editSubmission };
