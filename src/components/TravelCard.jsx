@@ -403,6 +403,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [vin, setVin] = useState(prefillVin);
   const [curLine, setCurLine] = useState("");
   const [lockedStationOptions, setLockedStationOptions] = useState([]); // resolved "CODE: name" strings when multi-locked
+  // The line each of those stations is on. Assigned stations can span lines
+  // (e.g. a Machine Shop station and Welding ones); the card's line must follow
+  // the station picked, or it is filed under the wrong line (Nov 2026).
+  const [lockedLineOf, setLockedLineOf] = useState({});
   const [curCode, setCurCode] = useState(() => prefillStation ? prefillStation.split(":")[0].trim() : "");
   const [curSt, setCurSt] = useState(prefillStation);
   const [designedTime, setDesignedTime] = useState(0);
@@ -663,6 +667,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (resolved.length) {
       setCurLine(resolved[0].lineName);
       setLockedStationOptions(resolved.map(r => r.station));
+      setLockedLineOf(Object.fromEntries(resolved.map(r => [r.station, r.lineName])));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockedStation, JSON.stringify(lockedStations), busModel]);
@@ -1265,7 +1270,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 label={isMultiLocked ? "Station (assigned - choose one)" : lockedStation ? "Station (assigned - locked)" : "Station"}
                 value={curSt}
                 disabled={!!lockedStation && !isMultiLocked}
-                onChange={e => onStation(e.target.value)}
+                onChange={e => { const v = e.target.value; if (isMultiLocked && lockedLineOf[v]) setCurLine(lockedLineOf[v]); onStation(v); }}
               >
                 <option value="">Select station…</option>
                 {(isMultiLocked ? lockedStationOptions : stations).map(s => <option key={s} value={s}>{stationLabelForModel(s, modelKind)}</option>)}
