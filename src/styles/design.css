@@ -2,7 +2,7 @@
    Shared by every screen so the app looks like one product. The guide for other
    systems is docs/KMC-UI-GUIDE.md. Benchmark (Graphics/ folder): dark slate
    grounds, gradient "pill" bars sitting in recessed sockets, concentric rings,
-   numbered ribbons, Bebas Neue numerals over Montserrat labels.
+   numbered ribbons. One typeface throughout: Inter (bold for titles and figures).
    Gradients and series colours are identical in both themes; only grounds,
    panels and sockets change. */
 
@@ -51,8 +51,9 @@
 }
 
 :root {
-  --font-display: 'Bebas Neue', 'Montserrat', system-ui, sans-serif;
-  --font-label:   'Montserrat', 'Inter', system-ui, sans-serif;
+  /* One typeface. The three names are kept so existing rules keep working. */
+  --font-display: 'Inter', system-ui, sans-serif;
+  --font-label:   'Inter', system-ui, sans-serif;
   --font-body:    'Inter', system-ui, sans-serif;
 
   --c-red: #ef4444; --c-pink: #e14fd6; --c-lime: #2fc96a; --c-amber: #ff9a0a; --c-teal: #2492b3; --c-blue: #3b82f6;
@@ -84,9 +85,9 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
 }
 
 /* ── Type ── */
-.kmc-display { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.04em; line-height: 0.95; }
-.kmc-label   { font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); }
-.kmc-title   { font-family: var(--font-display); font-size: 30px; letter-spacing: 0.06em; color: var(--text-heading); line-height: 1; font-weight: 400; }
+.kmc-display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.kmc-label   { font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.kmc-title   { font-family: var(--font-display); font-size: 24px; letter-spacing: -0.01em; color: var(--text-heading); line-height: 1.15; font-weight: 700; }
 
 /* ── Horizontal bar: gradient pill in a recessed socket ──
    Any inline fill colour gets the gloss highlight from ::after. */
@@ -102,15 +103,15 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
 
 /* ── Pill chip with a coloured value end: "label | 60%" ── */
 .kmc-chip { display: inline-flex; align-items: stretch; border-radius: 999px; overflow: hidden; font-family: var(--font-label);
-  font-size: 11px; font-weight: 700; background: var(--socket-bg); box-shadow: var(--socket-shadow); color: var(--text-secondary); white-space: nowrap; }
+  font-size: 12px; font-weight: 600; background: var(--socket-bg); box-shadow: var(--socket-shadow); color: var(--text-secondary); white-space: nowrap; }
 .kmc-chip > span { padding: 4px 10px; display: flex; align-items: center; }
-.kmc-chip > b { padding: 3px 11px; color: #fff; font-family: var(--font-display); font-size: 16px; font-weight: 400; letter-spacing: 0.04em;
+.kmc-chip > b { padding: 3px 11px; color: #fff; font-family: var(--font-display); font-size: 13px; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums;
   display: flex; align-items: center; text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
 
 /* ── Buttons ── */
 .kmc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--panel-bg); border: 1px solid var(--border-medium);
-  color: var(--text-secondary); border-radius: 999px; padding: 8px 16px; font-family: var(--font-label); font-size: 11px; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, transform .15s; }
+  color: var(--text-secondary); border-radius: 999px; padding: 8px 16px; font-family: var(--font-label); font-size: 13px; font-weight: 600;
+  letter-spacing: 0; cursor: pointer; white-space: nowrap; transition: border-color .15s, color .15s, transform .15s; }
 .kmc-btn:hover { border-color: var(--accent-border); color: var(--text-heading); }
 .kmc-btn.primary { background: var(--g-red); border-color: transparent; color: #fff; box-shadow: 0 8px 20px rgba(220,38,38,0.32); }
 .kmc-btn.primary:hover { transform: translateY(-1px); color: #fff; }
@@ -130,14 +131,14 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
   box-shadow: 0 12px 30px rgba(0,0,0,0.35), inset 0 -8px 18px rgba(0,0,0,0.18); }
 .kmc-orb > .face::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--gloss); pointer-events: none; }
 .kmc-orb .orb-icon { width: 32%; height: 32%; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.3)); }
-.kmc-orb .orb-text { font-family: var(--font-display); font-size: calc(var(--orb) * 0.13); letter-spacing: 0.06em; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+.kmc-orb .orb-text { font-family: var(--font-display); font-weight: 700; font-size: calc(var(--orb) * 0.1); letter-spacing: 0; line-height: 1.1; text-shadow: 0 2px 6px rgba(0,0,0,0.35); }
 .kmc-orb.live > .face { animation: kmc-breathe 2.6s ease-in-out infinite; }
 @keyframes kmc-breathe { 50% { box-shadow: 0 12px 44px rgba(220,38,38,0.6), inset 0 -8px 18px rgba(0,0,0,0.18); } }
 
 /* ── Numbered ribbon row: big numeral block + content ── */
 .kmc-ribbon { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: stretch; border-radius: 14px; overflow: hidden;
   background: var(--panel-bg); border: 1px solid var(--border-subtle); box-shadow: var(--panel-shadow); margin-bottom: 10px; }
-.kmc-ribbon > .num { display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 34px; color: #fff;
+.kmc-ribbon > .num { display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; font-size: 24px; font-variant-numeric: tabular-nums; color: #fff;
   background: var(--g-amber); text-shadow: 0 2px 4px rgba(0,0,0,0.25); position: relative; }
 .kmc-ribbon > .num::after { content: ''; position: absolute; inset: 0; background: var(--gloss); }
 .kmc-ribbon > .body { padding: 11px 14px; min-width: 0; }
@@ -149,7 +150,7 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
 
 /* ── Stat tile ── */
 .kmc-stat { position: relative; padding: 14px 16px 12px; overflow: hidden; }
-.kmc-stat .v { font-family: var(--font-display); font-size: 40px; line-height: 1; color: var(--text-heading); letter-spacing: 0.02em; margin-top: 6px; }
+.kmc-stat .v { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; color: var(--text-heading); letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .kmc-stat .s { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 .kmc-stat .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--g-teal); }
 
@@ -162,13 +163,51 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
 /* ── Page header (PageShell) ── */
 .kmc-head { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px clamp(14px, 4vw, 32px);
   background: var(--header-bg); border-bottom: 1px solid var(--header-border); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-.kmc-head .kmc-title { font-size: 24px; }
-.kmc-head .sub { font-size: 10px; color: var(--text-muted); font-family: var(--font-label); letter-spacing: 0.08em; text-transform: uppercase; }
+.kmc-head .kmc-title { font-size: 19px; }
+.kmc-head .sub { font-size: 12px; color: var(--text-muted); font-family: var(--font-label); margin-top: 2px; }
 .kmc-main { padding: clamp(16px, 3vw, 28px) clamp(14px, 4vw, 32px) 60px; max-width: 1280px; margin: 0 auto; }
 @media (max-width: 560px) {
   .kmc-head .hide-sm { display: none; }
-  .kmc-head .kmc-title { font-size: 20px; }
+  .kmc-head .kmc-title { font-size: 17px; }
 }
+
+/* ── Forms, tables and dialogs (shared by the admin screens) ── */
+.kmc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.kmc-input { background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; color: var(--text-primary);
+  font-family: var(--font-body); font-size: 14px; padding: 9px 12px; width: 100%; box-sizing: border-box; min-height: 40px; }
+.kmc-input:focus { outline: none; border-color: var(--accent-border); }
+.kmc-input:disabled { opacity: .65; }
+.kmc-btn.sm { padding: 6px 12px; font-size: 12px; }
+.kmc-btn.on { border-color: var(--accent-border); color: var(--accent-text); background: var(--accent-alpha); }
+.kmc-btn.danger { color: var(--c-red); border-color: rgba(239,68,68,0.35); }
+.kmc-section-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text-heading); margin: 0 0 12px; letter-spacing: -0.01em; }
+.kmc-hint { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.kmc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.kmc-table th { text-align: left; padding: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); }
+.kmc-table td { padding: 6px 8px; vertical-align: top; }
+.kmc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); z-index: 1000; display: flex;
+  align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto; }
+.kmc-dialog { width: 100%; max-width: 920px; background: var(--panel-solid); color: var(--text-primary); border: 1px solid var(--border-medium);
+  border-radius: 16px; box-shadow: var(--panel-shadow); font-family: var(--font-body); }
+
+/* ── Home: modules as a list, grouped by job ── */
+.kmc-home { max-width: 760px; margin: 0 auto; padding: 76px clamp(14px, 4vw, 24px) 40px; }
+.kmc-home-group { margin-top: 22px; }
+.kmc-home-group > h2 { font-size: 13px; font-weight: 600; color: var(--text-muted); margin: 0 0 8px 4px; }
+.kmc-home-list { overflow: hidden; }
+.kmc-home-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; background: transparent; border: 0;
+  border-top: 1px solid var(--border-subtle); color: inherit; font-family: var(--font-body); text-align: left; cursor: pointer; min-height: 60px; }
+.kmc-home-row:first-child { border-top: 0; }
+.kmc-home-row:hover, .kmc-home-row:focus-visible { background: var(--input-bg); outline: none; }
+.kmc-home-row .txt { min-width: 0; flex: 1; }
+.kmc-home-row .name { font-size: 15px; font-weight: 600; color: var(--text-heading); }
+.kmc-home-row .what { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.kmc-home-row .count { flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: var(--socket-bg); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kmc-home-row .count.due { background: rgba(255,154,10,0.16); color: var(--c-amber); }
+.kmc-home-row .go { flex-shrink: 0; color: var(--text-dim); }
+.kmc-home-top { position: fixed; top: 14px; right: 14px; display: flex; align-items: center; gap: 8px; z-index: 10; }
+@media (max-width: 520px) { .kmc-home-top .hide-xs { display: none; } .kmc-home-row .what { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .kmc-orb, .kmc-orb > .face { animation: none !important; transition: none !important; }

@@ -13,7 +13,7 @@ function getColors(model = '') {
 }
 
 function fmt(ms) {
-  if (!ms || ms < 0) return '—';
+  if (!ms || ms < 0) return '-';
   const totalHours = Math.floor(ms / 3600000);
   const d = Math.floor(totalHours / 24);
   const h = totalHours % 24;
@@ -23,7 +23,7 @@ function fmt(ms) {
 }
 
 function fmtDate(ts) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const d = new Date(ts);
   if (isNaN(d)) return String(ts);
   return d.toLocaleString('en-GB', {
@@ -33,7 +33,7 @@ function fmtDate(ts) {
 }
 
 function fmtShortDate(ts) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const d = new Date(ts);
   if (isNaN(d)) return String(ts);
   return d.toLocaleString('en-GB', { day: 'numeric', month: 'short' });
@@ -85,13 +85,13 @@ function ApprovalBadge({ status }) {
   let bg, color, border, label;
   if (s.includes('APPROV')) {
     bg = 'var(--success-alpha)'; color = 'var(--success-color)';
-    border = 'var(--success-border)'; label = '✓ Approved';
+    border = 'var(--success-border)'; label = 'Approved';
   } else if (s.includes('REJECT')) {
     bg = 'var(--accent-alpha)'; color = 'var(--accent)';
-    border = 'var(--accent-border)'; label = '✗ Rejected';
+    border = 'var(--accent-border)'; label = 'Rejected';
   } else {
     bg = 'var(--warning-alpha)'; color = 'var(--warning-color)';
-    border = 'var(--warning-border)'; label = '⏳ Pending';
+    border = 'var(--warning-border)'; label = 'Pending';
   }
   return (
     <span style={{
@@ -119,7 +119,7 @@ function NCRFlag({ count }) {
         cursor: 'help',
       }}
     >
-      ⚑ NCR ×{count}
+      NCR ×{count}
     </span>
   );
 }
@@ -138,7 +138,7 @@ function OHSFlag({ ohsIssue }) {
         cursor: 'help',
       }}
     >
-      ⚠ OHS
+      OHS
     </span>
   );
 }
@@ -308,8 +308,8 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
           vin: bus.vin,
           model: bus.model,
           stationCode: bus.stationCode,
-          stationName: bus.station?.name || bus.stationCode || '—',
-          lineName: LINES.find(l => l.id === lineId)?.label || lineId || '—',
+          stationName: bus.station?.name || bus.stationCode || '-',
+          lineName: LINES.find(l => l.id === lineId)?.label || lineId || '-',
           totalMs, currentStationMs,
           stationsVisited, lineStations, progressPct,
           status, variance, estimatedMinutes,
@@ -323,8 +323,7 @@ export default function BusReport({ buses, allRows, filter, stationTimes = {}, t
 
   if (report.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontSize: 32 }}>🚌</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.06em', fontWeight: 500 }}>
           NO BUSES ON FLOOR
         </div>

@@ -6,7 +6,7 @@ const fm = "'Inter', system-ui, sans-serif";
 const today = () => new Date().toISOString().slice(0, 10);
 
 function fmtUGX(n) {
-  if (n == null || Number.isNaN(n)) return '—';
+  if (n == null || Number.isNaN(n)) return '-';
   return Math.round(n).toLocaleString();
 }
 
@@ -56,12 +56,12 @@ export default function CostEstimation({ theme = 'dark', onBack }) {
             ← Back
           </button>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>Cost Estimation</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Machine registry · rate history · cost report — Cost Estimations Engineer</div>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0', color: '#fff' }}>Cost Estimation</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Machine registry · rate history · cost report - Cost Estimations Engineer</div>
           </div>
           {data.error && (
             <div style={{ marginLeft: 'auto', background: 'rgba(245,158,11,0.2)', color: AM, border: `1px solid ${AM}55`, borderRadius: 20, padding: '4px 14px', fontSize: 11, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
-              ⚠ {data.error}
+              {data.error}
             </div>
           )}
           {!data.error && data.loading && (
@@ -175,7 +175,7 @@ function MachinesTab({ C, data, stationGroups, username }) {
               <option value="">Select a station…</option>
               {stationGroups.map(g => (
                 <optgroup key={g.line.id} label={g.line.label}>
-                  {g.stations.map(s => <option key={s.code} value={s.code}>{s.code} — {s.name}</option>)}
+                  {g.stations.map(s => <option key={s.code} value={s.code}>{s.code} - {s.name}</option>)}
                 </optgroup>
               ))}
             </select>
@@ -209,7 +209,7 @@ function MachinesTab({ C, data, stationGroups, username }) {
                     <MachineEditRow C={C} m={m} onSave={fields => saveEdit(m, fields)} onCancel={() => setEditing(null)} />
                   ) : (
                     <>
-                      <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{m.activity || '—'}</td>
+                      <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{m.activity || '-'}</td>
                       <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}`, fontWeight: 600 }}>{m.machineName}</td>
                       <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{rate != null ? fmtUGX(rate) : <span style={{ color: C.AM }}>not set</span>}</td>
                       <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}`, textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -290,7 +290,7 @@ function MachineRateForm({ C, data, username }) {
           <select value={machineId} onChange={e => setMachineId(e.target.value)} style={{ ...inputStyle(C), minWidth: 300 }}>
             <option value="">Select a machine…</option>
             {data.activeMachines.map(m => (
-              <option key={m.id} value={m.id}>{m.stationCode} — {m.machineName}</option>
+              <option key={m.id} value={m.id}>{m.stationCode} - {m.machineName}</option>
             ))}
           </select>
         </div>
@@ -407,11 +407,11 @@ function ReportTab({ C, data }) {
           </div>
           <div>
             <div style={{ fontSize: 10, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff Hourly Rate</div>
-            <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{staffRate != null ? `${fmtUGX(staffRate)} UGX/hr` : '—'}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{staffRate != null ? `${fmtUGX(staffRate)} UGX/hr` : '-'}</div>
           </div>
           <div>
             <div style={{ fontSize: 10, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Energy Tariff Rate</div>
-            <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{energyRate != null ? `${fmtUGX(energyRate)} UGX/kWh` : '—'}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, marginTop: 4 }}>{energyRate != null ? `${fmtUGX(energyRate)} UGX/kWh` : '-'}</div>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: C.dim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Machine Cost (period)</div>
@@ -420,7 +420,7 @@ function ReportTab({ C, data }) {
         </div>
         <div style={{ fontSize: 10, color: C.dim, marginTop: 12, lineHeight: 1.5 }}>
           Cost = Machine Hourly Rate × Available Hours in Period (absorption costing). Every machine at
-          a station is costed the same period hours regardless of which one actually ran — Travel Card
+          a station is costed the same period hours regardless of which one actually ran - Travel Card
           only tracks station, not individual machine, so true per-machine utilization can't be measured
           yet. Set "Available Hours" to match the current Scoreboard period for consistency.
         </div>
@@ -432,7 +432,7 @@ function ReportTab({ C, data }) {
             <tr key={r.id}>
               <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}`, color: C.dim }}>{i + 1}</td>
               <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{r.stationCode}</td>
-              <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{r.activity || '—'}</td>
+              <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{r.activity || '-'}</td>
               <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}`, fontWeight: 600 }}>{r.machineName}</td>
               <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{r.rate != null ? fmtUGX(r.rate) : <span style={{ color: C.AM }}>not set</span>}</td>
               <td style={{ padding: '6px 8px', borderBottom: `1px solid ${C.border}` }}>{hours}</td>

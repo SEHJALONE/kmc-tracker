@@ -4,6 +4,7 @@ import LoginHelp from './LoginHelp';
 import ForgotPassword from './ForgotPassword';
 import { CATALOG_WRITE_URL } from '../data/catalogConfig';
 import { setSession } from '../data/session';
+import { cacheProfile } from '../data/profile';
 
 export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 'Bus Production Tracker', appSubtitle = 'Sign in to continue' }) {
   const [username, setUsername] = useState('');
@@ -50,9 +51,8 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
       const user = json.user;
       if (json.session) setSession(json.session, remember);
 
-      // Role-specific access assignments from User Management.
-      if (user.fullName) localStorage.setItem('kmc_user_fullname', user.fullName);
-      else localStorage.removeItem('kmc_user_fullname');
+      // Own account details (name, email, phone, photo) for the header and Settings.
+      cacheProfile(user);
 
       if (user.assignedStation) localStorage.setItem('kmc_assigned_station', user.assignedStation);
       else localStorage.removeItem('kmc_assigned_station');
@@ -158,7 +158,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
           font-size: 15px;
           font-weight: 700;
           letter-spacing: 0.16em;
-          text-transform: uppercase;
+
           font-family: 'Inter', system-ui, sans-serif;
           cursor: pointer;
           transition: background 0.15s, transform 0.1s;
@@ -262,7 +262,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
             fontSize: 'clamp(16px, 4vw, 22px)', fontWeight: 800,
             letterSpacing: '0.12em',
             color: 'var(--text-heading)',
-            textTransform: 'uppercase',
+
             lineHeight: 1.1,
           }}>
             {appName}
@@ -293,7 +293,7 @@ export default function Login({ onLogin, theme = 'dark', toggleTheme, appName = 
             fontFamily: "'Inter', system-ui, sans-serif",
             letterSpacing: '0.03em',
           }}>
-            ⚠ {error}
+            {error}
           </div>
         )}
 

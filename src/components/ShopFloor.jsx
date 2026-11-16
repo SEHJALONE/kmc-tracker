@@ -104,7 +104,7 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
         .sf-station { min-width: 170px; background: var(--socket-bg); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; }
         /* Bus cards sit at the bottom of every station, whatever the length of its name. */
         .sf-buses { margin-top: auto; }
-        .sf-code { font-family: monospace; font-weight: 800; color: var(--accent-text); font-size: 13px; }
+        .sf-code { font-family: inherit; font-weight: 800; color: var(--accent-text); font-size: 13px; }
         .sf-name { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3; }
         .sf-bus { display: block; width: 100%; text-align: left; background: var(--panel-bg); border: 1px solid var(--border-subtle); border-left: 4px solid var(--tone);
           border-radius: 12px; padding: 8px 10px; margin-top: 8px; cursor: pointer; color: inherit; font: inherit; }
@@ -114,13 +114,13 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
         .sf-live { position: absolute; top: 0; right: 0; width: 9px; height: 9px; border-radius: 50%; background: #20c464; box-shadow: 0 0 0 3px rgba(32,196,100,.25); animation: tr-pulse 1.6s infinite; }
         .sf-model { font-size: 11px; font-weight: 800; letter-spacing: .04em; margin-top: 4px; }
         .sf-who { font-size: 13px; font-weight: 600; color: var(--text-heading); }
-        .sf-clock { font-family: var(--font-display); font-size: 20px; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
-        .sf-vin, .sf-acts { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+        .sf-clock { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+        .sf-vin, .sf-acts { font-size: 10px; color: var(--text-muted); font-family: inherit; }
         @keyframes tr-pulse { 50% { opacity: .35; } }
       `}</style>
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Supervision</div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: 34, letterSpacing: '.04em', margin: '2px 0 6px', color: 'var(--text-heading)' }}>Shop floor</h1>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', margin: '2px 0 6px', color: 'var(--text-heading)' }}>Shop floor</h1>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span><strong style={{ color: 'var(--text-heading)' }}>{open.length}</strong> task{open.length === 1 ? '' : 's'} running{scope && !all ? ' in your shops' : ''}</span>
         {scope && <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} /> Show every shop</label>}
@@ -128,7 +128,7 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
         {stamp && <span>Updated {fmtTime(stamp.toISOString())} · every 30 s</span>}
         <button className="kmc-btn ghost" onClick={load}>↻ Refresh</button>
       </div>
-      {error && <div className="kmc-panel" style={{ padding: '12px 14px', fontSize: 13, color: 'var(--accent-text)', marginBottom: 12 }}>⚠ {error}</div>}
+      {error && <div className="kmc-panel" style={{ padding: '12px 14px', fontSize: 13, color: 'var(--accent-text)', marginBottom: 12 }}>{error}</div>}
       {loading && !tasks.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>}
       {!loading && !error && open.length === 0 && (
         <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>Nobody has a task running{scope && !all ? ' at your stations' : ''} right now.</div>
@@ -165,7 +165,7 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
             return (
               <button key={t.id} onClick={() => setWatching(t.id)} className="kmc-panel"
                 style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', textAlign: 'left', padding: '8px 14px', marginBottom: 6, cursor: 'pointer', color: 'inherit', font: 'inherit', border: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-text)' }}>{t.stationCode}</span>
+                <span style={{ fontFamily: 'inherit', fontWeight: 700, color: 'var(--accent-text)' }}>{t.stationCode}</span>
                 <span style={{ fontSize: 12 }}>{t.ownerName || t.owner}</span>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.busModel} · {t.vin}</span>
                 <span style={{ flex: 1 }} />

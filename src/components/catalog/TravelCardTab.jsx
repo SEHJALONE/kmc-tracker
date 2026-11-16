@@ -12,8 +12,8 @@ import { fetchStationTimes } from '../../hooks/useStationTimes';
 
 const KINDS = ['EVS', 'KDC', 'KEC'];
 const box = { border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 14, marginBottom: 12 };
-const hd = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px', fontWeight: 700 };
-const note = { fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 };
+const hd = { fontSize: 13, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px', fontWeight: 700 };
+const note = { fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 };
 
 function ModelChecks({ value, onChange, label }) {
   // No entry (or all three ticked) = applies to every model.
@@ -24,8 +24,8 @@ function ModelChecks({ value, onChange, label }) {
     onChange(next.length === KINDS.length ? null : KINDS.filter(x => next.includes(x)));
   };
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
-      <span style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
       {KINDS.map(k => (
         <label key={k} style={{ display: 'flex', gap: 5, alignItems: 'center', cursor: 'pointer' }}>
           <input type="checkbox" checked={on.includes(k)} onChange={() => toggle(k)} /> {k}
@@ -87,8 +87,10 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     touch(d => { if (!d.tcLines[l]) d.tcLines[l] = []; if (!d.res[l]) d.res[l] = {}; return d; });
     setLine(l); setCode(''); setNewLine('');
   };
-  const setLineModels = v => touch(d => { if (v) d.lineModels[line] = v; else delete d.lineModels[line]; return d; });
-  const setStationModels = v => touch(d => { if (v) d.stationModels[code] = v; else delete d.stationModels[code]; return d; });
+  // "All models" is stored as an explicit list. Deleting the entry instead let
+  // the built-in restriction (e.g. "EVS only") come back on the next load.
+  const setLineModels = v => touch(d => { d.lineModels[line] = v || [...KINDS]; return d; });
+  const setStationModels = v => touch(d => { d.stationModels[code] = v || [...KINDS]; return d; });
   const setActs = next => touch(d => { d.acts[actsKey] = next; return d; });
   const splitActs = () => touch(d => { d.acts[`${kind}:${code}`] = [...(d.acts[code] || [])]; return d; });
   const mergeActs = () => {
@@ -99,7 +101,7 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
 
   return (
     <div>
-      <div style={{ ...hd, marginBottom: 6 }}>Travel card — choose the bus and station the way the card does, then edit what it shows</div>
+      <div style={{ ...hd, marginBottom: 6 }}>Travel card - choose the bus and station the way the card does, then edit what it shows</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 14 }}>
         <label style={note}>Bus model
           <select style={inp} value={busModel} onChange={e => { setBusModel(e.target.value); setCode(''); }}>
@@ -130,16 +132,20 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
       {line && !code && (
         <div style={box}>
           <div style={hd}>Line · {line}</div>
-          <ModelChecks label="Shown for" value={draft.lineModels[line]} onChange={setLineModels} />
+          <ModelChecks label="Whole line shown for" value={draft.lineModels[line]} onChange={setLineModels} />
+          <div style={{ ...note, marginTop: 6 }}>
+            These ticks are for the <strong>whole line</strong>: unticking a model removes this line from every Travel Card for that model.
+            To change one station, click its code below and use the ticks there.
+          </div>
           <div style={{ ...note, margin: '10px 0 8px' }}>Stations in the order the card lists them. Click a code to edit its activities and consumables.</div>
           {lineStations.map((s, i) => {
             const c = codeOf(s);
             const m = draft.stationModels[c];
             return (
               <div key={s} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 5 }}>
-                <button style={{ ...btn, fontFamily: 'monospace', minWidth: 92, textAlign: 'left' }} onClick={() => setCode(c)}>{c}</button>
-                <span style={{ flex: 1, fontSize: 12, color: shownStations.includes(s) ? 'var(--text-primary)' : 'var(--text-dim)' }}>
-                  {s.replace(/^[^:]+:\s*/, '')}{m && m.length < 3 && <em style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{m.join(' + ')} only</em>}
+                <button style={{ ...btn, fontFamily: 'inherit', minWidth: 92, textAlign: 'left' }} onClick={() => setCode(c)}>{c}</button>
+                <span style={{ flex: 1, fontSize: 13, color: shownStations.includes(s) ? 'var(--text-primary)' : 'var(--text-dim)' }}>
+                  {s.replace(/^[^:]+:\s*/, '')}{m && m.length < 3 && <em style={{ fontSize: 12, color: 'var(--text-dim)', marginLeft: 6 }}>{m.join(' + ')} only</em>}
                 </span>
                 <button style={btn} title="Move up" onClick={() => moveStation(i, -1)}>↑</button>
                 <button style={btn} title="Move down" onClick={() => moveStation(i, 1)}>↓</button>
@@ -148,7 +154,7 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
             );
           })}
           <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-            <input style={{ ...inp, width: 120, fontFamily: 'monospace' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="Code e.g. T03-07" />
+            <input style={{ ...inp, width: 120, fontFamily: 'inherit' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="Code e.g. T03-07" />
             <input style={{ ...inp, flex: 1, minWidth: 160 }} value={newName} onChange={e => setNewName(e.target.value)} placeholder="Station name" onKeyDown={e => e.key === 'Enter' && addStation()} />
             <button style={btn} onClick={addStation}>+ Add station</button>
           </div>
@@ -167,18 +173,18 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
           <div style={box}>
             <div style={hd}>Station</div>
             <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8, marginBottom: 10 }}>
-              <label style={note}>Code<input style={{ ...inp, fontFamily: 'monospace' }} value={code} disabled /></label>
+              <label style={note}>Code<input style={{ ...inp, fontFamily: 'inherit' }} value={code} disabled /></label>
               <label style={note}>Name on the card<input style={inp} value={name} onChange={e => renameStation(e.target.value)} /></label>
             </div>
-            <ModelChecks label="Shown for" value={draft.stationModels[code]} onChange={setStationModels} />
+            <ModelChecks label="This station shown for" value={draft.stationModels[code]} onChange={setStationModels} />
             <div style={{ ...note, marginTop: 10 }}>
-              Designed time on the card: <strong>{designed ? `${designed} min` : 'not set'}</strong> — read from the Station Times sheet{designed ? '' : ' (operators are asked to type it)'}; change it there.
+              Designed time on the card: <strong>{designed ? `${designed} min` : 'not set'}</strong> - read from the Station Times sheet{designed ? '' : ' (operators are asked to type it)'}; change it there.
             </div>
           </div>
 
           <div style={box}>
             <div style={{ ...hd, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-              <span>Activities — {code}</span>
+              <span>Activities - {code}</span>
               <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
                 {ownList ? `${kind}-only list` : `Shared list${KINDS.some(k => draft.acts[`${k}:${code}`]) ? ` (other models have their own)` : ' (all models)'}`}
               </span>
@@ -193,7 +199,7 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
           </div>
 
           <div style={box}>
-            <div style={hd}>Consumables &amp; Materials Used — {code}</div>
+            <div style={hd}>Consumables &amp; Materials Used - {code}</div>
             <ListEditor items={resList} onChange={setRes} placeholder="Consumable or material name" movable />
             <div style={{ ...note, marginTop: 6 }}>Preset rows the operator enters quantities for. Items operators add themselves on the card are shared per station and are not edited here.</div>
           </div>

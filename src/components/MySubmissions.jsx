@@ -18,7 +18,7 @@ const LINE_IMAGE = {
 const STATUS_LABEL = {
   pending_review: 'Pending review',
   pending: 'Needs further review',
-  rejected: 'Rejected — rework needed',
+  rejected: 'Rejected - rework needed',
   approved: 'Approved',
 };
 
@@ -57,7 +57,7 @@ export default function MySubmissions({ onBack, onToggleTheme = null, onEdit, th
           <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
             <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>My Submissions</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Your travel card history — edit while a card is still awaiting approval</div>
+            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Your travel card history - edit while a card is still awaiting approval</div>
           </div>
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function MySubmissions({ onBack, onToggleTheme = null, onEdit, th
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor(item.approvalStatus), flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} — {item.stationCode}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} - {item.stationCode}</div>
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.84)', marginTop: 3 }}>{item.project} · {item.line}</div>
                   <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()}</div>
                   <div style={{ fontSize: 10, fontFamily: mono, marginTop: 4, color: statusColor(item.approvalStatus), fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>

@@ -6,7 +6,7 @@ import { useAccessRequests } from '../hooks/useAccessRequests';
 import { useDynamicUsers } from '../hooks/useDynamicUsers';
 
 const ROLE_OPTIONS = [
-  { value: 'user',       label: 'General User',  desc: 'Assigned to one or more stations — travel card prefilled & locked' },
+  { value: 'user',       label: 'General User',  desc: 'Assigned to one or more stations - travel card prefilled & locked' },
   { value: 'supervisor', label: 'Supervisor',     desc: 'Reviews travel cards for assigned stations' },
   // Manager removed from selection for now — role + its review logic stay
   // intact in code in case it's needed again later.
@@ -194,8 +194,8 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       !marked.ok
         ? `Account created for ${selected.fullName}, but the request could not be marked approved (${marked.error}). It may still show as pending: do not approve it twice.`
         : emailed
-        ? `Access granted to ${selected.fullName} ✓ — confirmation emailed to ${selected.email}`
-        : `Access granted to ${selected.fullName} ✓ — email not sent${emailNote ? ` (${emailNote})` : ''}, share credentials manually`,
+        ? `Access granted to ${selected.fullName} - confirmation emailed to ${selected.email}`
+        : `Access granted to ${selected.fullName} - email not sent${emailNote ? ` (${emailNote})` : ''}, share credentials manually`,
       true
     );
   }
@@ -214,12 +214,12 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
 
   const inp = {
     width: '100%', fontSize: 13, padding: '9px 11px',
-    border: `1px solid ${inpBor}`, borderRadius: 5,
+    border: `1px solid ${inpBor}`, borderRadius: 10,
     background: inpBg, color: text, outline: 'none',
     boxSizing: 'border-box', fontFamily: fm,
     colorScheme: isDark ? 'dark' : 'light',
   };
-  const lbl = { display: 'block', fontSize: 10, color: muted, fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 };
+  const lbl = { display: 'block', fontSize: 12, color: muted, fontFamily: fm, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 5 };
 
   const pending   = requests.filter(r => r.status === 'pending');
   const processed = requests.filter(r => r.status !== 'pending');
@@ -244,9 +244,9 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
           <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
             <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>Access Requests</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Review and grant system access — assign roles, lines, and stations</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Review and grant system access - assign roles, lines, and stations</div>
           </div>
-          <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
+          <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {pending.length} pending
           </div>
         </div>
@@ -260,13 +260,13 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
 
       {/* The list could not be loaded from the server: say so, never pass a saved copy off as live */}
       {loadError && (
-        <div role="alert" style={{ maxWidth: '100%', marginBottom: 16, padding: '12px 16px', borderRadius: 8, border: `1px solid ${R}66`, background: 'rgba(220,38,38,0.10)', fontSize: 12.5, lineHeight: 1.55, color: text }}>
+        <div role="alert" style={{ maxWidth: '100%', marginBottom: 16, padding: '12px 16px', borderRadius: 10, border: `1px solid ${R}66`, background: 'rgba(220,38,38,0.10)', fontSize: 12.5, lineHeight: 1.55, color: text }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>The latest requests could not be loaded from the server.</div>
           <div style={{ color: muted }}>{loadError.message}</div>
           <div style={{ color: muted, marginTop: 4 }}>
             {requests.length ? 'The list below is a copy saved on this device and may be out of date.' : 'Nothing is saved on this device either, so new requests will not show here yet.'}
           </div>
-          <button onClick={refreshRequests} style={{ marginTop: 10, background: 'transparent', border: `1px solid ${border}`, color: text, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Try again</button>
+          <button onClick={refreshRequests} style={{ marginTop: 10, background: 'transparent', border: `1px solid ${border}`, color: text, borderRadius: 10, padding: '6px 12px', fontSize: 13, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Try again</button>
         </div>
       )}
 
@@ -277,7 +277,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
             padding: '8px 18px', background: 'none', border: 'none',
             borderBottom: tab === t ? `2px solid ${R}` : '2px solid transparent',
             color: tab === t ? text : dim, cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === t ? 700 : 400,
+            fontSize: 13, fontWeight: tab === t ? 700 : 400,
             fontFamily: fm, letterSpacing: '0.04em', transition: 'all 0.15s', marginBottom: -1,
           }}>{label}</button>
         ))}
@@ -286,11 +286,10 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       {/* Empty state */}
       {!selected && displayed.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>{tab === 'pending' ? '📭' : '✓'}</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: tab === 'pending' ? muted : GR }}>
             {tab === 'pending' ? 'No pending requests' : 'No processed requests yet'}
           </div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>
+          <div style={{ fontSize: 13, marginTop: 6 }}>
             {tab === 'pending' ? 'Users who sign up will appear here.' : 'Approved and denied requests will appear here.'}
           </div>
         </div>
@@ -304,7 +303,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
             const rc = ROLE_COLOR[req.assignedRole] || AM;
             return (
               <div key={req.id} style={{
-                border: `1px solid ${border}`, borderRadius: 8, padding: '14px 18px',
+                border: `1px solid ${border}`, borderRadius: 10, padding: '14px 18px',
                 background: card, display: 'flex', alignItems: 'center', gap: 14,
                 cursor: req.status === 'pending' ? 'pointer' : 'default',
               }} onClick={() => req.status === 'pending' && openRequest(req)}>
@@ -314,25 +313,25 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700 }}>{req.fullName}</span>
-                    <span style={{ fontSize: 10, background: `${statusColor}15`, color: statusColor, border: `1px solid ${statusColor}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: 12, background: `${statusColor}15`, color: statusColor, border: `1px solid ${statusColor}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                       {req.status}
                     </span>
                     {req.assignedRole && (
-                      <span style={{ fontSize: 10, background: `${rc}15`, color: rc, border: `1px solid ${rc}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
+                      <span style={{ fontSize: 12, background: `${rc}15`, color: rc, border: `1px solid ${rc}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
                         {ROLE_OPTIONS.find(r => r.value === req.assignedRole)?.label || req.assignedRole}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>{req.position} · {req.department}{req.productionLines?.length ? ` · ${req.productionLines.join(', ')}` : req.productionLine ? ` · ${req.productionLine}` : ''}</div>
-                  <div style={{ fontSize: 10, color: dim, fontFamily: "'Courier New', monospace", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: muted, marginTop: 3 }}>{req.position} · {req.department}{req.productionLines?.length ? ` · ${req.productionLines.join(', ')}` : req.productionLine ? ` · ${req.productionLine}` : ''}</div>
+                  <div style={{ fontSize: 12, color: dim, fontFamily: "'Courier New', monospace", marginTop: 2 }}>
                     {req.email} · {new Date(req.submittedAt).toLocaleString()}
                     {req.assignedUsername && <span style={{ color: GR }}> · @{req.assignedUsername}</span>}
                   </div>
                 </div>
                 {req.status === 'pending' ? (
-                  <div style={{ fontSize: 11, color: AM, fontFamily: fm, letterSpacing: '0.06em', flexShrink: 0 }}>Review →</div>
+                  <div style={{ fontSize: 13, color: AM, fontFamily: fm, letterSpacing: '0.06em', flexShrink: 0 }}>Review →</div>
                 ) : (
-                  <button onClick={e => { e.stopPropagation(); deleteRequest(req.id); }} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 4, color: dim, cursor: 'pointer', fontSize: 11, padding: '4px 10px', fontFamily: fm }}>Remove</button>
+                  <button onClick={e => { e.stopPropagation(); deleteRequest(req.id); }} style={{ background: 'none', border: `1px solid ${border}`, borderRadius: 10, color: dim, cursor: 'pointer', fontSize: 13, padding: '4px 10px', fontFamily: fm }}>Remove</button>
                 )}
               </div>
             );
@@ -343,18 +342,18 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       {/* Review panel */}
       {selected && (
         <div style={{ maxWidth: 640 }}>
-          <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.08em', marginBottom: 18 }}>← Back to List</button>
+          <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 10, padding: '6px 12px', fontSize: 13, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.04em', marginBottom: 18 }}>← Back to List</button>
 
           {/* Applicant card */}
-          <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '18px 20px', background: card, marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: fm, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)` }}>Applicant Details</div>
+          <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '18px 20px', background: card, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: R, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: fm, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)` }}>Applicant Details</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
               <div style={{ width: 52, height: 52, borderRadius: '50%', background: `${AM}20`, border: `2px solid ${AM}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 800, color: AM, flexShrink: 0 }}>
                 {selected.fullName?.[0]?.toUpperCase() || '?'}
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800 }}>{selected.fullName}</div>
-                <div style={{ fontSize: 12, color: muted }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
+                <div style={{ fontSize: 13, color: muted }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
               </div>
             </div>
             {[
@@ -362,46 +361,46 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
               ['Requested Username', `@${selected.username}`],
               ['Submitted',         new Date(selected.submittedAt).toLocaleString()],
             ].map(([l, v]) => (
-              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${border}`, fontSize: 12 }}>
-                <span style={{ color: dim, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: fm }}>{l}</span>
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${border}`, fontSize: 13 }}>
+                <span style={{ color: dim, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: fm }}>{l}</span>
                 <span style={{ fontWeight: 600, color: text }}>{v}</span>
               </div>
             ))}
             {selected.reason && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 6, borderLeft: '2px solid rgba(99,102,241,0.4)' }}>
-                <div style={{ fontSize: 10, color: dim, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: fm, marginBottom: 4 }}>Reason</div>
-                <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{selected.reason}</div>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 10, borderLeft: '2px solid rgba(99,102,241,0.4)' }}>
+                <div style={{ fontSize: 12, color: dim, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: fm, marginBottom: 4 }}>Reason</div>
+                <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>{selected.reason}</div>
               </div>
             )}
             {selected.preferredStations?.length > 0 && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.05)', borderRadius: 6, borderLeft: `2px solid ${GR}` }}>
-                <div style={{ fontSize: 10, color: dim, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: fm, marginBottom: 4 }}>Applicant requested (preselected below — adjust as needed)</div>
-                <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.05)', borderRadius: 10, borderLeft: `2px solid ${GR}` }}>
+                <div style={{ fontSize: 12, color: dim, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: fm, marginBottom: 4 }}>Applicant requested (preselected below - adjust as needed)</div>
+                <div style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>
                   {selected.preferredStations.filter(c => SEED_STATIONS[c]).map(c => `${c}: ${SEED_STATIONS[c].name}`).join(', ')}
                 </div>
               </div>
             )}
             {selected.ceeInterest && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 6, borderLeft: `2px solid ${R}` }}>
-                <div style={{ fontSize: 12, color: muted }}>Applicant also requested <strong style={{ color: text }}>Cost Estimations Engineer (CEE)</strong> access (preselected below).</div>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 10, borderLeft: `2px solid ${R}` }}>
+                <div style={{ fontSize: 13, color: muted }}>Applicant also requested <strong style={{ color: text }}>Cost Estimations Engineer (CEE)</strong> access (preselected below).</div>
               </div>
             )}
             {selected.typeApprovalInterest && (
-              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 6, borderLeft: `2px solid ${R}` }}>
-                <div style={{ fontSize: 12, color: muted }}>Applicant also requested <strong style={{ color: text }}>Type Approvals</strong> access (preselected below).</div>
+              <div style={{ marginTop: 12, padding: '10px 12px', background: isDark ? 'rgba(220,38,38,0.06)' : 'rgba(220,38,38,0.05)', borderRadius: 10, borderLeft: `2px solid ${R}` }}>
+                <div style={{ fontSize: 13, color: muted }}>Applicant also requested <strong style={{ color: text }}>Type Approvals</strong> access (preselected below).</div>
               </div>
             )}
           </div>
 
           {/* Grant access form */}
-          <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '18px 20px', background: card, marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: fm, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)` }}>Grant Access</div>
+          <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '18px 20px', background: card, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: fm, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)` }}>Grant Access</div>
 
             {/* Username */}
             <div style={{ marginBottom: 14 }}>
               <label style={lbl}>Assign Username</label>
               <input style={inp} value={form.username} onChange={e => setF('username', e.target.value.replace(/\s/g, '').toLowerCase())} placeholder="username" />
-              <div style={{ fontSize: 10, color: dim, marginTop: 4, fontFamily: fm }}>Password was set by the applicant during sign-up.</div>
+              <div style={{ fontSize: 12, color: dim, marginTop: 4, fontFamily: fm }}>Password was set by the applicant during sign-up.</div>
             </div>
 
             {/* Role selector — cards */}
@@ -414,15 +413,15 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                   return (
                     <button key={r.value} onClick={() => setForm(f => ({ ...f, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '', supervisorLines: {} }))} style={{
                       display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
-                      padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
+                      padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
                       background: sel ? `${rc}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
                       border: `1px solid ${sel ? rc + '50' : border}`,
                       transition: 'all 0.15s',
                     }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: sel ? rc : dim, flexShrink: 0 }} />
                       <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: sel ? rc : text, fontFamily: fm }}>{r.label}</div>
-                        <div style={{ fontSize: 10, color: dim, fontFamily: fm, marginTop: 1 }}>{r.desc}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: sel ? rc : text, fontFamily: fm }}>{r.label}</div>
+                        <div style={{ fontSize: 12, color: dim, fontFamily: fm, marginTop: 1 }}>{r.desc}</div>
                       </div>
                     </button>
                   );
@@ -434,7 +433,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
 
             {/* DIRECTOR: no assignment needed */}
             {form.role === 'director' && (
-              <div style={{ padding: '10px 14px', background: isDark ? 'rgba(14,165,233,0.07)' : '#f0f9ff', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 6, fontSize: 12, color: '#0ea5e9', marginBottom: 14 }}>
+              <div style={{ padding: '10px 14px', background: isDark ? 'rgba(14,165,233,0.07)' : '#f0f9ff', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 10, fontSize: 13, color: '#0ea5e9', marginBottom: 14 }}>
                 Director has read access to travel cards across all lines.
               </div>
             )}
@@ -443,7 +442,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
             {form.role === 'manager' && (
               <div style={{ marginBottom: 14 }}>
                 <label style={lbl}>Lines to Manage <span style={{ color: '#6366f1' }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg }}>
                   {SEED_LINES.map(l => (
                     <label key={l.id} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -454,11 +453,11 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                       <input type="checkbox" checked={!!form.assignedLines[l.id]}
                         onChange={() => setForm(f => ({ ...f, assignedLines: { ...f.assignedLines, [l.id]: !f.assignedLines[l.id] } }))}
                         style={{ accentColor: '#6366f1', width: 13, height: 13 }} />
-                      <span style={{ fontSize: 12, color: form.assignedLines[l.id] ? text : muted }}>{l.label}</span>
+                      <span style={{ fontSize: 13, color: form.assignedLines[l.id] ? text : muted }}>{l.label}</span>
                     </label>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 5 }}>
+                <div style={{ fontSize: 12, color: dim, marginTop: 5 }}>
                   {Object.values(form.assignedLines).filter(Boolean).length} line(s) selected
                 </div>
               </div>
@@ -468,7 +467,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
             {form.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
                 <label style={lbl}>Lines to Supervise <span style={{ color: AM }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, marginBottom: 10 }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg, marginBottom: 10 }}>
                   {SEED_LINES.map(l => (
                     <label key={l.id} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -487,17 +486,17 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                           return { ...f, supervisorLines: { ...f.supervisorLines, [l.id]: nowChecked }, assignedStations: nextStations };
                         })}
                         style={{ accentColor: AM, width: 13, height: 13 }} />
-                      <span style={{ fontSize: 12, color: form.supervisorLines[l.id] ? text : muted }}>{l.label}</span>
+                      <span style={{ fontSize: 13, color: form.supervisorLines[l.id] ? text : muted }}>{l.label}</span>
                     </label>
                   ))}
                 </div>
 
                 <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more)</span></label>
                 {!Object.values(form.supervisorLines).some(Boolean) && (
-                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
+                  <div style={{ fontSize: 13, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
                 )}
 
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                   {SEED_LINES.filter(l => form.supervisorLines[l.id]).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
@@ -507,9 +506,9 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                       <div key={line.id}>
                         {/* Line header — quick-toggle the whole line at once */}
                         <div style={{
-                          padding: '7px 12px', fontSize: 10, fontWeight: 700,
+                          padding: '7px 12px', fontSize: 12, fontWeight: 700,
                           color: anyChecked ? AM : dim,
-                          textTransform: 'uppercase', letterSpacing: '0.1em',
+                          textTransform: 'uppercase', letterSpacing: '0.04em',
                           borderBottom: `1px solid ${border}`,
                           background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
                           fontFamily: fm,
@@ -524,8 +523,8 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                               return { ...f, assignedStations: next };
                             })}
                             style={{
-                              background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 4,
-                              padding: '2px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer',
+                              background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 10,
+                              padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
                               textTransform: 'none', letterSpacing: 0, fontFamily: fm,
                             }}
                           >
@@ -547,15 +546,15 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                               onChange={() => toggleStation(s.code)}
                               style={{ accentColor: AM, width: 13, height: 13 }}
                             />
-                            <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: AM, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
-                            <span style={{ fontSize: 11, color: form.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                            <span style={{ fontSize: 13, fontFamily: "'Courier New', monospace", color: AM, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                            <span style={{ fontSize: 13, color: form.assignedStations[s.code] ? text : muted }}>{s.name}</span>
                           </label>
                         ))}
                       </div>
                     );
                   })}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 6, fontFamily: fm }}>
+                <div style={{ fontSize: 12, color: dim, marginTop: 6, fontFamily: fm }}>
                   {Object.values(form.assignedStations).filter(Boolean).length} station(s) selected
                 </div>
               </div>
@@ -573,8 +572,8 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                 </div>
                 {form.stationLine && (
                   <div>
-                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more — prefilled & locked on login)</span></label>
-                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
+                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more - prefilled & locked on login)</span></label>
+                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                       {userLineStations.map(s => (
                         <label key={s.code} style={{
                           display: 'flex', alignItems: 'center', gap: 10,
@@ -590,12 +589,12 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                             onChange={() => toggleStation(s.code)}
                             style={{ accentColor: GR, width: 13, height: 13 }}
                           />
-                          <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
-                          <span style={{ fontSize: 11, color: form.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                          <span style={{ fontSize: 13, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                          <span style={{ fontSize: 13, color: form.assignedStations[s.code] ? text : muted }}>{s.name}</span>
                         </label>
                       ))}
                     </div>
-                    <div style={{ fontSize: 10, color: dim, marginTop: 6, fontFamily: fm }}>
+                    <div style={{ fontSize: 12, color: dim, marginTop: 6, fontFamily: fm }}>
                       {Object.values(form.assignedStations).filter(Boolean).length} station(s) selected
                     </div>
                   </div>
@@ -608,7 +607,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
               <label style={lbl}>System Access</label>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg,
               }}>
                 <input
@@ -617,14 +616,14 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                   onChange={() => setForm(f => ({ ...f, canAccessTracker: !f.canAccessTracker }))}
                   style={{ accentColor: GR, width: 14, height: 14 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>Bus Tracker access</span>
-                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
-                  {form.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden — Travel Card only'}
+                <span style={{ fontSize: 13, color: text }}>Bus Tracker access</span>
+                <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
+                  {form.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden - Travel Card only'}
                 </span>
               </label>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg, marginTop: 8,
               }}>
                 <input
@@ -633,14 +632,14 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                   onChange={() => setForm(f => ({ ...f, ceeAccess: !f.ceeAccess }))}
                   style={{ accentColor: R, width: 14, height: 14 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>Cost Estimations Engineer (CEE) access</span>
-                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
-                  Supplementary — added on top of the role above
+                <span style={{ fontSize: 13, color: text }}>Cost Estimations Engineer (CEE) access</span>
+                <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
+                  Supplementary - added on top of the role above
                 </span>
               </label>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg, marginTop: 8,
               }}>
                 <input
@@ -649,25 +648,25 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                   onChange={() => setForm(f => ({ ...f, typeApprovalAccess: !f.typeApprovalAccess }))}
                   style={{ accentColor: R, width: 14, height: 14 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>Type Approvals (VIN register) access</span>
-                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
-                  Supplementary — added on top of the role above
+                <span style={{ fontSize: 13, color: text }}>Type Approvals (VIN register) access</span>
+                <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
+                  Supplementary - added on top of the role above
                 </span>
               </label>
             </div>
 
             {/* Deny / Approve */}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={handleDeny} style={{ flex: 1, padding: '10px 0', background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 5, color: '#f87171', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <button onClick={handleDeny} style={{ flex: 1, padding: '10px 0', background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, color: '#f87171', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0', }}>
                 Deny
               </button>
-              <button onClick={handleApprove} disabled={busy} style={{ flex: 2, padding: '10px 0', background: GR, border: `1px solid ${GR}`, borderRadius: 5, color: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy ? 0.7 : 1 }}>
-                {busy ? 'Granting…' : '✓ Grant Access'}
+              <button onClick={handleApprove} disabled={busy} style={{ flex: 2, padding: '10px 0', background: GR, border: `1px solid ${GR}`, borderRadius: 10, color: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0', opacity: busy ? 0.7 : 1 }}>
+                {busy ? 'Granting…' : 'Grant Access'}
               </button>
             </div>
           </div>
 
-          <div style={{ fontSize: 10, color: dim, lineHeight: 1.6, textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: dim, lineHeight: 1.6, textAlign: 'center' }}>
             Credentials are created immediately. Share username and password with the user directly.
           </div>
         </div>
@@ -675,7 +674,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: toast.ok ? 'rgba(16,185,129,0.12)' : 'rgba(220,38,38,0.12)', border: `1px solid ${toast.ok ? 'rgba(16,185,129,0.35)' : 'rgba(220,38,38,0.35)'}`, borderLeft: `3px solid ${toast.ok ? GR : R}`, borderRadius: '0 6px 6px 0', padding: '10px 18px', fontSize: 12, fontFamily: fm, color: toast.ok ? GR : R }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: toast.ok ? 'rgba(16,185,129,0.12)' : 'rgba(220,38,38,0.12)', border: `1px solid ${toast.ok ? 'rgba(16,185,129,0.35)' : 'rgba(220,38,38,0.35)'}`, borderLeft: `3px solid ${toast.ok ? GR : R}`, borderRadius: '0 6px 6px 0', padding: '10px 18px', fontSize: 13, fontFamily: fm, color: toast.ok ? GR : R }}>
           {toast.msg}
         </div>
       )}

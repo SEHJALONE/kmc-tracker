@@ -207,7 +207,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
     setEdit(null);
     setBusy(false);
     if (!result.ok) return alert(`Could not save changes: ${SAVE_ERRORS[result.error] || result.error || 'unknown error'}`);
-    showToast('User updated ✓');
+    showToast('User updated');
   }
 
   async function handleDelete(username) {
@@ -220,12 +220,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
   const inp = {
     width: '100%', fontSize: 13, padding: '9px 11px',
-    border: `1px solid ${inpBor}`, borderRadius: 5,
+    border: `1px solid ${inpBor}`, borderRadius: 10,
     background: inpBg, color: text, outline: 'none',
     boxSizing: 'border-box', fontFamily: fm,
     colorScheme: isDark ? 'dark' : 'light',
   };
-  const lbl = { display: 'block', fontSize: 10, color: muted, fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 };
+  const lbl = { display: 'block', fontSize: 12, color: muted, fontFamily: fm, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 5 };
 
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
@@ -250,9 +250,9 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
           <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
             <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>User Management</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Update roles, stations, and access rights for existing users</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Update roles, stations, and access rights for existing users</div>
           </div>
-          <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
+          <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {users.length} user{users.length !== 1 ? 's' : ''}
           </div>
         </div>
@@ -275,10 +275,9 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
       {/* No users */}
       {users.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>👤</div>
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: muted }}>No dynamic users yet</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>Approve access requests to create users.</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Approve access requests to create users.</div>
         </div>
       )}
 
@@ -294,7 +293,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
               const rl = ROLE_OPTIONS.find(r => r.value === user.role)?.label || user.role;
               return (
                 <div key={user.username} style={{
-                  border: `1px solid ${border}`, borderRadius: 8, padding: '13px 18px',
+                  border: `1px solid ${border}`, borderRadius: 10, padding: '13px 18px',
                   background: card, display: 'flex', alignItems: 'center', gap: 14,
                   cursor: 'pointer',
                 }} onClick={() => openEdit(user)}>
@@ -304,15 +303,15 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 14, fontWeight: 700 }}>{user.fullName || user.username}</span>
-                      <span style={{ fontSize: 10, background: `${rc}15`, color: rc, border: `1px solid ${rc}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>{rl}</span>
+                      <span style={{ fontSize: 12, background: `${rc}15`, color: rc, border: `1px solid ${rc}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>{rl}</span>
                       {user.canAccessTracker === false && (
-                        <span style={{ fontSize: 10, background: `${R}15`, color: R, border: `1px solid ${R}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>Tracker Access Revoked</span>
+                        <span style={{ fontSize: 12, background: `${R}15`, color: R, border: `1px solid ${R}40`, borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>Tracker Access Revoked</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>
-                      @{user.username} · {user.position || '—'} · {user.department || '—'}
+                    <div style={{ fontSize: 13, color: muted, marginTop: 2 }}>
+                      @{user.username} · {user.position || '-'} · {user.department || '-'}
                     </div>
-                    <div style={{ fontSize: 10, color: dim, marginTop: 2, fontFamily: "'Courier New', monospace" }}>
+                    <div style={{ fontSize: 12, color: dim, marginTop: 2, fontFamily: "'Courier New', monospace" }}>
                       {user.email}
                       {user.role === 'user' && user.assignedStations?.length > 0 && <span style={{ color: GR }}> · Station{user.assignedStations.length > 1 ? 's' : ''}: {user.assignedStations.join(', ')}</span>}
                       {user.role === 'user' && !user.assignedStations?.length && user.assignedStation && <span style={{ color: GR }}> · Station: {user.assignedStation}</span>}
@@ -320,7 +319,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                       {user.role === 'supervisor' && user.assignedStations?.length > 0 && <span style={{ color: AM }}> · {user.assignedStations.length} station(s)</span>}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: muted, flexShrink: 0 }}>Edit →</div>
+                  <div style={{ fontSize: 13, color: muted, flexShrink: 0 }}>Edit →</div>
                 </div>
               );
             })}
@@ -334,26 +333,26 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
       {/* Edit panel */}
       {selected && edit && (
         <div style={{ maxWidth: 640 }}>
-          <button onClick={() => { setSelected(null); setEdit(null); }} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.08em', marginBottom: 18 }}>← Back to List</button>
+          <button onClick={() => { setSelected(null); setEdit(null); }} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 10, padding: '6px 12px', fontSize: 13, cursor: 'pointer', fontFamily: fm, letterSpacing: '0.04em', marginBottom: 18 }}>← Back to List</button>
 
           {/* User summary */}
-          <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '16px 20px', background: card, marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)`, fontFamily: fm }}>User</div>
+          <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '16px 20px', background: card, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: R, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)`, fontFamily: fm }}>User</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 48, height: 48, borderRadius: '50%', background: `${ROLE_OPTIONS.find(r => r.value === selected.role)?.color || AM}20`, border: `2px solid ${ROLE_OPTIONS.find(r => r.value === selected.role)?.color || AM}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: ROLE_OPTIONS.find(r => r.value === selected.role)?.color || AM, flexShrink: 0 }}>
                 {selected.fullName?.[0]?.toUpperCase() || '?'}
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800 }}>{selected.fullName}</div>
-                <div style={{ fontSize: 12, color: muted }}>@{selected.username} · {selected.email}</div>
-                <div style={{ fontSize: 11, color: dim, marginTop: 2 }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
+                <div style={{ fontSize: 13, color: muted }}>@{selected.username} · {selected.email}</div>
+                <div style={{ fontSize: 13, color: dim, marginTop: 2 }}>{selected.position} · {selected.department}{selected.productionLines?.length ? ` / ${selected.productionLines.join(', ')}` : selected.productionLine ? ` / ${selected.productionLine}` : ''}</div>
               </div>
             </div>
           </div>
 
           {/* Edit form */}
-          <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '18px 20px', background: card, marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Account Details</div>
+          <div style={{ border: `1px solid ${border}`, borderRadius: 10, padding: '18px 20px', background: card, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Account Details</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 18 }}>
               <div>
@@ -391,9 +390,9 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                           return (
                             <button key={u} type="button"
                               onClick={() => setEdit(x => ({ ...x, units: on ? x.units.filter(v => v !== u) : [...x.units, u] }))}
-                              style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 11, fontFamily: fm,
+                              style={{ padding: '6px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontFamily: fm,
                                 border: `1px solid ${on ? GR + '80' : border}`, background: on ? `${GR}18` : 'transparent', color: on ? GR : muted }}>
-                              {on ? '✓ ' : ''}{u}
+                              {on ? '' : ''}{u}
                             </button>
                           );
                         })}
@@ -404,12 +403,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
               );
             })()}
             {canRename && edit.username.trim().toLowerCase() !== selected.username.toLowerCase() && (
-              <div style={{ fontSize: 11, color: AM, marginTop: -10, marginBottom: 16, fontFamily: fm }}>
+              <div style={{ fontSize: 13, color: AM, marginTop: -10, marginBottom: 16, fontFamily: fm }}>
                 The person signs in with the new username (or their email) from now on. Their travel cards, open tasks and report schedules move to the new name.
               </div>
             )}
 
-            <div style={{ fontSize: 9, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Edit Rights & Responsibilities</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: GR, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(16,185,129,0.2)`, fontFamily: fm }}>Edit Rights & Responsibilities</div>
 
             {/* Role selector */}
             <div style={{ marginBottom: 16 }}>
@@ -420,12 +419,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                   return (
                     <button key={r.value} onClick={() => { setEdit(e => ({ ...e, role: r.value, assignedStation: '', assignedLines: {}, assignedStations: {}, stationLine: '' })); setSupervisorLines({}); }} style={{
                       display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
-                      padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                      padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                       background: sel ? `${r.color}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
                       border: `1px solid ${sel ? r.color + '50' : border}`,
                     }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: sel ? r.color : dim, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: sel ? r.color : text, fontFamily: fm }}>{r.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: sel ? r.color : text, fontFamily: fm }}>{r.label}</span>
                     </button>
                   );
                 })}
@@ -435,14 +434,14 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
             {/* Supplementary roles — additive on top of the primary Role above,
                 e.g. a Supervisor who's also a Cost Estimations Engineer. */}
             <div style={{ marginBottom: 16 }}>
-              <label style={lbl}>Additional Roles <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional — on top of the role above)</span></label>
+              <label style={lbl}>Additional Roles <span style={{ textTransform: 'none', letterSpacing: 0 }}>(optional - on top of the role above)</span></label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {SUPPLEMENTARY_ROLE_OPTIONS.filter(r => r.value !== edit.role).map(r => {
                   const checked = !!edit.roles?.[r.value];
                   return (
                     <label key={r.value} style={{
                       display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
-                      padding: '9px 12px', borderRadius: 6,
+                      padding: '9px 12px', borderRadius: 10,
                       background: checked ? `${r.color}12` : (isDark ? 'rgba(255,255,255,0.02)' : '#f8fafc'),
                       border: `1px solid ${checked ? r.color + '50' : border}`,
                     }}>
@@ -452,7 +451,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                         onChange={() => setEdit(e => ({ ...e, roles: { ...e.roles, [r.value]: !checked } }))}
                         style={{ width: 14, height: 14, cursor: 'pointer' }}
                       />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: checked ? r.color : text, fontFamily: fm }}>{r.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: checked ? r.color : text, fontFamily: fm }}>{r.label}</span>
                     </label>
                   );
                 })}
@@ -461,7 +460,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
             {/* Director info */}
             {edit.role === 'director' && (
-              <div style={{ padding: '10px 14px', background: isDark ? 'rgba(14,165,233,0.07)' : '#f0f9ff', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 6, fontSize: 12, color: '#0ea5e9', marginBottom: 14 }}>
+              <div style={{ padding: '10px 14px', background: isDark ? 'rgba(14,165,233,0.07)' : '#f0f9ff', border: '1px solid rgba(14,165,233,0.25)', borderRadius: 10, fontSize: 13, color: '#0ea5e9', marginBottom: 14 }}>
                 Director has review access across all lines.
               </div>
             )}
@@ -470,7 +469,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
             {edit.role === 'manager' && (
               <div style={{ marginBottom: 14 }}>
                 <label style={lbl}>Lines to Manage <span style={{ color: '#6366f1' }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg }}>
                   {SEED_LINES.map(l => (
                     <label key={l.id} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -481,11 +480,11 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                       <input type="checkbox" checked={!!edit.assignedLines?.[l.id]}
                         onChange={() => setEdit(e => ({ ...e, assignedLines: { ...e.assignedLines, [l.id]: !e.assignedLines?.[l.id] } }))}
                         style={{ accentColor: '#6366f1', width: 13, height: 13 }} />
-                      <span style={{ fontSize: 12, color: edit.assignedLines?.[l.id] ? text : muted }}>{l.label}</span>
+                      <span style={{ fontSize: 13, color: edit.assignedLines?.[l.id] ? text : muted }}>{l.label}</span>
                     </label>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 5 }}>
+                <div style={{ fontSize: 12, color: dim, marginTop: 5 }}>
                   {Object.values(edit.assignedLines || {}).filter(Boolean).length} line(s) selected
                 </div>
               </div>
@@ -495,7 +494,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
             {edit.role === 'supervisor' && (
               <div style={{ marginBottom: 14 }}>
                 <label style={lbl}>Lines to Supervise <span style={{ color: AM }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, marginBottom: 10 }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg, marginBottom: 10 }}>
                   {SEED_LINES.map(l => (
                     <label key={l.id} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -517,16 +516,16 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                           }
                         }}
                         style={{ accentColor: AM, width: 13, height: 13 }} />
-                      <span style={{ fontSize: 12, color: supervisorLines[l.id] ? text : muted }}>{l.label}</span>
+                      <span style={{ fontSize: 13, color: supervisorLines[l.id] ? text : muted }}>{l.label}</span>
                     </label>
                   ))}
                 </div>
 
                 <label style={lbl}>Assigned Stations <span style={{ color: AM }}>(select one or more)</span></label>
                 {!Object.values(supervisorLines).some(Boolean) && (
-                  <div style={{ fontSize: 11, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
+                  <div style={{ fontSize: 13, color: dim, fontFamily: fm, padding: '6px 2px' }}>Select at least one line above to see its stations.</div>
                 )}
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                   {SEED_LINES.filter(l => supervisorLines[l.id]).map(line => {
                     const stns = stationsByLine[line.id] || [];
                     if (!stns.length) return null;
@@ -534,7 +533,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                     const allChecked = stns.every(s => edit.assignedStations[s.code]);
                     return (
                       <div key={line.id}>
-                        <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: anyChecked ? AM : dim, textTransform: 'uppercase', letterSpacing: '0.1em', borderBottom: `1px solid ${border}`, background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', fontFamily: fm, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, color: anyChecked ? AM : dim, textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `1px solid ${border}`, background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', fontFamily: fm, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                           <span>{line.label} ({stns.length})</span>
                           <button
                             type="button"
@@ -543,7 +542,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                               stns.forEach(s => { next[s.code] = !allChecked; });
                               return { ...ed, assignedStations: next };
                             })}
-                            style={{ background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 4, padding: '2px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontFamily: fm }}
+                            style={{ background: 'none', border: `1px solid ${AM}55`, color: AM, borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontFamily: fm }}
                           >
                             {allChecked ? 'Clear whole line' : 'Select whole line'}
                           </button>
@@ -551,15 +550,15 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                         {stns.map(s => (
                           <label key={s.code} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', cursor: 'pointer', borderBottom: `1px solid ${border}`, background: edit.assignedStations[s.code] ? (isDark ? 'rgba(245,158,11,0.07)' : 'rgba(245,158,11,0.05)') : 'transparent' }}>
                             <input type="checkbox" checked={!!edit.assignedStations[s.code]} onChange={() => toggleStation(s.code)} style={{ accentColor: AM, width: 13, height: 13 }} />
-                            <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: AM, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
-                            <span style={{ fontSize: 11, color: edit.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                            <span style={{ fontSize: 13, fontFamily: "'Courier New', monospace", color: AM, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                            <span style={{ fontSize: 13, color: edit.assignedStations[s.code] ? text : muted }}>{s.name}</span>
                           </label>
                         ))}
                       </div>
                     );
                   })}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
                   {Object.values(edit.assignedStations).filter(Boolean).length} station(s) selected
                 </div>
               </div>
@@ -577,8 +576,8 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                 </div>
                 {edit.stationLine && (
                   <div>
-                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more — prefilled & locked on login)</span></label>
-                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
+                    <label style={lbl}>Assigned Station(s) <span style={{ color: GR }}>(select one or more - prefilled & locked on login)</span></label>
+                    <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, maxHeight: 240, overflowY: 'auto', background: inpBg }}>
                       {userLineStations.map(s => (
                         <label key={s.code} style={{
                           display: 'flex', alignItems: 'center', gap: 10,
@@ -589,12 +588,12 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                             : 'transparent',
                         }}>
                           <input type="checkbox" checked={!!edit.assignedStations[s.code]} onChange={() => toggleStation(s.code)} style={{ accentColor: GR, width: 13, height: 13 }} />
-                          <span style={{ fontSize: 11, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
-                          <span style={{ fontSize: 11, color: edit.assignedStations[s.code] ? text : muted }}>{s.name}</span>
+                          <span style={{ fontSize: 13, fontFamily: "'Courier New', monospace", color: GR, flexShrink: 0, minWidth: 52 }}>{s.code}</span>
+                          <span style={{ fontSize: 13, color: edit.assignedStations[s.code] ? text : muted }}>{s.name}</span>
                         </label>
                       ))}
                     </div>
-                    <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                    <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
                       {Object.values(edit.assignedStations).filter(Boolean).length} station(s) selected
                     </div>
                   </div>
@@ -607,7 +606,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
               <label style={lbl}>System Access</label>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg,
               }}>
                 <input
@@ -616,9 +615,9 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
                   onChange={() => setEdit(e => ({ ...e, canAccessTracker: !e.canAccessTracker }))}
                   style={{ accentColor: GR, width: 14, height: 14 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>Bus Tracker access</span>
-                <span style={{ fontSize: 10, color: dim, marginLeft: 'auto' }}>
-                  {edit.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden — Travel Card only'}
+                <span style={{ fontSize: 13, color: text }}>Bus Tracker access</span>
+                <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
+                  {edit.canAccessTracker ? 'Can open the Bus Tracker module' : 'Bus Tracker hidden - Travel Card only'}
                 </span>
               </label>
             </div>
@@ -628,17 +627,17 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
               <label style={lbl}>Reset Password <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(leave blank to keep current)</span></label>
               <input style={inp} type="text" value={edit.password} onChange={e => setE('password', e.target.value)} placeholder="Min. 8 characters" />
               {edit.password && edit.password.length < 8 && (
-                <div style={{ fontSize: 10, color: R, marginTop: 4, fontFamily: fm }}>Must be at least 8 characters</div>
+                <div style={{ fontSize: 12, color: R, marginTop: 4, fontFamily: fm }}>Must be at least 8 characters</div>
               )}
             </div>
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmDel(selected.username)} style={{ flex: 1, padding: '10px 0', background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 5, color: '#f87171', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: fm, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              <button onClick={() => setConfirmDel(selected.username)} style={{ flex: 1, padding: '10px 0', background: 'rgba(220,38,38,0.07)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, color: '#f87171', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0', }}>
                 Remove User
               </button>
-              <button onClick={handleSave} disabled={busy} style={{ flex: 2, padding: '10px 0', background: GR, border: `1px solid ${GR}`, borderRadius: 5, color: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busy ? 0.7 : 1 }}>
-                {busy ? 'Saving…' : '✓ Save Changes'}
+              <button onClick={handleSave} disabled={busy} style={{ flex: 2, padding: '10px 0', background: GR, border: `1px solid ${GR}`, borderRadius: 10, color: '#fff', cursor: busy ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm, letterSpacing: '0', opacity: busy ? 0.7 : 1 }}>
+                {busy ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -654,8 +653,8 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
               This will permanently delete <strong style={{ color: text }}>@{confirmDel}</strong> from the system. They will not be able to log in.
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmDel(null)} style={{ flex: 1, padding: '10px 0', background: 'none', border: `1px solid ${border}`, borderRadius: 6, color: muted, cursor: 'pointer', fontSize: 13, fontFamily: fm }}>Cancel</button>
-              <button onClick={() => handleDelete(confirmDel)} style={{ flex: 1, padding: '10px 0', background: R, border: `1px solid ${R}`, borderRadius: 6, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm }}>Remove</button>
+              <button onClick={() => setConfirmDel(null)} style={{ flex: 1, padding: '10px 0', background: 'none', border: `1px solid ${border}`, borderRadius: 10, color: muted, cursor: 'pointer', fontSize: 13, fontFamily: fm }}>Cancel</button>
+              <button onClick={() => handleDelete(confirmDel)} style={{ flex: 1, padding: '10px 0', background: R, border: `1px solid ${R}`, borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: fm }}>Remove</button>
             </div>
           </div>
         </div>
@@ -663,7 +662,7 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: toast.ok ? 'rgba(16,185,129,0.12)' : 'rgba(220,38,38,0.12)', border: `1px solid ${toast.ok ? 'rgba(16,185,129,0.35)' : 'rgba(220,38,38,0.35)'}`, borderLeft: `3px solid ${toast.ok ? GR : R}`, borderRadius: '0 6px 6px 0', padding: '10px 18px', fontSize: 12, fontFamily: fm, color: toast.ok ? GR : R }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, background: toast.ok ? 'rgba(16,185,129,0.12)' : 'rgba(220,38,38,0.12)', border: `1px solid ${toast.ok ? 'rgba(16,185,129,0.35)' : 'rgba(220,38,38,0.35)'}`, borderLeft: `3px solid ${toast.ok ? GR : R}`, borderRadius: '0 6px 6px 0', padding: '10px 18px', fontSize: 13, fontFamily: fm, color: toast.ok ? GR : R }}>
           {toast.msg}
         </div>
       )}

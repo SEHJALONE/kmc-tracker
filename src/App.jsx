@@ -6,7 +6,8 @@ import { isActive } from './data/catalogConfig';
 import { getSession, clearSession } from './data/session';
 import { matchesStatus, matchesProject } from './utils/trackerFilters';
 import { useBreakpoint } from './hooks/useBreakpoint';
-import { lookupStation } from './data/stations';
+import { lookupStation, sameStationCode, stationLineOf } from './data/stations';
+import { localOpenTaskCount } from './hooks/useTravelTasks';
 import LineTracker from './components/LineTracker';
 import Dashboard from './components/Dashboard';
 import BusReport from './components/BusReport';
@@ -28,6 +29,8 @@ import UserManagement from './components/UserManagement';
 import DailyFleetLog from './components/DailyFleetLog';
 import CostEstimation from './components/CostEstimation';
 import MySubmissions from './components/MySubmissions';
+import AccountSettings from './components/AccountSettings';
+import { cachedProfile, clearProfileCache } from './data/profile';
 import TypeApprovals from './components/TypeApprovals';
 import JobOrdersPage from './components/jobs/JobOrdersPage';
 import ShopFloor from './components/ShopFloor';
@@ -166,7 +169,7 @@ export default function App() {
 
   const [tcPrefill, setTcPrefill] = useState(null);
   const [editingSubmission, setEditingSubmission] = useState(null);
-  const { editSubmission: saveSubmissionEdit } = useSubmissionsData();
+  const { submissions: allCards, editSubmission: saveSubmissionEdit } = useSubmissionsData();
 
   const toggleTheme = useCallback(() => {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
@@ -273,8 +276,10 @@ export default function App() {
     return rows;
   }, [filteredRows, filters.line, filters.station, filters.status]);
 
-  // Current user info (set by Login from dynamic user record)
+  // Current user info (set by Login from dynamic user record, and by Settings)
   const currentUserName  = localStorage.getItem('kmc_user_fullname') || null;
+  const [, refreshProfile] = useState(0);   // re-read name/photo after Settings saves
+  const myPhoto = cachedProfile().photo;
 
   // Role-specific access assignments (set by Login from dynamic user record)
   const assignedStation  = localStorage.getItem('kmc_assigned_station') || null;
@@ -316,7 +321,7 @@ export default function App() {
     localStorage.removeItem('kmc_role');
     localStorage.removeItem('kmc_ncr_domain');
     localStorage.removeItem('kmc_landing');
-    localStorage.removeItem('kmc_user_fullname');
+    clearProfileCache();   // name, email, phone, photo
     localStorage.removeItem('kmc_assigned_station');
     localStorage.removeItem('kmc_assigned_stations');
     localStorage.removeItem('kmc_assigned_lines');
@@ -332,6 +337,18 @@ export default function App() {
 
   const logo = theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png';
 
+  // Work waiting, shown as counts on the home screen. "To review" uses the same
+  // scope as the Pending Reviews page.
+  const homeCounts = {
+    openTasks: localOpenTaskCount(username),
+    toReview: allCards.filter(c => ['pending_review', 'pending', 'rejected', ''].includes(c.approvalStatus)).filter(c => {
+      if (role === 'supervisor' && assignedStations?.length) return assignedStations.some(s => sameStationCode(s, c.stationCode));
+      if (role === 'manager' && assignedLines?.length) return assignedLines.includes(stationLineOf(c.stationCode));
+      return true;
+    }).length,
+    awaitingReview: currentUserName ? allCards.filter(c => c.submittedBy === currentUserName && c.approvalStatus === 'pending_review').length : 0,
+  };
+
   if (!authed) return <Login onLogin={(r, d, landing) => { setRole(r || 'user'); setNcrDomain(d || null); setAuthed(true); setMode(landing || 'home'); setLandingOnly(!!landing); }} theme={theme} toggleTheme={toggleTheme} />;
 
   if (mode === 'home') return (
@@ -339,6 +356,10 @@ export default function App() {
       theme={theme}
       toggleTheme={toggleTheme}
       onLogout={handleLogout}
+      onSelectSettings={() => setMode('settings')}
+      userName={currentUserName}
+      username={username}
+      userPhoto={myPhoto}
       onSelectTravelCard={() => setMode('travelcard')}
       onSelectTracker={() => setMode('tracker')}
       onSelectHandover={() => setMode('handover')}
@@ -355,7 +376,13 @@ export default function App() {
       role={role}
       canAccessTracker={canAccessTracker}
       hasCeeAccess={hasCeeAccess}
+      counts={homeCounts}
     />
+  );
+
+  if (mode === 'settings') return (
+    <AccountSettings theme={theme} onToggleTheme={toggleTheme} username={username} role={role}
+      onSaved={() => refreshProfile(n => n + 1)} onBack={() => setMode('home')} />
   );
 
   if (mode === 'type-approvals') return (
@@ -451,7 +478,7 @@ export default function App() {
           font-weight: 700;
           letter-spacing: 0.06em;
           color: var(--text-heading);
-          text-transform: uppercase;
+
           white-space: nowrap;
         }
         @media (max-width: 560px) {
@@ -534,6 +561,7 @@ export default function App() {
       {adminOpen && canEditCatalog && (
         <CatalogAdmin
           catalog={catalog}
+          catalogLoaded={catalogLoaded}
           saveCatalog={saveCatalog}
           saving={catalogSaving}
           listCatalogBackups={listCatalogBackups}
@@ -587,7 +615,7 @@ export default function App() {
           font-size: 13px;
           font-weight: 600;
           letter-spacing: 0.04em;
-          text-transform: uppercase;
+
           cursor: pointer;
           font-family: 'Inter', system-ui, sans-serif;
           transition: color 0.2s;
@@ -668,7 +696,7 @@ export default function App() {
           display: flex; align-items: center; gap: 12px;
           padding: 16px 24px;
           font-size: 16px; font-weight: 600;
-          letter-spacing: 0.05em; text-transform: uppercase;
+          letter-spacing: 0;
           color: var(--nav-color);
           background: transparent; border: none;
           width: 100%; text-align: left;
@@ -695,7 +723,7 @@ export default function App() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <img src={logo} alt="KMC" style={{ height: 34, width: 'auto', objectFit: 'contain' }} />
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-heading)', textTransform: 'uppercase', lineHeight: 1.25 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0', color: 'var(--text-heading)', lineHeight: 1.25 }}>
               Bus Production<br />Tracker
             </div>
           </div>
@@ -797,7 +825,7 @@ export default function App() {
               fontSize: 13, fontWeight: 700,
               letterSpacing: '0.06em',
               color: 'var(--text-heading)',
-              textTransform: 'uppercase',
+
               lineHeight: 1.25,
             }}>
               Bus Production<br />Tracker
@@ -944,7 +972,7 @@ export default function App() {
             fontFamily: "'Inter', system-ui, sans-serif",
             letterSpacing: '0.04em',
           }}>
-            ⚠ {error}
+            {error}
           </div>
         )}
 
@@ -1051,6 +1079,7 @@ export default function App() {
       {adminOpen && canEditCatalog && (
         <CatalogAdmin
           catalog={catalog}
+          catalogLoaded={catalogLoaded}
           saveCatalog={saveCatalog}
           saving={catalogSaving}
           listCatalogBackups={listCatalogBackups}
@@ -1105,7 +1134,7 @@ function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
         .hov-btn:hover { border-color: var(--accent-border); color: var(--accent); }
         .hov-btn.accent { border-color: var(--accent-border); background: var(--accent); color: #fff; }
         .hov-btn.accent:hover { opacity: 0.88; }
-        .hov-title { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-heading); text-transform: uppercase; white-space: nowrap; }
+        .hov-title { font-size: 13px; font-weight: 700; letter-spacing: 0; color: var(--text-heading); white-space: nowrap; }
         @media (max-width: 560px) {
           .hov-title { display: none; }
           .hov-btn { padding: 6px 9px; }
@@ -1121,13 +1150,13 @@ function HandoverStandalone({ role, theme, toggleTheme, onHome }) {
         <img src={logo} alt="KMC" style={{ height: 36, width: 'auto', objectFit: 'contain' }} />
         <div className="hov-title">Shift Handover Log</div>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace', letterSpacing: '0.06em' }}>KMC Production · Shift Handover</span>
+        <span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'inherit', letterSpacing: '0.06em' }}>KMC Production · Shift Handover</span>
         <button className="hov-btn accent" onClick={() => { setSelectedHandover(null); setModalOpen(true); }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           <span className="hov-label">Log Handover</span>
         </button>
         <button className="hov-btn" onClick={toggleTheme}>
-          <span className="hov-label">{theme === 'dark' ? '☀ Light' : '☾ Dark'}</span>
+          <span className="hov-label">{theme === 'dark' ? 'Light' : 'Dark'}</span>
         </button>
       </header>
 

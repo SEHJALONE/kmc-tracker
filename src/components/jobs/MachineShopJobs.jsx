@@ -64,8 +64,8 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
         Machine Shop work runs from job orders. Set up a new one for <strong>{project}</strong> · <strong>{busModel}</strong> from its cut list, or see the job orders already open.
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button className="kmc-btn primary" onClick={() => setStep('setup')}>Yes — set up a job order</button>
-        <button className="kmc-btn" onClick={() => setStep('list')}>No — show job orders ({jobs.length})</button>
+        <button className="kmc-btn primary" onClick={() => setStep('setup')}>Yes - set up a job order</button>
+        <button className="kmc-btn" onClick={() => setStep('list')}>No - show job orders ({jobs.length})</button>
       </div>
     </div>
   );
@@ -85,7 +85,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
         {jobData.canManage && <button className="kmc-btn" onClick={() => setStep('setup')}>+ New job order</button>}
       </div>
       {jobData.loading && !jobs.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading job orders…</div>}
-      {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>⚠ {jobData.error}</div>}
+      {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{jobData.error}</div>}
       {!jobData.loading && !jobs.length && (
         <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
           No open job order for {busModel} on {project}. Ask the Machine Shop supervisor to set one up.
@@ -98,11 +98,11 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
           <button key={j.id} className="kmc-panel" onClick={() => { setJobId(j.id); setChoice({}); setMachine(''); setStep('review'); }}
             style={{ textAlign: 'left', padding: '12px 16px', cursor: 'pointer', border: '1px solid var(--border-subtle)', color: 'inherit', font: 'inherit' }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <strong style={{ fontFamily: 'monospace', color: 'var(--accent-text)' }}>{j.id}</strong>
+              <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)' }}>{j.id}</strong>
               <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{parts.length} parts · {groupBySpec(parts).length} specifications · by {j.createdByName || j.createdBy}</span>
               {runs.length > 0 && <span className="kmc-chip"><span>running</span><b style={{ background: 'var(--g-lime)' }}>{runs.length}</b></span>}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'monospace' }}>{j.vins.join(' · ')}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'inherit' }}>{j.vins.join(' · ')}</div>
             {j.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{j.notes}</div>}
           </button>
         );
@@ -166,10 +166,10 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
       <div className="kmc-panel" style={{ padding: '14px 16px' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
           <button className="kmc-btn ghost" onClick={() => setStep('list')}>← Job orders</button>
-          <strong style={{ fontFamily: 'monospace', color: 'var(--accent-text)', fontSize: 15 }}>{job.id}</strong>
+          <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)', fontSize: 15 }}>{job.id}</strong>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{job.project} · {job.busModel} · {cutItems.length} parts to cut</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'monospace' }}>VINs: {job.vins.join(' · ')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'inherit' }}>VINs: {job.vins.join(' · ')}</div>
         {jobRuns.length > 0 && (
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
             Running now: {jobRuns.map(t => <span key={t.id} className="kmc-chip" style={{ marginRight: 6 }}><span>{t.stationCode}</span><b style={{ background: 'var(--g-lime)' }}>●</b></span>)}
@@ -201,7 +201,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
                 <label style={label} htmlFor="ms-machine">Machine</label>
                 <select id="ms-machine" style={inp} value={machine} onChange={e => setMachine(e.target.value)}>
                   <option value="">Select machine…</option>
-                  {startable.map(c => <option key={c} value={c}>{c} · {machineName(c)} — {byMachine[c].length} part{byMachine[c].length === 1 ? '' : 's'}{jobRuns.some(t => t.stationCode === c) ? ' (running)' : ''}</option>)}
+                  {startable.map(c => <option key={c} value={c}>{c} · {machineName(c)} - {byMachine[c].length} part{byMachine[c].length === 1 ? '' : 's'}{jobRuns.some(t => t.stationCode === c) ? ' (running)' : ''}</option>)}
                 </select>
               </div>
               <div>
@@ -212,14 +212,14 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
           )}
         {machine && (
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Parts for {machine} — tick each one off as it is cut once the clock runs:</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Parts for {machine} - tick each one off as it is cut once the clock runs:</div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.6 }}>
-              {(byMachine[machine] || []).map(it => <li key={it.id}>{partLabel(it)}{it.remarks ? <span style={{ color: 'var(--text-muted)' }}> — {it.remarks}</span> : null}</li>)}
+              {(byMachine[machine] || []).map(it => <li key={it.id}>{partLabel(it)}{it.remarks ? <span style={{ color: 'var(--text-muted)' }}> - {it.remarks}</span> : null}</li>)}
             </ol>
             {jobRuns.some(t => t.stationCode === machine) && <div style={{ fontSize: 12, color: 'var(--warning-color)', marginTop: 8 }}>{machine} is already running on this job order. Starting it again opens a second clock.</div>}
           </div>
         )}
-        {error && <div style={{ fontSize: 13, color: 'var(--accent-text)', marginTop: 10 }}>⚠ {error}</div>}
+        {error && <div style={{ fontSize: 13, color: 'var(--accent-text)', marginTop: 10 }}>{error}</div>}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
           <button className={`kmc-orb${machine ? ' live' : ''}`} style={{ '--orb': '150px' }} onClick={start} disabled={!machine} aria-label="Start this machine">
             <span className="face" style={{ background: 'linear-gradient(150deg, #8ff5b0, #20c464 45%, #0f8a52)' }}>

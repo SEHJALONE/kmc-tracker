@@ -86,13 +86,13 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div role="dialog" aria-label={step === 'help' || step === 'sent' ? 'Ask the system admin' : 'Reset password'} onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderTop: '2px solid var(--accent)', borderRadius: 12, width: 440, maxWidth: '100%', maxHeight: '92vh', overflowY: 'auto', padding: '24px 26px', fontFamily: "'Inter', system-ui, sans-serif", color: 'var(--text-primary)', boxShadow: 'var(--shadow-login)' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '0', }}>
             {step === 'help' || step === 'sent' ? 'Ask the system admin' : 'Reset password'}
           </span>
           <button onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18 }}>✕</button>
         </div>
 
-        {error && <div style={{ background: 'var(--accent-alpha)', border: '1px solid var(--accent-border)', borderRadius: 6, padding: '9px 12px', fontSize: 13, color: 'var(--accent-text)', marginBottom: 14 }}>⚠ {error}</div>}
+        {error && <div style={{ background: 'var(--accent-alpha)', border: '1px solid var(--accent-border)', borderRadius: 6, padding: '9px 12px', fontSize: 13, color: 'var(--accent-text)', marginBottom: 14 }}>{error}</div>}
 
         {step === 'ask' && (<>
           <p style={note}>Enter your username or email. If your account has an email address, we'll send a 6-digit code to it.</p>
@@ -105,7 +105,7 @@ export default function ForgotPassword({ initialIdentifier = '', onClose, onDone
         {step === 'code' && (<>
           <p style={note}>
             {sentInfo.recent
-              ? <>A code was already emailed for <strong>{identifier.trim()}</strong> in the last hour — use that one (it lasts 15 minutes), or wait and ask again.</>
+              ? <>A code was already emailed for <strong>{identifier.trim()}</strong> in the last hour - use that one (it lasts 15 minutes), or wait and ask again.</>
               : <>We've emailed a code to the address on <strong>{identifier.trim()}</strong>. It expires in 15 minutes.</>}
             {sentInfo.accounts > 1 && <> That email is on {sentInfo.accounts} accounts, so it lists one code per account: use the one for the account you want.</>}
             {' '}Not in your inbox? Check <strong>Spam</strong> and <strong>Promotions</strong>{sentInfo.from ? <> for mail from <strong>{sentInfo.from}</strong></> : null}.

@@ -56,7 +56,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
   useEffect(() => { forgetLocalSchedules(); refreshSchedules(); }, []);
 
   async function cancelSchedule(id) {
-    try { await cancelReportSchedule(id); setStatus({ ok: true, msg: 'Schedule cancelled ✓' }); }
+    try { await cancelReportSchedule(id); setStatus({ ok: true, msg: 'Schedule cancelled' }); }
     catch (e) { setStatus({ ok: false, msg: `Could not cancel: ${e.message}` }); }
     refreshSchedules();
   }
@@ -90,7 +90,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
           dataStartDate: emailStartDate || null, dataEndDate: emailEndDate || null,
           filterSummary,
         });
-        setStatus({ ok: true, msg: `Scheduled: ${describeSchedule(saved)} (Kampala time) ✓` });
+        setStatus({ ok: true, msg: `Scheduled: ${describeSchedule(saved)} (Kampala time)` });
         refreshSchedules();
       } catch (e) {
         setStatus({ ok: false, msg: `Could not schedule: ${e.message}` });
@@ -156,9 +156,9 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
       setStatus({
         ok: true,
         msg: result.fallback
-          ? `Mail client opened — ${attachments.length} attachment(s) included in payload (PNG + 2 PDFs). Attach manually if needed.`
-          : `Report sent to ${(result.accepted || []).join(', ') || to.trim()} with ${attachments.length} attachment(s) ✓` +
-            (result.rejected?.length ? ` — not delivered to: ${result.rejected.join(', ')}` : ''),
+          ? `Mail client opened - ${attachments.length} attachment(s) included in payload (PNG + 2 PDFs). Attach manually if needed.`
+          : `Report sent to ${(result.accepted || []).join(', ') || to.trim()} with ${attachments.length} attachment(s)` +
+            (result.rejected?.length ? ` - not delivered to: ${result.rejected.join(', ')}` : ''),
       });
     } catch (e) {
       setStatus({ ok: false, msg: `Send failed: ${e.message}` });
@@ -221,7 +221,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
             <polyline points="22,6 12,13 2,6"/>
           </svg>
-          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0.10em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0', }}>
             Schedule Email Report
           </span>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>✕</button>
@@ -250,7 +250,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
           }}>
             {filterChips.length === 0 ? (
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.03em' }}>
-                No filters applied — report covers the full dataset.
+                No filters applied - report covers the full dataset.
               </span>
             ) : (
               filterChips.map(c => (
@@ -302,7 +302,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
           </div>
           {(emailStartDate || emailEndDate) ? (
             <div style={{ fontSize: 10, color: '#6366f1', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em', paddingLeft: 2 }}>
-              ◈ Overrides the dashboard date filter — report includes data
+              ◈ Overrides the dashboard date filter - report includes data
               {emailStartDate ? ` from ${emailStartDate}` : ''}
               {emailEndDate   ? ` to ${emailEndDate}` : ''}
               {' '}only
@@ -318,7 +318,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={labelStyle}>Schedule</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[{ val: 'now', label: 'Send Now', icon: '⚡' }, { val: 'daily', label: 'Daily', icon: '📅' }, { val: 'weekly', label: 'Weekly', icon: '🗓' }].map(opt => (
+            {[{ val: 'now', label: 'Send Now', icon: '' }, { val: 'daily', label: 'Daily', icon: '' }, { val: 'weekly', label: 'Weekly', icon: '' }].map(opt => (
               <button key={opt.val} onClick={() => setSchedule(opt.val)} style={{
                 flex: 1, padding: '9px 0',
                 background: schedule === opt.val ? 'rgba(99,102,241,0.12)' : 'var(--bg-surface-2)',
@@ -372,7 +372,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(6,182,212,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
-            ⚙ How Daily and Weekly sends work
+            How Daily and Weekly sends work
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: "'Inter', system-ui, sans-serif", lineHeight: 1.5 }}>
             The schedule is saved on the tracker's server and sent at the chosen time (Kampala) without a browser open. Each send is built from live data: Slide PDF, Dashboard PDF and Excel, limited to the data range above if you set one. Dashboard filters apply to Send Now only.
@@ -414,7 +414,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
             fontSize: 13, fontWeight: 700, fontFamily: "'Inter', system-ui, sans-serif",
             transition: 'all 0.15s',
           }}>
-            {busy ? 'Sending…' : schedule === 'now' ? '⚡ Send Now' : schedule === 'daily' ? '📅 Schedule Daily' : '🗓 Schedule Weekly'}
+            {busy ? 'Sending…' : schedule === 'now' ? 'Send Now' : schedule === 'daily' ? 'Schedule Daily' : 'Schedule Weekly'}
           </button>
         </div>
 
@@ -481,8 +481,8 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
                         borderRadius: 3, padding: '2px 6px',
                       }}>
                         {s.schedule === 'daily'
-                          ? `📅 Daily @ ${s.scheduledTime}`
-                          : `🗓 Every ${s.weekday} @ ${s.scheduledTime}`}
+                          ? `Daily @ ${s.scheduledTime}`
+                          : `Every ${s.weekday} @ ${s.scheduledTime}`}
                       </span>
                       {(s.startDate || s.endDate) && (
                         <span style={{
@@ -503,7 +503,7 @@ export default function EmailModal({ onClose, buses, rows, metrics, filters = {}
                           border: '1px solid rgba(99,102,241,0.2)',
                           borderRadius: 3, padding: '2px 6px',
                         }}>
-                          ⛃ {s.filterSummary}
+                          {s.filterSummary}
                         </span>
                       )}
                     </div>

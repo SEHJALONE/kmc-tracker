@@ -5,6 +5,7 @@ import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
+import { catalogVisibilityChanges } from '../utils/catalogGuard';
 
 // ── Admin catalog editor ────────────────────────────────────────────────────
 // Edits the shared catalog: bus projects, tracker lines & stations (with
@@ -85,32 +86,57 @@ function buildInitial(catalog) {
   };
 }
 
+// Same values as the shared classes in src/styles/design.css (.kmc-overlay,
+// .kmc-dialog, .kmc-input, .kmc-btn, .kmc-table, .kmc-section-title), kept as
+// objects because the tabs spread and extend them.
+const FONT = "'Inter', system-ui, sans-serif";
 const overlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)',
   zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
   padding: '24px 12px', overflowY: 'auto',
 };
 const panel = {
-  width: '100%', maxWidth: 920, background: 'var(--bg-surface)', color: 'var(--text-primary)',
-  border: '1px solid var(--border-medium)', borderRadius: 12, fontFamily: "'Inter', system-ui, sans-serif",
-  boxShadow: '0 40px 90px rgba(0,0,0,0.6)',
+  width: '100%', maxWidth: 920, background: 'var(--panel-solid)', color: 'var(--text-primary)',
+  border: '1px solid var(--border-medium)', borderRadius: 16, fontFamily: FONT,
+  boxShadow: 'var(--panel-shadow)',
 };
 const inp = {
-  background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 5,
-  color: 'var(--text-primary)', fontSize: 12, padding: '6px 8px', outline: 'none',
-  fontFamily: "'Inter', system-ui, sans-serif", width: '100%', boxSizing: 'border-box',
+  background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 10,
+  color: 'var(--text-primary)', fontSize: 14, padding: '8px 11px', outline: 'none',
+  fontFamily: FONT, width: '100%', boxSizing: 'border-box',
 };
 const btn = {
-  background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 6,
-  color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, padding: '6px 12px',
-  cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em',
+  background: 'var(--panel-bg)', border: '1px solid var(--border-medium)', borderRadius: 999,
+  color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, padding: '7px 14px',
+  cursor: 'pointer', fontFamily: FONT, whiteSpace: 'nowrap',
 };
 const btnAccent = { ...btn, border: '1px solid var(--accent-border)', color: 'var(--accent-text)', background: 'var(--accent-alpha)' };
-const th = { fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left', padding: '6px 6px', fontWeight: 700 };
-const td = { padding: '4px 6px', verticalAlign: 'top' };
-const sectionHd = { fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '4px 0 10px', fontWeight: 700 };
+const th = { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', padding: '8px 6px', fontWeight: 600 };
+const td = { padding: '5px 6px', verticalAlign: 'top' };
+const sectionHd = { fontSize: 14, color: 'var(--text-heading)', margin: '4px 0 12px', fontWeight: 700 };
 
-export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose, initialTab = 'Projects', role = '' }) {
+// The editor saves the FULL catalog, so it must never start from the built-in
+// defaults: saving those would overwrite the shared catalog (projects, VINs,
+// departments and every edit). Wait until the shared catalog has been read.
+export default function CatalogAdmin({ catalogLoaded = true, ...props }) {
+  if (!catalogLoaded) {
+    return (
+      <div style={overlay} onClick={props.onClose}>
+        <div style={{ ...panel, maxWidth: 460, padding: 22 }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--text-heading)', marginBottom: 8 }}>Catalog Admin</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 14 }}>
+            The shared catalog has not loaded yet, so editing is paused: saving now would replace it with the built-in defaults.
+            It opens by itself once the catalog arrives. If this stays for more than a minute, check the connection.
+          </div>
+          <button style={btn} onClick={props.onClose}>Close</button>
+        </div>
+      </div>
+    );
+  }
+  return <CatalogEditor {...props} />;
+}
+
+function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, restoreCatalogBackup, onClose, initialTab = 'Projects', role = '' }) {
   const tabs = TABS.filter(t => role === 'systemadmin' || !SYSTEMADMIN_TABS.includes(t));
   const [tab, setTab] = useState(tabs.includes(initialTab) ? initialTab : 'Projects');
   const [draft, setDraft] = useState(() => buildInitial(catalog));
@@ -125,7 +151,18 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
   );
 
   async function handleSave() {
-    if (!getSession()) console.warn('Catalog save: no session token in this browser — the server will refuse.');
+    if (!getSession()) console.warn('Catalog save: no session token in this browser - the server will refuse.');
+    // Operators fill Travel Cards against the live catalog. Anything this save
+    // would take away from them has to be confirmed, line by line.
+    const { hidden, shown } = catalogVisibilityChanges(buildInitial(catalog), draft);
+    if (hidden.length) {
+      const list = arr => arr.slice(0, 12).map(x => `  • ${x}`).join('\n') + (arr.length > 12 ? `\n  … and ${arr.length - 12} more` : '');
+      const ok = window.confirm(
+        `This save will HIDE the following for everyone, straight away:\n\n${list(hidden)}`
+        + (shown.length ? `\n\nIt will also newly show:\n\n${list(shown)}` : '')
+        + '\n\nIf that is not what you meant, press Cancel and check the model ticks.\n\nSave anyway?');
+      if (!ok) { setStatus('Not saved - you cancelled.'); return; }
+    }
     setStatus('Saving…');
     const payload = {
       projects: draft.projects,
@@ -142,9 +179,9 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
       departments: role === 'systemadmin' ? normalizeDepartments(draft.departments) : (catalog.departments ?? null),
     };
     const r = await saveCatalog(payload);
-    if (r?.ok) { setStatus('✅ Saved — visible to everyone.'); setDirty(false); }
-    else if (r?.error === 'unauthorized') setStatus('⚠️ Not saved — the server refused this sign-in (no valid session, or the account is not systemadmin/useradmin). Sign out, sign in again as systemadmin or useradmin, then Save all.');
-    else setStatus('⚠️ Not saved' + (r?.error ? ` (${r.error})` : '') + '. Try again.');
+    if (r?.ok) { setStatus('Saved - visible to everyone.'); setDirty(false); }
+    else if (r?.error === 'unauthorized') setStatus('Not saved - the server refused this sign-in (no valid session, or the account is not systemadmin/useradmin). Sign out, sign in again as systemadmin or useradmin, then Save all.');
+    else setStatus('Not saved' + (r?.error ? ` (${r.error})` : '') + '. Try again.');
   }
 
   return (
@@ -152,10 +189,10 @@ export default function CatalogAdmin({ catalog, saveCatalog, saving, listCatalog
       <div style={panel} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 14 }}>Catalog Admin</div>
-          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>Edits apply to all users</div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--text-heading)' }}>Catalog Admin</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Edits apply to all users</div>
           <div style={{ flex: 1 }} />
-          {status && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{status}</span>}
+          {status && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{status}</span>}
           <button style={btnAccent} disabled={saving || !dirty} onClick={handleSave}>{saving ? 'Saving…' : 'Save all'}</button>
           <button style={btn} onClick={onClose}>Close</button>
         </div>
@@ -196,7 +233,7 @@ function ProjectsTab({ draft, touch }) {
   const upd = (i, k, v) => touch(d => { d.projects[i][k] = v; return d; });
   return (
     <div>
-      <div style={sectionHd}>Bus projects — archive (uncheck Active) keeps history filterable</div>
+      <div style={sectionHd}>Bus projects - archive (uncheck Active) keeps history filterable</div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
           <th style={th}>Name</th><th style={th}>Model</th><th style={th}>Start</th><th style={th}>End</th><th style={th}>Active</th>
@@ -237,31 +274,31 @@ function BackupsTab({ listCatalogBackups, restoreCatalogBackup }) {
     const r = await listCatalogBackups();
     setLoading(false);
     if (r.ok) setBackups(r.backups);
-    else setStatus('⚠️ ' + (r.error || 'Could not load backups.'));
+    else setStatus('' + (r.error || 'Could not load backups.'));
   };
 
   const restore = async (id) => {
     if (!confirm(`Restore the catalog to the snapshot from ${id}?\n\nThe current live catalog will be backed up first, so this can be undone.`)) return;
     setStatus('Restoring…');
     const r = await restoreCatalogBackup(id);
-    if (r.ok) { setStatus(`✅ Restored ${id} (${r.rows} rows). Reopen Catalog Admin to see it reflected.`); load(); }
-    else setStatus('⚠️ ' + (r.error || 'Restore failed.'));
+    if (r.ok) { setStatus(`Restored ${id} (${r.rows} rows). Reopen Catalog Admin to see it reflected.`); load(); }
+    else setStatus('' + (r.error || 'Restore failed.'));
   };
 
   return (
     <div>
-      <div style={sectionHd}>Catalog backups — snapshotted automatically before every save</div>
+      <div style={sectionHd}>Catalog backups - snapshotted automatically before every save</div>
       <button style={btn} onClick={load} disabled={loading}>{loading ? 'Loading…' : (backups === null ? 'Load backups' : 'Refresh')}</button>
-      {status && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{status}</div>}
+      {status && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{status}</div>}
       {backups !== null && (
         backups.length === 0
-          ? <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10 }}>No backups yet — one is created the next time anyone saves the catalog.</div>
+          ? <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 10 }}>No backups yet - one is created the next time anyone saves the catalog.</div>
           : <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
               <thead><tr><th style={th}>Snapshot (UTC)</th><th style={th}></th></tr></thead>
               <tbody>
                 {backups.map(id => (
                   <tr key={id}>
-                    <td style={{ ...td, fontFamily: 'monospace' }}>{id}</td>
+                    <td style={{ ...td, fontFamily: 'inherit' }}>{id}</td>
                     <td style={{ ...td, width: 100 }}><button style={btn} onClick={() => restore(id)}>Restore</button></td>
                   </tr>
                 ))}
@@ -307,7 +344,7 @@ function VehiclesTab({ draft, touch }) {
 
   return (
     <div>
-      <div style={sectionHd}>Project fleet — VIN + bus model available to everyone in the Travel Card</div>
+      <div style={sectionHd}>Project fleet - VIN + bus model available to everyone in the Travel Card</div>
       <div style={{ ...td, marginBottom: 10, maxWidth: 320 }}>
         <select style={inp} value={proj} onChange={e => setProj(e.target.value)}>
           <option value="">Select project…</option>
@@ -315,7 +352,7 @@ function VehiclesTab({ draft, touch }) {
         </select>
       </div>
 
-      {!proj && <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Pick a project above (add one in the Projects tab first if needed).</div>}
+      {!proj && <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>Pick a project above (add one in the Projects tab first if needed).</div>}
 
       {proj && <>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -325,7 +362,7 @@ function VehiclesTab({ draft, touch }) {
           <tbody>
             {list.map((r, i) => (
               <tr key={i}>
-                <td style={td}><input style={{ ...inp, fontFamily: 'monospace' }} value={r.vin} onChange={e => updRow(i, 'vin', e.target.value.toUpperCase())} /></td>
+                <td style={td}><input style={{ ...inp, fontFamily: 'inherit' }} value={r.vin} onChange={e => updRow(i, 'vin', e.target.value.toUpperCase())} /></td>
                 <td style={{ ...td, width: 140 }}>
                   <select style={inp} value={r.model} onChange={e => updRow(i, 'model', e.target.value)}>
                     {BUS_MODEL_OPTS.map(m => <option key={m} value={m}>{m}</option>)}
@@ -339,12 +376,12 @@ function VehiclesTab({ draft, touch }) {
         <button style={{ ...btn, marginTop: 10 }} onClick={addRow}>+ Add VIN</button>
 
         <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
-          <div style={sectionHd}>Bulk import — one VIN per line, optionally "VIN, model"</div>
-          <textarea style={{ ...inp, width: '100%', minHeight: 90, fontFamily: 'monospace', resize: 'vertical' }}
+          <div style={sectionHd}>Bulk import - one VIN per line, optionally "VIN, model"</div>
+          <textarea style={{ ...inp, width: '100%', minHeight: 90, fontFamily: 'inherit', resize: 'vertical' }}
             value={bulk} onChange={e => setBulk(e.target.value)}
             placeholder={'BUKBHZ6A8TJ000029, 7m EVS\nBUKBHZ6A4TJ000030, 7m EVS'} />
           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Default model (used when a line has no model):</span>
+            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Default model (used when a line has no model):</span>
             <select style={{ ...inp, width: 140 }} value={bulkModel} onChange={e => setBulkModel(e.target.value)}>
               {BUS_MODEL_OPTS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -362,7 +399,7 @@ function LinesTab({ draft, touch }) {
   const upd = (i, k, v) => touch(d => { d.lines[i][k] = v; return d; });
   return (
     <div>
-      <div style={sectionHd}>Production lines (bus tracker) — id is permanent, used to group stations</div>
+      <div style={sectionHd}>Production lines (bus tracker) - id is permanent, used to group stations</div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>
           <th style={th}>ID</th><th style={th}>Label</th><th style={th}>Models</th><th style={th}>Active</th>
@@ -370,7 +407,7 @@ function LinesTab({ draft, touch }) {
         <tbody>
           {draft.lines.map((l, i) => (
             <tr key={l.id || i}>
-              <td style={{ ...td, width: 140 }}><input style={{ ...inp, fontFamily: 'monospace' }} value={l.id} onChange={e => upd(i, 'id', e.target.value.toUpperCase())} /></td>
+              <td style={{ ...td, width: 140 }}><input style={{ ...inp, fontFamily: 'inherit' }} value={l.id} onChange={e => upd(i, 'id', e.target.value.toUpperCase())} /></td>
               <td style={td}><input style={inp} value={l.label} onChange={e => upd(i, 'label', e.target.value)} placeholder="Display name" /></td>
               <td style={{ ...td, width: 120 }}>
                 <select style={inp} value={modelsToOpt(l.models)} onChange={e => upd(i, 'models', optToModels(e.target.value))}>
@@ -420,15 +457,15 @@ function StationsTab({ draft, touch, lineOptions }) {
 
   return (
     <div>
-      <div style={sectionHd}>Stations (bus tracker) — archive keeps legacy data; tag projects / set effective dates for historical lines</div>
+      <div style={sectionHd}>Stations (bus tracker) - archive keeps legacy data; tag projects / set effective dates for historical lines</div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Line:</span>
+        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Line:</span>
         <select style={{ ...inp, width: 200 }} value={lineFilter} onChange={e => setLineFilter(e.target.value)}>
           <option value="ALL">All lines</option>
           {lineOptions.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
         </select>
         <div style={{ flex: 1 }} />
-        <input style={{ ...inp, width: 150, fontFamily: 'monospace' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code e.g. P09-01" />
+        <input style={{ ...inp, width: 150, fontFamily: 'inherit' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code e.g. P09-01" />
         <button style={btn} onClick={addStation}>+ Add station</button>
       </div>
 
@@ -436,49 +473,49 @@ function StationsTab({ draft, touch, lineOptions }) {
         const s = draft.stations[code];
         const archived = s.active === false;
         return (
-          <div key={code} style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 12, marginBottom: 10, opacity: archived ? 0.7 : 1 }}>
+          <div key={code} style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12, marginBottom: 10, opacity: archived ? 0.7 : 1 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: 'var(--accent-text)' }}>{code}</span>
-              {archived && <span style={{ fontSize: 9, color: 'var(--text-dim)', border: '1px solid var(--border-subtle)', borderRadius: 4, padding: '1px 6px' }}>ARCHIVED</span>}
+              <span style={{ fontFamily: 'inherit', fontSize: 13, fontWeight: 700, color: 'var(--accent-text)' }}>{code}</span>
+              {archived && <span style={{ fontSize: 11, color: 'var(--text-dim)', border: '1px solid var(--border-subtle)', borderRadius: 10, padding: '1px 6px' }}>ARCHIVED</span>}
               <div style={{ flex: 1 }} />
-              <label style={{ fontSize: 10, color: 'var(--text-dim)', display: 'flex', gap: 5, alignItems: 'center' }}>
+              <label style={{ fontSize: 12, color: 'var(--text-dim)', display: 'flex', gap: 5, alignItems: 'center' }}>
                 <input type="checkbox" checked={!archived} onChange={e => upd(code, 'active', e.target.checked)} /> Active
               </label>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginBottom: 8 }}>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Name
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Name
                 <input style={inp} value={s.name || ''} onChange={e => upd(code, 'name', e.target.value)} />
               </label>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Line
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Line
                 <select style={inp} value={s.line || ''} onChange={e => upd(code, 'line', e.target.value)}>
                   {lineOptions.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                 </select>
               </label>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '80px 120px 1fr 1fr', gap: 8, marginBottom: 8 }}>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Order
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Order
                 <input style={inp} type="number" value={s.order ?? ''} onChange={e => upd(code, 'order', Number(e.target.value) || 0)} />
               </label>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Models
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Models
                 <select style={inp} value={modelsToOpt(s.models)} onChange={e => upd(code, 'models', optToModels(e.target.value))}>
                   {MODEL_OPTS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
                 </select>
               </label>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Effective from
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Effective from
                 <input style={inp} type="date" value={s.effectiveFrom || ''} onChange={e => upd(code, 'effectiveFrom', e.target.value)} />
               </label>
-              <label style={{ fontSize: 9, color: 'var(--text-dim)' }}>Effective to
+              <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Effective to
                 <input style={inp} type="date" value={s.effectiveTo || ''} onChange={e => upd(code, 'effectiveTo', e.target.value)} />
               </label>
             </div>
-            <div style={{ fontSize: 9, color: 'var(--text-dim)', marginBottom: 4 }}>Belongs to projects (for legacy retrieval)</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4 }}>Belongs to projects (for legacy retrieval)</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {draft.projects.length === 0 && <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>No projects defined yet.</span>}
+              {draft.projects.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>No projects defined yet.</span>}
               {draft.projects.map(p => {
                 const on = (s.projects || []).includes(p.id) || (s.projects || []).includes(p.name);
                 return (
                   <button key={p.id} onClick={() => toggleProj(code, p.id)}
-                    style={{ ...btn, ...(on ? btnAccent : {}), fontSize: 10, padding: '3px 9px' }}>
+                    style={{ ...btn, ...(on ? btnAccent : {}), fontSize: 12, padding: '3px 9px' }}>
                     {p.name || '(unnamed)'}
                   </button>
                 );
@@ -514,7 +551,7 @@ function ActivitiesTab({ draft, touch }) {
           {codes.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div style={{ flex: 1 }} />
-        <input style={{ ...inp, width: 150, fontFamily: 'monospace' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code" />
+        <input style={{ ...inp, width: 150, fontFamily: 'inherit' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code" />
         <button style={btn} onClick={addCode}>+ Add code</button>
       </div>
       {code && <ListEditor items={list} onChange={setList} placeholder="Activity description" />}
@@ -552,7 +589,7 @@ function ResourcesTab({ draft, touch, lineOptions }) {
           <option value="">Select code…</option>
           {codes.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <input style={{ ...inp, width: 170, fontFamily: 'monospace' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code" />
+        <input style={{ ...inp, width: 170, fontFamily: 'inherit' }} value={newCode} onChange={e => setNewCode(e.target.value)} placeholder="New code" />
         <button style={btn} onClick={addCode}>+ Code</button>
       </div>
       {line && code && <ListEditor items={list} onChange={setList} placeholder="Resource / material name" />}
@@ -575,7 +612,7 @@ function ListEditor({ items, onChange, placeholder, movable = false, hint = null
   };
   return (
     <div>
-      {items.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>No items yet.</div>}
+      {items.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 8 }}>No items yet.</div>}
       {items.map((it, i) => (
         <div key={i} style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -584,7 +621,7 @@ function ListEditor({ items, onChange, placeholder, movable = false, hint = null
             {movable && <button style={btn} title="Move down" onClick={() => move(i, 1)}>↓</button>}
             <button style={btn} onClick={() => del(i)}>×</button>
           </div>
-          {hint && hint(it) && <div style={{ fontSize: 10, color: 'var(--text-dim)', margin: '2px 0 0 4px' }}>{hint(it)}</div>}
+          {hint && hint(it) && <div style={{ fontSize: 12, color: 'var(--text-dim)', margin: '2px 0 0 4px' }}>{hint(it)}</div>}
         </div>
       ))}
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
@@ -709,14 +746,14 @@ function DWITab({ draft, touch }) {
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div style={sectionHd}>Digital Work Instructions (DWI)</div>
-      <p style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.6, margin: '0 0 16px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: '0 0 16px' }}>
         Assign work instructions to station codes. Steps, parts, and warnings can be shared (Common) or defined per bus model (KDC / EVS). Model-specific content overrides Common when a worker opens the Travel Card for that model.
       </p>
 
       {/* Station selector */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18, alignItems: 'center' }}>
         <select value={selCode} onChange={e => { setSelCode(e.target.value); setVariantTab('Common'); }} style={{ ...inputSx, maxWidth: 160, flex: '0 0 auto' }}>
-          {codes.length === 0 && <option value="">— No stations —</option>}
+          {codes.length === 0 && <option value="">- No stations -</option>}
           {codes.map(c => <option key={c}>{c}</option>)}
         </select>
         <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 200 }}>
@@ -731,7 +768,7 @@ function DWITab({ draft, touch }) {
       </div>
 
       {!wi ? (
-        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>
+        <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
           {codes.length === 0 ? 'Add a station code above to start.' : 'Select a station to edit its work instructions.'}
         </div>
       ) : (
@@ -744,12 +781,12 @@ function DWITab({ draft, touch }) {
               { label: 'Revision', key: 'revision', placeholder: 'e.g. Rev 01' },
             ].map(({ label, key, placeholder }) => (
               <div key={key}>
-                <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>{label}</div>
                 <input style={inputSx} value={wi[key] || ''} onChange={e => setWI(w => ({ ...w, [key]: e.target.value }))} placeholder={placeholder} />
               </div>
             ))}
             <div style={{ gridColumn: 'span 2' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Description / Scope</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Description / Scope</div>
               <textarea style={{ ...inputSx, minHeight: 56, resize: 'vertical', lineHeight: 1.5 }} value={wi.description || ''} onChange={e => setWI(w => ({ ...w, description: e.target.value }))} placeholder="Brief description of what this station covers…" />
             </div>
           </div>
@@ -765,11 +802,11 @@ function DWITab({ draft, touch }) {
                   key={t}
                   onClick={() => setVariantTab(t)}
                   style={{
-                    padding: '5px 14px', borderRadius: 6,
+                    padding: '5px 14px', borderRadius: 10,
                     border: variantTab === t ? '1px solid var(--accent)' : '1px solid var(--border)',
                     background: variantTab === t ? 'var(--accent)' : 'var(--bg-surface)',
                     color: variantTab === t ? '#fff' : 'var(--text-dim)',
-                    fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif",
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif",
                     display: 'flex', alignItems: 'center', gap: 6,
                   }}
                 >
@@ -782,7 +819,7 @@ function DWITab({ draft, touch }) {
             })}
             {!isCommon && wi.variants?.[variantTab] && (
               <button
-                style={{ ...btn, marginLeft: 'auto', color: '#dc2626', borderColor: '#dc262644', fontSize: 10 }}
+                style={{ ...btn, marginLeft: 'auto', color: '#dc2626', borderColor: '#dc262644', fontSize: 12 }}
                 onClick={() => { if (window.confirm(`Clear ${variantTab}-specific overrides for ${selCode}? Workers will fall back to Common content.`)) clearVariant(variantTab); }}
               >
                 Clear {variantTab} overrides
@@ -791,30 +828,30 @@ function DWITab({ draft, touch }) {
           </div>
 
           {!isCommon && (
-            <div style={{ marginBottom: 12, padding: '8px 12px', background: '#818cf814', border: '1px solid #818cf833', borderRadius: 6, fontSize: 11, color: '#818cf8', lineHeight: 1.5 }}>
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: '#818cf814', border: '1px solid #818cf833', borderRadius: 10, fontSize: 13, color: '#818cf8', lineHeight: 1.5 }}>
               <strong>{variantTab}-specific content.</strong> When a {variantTab} bus is open in the Travel Card, this overrides the Common steps, parts, warnings, and model URL for station {selCode}.
-              {!wi.variants?.[variantTab] && ' No overrides set yet — Common content will be shown.'}
+              {!wi.variants?.[variantTab] && ' No overrides set yet - Common content will be shown.'}
             </div>
           )}
 
           {/* 3D Model URL — in the current variant tab */}
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
               3D Model URL{!isCommon && ` (${variantTab})`}
-              <span style={{ color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(STEP / OBJ / STL / GLB — public direct-download link)</span>
+              <span style={{ color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: 6 }}>(STEP / OBJ / STL / GLB - public direct-download link)</span>
             </div>
             <input style={inputSx} value={vModelUrl} onChange={e => setTarget(w => ({ ...w, modelUrl: e.target.value }))} placeholder="https://drive.google.com/uc?export=download&id=…" />
             {vModelUrl && (
-              <div style={{ marginTop: 6, fontSize: 10, color: '#818cf8' }}>
-                ✓ Model URL set — workers will see a "View 3D" button in the Work Instructions panel.
+              <div style={{ marginTop: 6, fontSize: 12, color: '#818cf8' }}>
+                Model URL set - workers will see a "View 3D" button in the Work Instructions panel.
               </div>
             )}
           </div>
 
           {/* Warnings */}
           <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-              ⚠ Safety Warnings{!isCommon && ` — ${variantTab}`}
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+              Safety Warnings{!isCommon && ` - ${variantTab}`}
             </div>
             {vWarnings.map((w2, i) => (
               <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
@@ -828,19 +865,19 @@ function DWITab({ draft, touch }) {
           {/* Steps */}
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Work Steps{!isCommon && ` — ${variantTab}`}
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Work Steps{!isCommon && ` - ${variantTab}`}
               </div>
               <button style={btnAccent} onClick={addStep}>+ Add Step</button>
             </div>
-            {vSteps.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>No steps yet{!isCommon ? ` — workers see Common steps for ${variantTab} unless you add overrides here` : ''}.</div>}
+            {vSteps.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-dim)', fontStyle: 'italic' }}>No steps yet{!isCommon ? ` - workers see Common steps for ${variantTab} unless you add overrides here` : ''}.</div>}
             {vSteps.map((s, i) => (
               <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 60px', gap: 6, marginBottom: 8, alignItems: 'flex-start' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 2 }}>
-                  <button style={{ ...btn, padding: '2px 5px', fontSize: 10 }} onClick={() => moveStep(s.id, -1)} disabled={i === 0}>▲</button>
-                  <button style={{ ...btn, padding: '2px 5px', fontSize: 10 }} onClick={() => moveStep(s.id, 1)} disabled={i === vSteps.length - 1}>▼</button>
+                  <button style={{ ...btn, padding: '2px 5px', fontSize: 12 }} onClick={() => moveStep(s.id, -1)} disabled={i === 0}>▲</button>
+                  <button style={{ ...btn, padding: '2px 5px', fontSize: 12 }} onClick={() => moveStep(s.id, 1)} disabled={i === vSteps.length - 1}>▼</button>
                 </div>
-                <input style={inputSx} value={s.action} onChange={e => updateStep(s.id, 'action', e.target.value)} placeholder={`Step ${s.step} — action`} />
+                <input style={inputSx} value={s.action} onChange={e => updateStep(s.id, 'action', e.target.value)} placeholder={`Step ${s.step} - action`} />
                 <input style={inputSx} value={s.note || ''} onChange={e => updateStep(s.id, 'note', e.target.value)} placeholder="Note / clarification (optional)" />
                 <button style={{ ...btn, color: '#dc2626', borderColor: '#dc262644', padding: '6px 8px' }} onClick={() => removeStep(s.id)}>×</button>
               </div>
@@ -850,15 +887,15 @@ function DWITab({ draft, touch }) {
           {/* Parts & Consumables */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Parts & Consumables{!isCommon && ` — ${variantTab}`}
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Parts & Consumables{!isCommon && ` - ${variantTab}`}
               </div>
               <button style={btnAccent} onClick={() => addPart(false)}>+ Part</button>
               <button style={btn} onClick={() => addPart(true)}>+ Consumable</button>
             </div>
-            {vParts.length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>No parts added{!isCommon ? ` — workers see Common parts list for ${variantTab} unless you add overrides here` : ''}.</div>}
+            {vParts.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-dim)', fontStyle: 'italic' }}>No parts added{!isCommon ? ` - workers see Common parts list for ${variantTab} unless you add overrides here` : ''}.</div>}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 {vParts.length > 0 && (
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)' }}>

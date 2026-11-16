@@ -76,7 +76,7 @@ export default function ReportDownloadPanel({ theme = 'dark', vins = [] }) {
           <option value="">{vin ? (forVin.length ? 'Choose a station' : 'No cards for this bus') : 'Choose a bus first'}</option>
           {forVin.map(c => (
             <option key={cardKey(c)} value={cardKey(c)}>
-              {c.stationCode}{c.station ? ` — ${String(c.station).replace(/^[^:]+:\s*/, '')}` : ''} · {new Date(c.timestamp).toLocaleDateString()}
+              {c.stationCode}{c.station ? ` - ${String(c.station).replace(/^[^:]+:\s*/, '')}` : ''} · {new Date(c.timestamp).toLocaleDateString()}
             </option>
           ))}
         </select>

@@ -16,8 +16,8 @@ function toLocalInput(v) {
 }
 
 const STATUS_OPTS = [
-  ['complete', '✅ Complete'], ['incomplete', '⏳ Incomplete'], ['issue', '⚠️ Issue noted'],
-  ['rework', '🔁 Rework needed'], ['na', '— N/A'],
+  ['complete', 'Complete'], ['incomplete', 'Incomplete'], ['issue', 'Issue noted'],
+  ['rework', 'Rework needed'], ['na', 'N/A'],
 ];
 
 // The editable copy of a card a supervisor corrects while reviewing it.
@@ -117,7 +117,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
     setSelected(null);
     setDraft(null);
     setSaving(false);
-    if (result.ok) showToast(changes ? 'Card corrected and review submitted ✓' : 'Review submitted ✓');
+    if (result.ok) showToast(changes ? 'Card corrected and review submitted' : 'Review submitted');
     else showToast(`Could not save review: ${result.error || 'unknown error'}`, false);
   }
 
@@ -173,7 +173,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
           <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
             <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>Pending Reviews</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Travel cards submitted by users — awaiting your review</div>
+            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Travel cards submitted by users - awaiting your review</div>
           </div>
           <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {pending.length} pending
@@ -219,9 +219,9 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: AM, flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} — {item.stationCode}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} - {item.stationCode}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.84)', marginTop: 3 }}>{item.project} · {item.line}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '—'}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '-'}</div>
                   </div>
                   <span className="kmc-btn primary" style={{ padding: '7px 14px', flexShrink: 0 }}>Review →</span>
                 </div>
@@ -236,9 +236,9 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
         <div style={{ maxWidth: 640 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: mono, letterSpacing: '0.08em' }}>← List</button>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.vin} — {selected.stationCode}</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.vin} - {selected.stationCode}</div>
             <button onClick={() => setDraft(d => d ? null : draftOf(selected))} className="kmc-btn" style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 11, borderColor: draft ? border : AM, color: draft ? muted : AM }}>
-              {draft ? 'Discard edits' : '✎ Edit details'}
+              {draft ? 'Discard edits' : 'Edit details'}
             </button>
           </div>
           {draft && (
@@ -296,13 +296,13 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
               ['VIN', selected.vin],
               ['Line', selected.line],
               ['Station', selected.stationCode],
-              ['Submitted by', selected.submittedBy || '—'],
-              ['Operators', (selected.operators || []).join(', ') || '—'],
-              ['Clock in', selected.clockIn ? new Date(selected.clockIn).toLocaleString() : '—'],
-              ['Clock out', selected.clockOut ? new Date(selected.clockOut).toLocaleString() : '—'],
+              ['Submitted by', selected.submittedBy || '-'],
+              ['Operators', (selected.operators || []).join(', ') || '-'],
+              ['Clock in', selected.clockIn ? new Date(selected.clockIn).toLocaleString() : '-'],
+              ['Clock out', selected.clockOut ? new Date(selected.clockOut).toLocaleString() : '-'],
               ['Actual time', `${selected.actualTime} min`],
               ['OHS issue', selected.ohsIssue || 'None'],
-              ['Waste', selected.wasteGenerated || '—'],
+              ['Waste', selected.wasteGenerated || '-'],
             ].map(([l, v]) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${border}`, fontSize: 12 }}>
                 <span style={{ color: dim, fontFamily: mono, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</span>
@@ -360,7 +360,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
               <label style={{ display: 'block', fontSize: 10, color: muted, fontFamily: mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>Comments (optional)</label>
               <textarea style={{ ...inp, resize: 'vertical', minHeight: 64 }} value={reviewFields.reviewComments} onChange={e => setReviewFields(f => ({ ...f, reviewComments: e.target.value }))} placeholder="Any notes or feedback for the operator…" />
             </div>
-            <button onClick={saveReview} disabled={saving} style={{ width: '100%', padding: '11px 0', background: R, color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: fm, opacity: saving ? 0.7 : 1 }}>
+            <button onClick={saveReview} disabled={saving} style={{ width: '100%', padding: '11px 0', background: R, color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', letterSpacing: '0', fontFamily: fm, opacity: saving ? 0.7 : 1 }}>
               {saving ? 'Submitting…' : 'Submit Review'}
             </button>
           </div>

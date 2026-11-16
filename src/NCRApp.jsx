@@ -113,7 +113,7 @@ export default function NCRApp() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <img src={logo} alt="KMC" style={{ height: 28, width: 'auto', objectFit: 'contain' }} />
           <div>
-            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', color: 'var(--text-heading)', textTransform: 'uppercase', lineHeight: 1.1 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0', color: 'var(--text-heading)', lineHeight: 1.1 }}>
               Non-Conformance Register
             </div>
             <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 1 }}>
@@ -186,7 +186,7 @@ export default function NCRApp() {
           borderRadius: 12,
           boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
         }}>
-          <h1 style={{ fontSize: 'clamp(16px, 3vw, 22px)', fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <h1 style={{ fontSize: 'clamp(16px, 3vw, 22px)', fontWeight: 800, color: 'var(--text-heading)', letterSpacing: '0', marginBottom: 4 }}>
             Non-Conformance Register
           </h1>
           <p style={{ fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.06em' }}>

@@ -125,15 +125,15 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
 
   const inp = {
     width: '100%', fontSize: 13, padding: '10px 12px',
-    border: `1px solid ${inpBor}`, borderRadius: 6,
+    border: `1px solid ${inpBor}`, borderRadius: 10,
     background: inpBg, color: text, outline: 'none',
     boxSizing: 'border-box', fontFamily: fm,
     colorScheme: isDark ? 'dark' : 'light',
     transition: 'border-color 0.15s',
   };
   const lbl = {
-    display: 'block', fontSize: 10, fontWeight: 700,
-    color: muted, letterSpacing: '0.12em',
+    display: 'block', fontSize: 12, fontWeight: 700,
+    color: muted, letterSpacing: '0.04em',
     textTransform: 'uppercase', fontFamily: fm, marginBottom: 6,
   };
 
@@ -160,10 +160,10 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: text }}>
+            <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '0', color: text }}>
               Request Access
             </div>
-            <div style={{ fontSize: 11, color: dim, marginTop: 4, letterSpacing: '0.04em' }}>
+            <div style={{ fontSize: 13, color: dim, marginTop: 4, letterSpacing: '0.04em' }}>
               Your request will be reviewed by the system administrator.
             </div>
           </div>
@@ -179,9 +179,9 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             </div>
             <button onClick={onClose} style={{
               background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.35)',
-              color: '#10b981', borderRadius: 6, padding: '10px 32px',
+              color: '#10b981', borderRadius: 10, padding: '10px 32px',
               fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: fm,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
+              letterSpacing: '0',
             }}>
               Close
             </button>
@@ -193,9 +193,9 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
               <div style={{
                 background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.3)',
                 borderLeft: '3px solid #dc2626', borderRadius: '0 5px 5px 0',
-                padding: '9px 12px', fontSize: 12, color: '#f87171', fontFamily: fm,
+                padding: '9px 12px', fontSize: 13, color: '#f87171', fontFamily: fm,
               }}>
-                ⚠ {error}
+                {error}
               </div>
             )}
 
@@ -236,7 +236,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             {form.department && lineOptions.length > 0 && (
               <div>
                 <label style={lbl}>Line(s) / Division(s) <span style={{ color: R }}>*</span> <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(select one or more)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 200, overflowY: 'auto' }}>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg, maxHeight: 200, overflowY: 'auto' }}>
                   {lineOptions.map(l => (
                     <label key={l} style={{
                       display: 'flex', alignItems: 'center', gap: 10,
@@ -246,11 +246,11 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                     }}>
                       <input type="checkbox" checked={form.productionLines.includes(l)} onChange={() => toggleLine(l)}
                         style={{ accentColor: R, width: 13, height: 13 }} />
-                      <span style={{ fontSize: 12, color: form.productionLines.includes(l) ? text : muted }}>{l}</span>
+                      <span style={{ fontSize: 13, color: form.productionLines.includes(l) ? text : muted }}>{l}</span>
                     </label>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
+                <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
                   {form.productionLines.length} line(s) selected
                 </div>
               </div>
@@ -261,11 +261,11 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                 approval screen so they can accept as-is or adjust. */}
             {hasStations && (
               <div>
-                <label style={lbl}>Preferred Station(s) <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — helps the admin pre-fill your assignment)</span></label>
-                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 6, background: inpBg, maxHeight: 220, overflowY: 'auto' }}>
+                <label style={lbl}>Preferred Station(s) <span style={{ color: dim, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional - helps the admin pre-fill your assignment)</span></label>
+                <div style={{ border: `1px solid ${inpBor}`, borderRadius: 10, background: inpBg, maxHeight: 220, overflowY: 'auto' }}>
                   {form.productionLines.filter(l => stationsByLineLabel[l]?.length).map(line => (
                     <div key={line}>
-                      <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, color: dim, letterSpacing: '0.08em', textTransform: 'uppercase', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>{line}</div>
+                      <div style={{ padding: '6px 12px', fontSize: 12, fontWeight: 700, color: dim, letterSpacing: '0.04em', textTransform: 'uppercase', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>{line}</div>
                       {(stationsByLineLabel[line] || []).map(s => (
                         <label key={s.code} style={{
                           display: 'flex', alignItems: 'center', gap: 10,
@@ -275,14 +275,14 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                         }}>
                           <input type="checkbox" checked={form.preferredStations.includes(s.code)} onChange={() => toggleStationPref(s.code)}
                             style={{ accentColor: R, width: 13, height: 13 }} />
-                          <span style={{ fontSize: 11, color: form.preferredStations.includes(s.code) ? text : muted }}>{s.code}: {s.name}</span>
+                          <span style={{ fontSize: 13, color: form.preferredStations.includes(s.code) ? text : muted }}>{s.code}: {s.name}</span>
                         </label>
                       ))}
                     </div>
                   ))}
                 </div>
-                <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
-                  {form.preferredStations.length} station(s) selected — leave blank if you're not sure, the admin will assign these.
+                <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
+                  {form.preferredStations.length} station(s) selected - leave blank if you're not sure, the admin will assign these.
                 </div>
               </div>
             )}
@@ -292,7 +292,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             <div>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg,
               }}>
                 <input
@@ -301,10 +301,10 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                   onChange={() => set('ceeInterest', !form.ceeInterest)}
                   style={{ accentColor: R, width: 13, height: 13, flexShrink: 0 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>I also need Cost Estimations Engineer (CEE) access</span>
+                <span style={{ fontSize: 13, color: text }}>I also need Cost Estimations Engineer (CEE) access</span>
               </label>
-              <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
-                Machine/staff/energy cost rates and reporting — separate from your main role above.
+              <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
+                Machine/staff/energy cost rates and reporting - separate from your main role above.
               </div>
             </div>
 
@@ -312,7 +312,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             <div>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
                 border: `1px solid ${inpBor}`, background: inpBg,
               }}>
                 <input
@@ -321,10 +321,10 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                   onChange={() => set('typeApprovalInterest', !form.typeApprovalInterest)}
                   style={{ accentColor: R, width: 13, height: 13, flexShrink: 0 }}
                 />
-                <span style={{ fontSize: 12, color: text }}>I also need Type Approvals access</span>
+                <span style={{ fontSize: 13, color: text }}>I also need Type Approvals access</span>
               </label>
-              <div style={{ fontSize: 10, color: dim, marginTop: 5, fontFamily: fm }}>
-                Project VIN register uploads — separate from your main role above.
+              <div style={{ fontSize: 12, color: dim, marginTop: 5, fontFamily: fm }}>
+                Project VIN register uploads - separate from your main role above.
               </div>
             </div>
 
@@ -340,7 +340,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                     value={form.password}
                     onChange={e => set('password', e.target.value)}
                   />
-                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 10, fontFamily: fm, letterSpacing: '0.06em' }}>
+                  <button type="button" onClick={() => setShowPass(s => !s)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: muted, cursor: 'pointer', fontSize: 12, fontFamily: fm, letterSpacing: '0.06em' }}>
                     {showPass ? 'HIDE' : 'SHOW'}
                   </button>
                 </div>
@@ -372,7 +372,7 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
               <button onClick={onClose} style={{
                 flex: 1, padding: '11px 0', background: 'none',
-                border: `1px solid ${border}`, borderRadius: 6,
+                border: `1px solid ${border}`, borderRadius: 10,
                 color: muted, cursor: 'pointer', fontSize: 13, fontWeight: 600,
                 fontFamily: fm, letterSpacing: '0.06em',
               }}>
@@ -382,17 +382,17 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
                 flex: 2, padding: '11px 0',
                 background: busy ? 'rgba(220,38,38,0.06)' : R,
                 border: `1px solid ${busy ? 'rgba(220,38,38,0.2)' : R}`,
-                borderRadius: 6, color: busy ? '#f87171' : '#fff',
+                borderRadius: 10, color: busy ? '#f87171' : '#fff',
                 cursor: busy ? 'not-allowed' : 'pointer',
                 fontSize: 13, fontWeight: 700, fontFamily: fm,
-                letterSpacing: '0.1em', textTransform: 'uppercase',
+                letterSpacing: '0',
                 transition: 'all 0.15s',
               }}>
                 {busy ? 'Submitting…' : 'Submit Request'}
               </button>
             </div>
 
-            <div style={{ fontSize: 10, color: dim, textAlign: 'center', letterSpacing: '0.04em', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: dim, textAlign: 'center', letterSpacing: '0.04em', lineHeight: 1.5 }}>
               The system administrator will review your request and assign your role and access level.
             </div>
           </div>

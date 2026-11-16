@@ -344,7 +344,7 @@ function drawRegisterAnnexes(flow, regs, model) {
   const { ecr, incidents, kaizen, downtimeEvents = [], activeDowntime = [] } = regs;
   const p = model.monthName;
 
-  annexHeading(flow, `Annex B: Engineering Changes (ECR) — ${p}`);
+  annexHeading(flow, `Annex B: Engineering Changes (ECR) - ${p}`);
   flow.para(`${ecr.total} change${ecr.total === 1 ? '' : 's'} in the period: ${ecr.raisedCount} raised and ${ecr.implementedCount} implemented.`, { pt: 10 });
   flow.table(
     ['CHANGE ID', 'RAISED', 'TITLE', 'MODEL', 'CATEGORY / TYPE', 'RISK', 'DECISION', 'STATUS', 'IMPLEMENTED'],
@@ -358,7 +358,7 @@ function drawRegisterAnnexes(flow, regs, model) {
     { bodyPt: 9 });
   flaggedTable(flow, ecr.flagged);
 
-  annexHeading(flow, `Annex C: Production Incidents — ${p}`);
+  annexHeading(flow, `Annex C: Production Incidents - ${p}`);
   const sev = Object.entries(incidents.bySeverity).filter(([, v]) => v).map(([k, v]) => `${v} ${k}`).join(', ');
   flow.para(`${incidents.total} incident${incidents.total === 1 ? '' : 's'} in the period${sev ? ` (${sev})` : ''}.`, { pt: 10 });
   flow.table(
@@ -372,7 +372,7 @@ function drawRegisterAnnexes(flow, regs, model) {
     { bodyPt: 9 });
   flaggedTable(flow, incidents.flagged);
 
-  annexHeading(flow, `Annex D: Kaizen / Improvement Ideas — ${p}`);
+  annexHeading(flow, `Annex D: Kaizen / Improvement Ideas - ${p}`);
   flow.para(`${kaizen.total} idea${kaizen.total === 1 ? '' : 's'} in the period: ${kaizen.implemented} implemented, ${kaizen.open} proposed or open.`, { pt: 10 });
   flow.table(
     ['DATE', 'KAIZEN IDEA', 'WORKSHOP', 'PROPOSED BY', 'STATUS', 'IMPACT'],
@@ -384,7 +384,7 @@ function drawRegisterAnnexes(flow, regs, model) {
     { bodyPt: 9 });
   flaggedTable(flow, kaizen.flagged);
 
-  annexHeading(flow, `Annex E: Production Downtime Events — ${p}`);
+  annexHeading(flow, `Annex E: Production Downtime Events - ${p}`);
   // Faults still open as the report is generated, whenever they started — the
   // board's "Active Downtime Events" panel. The period table below only holds
   // events that started in the period, so a fault open since an earlier month

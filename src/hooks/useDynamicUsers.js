@@ -34,7 +34,7 @@ export function useDynamicUsers() {
     } catch (e) {
       console.warn('Dynamic users: could not load shared list, using local cache.', e.message);
       if (mounted.current) setLoadError(e.message === 'unauthorized'
-        ? 'The server refused this sign-in for the user list. The live Apps Script is out of date (it still expects the old shared password), so the list cannot load until it is updated — see tools/mail-relay/UPDATE-LIVE-SCRIPT.md. No accounts were lost.'
+        ? 'The server refused this sign-in for the user list. The live Apps Script is out of date (it still expects the old shared password), so the list cannot load until it is updated - see tools/mail-relay/UPDATE-LIVE-SCRIPT.md. No accounts were lost.'
         : 'Could not reach the server (' + e.message + '). Check the connection and try again.');
     } finally {
       if (mounted.current) setLoading(false);

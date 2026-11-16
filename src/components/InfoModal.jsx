@@ -20,7 +20,7 @@ const CONTENT = {
     features: [
       ['Line Tracker', 'Live map of each line showing every bus at its current station, with QA gates highlighted.'],
       ['Bus Report', 'Per-bus breakdown of stations visited, time used and station estimates for spotting bottlenecks.'],
-      ['Dashboard', 'Aggregate metrics — throughput, overruns, OHS and rework — across your filtered selection.'],
+      ['Dashboard', 'Aggregate metrics - throughput, overruns, OHS and rework - across your filtered selection.'],
       ['Filter bar', 'Narrow by model, project, line, station, status and date range; all views update together.'],
       ['Open Travel Card', 'Jump from any bus straight into a pre-filled travel card to log its next step.'],
       ['Refresh & sync', 'Pull the latest data from Sheets on demand; the header shows when it last updated.'],
@@ -67,7 +67,7 @@ export default function InfoModal({ mode, onClose }) {
           <div style={{ flex: 1 }}>
             <div style={{
               fontSize: 15, fontWeight: 800, letterSpacing: '0.04em',
-              color: 'var(--text-heading)', textTransform: 'uppercase',
+              color: 'var(--text-heading)',
             }}>
               {data.title}
             </div>

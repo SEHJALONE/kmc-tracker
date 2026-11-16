@@ -17,13 +17,13 @@ const ERRORS = {
 };
 
 const GROUPS = [
-  ['added', 'New — will be added', 'lime'],
-  ['updated', 'Already there — bus model updated', 'teal'],
-  ['existing', 'Already there — no change', 'blue'],
-  ['otherProject', 'On another project — skipped', 'amber'],
-  ['wrongProject', 'BUS PROJECT is a different project — skipped', 'amber'],
-  ['invalid', 'Not a valid VIN (17 characters, no I, O or Q) — skipped', 'red'],
-  ['repeated', 'Repeated in the file — counted once', 'pink'],
+  ['added', 'New - will be added', 'lime'],
+  ['updated', 'Already there - bus model updated', 'teal'],
+  ['existing', 'Already there - no change', 'blue'],
+  ['otherProject', 'On another project - skipped', 'amber'],
+  ['wrongProject', 'BUS PROJECT is a different project - skipped', 'amber'],
+  ['invalid', 'Not a valid VIN (17 characters, no I, O or Q) - skipped', 'red'],
+  ['repeated', 'Repeated in the file - counted once', 'pink'],
 ];
 
 export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
@@ -79,7 +79,7 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px 60px', color: 'var(--text-primary)' }}>
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Type Approvals</div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: 34, letterSpacing: '.04em', margin: '2px 0 6px', color: 'var(--text-heading)' }}>VIN register</h1>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', margin: '2px 0 6px', color: 'var(--text-heading)' }}>VIN register</h1>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 18px', lineHeight: 1.55 }}>
         Upload the VINs for a bus project. The file needs two columns, <strong>VIN</strong> and <strong>BUS PROJECT</strong>.
         VINs already on the project are kept as they are and only new ones are added. Once saved, they show in every Travel Card's VIN list.
@@ -95,7 +95,7 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
             </select>
           </div>
           <button className="kmc-btn" onClick={() => downloadCsv('VIN-upload-template.csv', project ? [VIN_TEMPLATE_ROWS[0], ['', project]] : VIN_TEMPLATE_ROWS)}>
-            ⬇ Download template
+            Download template
           </button>
         </div>
 
@@ -104,7 +104,7 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
             <strong style={{ color: 'var(--text-heading)' }}>{current.length}</strong> VIN{current.length === 1 ? '' : 's'} on {project} now.{' '}
             {current.length > 0 && <button className="kmc-btn ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setShowList(s => !s)}>{showList ? 'Hide' : 'Show'}</button>}
             {showList && (
-              <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, columns: 2 }}>
+              <div style={{ marginTop: 8, maxHeight: 220, overflowY: 'auto', fontFamily: 'inherit', fontSize: 12, columns: 2 }}>
                 {current.map(v => <div key={v.vin}>{v.vin}{v.model ? ` · ${v.model}` : ''}</div>)}
               </div>
             )}
@@ -115,21 +115,21 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
           <label style={label} htmlFor="ta-file">CSV file</label>
           <input id="ta-file" ref={input} type="file" accept=".csv,text/csv" onChange={pick} style={{ fontSize: 13 }} />
           {file && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{file.name}: {file.rows.length} VIN row{file.rows.length === 1 ? '' : 's'}</div>}
-          {file?.errors?.map(e => <div key={e} style={{ fontSize: 12, color: 'var(--accent-text)', marginTop: 6 }}>⚠ {e}</div>)}
+          {file?.errors?.map(e => <div key={e} style={{ fontSize: 12, color: 'var(--accent-text)', marginTop: 6 }}>{e}</div>)}
         </div>
 
         {file && !project && <div style={{ fontSize: 12, color: 'var(--warning-color)' }}>Choose the bus project the file is for.</div>}
 
         {shown && (
           <div>
-            <div className="kmc-label" style={{ marginBottom: 8 }}>{result ? `Saved — ${result.project} now has ${result.total} VINs` : 'Before saving'}</div>
+            <div className="kmc-label" style={{ marginBottom: 8 }}>{result ? `Saved - ${result.project} now has ${result.total} VINs` : 'Before saving'}</div>
             <div style={{ display: 'grid', gap: 8 }}>
               {GROUPS.filter(([k]) => shown[k]?.length).map(([k, text, tone]) => (
                 <details key={k} style={{ background: 'var(--socket-bg)', borderRadius: 10, padding: '8px 12px' }} open={k === 'otherProject' || k === 'invalid'}>
                   <summary style={{ cursor: 'pointer', fontSize: 13 }}>
                     <span className="kmc-chip" style={{ marginRight: 8 }}><b style={{ background: `var(--g-${tone})` }}>{shown[k].length}</b></span>{text}
                   </summary>
-                  <div style={{ fontFamily: 'monospace', fontSize: 12, marginTop: 6, maxHeight: 160, overflowY: 'auto', columns: 2 }}>
+                  <div style={{ fontFamily: 'inherit', fontSize: 12, marginTop: 6, maxHeight: 160, overflowY: 'auto', columns: 2 }}>
                     {shown[k].map(v => <div key={v}>{v}</div>)}
                   </div>
                 </details>
@@ -138,7 +138,7 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
           </div>
         )}
 
-        {error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>⚠ {error}</div>}
+        {error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{error}</div>}
 
         {preview && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

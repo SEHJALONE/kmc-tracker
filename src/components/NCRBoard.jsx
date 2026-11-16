@@ -19,7 +19,7 @@ const DOMAIN_COLORS = {
 
 function Badge({ color, children }) {
   return (
-    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: `${color}22`, color, border: `1px solid ${color}55`, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: `${color}22`, color, border: `1px solid ${color}55`, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
       {children}
     </span>
   );
@@ -35,14 +35,14 @@ function NCRCard({ ncr, onOpen, onExport }) {
     >
       <div onClick={() => onOpen(ncr)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace' }}>{ncr.id}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'inherit' }}>{ncr.id}</div>
           {ncr.severity && <Badge color={sColor}>{ncr.severity}</Badge>}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, lineHeight: 1.4, marginBottom: 6 }}>
-          {ncr.description ? (ncr.description.length > 90 ? ncr.description.slice(0, 90) + '…' : ncr.description) : '—'}
+          {ncr.description ? (ncr.description.length > 90 ? ncr.description.slice(0, 90) + '…' : ncr.description) : '-'}
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          {ncr.vin        && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{ncr.vin}</span>}
+          {ncr.vin        && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'inherit' }}>{ncr.vin}</span>}
           {ncr.stationCode && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{ncr.stationCode}</span>}
           {ncr.ncrType    && <Badge color="#64748b">{ncr.ncrType}</Badge>}
           {ncr.domain     && <Badge color={DOMAIN_COLORS[ncr.domain] || '#64748b'}>{ncr.domain}</Badge>}
@@ -173,7 +173,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
                 transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 {d}
-                <span style={{ fontSize: 9, fontFamily: 'monospace', opacity: 0.8 }}>{count}</span>
+                <span style={{ fontSize: 9, fontFamily: 'inherit', opacity: 0.8 }}>{count}</span>
               </button>
             );
           })}
@@ -213,7 +213,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
           { label: 'Closed',     value: summary.closed.length,   color: SEVERITY_COLOR.Minor },
         ].map(s => (
           <div key={s.label} style={{ ...glassStyle, padding: '10px 18px', minWidth: 88 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: 'monospace' }}>{s.value}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color, fontFamily: 'inherit' }}>{s.value}</div>
             <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
@@ -252,7 +252,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
           <span style={{ fontSize: 10, color: 'var(--text-dim)', letterSpacing: '0.06em' }}>DATE RAISED</span>
           <input type="date" style={inputSx} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-          <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>—</span>
+          <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>-</span>
           <input type="date" style={inputSx} value={dateTo}   onChange={e => setDateTo(e.target.value)} />
           {hasFilters && (
             <button onClick={resetFilters} style={{
@@ -261,7 +261,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
               color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif",
             }}>✕ Clear</button>
           )}
-          <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--text-dim)', fontFamily: 'inherit' }}>
             KMC.DQHSE.02/26-PR009 · {filtered.length} record{filtered.length !== 1 ? 's' : ''} shown
           </span>
         </div>
@@ -273,7 +273,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
       )}
       {error && !loading && (
         <div style={{ padding: '12px 16px', background: '#dc262622', border: '1px solid #dc262655', borderRadius: 6, fontSize: 12, color: '#dc2626', marginBottom: 16 }}>
-          {error} — <button onClick={refresh} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>retry</button>
+          {error} - <button onClick={refresh} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}>retry</button>
         </div>
       )}
 
@@ -287,7 +287,7 @@ export default function NCRBoard({ role = 'user', ncrDomain = null, glass, glass
               <div key={col.id} style={{ ...glassStyle, padding: '14px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: `2px solid ${colColor}` }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: colColor, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{col.label}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'monospace' }}>{cards.length}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'inherit' }}>{cards.length}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {cards.length === 0 ? (

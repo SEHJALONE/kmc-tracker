@@ -116,7 +116,7 @@ function BusCallout({ bus, ncrCount = 0 }) {
               border: '1.5px solid #0d1526', boxShadow: '0 1px 4px rgba(0,0,0,0.5)',
             }}
           >
-            ⚑{ncrCount}
+            NCR {ncrCount}
           </div>
         )}
         <div style={{
@@ -124,7 +124,7 @@ function BusCallout({ bus, ncrCount = 0 }) {
           padding: '2px 5px', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
           fontFamily: "'Space Mono', monospace", width: '100%', textAlign: 'center', whiteSpace: 'nowrap',
         }}>
-          {bus.model || '—'}
+          {bus.model || '-'}
         </div>
 
         {/* Model-specific image → Bus.png fallback */}
@@ -160,13 +160,13 @@ function BusCallout({ bus, ncrCount = 0 }) {
               padding: '4px 8px', fontSize: 10, color: '#94a3b8',
               lineHeight: 1.4, marginBottom: 4,
             }}>
-              📍 {stationNameForModel(bus.station, bus.model)}
+              {stationNameForModel(bus.station, bus.model)}
             </div>
           )}
           {bus.timestamp && <div style={{ color: '#475569', fontSize: 10 }}>{bus.timestamp}</div>}
           {ncrCount > 0 && (
             <div style={{ marginTop: 4, color: '#fca5a5', fontSize: 10, fontWeight: 600 }}>
-              ⚑ {ncrCount} open NCR{ncrCount > 1 ? 's' : ''}
+              {ncrCount} open NCR{ncrCount > 1 ? 's' : ''}
             </div>
           )}
         </div>
@@ -338,7 +338,7 @@ function LineCard({ line, stations, buses, filter, lineColor, zigzagRight, ncrCo
 
         <span style={{
           fontFamily: "'Syne', sans-serif", fontSize: 'clamp(14px, 2.5vw, 20px)', color: '#ffffff',
-          letterSpacing: '0.04em', textTransform: 'uppercase',
+          letterSpacing: '0',
           fontWeight: 800, lineHeight: 1, flex: 1,
           textShadow: '0 2px 12px rgba(0,0,0,0.9)',
         }}>

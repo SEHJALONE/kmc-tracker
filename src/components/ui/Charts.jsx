@@ -95,7 +95,7 @@ export function ColumnChart({ data, height = 150, format = v => v, prefix = 'cc'
             {v > 0 && <>
               <rect x={cx - colW / 2} y={y} width={colW} height={h} rx={colW / 2} fill={`url(#${prefix}-${tone}-v)`} />
               <rect x={cx - colW / 2 + 4} y={y + 4} width={colW * 0.3} height={Math.max(0, h - 8)} rx={colW * 0.15} fill="rgba(255,255,255,0.25)" />
-              <text x={cx} y={Math.max(14, y - 9)} textAnchor="middle" fontFamily="var(--font-display)" fontSize="18" fill="var(--text-heading)">{format(v)}</text>
+              <text x={cx} y={Math.max(14, y - 9)} textAnchor="middle" fontFamily="var(--font-display)" fontWeight="700" fontSize="14" fill="var(--text-heading)">{format(v)}</text>
             </>}
             <text x={cx} y={H - 4} textAnchor="middle" fontFamily="var(--font-label)" fontSize="11" fontWeight="700" fill="var(--text-muted)">{d.label}</text>
           </g>
@@ -127,7 +127,7 @@ export function RingGauge({ rings, size = 170, center, centerSub, prefix = 'rg' 
           </g>
         );
       })}
-      {center != null && <text x={c} y={c + size * 0.07} textAnchor="middle" fontFamily="var(--font-display)" fontSize={size * 0.22} fill="var(--text-heading)">{center}</text>}
+      {center != null && <text x={c} y={c + size * 0.07} textAnchor="middle" fontFamily="var(--font-display)" fontWeight="700" fontSize={size * 0.17} fill="var(--text-heading)">{center}</text>}
       {centerSub && <text x={c} y={c + size * 0.17} textAnchor="middle" fontFamily="var(--font-label)" fontWeight="700" fontSize={size * 0.06} fill="var(--text-muted)" letterSpacing="1">{centerSub}</text>}
     </svg>
   );

@@ -26,10 +26,12 @@ class Sheet {
     const api = {
       getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => (self.rows[r - 1 + i] || [])[c - 1 + j] ?? '')),
       getValue: () => (self.rows[r - 1] || [])[c - 1] ?? '',
-      setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { (self.rows[r - 1 + i] ||= [])[c - 1 + j] = x; })); return api; },
-      setValue(x) { (self.rows[r - 1] ||= [])[c - 1] = x; return api; },
+      // Return the range itself (as Sheets does) so formatting calls can be chained.
+      setValues(v) { v.forEach((row, i) => row.forEach((x, j) => { (self.rows[r - 1 + i] ||= [])[c - 1 + j] = x; })); return range; },
+      setValue(x) { (self.rows[r - 1] ||= [])[c - 1] = x; return range; },
     };
-    return new Proxy(api, { get: (t, k) => (k in t ? t[k] : noop) });
+    const range = new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => range) });
+    return range;
   }
   deleteRow(n) { this.rows.splice(n - 1, 1); }
   clear() { this.rows = []; return this; }

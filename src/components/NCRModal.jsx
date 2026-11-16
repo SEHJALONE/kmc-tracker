@@ -63,7 +63,7 @@ export function DaysBadge({ dueDate, status }) {
   const color = diff < 0 ? '#dc2626' : diff <= 2 ? '#f59e0b' : '#10b981';
   const label = diff < 0 ? `${Math.abs(diff)}d overdue` : diff === 0 ? 'Due today' : `${diff}d left`;
   return (
-    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: `${color}22`, color, border: `1px solid ${color}55`, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: `${color}22`, color, border: `1px solid ${color}55`, fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
       {label}
     </span>
   );
@@ -98,7 +98,7 @@ function EvidenceUpload({ value, onChange, disabled }) {
         {value.preview ? (
           <img src={value.preview} alt="Evidence" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)', flexShrink: 0 }} />
         ) : (
-          <div style={{ width: 72, height: 72, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>📎</div>
+          <div style={{ width: 72, height: 72, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>File</div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value.name}</div>
@@ -126,7 +126,6 @@ function EvidenceUpload({ value, onChange, disabled }) {
         transition: 'all .15s',
       }}
     >
-      <div style={{ fontSize: 22, marginBottom: 6 }}>📷</div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Click or drag an image / PDF</div>
       <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>PNG, JPG, PDF up to 5 MB</div>
       <input ref={inputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => readFile(e.target.files[0])} />
@@ -227,10 +226,10 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
         {/* Header */}
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 1 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              {mode === 'new' ? 'Log Non-Conformance' : `NCR — ${ncr?.id || ''}`}
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', letterSpacing: '0', }}>
+              {mode === 'new' ? 'Log Non-Conformance' : `NCR - ${ncr?.id || ''}`}
             </div>
-            <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace', marginTop: 3, letterSpacing: '0.06em' }}>
+            <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'inherit', marginTop: 3, letterSpacing: '0.06em' }}>
               KMC.DQHSE.02/26-PR009
             </div>
           </div>
@@ -256,14 +255,13 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
 
         {saved ? (
           <div style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', marginBottom: 6 }}>
               {mode === 'new' ? 'NCR Logged' : 'NCR Updated'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 24 }}>
               {mode === 'new' ? 'Record saved to the NCR register.' : 'Changes saved to Google Sheets.'}
             </div>
-            <button onClick={onClose} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <button onClick={onClose} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0', }}>
               Close
             </button>
           </div>
@@ -403,7 +401,7 @@ export default function NCRModal({ mode = 'new', prefill = {}, ncr = null, role 
                 Cancel
               </button>
               {(mode === 'new' || (isView && isAdmin)) && (
-                <button type="submit" disabled={busy} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif" }}>
+                <button type="submit" disabled={busy} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, letterSpacing: '0', fontFamily: "'Inter', system-ui, sans-serif" }}>
                   {busy ? 'Saving…' : mode === 'new' ? 'Log NCR' : 'Save changes'}
                 </button>
               )}

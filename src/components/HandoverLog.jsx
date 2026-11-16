@@ -109,18 +109,18 @@ export default function HandoverLog({ handovers = [], loading, onOpen }) {
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-hover, rgba(99,102,241,0.07))'}
                   onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'var(--bg-surface)'}
                 >
-                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', fontFamily: 'monospace', fontSize: 10, whiteSpace: 'nowrap' }}>{h.shiftDate || h.timestamp?.slice(0, 10) || '—'}</td>
+                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', fontFamily: 'inherit', fontSize: 10, whiteSpace: 'nowrap' }}>{h.shiftDate || h.timestamp?.slice(0, 10) || '-'}</td>
                   <td style={{ padding: '9px 10px' }}><ShiftBadge shift={h.shift} /></td>
-                  <td style={{ padding: '9px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{h.line || '—'}</td>
-                  <td style={{ padding: '9px 10px', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h.outgoingSupervisor || '—'}</td>
-                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{h.incomingSupervisor || '—'}</td>
+                  <td style={{ padding: '9px 10px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{h.line || '-'}</td>
+                  <td style={{ padding: '9px 10px', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>{h.outgoingSupervisor || '-'}</td>
+                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{h.incomingSupervisor || '-'}</td>
                   <td style={{ padding: '9px 10px' }}>
                     <IssueDot value={h.safetyIssues}  label="Safety" />
                     <IssueDot value={h.qualityIssues} label="Quality" />
-                    {!h.safetyIssues && !h.qualityIssues && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>—</span>}
+                    {!h.safetyIssues && !h.qualityIssues && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>-</span>}
                   </td>
                   <td style={{ padding: '9px 10px' }}><StatusBadge status={h.status} /></td>
-                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', fontSize: 10, whiteSpace: 'nowrap' }}>{h.acknowledgedBy || '—'}</td>
+                  <td style={{ padding: '9px 10px', color: 'var(--text-dim)', fontSize: 10, whiteSpace: 'nowrap' }}>{h.acknowledgedBy || '-'}</td>
                 </tr>
               ))}
             </tbody>

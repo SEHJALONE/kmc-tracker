@@ -51,8 +51,8 @@ export default function CutListEditor({ items, onChange, materials, showCut = fa
           <div key={g.spec || '-'} className="kmc-panel" style={{ padding: '12px 14px' }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
               {readOnly
-                ? <strong style={{ fontSize: 16, fontFamily: 'monospace', color: 'var(--text-heading)' }}>{g.spec}</strong>
-                : <input aria-label="Specification" style={{ ...cell, width: 150, fontSize: 15, fontWeight: 700, fontFamily: 'monospace' }} defaultValue={g.spec}
+                ? <strong style={{ fontSize: 16, fontFamily: 'inherit', color: 'var(--text-heading)' }}>{g.spec}</strong>
+                : <input aria-label="Specification" style={{ ...cell, width: 150, fontSize: 15, fontWeight: 700, fontFamily: 'inherit' }} defaultValue={g.spec}
                     onBlur={e => { const v = e.target.value.trim(); if (v && v !== g.spec) setGroup(g.spec, { spec: v }); }} />}
               {readOnly
                 ? <span className="kmc-chip"><span>{g.material || 'no material'}</span></span>
@@ -75,7 +75,7 @@ export default function CutListEditor({ items, onChange, materials, showCut = fa
               {!readOnly && <button className="kmc-btn ghost" style={{ padding: '3px 8px', fontSize: 11, color: 'var(--accent-text)' }} onClick={() => removeGroup(g.spec)}>Remove spec</button>}
             </div>
             {(g.groupNote || !readOnly) && (readOnly
-              ? <div style={{ fontSize: 12, color: 'var(--warning-color)', marginBottom: 8 }}>⚠ {g.groupNote}</div>
+              ? <div style={{ fontSize: 12, color: 'var(--warning-color)', marginBottom: 8 }}>{g.groupNote}</div>
               : <input aria-label="Specification note" style={{ ...cell, marginBottom: 8 }} placeholder="Note for this specification (optional)" defaultValue={g.groupNote}
                   onBlur={e => { if (e.target.value.trim() !== g.groupNote) setGroup(g.spec, { groupNote: e.target.value.trim() }); }} />)}
             <div style={{ overflowX: 'auto' }}>
@@ -97,7 +97,7 @@ export default function CutListEditor({ items, onChange, materials, showCut = fa
                       {COLS.map(([k]) => (
                         <td key={k} style={td}>
                           {readOnly
-                            ? <span style={{ fontSize: 12, fontFamily: k === 'code' || k === 'balloon' ? 'monospace' : 'inherit' }}>{it[k] === '' || it[k] == null ? '—' : String(it[k])}</span>
+                            ? <span style={{ fontSize: 12, fontFamily: k === 'code' || k === 'balloon' ? 'monospace' : 'inherit' }}>{it[k] === '' || it[k] == null ? '-' : String(it[k])}</span>
                             : <input aria-label={k} style={cell} type={k === 'qty' ? 'number' : 'text'} min={k === 'qty' ? 0 : undefined}
                                 value={it[k]} onChange={e => set(it.id, { [k]: k === 'qty' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value })} />}
                         </td>

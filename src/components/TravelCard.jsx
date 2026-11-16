@@ -240,7 +240,7 @@ const css = {
   wrap:    { maxWidth: 680, margin: "0 auto", padding: "0 0 100px", fontFamily: T.fm, fontSize: 14, color: T.text, background: T.bg, boxSizing: 'border-box' },
   topbar:  { display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${T.border}`, marginBottom: 20, background: T.topbar, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", position: "sticky", top: 0, zIndex: 10 },
   logo:    { height: 36, width: "auto", objectFit: "contain" },
-  t1:      { fontSize: 17, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: T.text },
+  t1:      { fontSize: 17, fontWeight: 800, letterSpacing: '0', color: T.text },
   t2:      { fontSize: 10, color: T.dimmer, fontFamily: T.mono, letterSpacing: "0.06em", marginTop: 2 },
   segsWrap:{ display: "flex", gap: 3, marginBottom: 5, padding: "0 20px" },
   seg:     { flex: 1, height: 2, borderRadius: 1, background: T.border, transition: "background .3s" },
@@ -289,9 +289,9 @@ const css = {
   confRow: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "7px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12, gap: 10 },
   confLbl: { color: T.dim, flexShrink: 0, fontFamily: T.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" },
   confVal: { fontWeight: 600, textAlign: "right", maxWidth: "60%", wordBreak: "break-word", color: T.text },
-  btnP:    { width: "100%", padding: "11px 0", background: R, color: "#fff", border: "none", borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: "pointer", marginTop: 12, letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: T.fm },
-  btnS:    { width: "100%", padding: "10px 0", background: "transparent", color: T.muted, border: `1px solid ${INP_BOR}`, borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: T.fm },
-  btnDl:   { width: "100%", padding: "10px 0", background: "rgba(16,185,129,0.1)", color: GR, border: "1px solid rgba(16,185,129,0.3)", borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: T.fm, fontWeight: 700 },
+  btnP:    { width: "100%", padding: "11px 0", background: R, color: "#fff", border: "none", borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: "pointer", marginTop: 12, letterSpacing: '0', fontFamily: T.fm },
+  btnS:    { width: "100%", padding: "10px 0", background: "transparent", color: T.muted, border: `1px solid ${INP_BOR}`, borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: '0', fontFamily: T.fm },
+  btnDl:   { width: "100%", padding: "10px 0", background: "rgba(16,185,129,0.1)", color: GR, border: "1px solid rgba(16,185,129,0.3)", borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: '0', fontFamily: T.fm, fontWeight: 700 },
   nav2:    { display: "flex", gap: 8, marginTop: 12, padding: "0 20px" },
   note:    { fontSize: 10, color: T.dimmer, fontFamily: T.mono, marginTop: 4 },
   evsBox:  { textAlign: "center", padding: "32px 16px" },
@@ -384,7 +384,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   css.confLbl = { color: T.dim, flexShrink: 0, fontFamily: T.mono, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" };
   css.confVal = { fontWeight: 600, textAlign: "right", maxWidth: "60%", wordBreak: "break-word", color: T.text };
   css.lbl     = { flex: 1, fontSize: 9, textAlign: "center", color: T.dimmer, fontFamily: T.mono, letterSpacing: "0.08em", textTransform: "uppercase" };
-  css.t1      = { fontSize: 17, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: T.text };
+  css.t1      = { fontSize: 17, fontWeight: 800, letterSpacing: '0', color: T.text };
   css.lblAct  = { color: T.text, fontWeight: 600 };
   css.lbl     = { flex: 1, fontSize: 9, textAlign: "center", color: T.dimmer, fontFamily: T.mono, letterSpacing: "0.08em", textTransform: "uppercase" };
   css.lblDone = { color: T.dim };
@@ -392,7 +392,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   css.note    = { fontSize: 10, color: T.dimmer, fontFamily: T.mono, marginTop: 4 };
   css.mSub    = { fontSize: 10, color: T.dim, marginTop: 3, fontFamily: T.mono };
   css.seg     = { flex: 1, height: 2, borderRadius: 1, background: T.border, transition: "background .3s" };
-  css.btnS    = { width: "100%", padding: "10px 0", background: "transparent", color: T.muted, border: `1px solid ${INP_BOR}`, borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: "0.08em", textTransform: "uppercase", fontFamily: T.fm };
+  css.btnS    = { width: "100%", padding: "10px 0", background: "transparent", color: T.muted, border: `1px solid ${INP_BOR}`, borderRadius: 4, fontSize: 13, cursor: "pointer", marginTop: 8, letterSpacing: '0', fontFamily: T.fm };
 
   const [page, setPage] = useState(0);
 
@@ -720,7 +720,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setOtherActs((taskPrefill.activities || []).filter(a => a.added).map(a => a.name));
     if (taskPrefill.jobOrderId) {
       const vins = (taskPrefill.vins || []).filter(Boolean);
-      setGenComments(g => g || `Machine Shop job order ${taskPrefill.jobOrderId}${vins.length ? ` — VINs: ${vins.join(", ")}` : ""}.`);
+      setGenComments(g => g || `Machine Shop job order ${taskPrefill.jobOrderId}${vins.length ? ` - VINs: ${vins.join(", ")}` : ""}.`);
     }
     setClockIn(isoToLocalInput(taskPrefill.startedAt));
     setClockOut(taskPrefill.endedAt || new Date().toISOString());
@@ -775,11 +775,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <select style={css.stSel} value={actStatuses[a] || ""} onChange={e => setActStatuses(p => ({ ...p, [a]: e.target.value }))}>
           <option value="">Status…</option>
-          <option value="complete">✅ Complete</option>
-          <option value="incomplete">⏳ Incomplete</option>
-          <option value="issue">⚠️ Issue noted</option>
-          <option value="rework">🔁 Rework needed</option>
-          <option value="na">— N/A</option>
+          <option value="complete">Complete</option>
+          <option value="incomplete">Incomplete</option>
+          <option value="issue">Issue noted</option>
+          <option value="rework">Rework needed</option>
+          <option value="na">N/A</option>
         </select>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <input type="number" min="0" step="1" inputMode="numeric" aria-label={`Minutes taken: ${a}`}
@@ -918,15 +918,15 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (result.ok) {
       const saved = { ...editRec, ...patch, submittedBy: editRec.submittedBy || currentUserName || null };
       setSubmission(saved);
-      setGsStatus(wasSentBack ? "✅ Resubmitted. Awaiting supervisor review." : "✅ Changes saved.");
+      setGsStatus(wasSentBack ? "Resubmitted. Awaiting supervisor review." : "Changes saved.");
       goTo(4);
       // Approvers were told about the card when it was first filed; tell them
       // again only when it comes back to them after a rejection.
       if (wasSentBack) {
-        setEmailStatus("📧 Asking approvers to review…");
+        setEmailStatus("Asking approvers to review…");
         notifyApprovers(saved)
           .then(reply => setEmailStatus(describeCardEmail(reply)))
-          .catch(e => setEmailStatus(`⚠️ Approval email not sent: ${e.message}`));
+          .catch(e => setEmailStatus(`Approval email not sent: ${e.message}`));
       }
     } else if (result.error === "not-found") {
       alert("This card hasn't reached the production records yet. Wait a minute and open it again from My Submissions.");
@@ -983,11 +983,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     try {
       const body = new URLSearchParams({ payload: JSON.stringify(sub) });
       await fetch(SHEETS_URL, { method: "POST", mode: "no-cors", body });
-      setGsStatus("✅ Submitted. Awaiting supervisor review.");
+      setGsStatus("Submitted. Awaiting supervisor review.");
       if (onSubmitSuccess) onSubmitSuccess();
       afterFiled(sub);
     } catch {
-      setGsStatus("⚠️ Could not reach Google Sheets. Download your record below.");
+      setGsStatus("Could not reach Google Sheets. Download your record below.");
     }
   }
 
@@ -1069,11 +1069,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       // by the browser, so we send the payload as a form field instead.
       const body = new URLSearchParams({ payload: JSON.stringify(sub) });
       await fetch(SHEETS_URL, { method: "POST", mode: "no-cors", body });
-      setGsStatus("✅ Saved to production records.");
+      setGsStatus("Saved to production records.");
       if (onSubmitSuccess) onSubmitSuccess();
       afterFiled(sub);
     } catch {
-      setGsStatus("⚠️ Could not reach Google Sheets. Download the record below.");
+      setGsStatus("Could not reach Google Sheets. Download the record below.");
     }
   }
 
@@ -1097,10 +1097,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function afterFiled(sub) {
     if (onCardSubmitted) onCardSubmitted(sub, taskPrefill);
     if (!needsApproval(sub)) { setEmailStatus(""); return; }
-    setEmailStatus("📧 Asking approvers to review…");
+    setEmailStatus("Asking approvers to review…");
     notifyApprovers(sub)
       .then(reply => setEmailStatus(describeCardEmail(reply)))
-      .catch(e => setEmailStatus(`⚠️ Approval email not sent: ${e.message}`));
+      .catch(e => setEmailStatus(`Approval email not sent: ${e.message}`));
   }
 
   async function dlBusReport() {
@@ -1188,7 +1188,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={css.addBtn} onClick={saveSession} title="Save your progress so you can continue later">
-            💾 Save Session
+            Save Session
           </button>
           {savedSession && (
             <button style={css.addBtn} onClick={() => { if (confirm("Clear the saved session? This cannot be undone.")) clearSession(); }} title="Discard the saved session">
@@ -1235,17 +1235,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <div style={css.cardHd}>Bus identity</div>
           <Sel label="Bus model" value={busModel} onChange={e => { setBusModel(e.target.value); setCurLine(""); setCurSt(""); setCurCode(""); }}>
             <option value="">Select model…</option>
-            <optgroup label="KDC — Diesel Coach">
+            <optgroup label="KDC - Diesel Coach">
               <option value="10.5m KDC">10.5m KDC</option>
               <option value="12m KDC">12m KDC</option>
             </optgroup>
-            <optgroup label="EVS — Electric City Bus">
+            <optgroup label="EVS - Electric City Bus">
               <option value="7m EVS">7m EVS</option>
               <option value="8.5m EVS">8.5m EVS</option>
               <option value="10.5m EVS">10.5m EVS</option>
               <option value="12m EVS">12m EVS</option>
             </optgroup>
-            <optgroup label="KEC — Electric Coach">
+            <optgroup label="KEC - Electric Coach">
               <option value="13m KEC">13m KEC</option>
             </optgroup>
           </Sel>
@@ -1262,7 +1262,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 {curLine && !visibleLines.includes(curLine) && <option>{curLine}</option>}
               </Sel>
               <Sel
-                label={isMultiLocked ? "Station (assigned — choose one)" : lockedStation ? "Station (assigned — locked)" : "Station"}
+                label={isMultiLocked ? "Station (assigned - choose one)" : lockedStation ? "Station (assigned - locked)" : "Station"}
                 value={curSt}
                 disabled={!!lockedStation && !isMultiLocked}
                 onChange={e => onStation(e.target.value)}
@@ -1280,19 +1280,19 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 <span style={{ fontSize: 10, color: T.dim, fontFamily: T.mono }}>min</span>
               </div>
             )}
-            {!isAdmin && !isUser && timesLoading && curCode && <div style={{ ...css.pill, opacity: .6, marginTop: 6 }}>⏱ Loading cycle time…</div>}
+            {!isAdmin && !isUser && timesLoading && curCode && <div style={{ ...css.pill, opacity: .6, marginTop: 6 }}>Loading cycle time…</div>}
             {!isAdmin && !isUser && !timesLoading && timesError && curCode && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <span style={{ fontSize: 11, color: AM, fontFamily: T.mono }}>⚠ Sheet unavailable — enter manually:</span>
+                <span style={{ fontSize: 11, color: AM, fontFamily: T.mono }}>Sheet unavailable - enter manually:</span>
                 <input type="number" style={{ ...css.inp, maxWidth: 90, fontSize: 12 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />
               </div>
             )}
             {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime > 0 && (
-              <div style={{ ...css.pill, marginTop: 8 }}>⏱ Designed time: <strong style={{ marginLeft: 4 }}>{designedTime} min</strong></div>
+              <div style={{ ...css.pill, marginTop: 8 }}>Designed time: <strong style={{ marginLeft: 4 }}>{designedTime} min</strong></div>
             )}
             {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime === 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: T.dim, fontFamily: T.mono }}>
-                No cycle time set — enter manually:&nbsp;
+                No cycle time set - enter manually:&nbsp;
                 <input type="number" style={{ ...css.inp, maxWidth: 80, fontSize: 12, display: "inline", width: 80 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />
               </div>
             )}
@@ -1317,7 +1317,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
           {/* change 3: Staff on duty after station selection */}
           {curSt && <div style={css.card}>
-            <div style={css.cardHd}>Staff on duty — {curCode}</div>
+            <div style={css.cardHd}>Staff on duty - {curCode}</div>
             <div className="tc-cb-grid" style={css.cbGrid}>
               {operators.map(op => <label key={op} style={css.cbItem}>
                 <input type="checkbox" checked={selOps.includes(op)} onChange={e => { const newSel = e.target.checked ? [...selOps, op] : selOps.filter(x => x !== op); setSelOps(newSel); if (curCode) LS.set(`kmc_sel_${curCode}`, newSel); }} style={{ accentColor: R, width: 13, height: 13, flexShrink: 0 }} />
@@ -1328,7 +1328,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             <AddRow placeholder="Add staff member name…" onAdd={n => { if (!n.trim()) return; const newOps = [...operators, n.trim()]; setOperators(newOps); setSelOps(prev => [...prev, n.trim()]); if (curCode) LS.set(`kmc_station_ops_${curCode}`, newOps); }} />
             <div style={{ ...css.fld, marginTop: 14 }}>
               <label style={css.lbl_}>PPE required</label>
-              {!ppeTouched && selOps.length > 0 && <div style={{ ...css.note, marginBottom: 6 }}>Prefilled with one per staff member on duty — correct any that differ.</div>}
+              {!ppeTouched && selOps.length > 0 && <div style={{ ...css.note, marginBottom: 6 }}>Prefilled with one per staff member on duty - correct any that differ.</div>}
               {[...PPE_ITEMS, ...Object.keys(ppe).filter(k => !PPE_ITEMS.includes(k))].map((item, i, arr) => <div key={item} className="tc-res-row" style={{ ...css.resRow, ...(i === arr.length - 1 ? { borderBottom: "none" } : {}), gridTemplateColumns: "1fr 70px 28px" }}>
                 <div style={css.resName}>{item}</div>
                 <input type="number" style={css.qty} min="0" placeholder="0" value={ppe[item] ?? ""} onChange={e => { setPpeTouched(true); setPpe(p => ({ ...p, [item]: e.target.value })); }} />
@@ -1361,9 +1361,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           />
           <div style={css.note}>{fromTask
             ? "Start and end were recorded when you pressed Start and Close. Correct them here if needed."
-            : "Enter when work on this station started and finished. Clock-out is prefilled with the time you left the identity page — change it if the work ended earlier."}</div>
+            : "Enter when work on this station started and finished. Clock-out is prefilled with the time you left the identity page - change it if the work ended earlier."}</div>
           <div style={{ ...css.note, marginTop: 8 }}>
-            ⏱ All time between clock-in and clock-out counts, including work before 07:00 or after 18:00. Only the scheduled breaks are taken off (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}).
+            All time between clock-in and clock-out counts, including work before 07:00 or after 18:00. Only the scheduled breaks are taken off (tea {SCHEDULE.breaks[0].start}–{SCHEDULE.breaks[0].end}, lunch {SCHEDULE.breaks[1].start}–{SCHEDULE.breaks[1].end}).
           </div>
         </div>
 
@@ -1379,7 +1379,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
         <div style={css.card}>
           <div style={{ ...css.cardHd, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>Activities — <span style={{ fontWeight: 400, color: T.dim }}>{curCode}</span></span>
+            <span>Activities - <span style={{ fontWeight: 400, color: T.dim }}>{curCode}</span></span>
             {(acts.length > 0 || otherActs.length > 0) && (
               <div style={{ display: "flex", gap: 6 }}>
                 <button
@@ -1397,8 +1397,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               </div>
             )}
           </div>
-          {acts.length === 0 && otherActs.length === 0 && <div style={{ fontSize: 12, color: T.dim }}>No predefined activities for this station — add one below.</div>}
-          {(acts.length > 0 || otherActs.length > 0) && <div style={{ ...css.note, marginTop: 0, marginBottom: 4 }}>Minutes per activity are optional — fill them in where you know how long it took.</div>}
+          {acts.length === 0 && otherActs.length === 0 && <div style={{ fontSize: 12, color: T.dim }}>No predefined activities for this station - add one below.</div>}
+          {(acts.length > 0 || otherActs.length > 0) && <div style={{ ...css.note, marginTop: 0, marginBottom: 4 }}>Minutes per activity are optional - fill them in where you know how long it took.</div>}
           {acts.map((a, i) => <div key={i} className="tc-act-row" style={{ ...css.actRow, ...(i === acts.length - 1 && otherActs.length === 0 ? { borderBottom: "none" } : {}) }}>
             <div style={css.actName}>{a}</div>
             {actControls(a)}
@@ -1447,7 +1447,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 setOtherResName(""); setOtherResQty("");
               }}>+ ADD</button>
             </div>
-            {otherRes.length > 0 && <div style={{ fontSize: 11, color: T.dim, margin: "4px 0 2px" }}>Added at this station — stays for every fill-in here until removed with ×. Leave the quantity empty if not used this time.</div>}
+            {otherRes.length > 0 && <div style={{ fontSize: 11, color: T.dim, margin: "4px 0 2px" }}>Added at this station - stays for every fill-in here until removed with ×. Leave the quantity empty if not used this time.</div>}
             {otherRes.map((r, i) => <div key={r.name} className="tc-res-row" style={{ ...css.resRow, borderBottom: "none" }}>
               <div style={css.resName}>{r.name}</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1500,7 +1500,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               </div>)}
             </div>
             <div style={{ ...css.addRow, marginTop: 8 }}>
-              <input style={css.addInp} value={otherDelayName} onChange={e => setOtherDelayName(e.target.value)} placeholder="Other reason — specify (e.g. waiting for crane)"
+              <input style={css.addInp} value={otherDelayName} onChange={e => setOtherDelayName(e.target.value)} placeholder="Other reason - specify (e.g. waiting for crane)"
                 onKeyDown={e => { if (e.key === "Enter") addOtherDelay(); }} />
               <button style={css.addBtn} onClick={addOtherDelay}>+ ADD</button>
             </div>
@@ -1531,8 +1531,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
 
       {/* ── PAGE 2: DOWNTIME ── */}
       {page === 2 && <>
-        <div style={css.banner}>
-          <span style={{ fontSize: 20, color: AM, flexShrink: 0 }}>⚠</span>
+        <div style={css.banner}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: AM, letterSpacing: "0.06em" }}>Station time exceeded</div>
             <div style={{ fontSize: 11, color: AM, marginTop: 3 }}>Please identify the root cause below before proceeding to sign-off.</div>
@@ -1551,7 +1550,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         )}
 
         <div style={css.card}>
-          <div style={css.cardHd}>Root cause — 6Ms <span style={{ fontWeight: 400, textTransform: "none", opacity: .5, fontSize: 10, letterSpacing: 0 }}>(select all that apply)</span></div>
+          <div style={css.cardHd}>Root cause - 6Ms <span style={{ fontWeight: 400, textTransform: "none", opacity: .5, fontSize: 10, letterSpacing: 0 }}>(select all that apply)</span></div>
           <div style={css.sixGrid}>
             {SIX.map(m => <div key={m.m} style={{ ...css.mCard, ...(selMs.includes(m.m) ? css.mCardSel : {}) }} onClick={() => togM(m.m)}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ fontSize: 18 }}>{m.icon}</span><div style={css.mTitle}>{m.m}</div></div>
@@ -1584,7 +1583,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           {selMs.map(m => {
             const md = SIX.find(x => x.m === m);
             return (<div key={m} style={{ ...css.fld, borderBottom: `1px solid ${T.border}`, paddingBottom: 10 }}>
-              <label style={css.lbl_}>{m} — specific cause</label>
+              <label style={css.lbl_}>{m} - specific cause</label>
               {md ? (
                 <select style={css.inp} value={subCauses[m] || ""} onChange={e => setSubCauses(p => ({ ...p, [m]: e.target.value }))}>
                   <option value="">Select…</option>
@@ -1642,12 +1641,12 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           {/* 5M Category */}
           <Sel label="5M category (primary driver)" value={fiveCategory} onChange={e => setFiveCategory(e.target.value)}>
             <option value="">Select category…</option>
-            <option value="Man">Man — Operator / skill / attendance</option>
-            <option value="Machine">Machine — Equipment / tooling / fixtures</option>
-            <option value="Method">Method — Process / sequence / instructions</option>
-            <option value="Material">Material — Parts / consumables / supply</option>
-            <option value="Measurement">Measurement — Inspection / gauging / data</option>
-            <option value="Mother Nature">Mother Nature — Environment / power / temperature</option>
+            <option value="Man">Man - Operator / skill / attendance</option>
+            <option value="Machine">Machine - Equipment / tooling / fixtures</option>
+            <option value="Method">Method - Process / sequence / instructions</option>
+            <option value="Material">Material - Parts / consumables / supply</option>
+            <option value="Measurement">Measurement - Inspection / gauging / data</option>
+            <option value="Mother Nature">Mother Nature - Environment / power / temperature</option>
           </Sel>
 
           {/* 5-Why progressive inputs */}
@@ -1655,12 +1654,12 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             <div style={{ marginTop: 4 }}>
               <div style={{ ...css.subHd, marginBottom: 10 }}>5-Why drill-down</div>
               <div style={css.fld}>
-                <label style={css.lbl_}>Why 1 — why did the downtime occur?</label>
+                <label style={css.lbl_}>Why 1 - why did the downtime occur?</label>
                 <input style={css.inp} value={why1} onChange={e => setWhy1(e.target.value)} placeholder="State the immediate cause…" />
               </div>
               {why1.trim() && (
                 <div style={css.fld}>
-                  <label style={css.lbl_}>Why 2 — why did that happen?</label>
+                  <label style={css.lbl_}>Why 2 - why did that happen?</label>
                   <input style={css.inp} value={why2} onChange={e => setWhy2(e.target.value)} placeholder="Dig one level deeper…" />
                 </div>
               )}
@@ -1678,7 +1677,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               )}
               {why1.trim() && why2.trim() && why3.trim() && why4.trim() && (
                 <div style={css.fld}>
-                  <label style={css.lbl_}>Why 5 — root cause</label>
+                  <label style={css.lbl_}>Why 5 - root cause</label>
                   <input style={css.inp} value={why5} onChange={e => setWhy5(e.target.value)} placeholder="Underlying root cause…" />
                 </div>
               )}
@@ -1709,8 +1708,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 accept="image/*,application/pdf"
                 style={{ display: "none" }}
                 onChange={handleAttachmentChange}
-              />
-              <span style={{ fontSize: 20 }}>{attachmentFile ? "📎" : "📁"}</span>
+              />
               <div>
                 <div style={{ fontSize: 12, color: attachmentFile ? T.text : T.dim, fontWeight: attachmentFile ? 600 : 400 }}>
                   {attachmentFile ? attachmentFile.name : "Tap to select file…"}
@@ -1721,7 +1719,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                   </div>
                 )}
                 {!attachmentFile && (
-                  <div style={{ fontSize: 10, color: T.dimmer, marginTop: 2 }}>Images (JPG, PNG) or PDF — max 5 MB</div>
+                  <div style={{ fontSize: 10, color: T.dimmer, marginTop: 2 }}>Images (JPG, PNG) or PDF - max 5 MB</div>
                 )}
               </div>
             </label>
@@ -1802,10 +1800,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         <div style={css.card}>
           <div style={{ textAlign: "center", padding: "12px 0 6px" }}>
             <div style={{ fontSize: 42, color: isEditMode ? GR : submission.approvalStatus === "pending_review" ? AM : GR }}>
-              {isEditMode ? "✓" : submission.approvalStatus === "pending_review" ? "⏳" : "✓"}
+              ✓
             </div>
-            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: "0.1em", marginTop: 8, textTransform: "uppercase" }}>
-              {isEditMode ? "Changes saved" : submission.approvalStatus === "pending_review" ? "Submitted — Pending Review" : "Travel card submitted"}
+            <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0', marginTop: 8, }}>
+              {isEditMode ? "Changes saved" : submission.approvalStatus === "pending_review" ? "Submitted - Pending Review" : "Travel card submitted"}
             </div>
             {!isEditMode && submission.approvalStatus === "pending_review" && (
               <div style={{ fontSize: 12, color: AM, marginTop: 6, fontFamily: T.mono }}>
@@ -1824,14 +1822,14 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             ["VIN", submission.vin],
             ["Line", submission.line],
             ["Station", submission.stationCode],
-            ["Operators", submission.operators.join(", ") || "—"],
-            ["Clock in", submission.clockIn ? new Date(submission.clockIn).toLocaleTimeString() : "—"],
-            ["Clock out", submission.clockOut ? new Date(submission.clockOut).toLocaleTimeString() : "—"],
+            ["Operators", submission.operators.join(", ") || "-"],
+            ["Clock in", submission.clockIn ? new Date(submission.clockIn).toLocaleTimeString() : "-"],
+            ["Clock out", submission.clockOut ? new Date(submission.clockOut).toLocaleTimeString() : "-"],
             ["Actual time", `${submission.actualTime} min`],
             ...(submission.breakMinutes > 0 ? [["Breaks excluded", `${submission.breakMinutes} min (gross ${submission.grossTime} min)`]] : []),
             ...(!isUser ? [["Designed time", `${submission.designedTime} min`]] : []),
             ...(!isUser ? [["Approval", submission.approvalStatus], ["Reviewer", submission.reviewer]] : []),
-          ].map(([l, v]) => <div key={l} style={css.confRow}><span style={css.confLbl}>{l}</span><span style={css.confVal}>{v || "—"}</span></div>)}
+          ].map(([l, v]) => <div key={l} style={css.confRow}><span style={css.confLbl}>{l}</span><span style={css.confVal}>{v || "-"}</span></div>)}
         </div>
 
         {/* Activities summary */}
@@ -1839,7 +1837,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           const entries = Object.entries(submission.activityStatuses || {});
           const added = submission.addedActivities || [];
           if (entries.length === 0 && added.length === 0) return null;
-          const statusLabel = { complete: "✅ Complete", incomplete: "⏳ Incomplete", issue: "⚠️ Issue noted", rework: "🔁 Rework needed", na: "— N/A" };
+          const statusLabel = { complete: "Complete", incomplete: "Incomplete", issue: "Issue noted", rework: "Rework needed", na: "N/A" };
           return (
             <div style={css.confC}>
               <div style={css.cardHd}>Activities</div>
@@ -1852,7 +1850,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
               {added.map(a => (
                 <div key={a} style={css.confRow}>
                   <span style={css.confLbl}>{a}</span>
-                  <span style={{ ...css.confVal, color: T.dim }}>{statusLabel[submission.activityStatuses?.[a]] || "—"}</span>
+                  <span style={{ ...css.confVal, color: T.dim }}>{statusLabel[submission.activityStatuses?.[a]] || "-"}</span>
                 </div>
               ))}
             </div>
@@ -1929,7 +1927,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
             return (
               <div key={m} style={css.confRow}>
                 <span style={css.confLbl}>{m}</span>
-                <span style={css.confVal}>{detail || "—"}{(mins !== undefined && mins !== "") ? ` · ${mins} min` : ""}</span>
+                <span style={css.confVal}>{detail || "-"}{(mins !== undefined && mins !== "") ? ` · ${mins} min` : ""}</span>
               </div>
             );
           })}
@@ -2001,10 +1999,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         {/* change 10: two PDF download buttons */}
         <div style={css.px}>
           <button style={{ ...css.btnDl, opacity: dlBusy === "station" ? 0.6 : 1 }} onClick={dlStationReport} disabled={!!dlBusy}>
-            {dlBusy === "station" ? "Generating PDF…" : "⬇ Download station report (PDF)"}
+            {dlBusy === "station" ? "Generating PDF…" : "Download station report (PDF)"}
           </button>
           <button style={{ ...css.btnDl, opacity: dlBusy === "bus" ? 0.6 : 1 }} onClick={dlBusReport} disabled={!!dlBusy}>
-            {dlBusy === "bus" ? "Generating PDF…" : "⬇ Download full bus report (PDF)"}
+            {dlBusy === "bus" ? "Generating PDF…" : "Download full bus report (PDF)"}
           </button>
           {/* A general user's card can be reopened and corrected until a
               supervisor approves it (the same edit as My Submissions). */}

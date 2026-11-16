@@ -95,6 +95,10 @@ function doPost(e) {
     // Supervisors watching their shops' open tasks (see listShopTasks_).
     if (e && e.parameter && e.parameter.action === "listShopTasks")   return listShopTasks_(e.parameter);
 
+    // ── My account (signed-in; each person reads and edits only their own row) ──
+    if (e && e.parameter && e.parameter.action === "getMyProfile")    return getMyProfile_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "updateMyProfile") return updateMyProfile_(e.parameter);
+
     // ── VIN register (Type Approvals) and Machine Shop job orders ───────────────
     if (e && e.parameter && e.parameter.action === "uploadProjectVins")  return uploadProjectVins_(e.parameter);
     if (e && e.parameter && e.parameter.action === "listJobData")        return listJobData_(e.parameter);
@@ -1130,6 +1134,7 @@ function login_(username, password, remember) {
       }
       cache.remove(failKey);
       const user = dynamicUserRowToObject_(headers, row);
+      user.photo = String(row[col("photo")] || "");   // own profile photo (never in user lists)
       // 30 days when "keep me signed in" is ticked, otherwise 12 hours.
       return response({ status: "ok", user, session: issueSession_(user.username, user.role, remember ? 30 * 24 : 12) });
     }
@@ -1434,6 +1439,7 @@ function dynamicUserRowToObject_(headers, row) {
     landing: col("landing") || null,
     fullName: col("full_name") || "",
     email: col("email") || "",
+    phone: String(col("phone") || ""),
     department: col("department") || "",
     productionLine: col("production_line") || "",
     productionLines: jsonArr(col("production_lines")),
@@ -1759,6 +1765,155 @@ function deleteDynamicUser_(username) {
     }
   }
   return response({ status: "error", message: "user-not-found" });
+}
+
+// ── My account (Settings page) ────────────────────────────────────────────────
+// A signed-in person reads and edits ONLY their own row, and only these fields:
+// full name, phone, email, profile photo and password. Role, stations and every
+// other access right stay with the administrators (User Management).
+// Changing the email or the password needs the current password: the email is
+// where password-reset codes go, so a borrowed session must not be able to move it.
+const PROFILE_PHOTO_MAX_CHARS = 40000;   // data URL; a Sheets cell holds 50,000
+function myRow_(session, addColumns) {
+  const sh = privateSs_().getSheetByName(DYNAMIC_USERS_TAB);
+  if (!sh) return null;
+  const headers = addColumns
+    ? headerIndex_(sh, ["phone", "photo"])
+    : sh.getDataRange().getValues()[0].map(h => String(h).toLowerCase().trim());
+  const data = sh.getDataRange().getValues();
+  const uCol = headers.indexOf("username");
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][uCol]).toLowerCase() === String(session.username).toLowerCase()) {
+      return { sh: sh, headers: headers, row: data[i], rowNum: i + 1 };
+    }
+  }
+  return null;
+}
+function myProfile_(headers, row) {
+  const u = dynamicUserRowToObject_(headers, row);
+  u.photo = String(row[headers.indexOf("photo")] || "");
+  return u;
+}
+
+function getMyProfile_(params) {
+  const s = verifySession_(params.session);
+  if (!s) return response({ status: "error", message: "unauthorized" });
+  const me = myRow_(s, false);
+  if (!me) return response({ status: "error", message: "user-not-found" });
+  return response({ status: "ok", user: myProfile_(me.headers, me.row) });
+}
+
+function updateMyProfile_(params) {
+  const s = verifySession_(params.session);
+  if (!s) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  if (!d || typeof d !== "object") return response({ status: "error", message: "bad-json" });
+
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const me = myRow_(s, true);
+    if (!me) return response({ status: "error", message: "user-not-found" });
+    const cur = myProfile_(me.headers, me.row);
+    const out = {};          // column name -> new value; nothing is written until every check passes
+    let needsPassword = false;
+
+    if (d.fullName !== undefined) {
+      const name = String(d.fullName).replace(/\s+/g, " ").trim();
+      if (name.length < 2 || name.length > 80) return response({ status: "error", message: "bad-name" });
+      if (name !== cur.fullName) out.full_name = name;
+    }
+    if (d.phone !== undefined) {
+      const phone = String(d.phone).trim();
+      if (phone && !/^\+?[0-9][0-9 ()-]{6,19}$/.test(phone)) return response({ status: "error", message: "bad-phone" });
+      if (phone !== cur.phone) out.phone = phone;
+    }
+    if (d.email !== undefined) {
+      const email = String(d.email).trim().toLowerCase();
+      if (email !== String(cur.email).trim().toLowerCase()) {
+        const issue = emailProblem_(email);
+        if (issue) return response({ status: "error", message: "bad-email", suggestion: issue.suggestion || "" });
+        out.email = email;
+        needsPassword = true;
+      }
+    }
+    if (d.newPassword !== undefined && d.newPassword !== "") {
+      if (String(d.newPassword).length < PASSWORD_MIN_LENGTH) return response({ status: "error", message: "weak-password" });
+      needsPassword = true;
+    }
+    if (d.photo !== undefined) {
+      const photo = String(d.photo || "");
+      if (photo && (photo.length > PROFILE_PHOTO_MAX_CHARS || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(photo))) {
+        return response({ status: "error", message: "bad-photo" });
+      }
+      if (photo !== cur.photo) out.photo = photo;
+    }
+
+    if (needsPassword) {
+      // Same lock-out as the sign-in page, so this cannot be used to guess a password.
+      const cache = CacheService.getScriptCache();
+      const failKey = "loginfail_" + String(s.username).toLowerCase().trim().slice(0, 60);
+      if (Number(cache.get(failKey) || 0) >= LOGIN_MAX_FAILS) return response({ status: "error", message: "too-many-attempts" });
+      const stored = String(me.row[me.headers.indexOf("password")] || "");
+      if (!d.currentPassword || !verifyPassword_(String(d.currentPassword), stored)) {
+        cache.put(failKey, String(Number(cache.get(failKey) || 0) + 1), LOGIN_LOCK_SECONDS);
+        return response({ status: "error", message: "wrong-password" });
+      }
+      cache.remove(failKey);
+      if (d.newPassword) out.password = hashPassword_(String(d.newPassword));
+    }
+
+    Object.keys(out).forEach(function (name) {
+      const c = me.headers.indexOf(name);
+      if (c < 0) return;
+      const cell = me.sh.getRange(me.rowNum, c + 1);
+      if (name === "phone") cell.setNumberFormat("@");   // keep "+256…" and leading zeros as typed
+      cell.setValue(out[name]);
+      me.row[c] = out[name];
+    });
+    const cards = out.full_name ? carryNameOnCards_(s.username, cur.fullName, out.full_name) : 0;
+    return response({
+      status: "ok", user: myProfile_(me.headers, me.row),
+      changed: Object.keys(out).filter(function (k) { return k !== "password"; }), passwordChanged: !!out.password,
+      cardsRenamed: Math.max(cards, 0), nameShared: cards < 0,
+    });
+  } finally { lock.releaseLock(); }
+}
+
+// Travel Cards record who filed them by FULL NAME (submissions.submitted_by) and
+// "My cards" / My Submissions find a person's cards by that name. So when
+// someone corrects their name, their filed cards and open tasks are carried
+// along; otherwise they would drop out of that person's lists.
+// Returns how many cards were updated, or -1 when another account has the same
+// old name (the cards cannot be told apart, so nothing is touched).
+function carryNameOnCards_(username, oldName, newName) {
+  const was = String(oldName || "").trim();
+  if (!was || was === newName) return 0;
+  const me = String(username).toLowerCase();
+  const shared = allUsers_().some(function (u) {
+    return String(u.username).toLowerCase() !== me && String(u.fullName || "").trim().toLowerCase() === was.toLowerCase();
+  });
+  if (shared) return -1;
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  let count = 0;
+  const cardsSh = ss.getSheetByName("submissions");
+  if (cardsSh) {
+    const data = cardsSh.getDataRange().getValues();
+    const c = data[0].map(function (h) { return String(h).toLowerCase().trim(); }).indexOf("submitted_by");
+    for (let i = 1; c > -1 && i < data.length; i++) {
+      if (String(data[i][c]).trim() === was) { cardsSh.getRange(i + 1, c + 1).setValue(newName); count++; }
+    }
+  }
+  const tasksSh = ss.getSheetByName(TRAVEL_TASKS_TAB);
+  if (tasksSh) {
+    const data = tasksSh.getDataRange().getValues();
+    const headers = data[0].map(function (h) { return String(h).toLowerCase().trim(); });
+    const oCol = headers.indexOf("owner"), nCol = headers.indexOf("owner_name");
+    for (let i = 1; oCol > -1 && nCol > -1 && i < data.length; i++) {
+      if (String(data[i][oCol]).toLowerCase() === me) tasksSh.getRange(i + 1, nCol + 1).setValue(newName);
+    }
+  }
+  return count;
 }
 
 // One account by username (never includes the password), or null.

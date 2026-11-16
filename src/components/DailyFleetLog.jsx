@@ -125,7 +125,7 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
     });
     setSaving(false);
     if (result.ok) {
-      showToast('Logged ✓');
+      showToast('Logged');
       setVin(''); setBusModel(''); setTime('');
     } else {
       showToast(`Could not save: ${result.error || 'unknown error'}`, false);
@@ -160,8 +160,8 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
             ← Back
           </button>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#fff' }}>Daily Fleet Log</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Log where each bus was, station by station — a proofing check against Travel Card</div>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '0', color: '#fff' }}>Daily Fleet Log</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', marginTop: 2 }}>Log where each bus was, station by station - a proofing check against Travel Card</div>
           </div>
           <div style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {dayRows.length} logged
@@ -219,7 +219,7 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
             <label style={lbl}>Station</label>
             <select style={{ ...inp, width: 220 }} value={stationCode} onChange={e => setStationCode(e.target.value)} disabled={!lineId}>
               <option value="">{lineId ? 'Select station…' : 'Pick a line first'}</option>
-              {lineStations.map(s => <option key={s.code} value={s.code}>{s.code} — {s.label}</option>)}
+              {lineStations.map(s => <option key={s.code} value={s.code}>{s.code} - {s.label}</option>)}
             </select>
           </div>
           <div>
@@ -245,8 +245,7 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
       {loading && dayRows.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>Loading…</div>
       ) : dayRows.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim, maxWidth: 1100 }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim, maxWidth: 1100 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: muted }}>No sightings logged for {date}</div>
           <div style={{ fontSize: 12, marginTop: 6 }}>Log a bus above as you spot it on the line.</div>
         </div>
@@ -262,16 +261,16 @@ export default function DailyFleetLog({ onBack, theme = 'dark', currentUserName 
               borderBottom: i === dayRows.length - 1 ? 'none' : `1px solid ${border}`,
               background: i % 2 ? (isDark ? 'rgba(255,255,255,0.015)' : 'rgba(0,0,0,0.012)') : 'transparent',
             }}>
-              <span style={{ color: r.time ? text : dim, fontFamily: mono }}>{r.time || '—'}</span>
+              <span style={{ color: r.time ? text : dim, fontFamily: mono }}>{r.time || '-'}</span>
               <span style={{ fontFamily: mono, color: text, display: 'flex', alignItems: 'center', gap: 6 }}>
                 {r.vin}
                 {multiStationVins.has(r.vin) && <span title="Seen at more than one station today" style={{ fontSize: 9, color: AM, border: `1px solid ${AM}55`, borderRadius: 3, padding: '1px 4px' }}>MOVED</span>}
               </span>
-              <span style={{ color: muted }}>{r.busModel || '—'}</span>
+              <span style={{ color: muted }}>{r.busModel || '-'}</span>
               <span style={{ fontFamily: mono, color: AM, fontWeight: 700 }}>{r.stationCode}</span>
-              <span style={{ color: text }}>{r.station || '—'}</span>
+              <span style={{ color: text }}>{r.station || '-'}</span>
               <span style={{ color: muted, fontSize: 11 }}>{r.line}</span>
-              <span style={{ color: dim, fontSize: 11 }}>{r.loggedBy || '—'}</span>
+              <span style={{ color: dim, fontSize: 11 }}>{r.loggedBy || '-'}</span>
               <span style={{ textAlign: 'right' }}>
                 <button onClick={() => handleDelete(r.id)} style={{ background: 'none', border: 'none', color: dim, cursor: 'pointer', fontSize: 14, padding: 0 }} title="Remove">×</button>
               </span>

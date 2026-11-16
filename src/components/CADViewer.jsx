@@ -90,10 +90,10 @@ export default function CADViewer({ modelUrl, title, onClose }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2">
             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
           </svg>
-          <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: '0', fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {title || '3D Model Viewer'}
           </span>
-          <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 8, background: '#6366f122', color: '#818cf8', border: '1px solid #6366f133', fontFamily: 'monospace', flexShrink: 0 }}>{fmt}</span>
+          <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 8, background: '#6366f122', color: '#818cf8', border: '1px solid #6366f133', fontFamily: 'inherit', flexShrink: 0 }}>{fmt}</span>
           {status === 'ready' && (
             <span style={{ fontSize: 9, color: '#10b981', flexShrink: 0 }}>● Loaded</span>
           )}
@@ -125,7 +125,6 @@ export default function CADViewer({ modelUrl, title, onClose }) {
           {/* Error state */}
           {status === 'error' && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, zIndex: 1, background: '#1a1c26', padding: 32 }}>
-              <div style={{ fontSize: 32 }}>⚠</div>
               <div style={{ fontSize: 13, color: '#f87171', fontWeight: 700, fontFamily: "'Inter', system-ui, sans-serif" }}>Failed to load model</div>
               <div style={{ fontSize: 11, color: '#64748b', fontFamily: "'Inter', system-ui, sans-serif", textAlign: 'center', lineHeight: 1.6, maxWidth: 400 }}>
                 {errMsg}
@@ -155,7 +154,7 @@ export default function CADViewer({ modelUrl, title, onClose }) {
               ['Double-click', 'Focus part'],
             ].map(([key, label]) => (
               <div key={key} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(255,255,255,0.07)', borderRadius: 3, color: '#94a3b8', fontFamily: 'monospace' }}>{key}</span>
+                <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(255,255,255,0.07)', borderRadius: 3, color: '#94a3b8', fontFamily: 'inherit' }}>{key}</span>
                 <span style={{ fontSize: 9, color: '#475569', fontFamily: "'Inter', system-ui, sans-serif" }}>{label}</span>
               </div>
             ))}

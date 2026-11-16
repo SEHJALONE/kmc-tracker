@@ -18,6 +18,8 @@ import { scriptIsCurrent, OUTDATED_SCRIPT } from '../data/mailer';
 
 const keyFor = user => `kmc_travel_tasks_${String(user || 'anon').toLowerCase()}`;
 const load = user => { try { const v = JSON.parse(localStorage.getItem(keyFor(user)) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+// Open tasks kept on this device (no network): the count shown on the home screen.
+export const localOpenTaskCount = user => load(user).filter(t => t && t.status === 'open').length;
 const save = (user, tasks) => { try { localStorage.setItem(keyFor(user), JSON.stringify(tasks)); } catch { /* full or blocked */ } };
 
 export const newTaskId = () => `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

@@ -65,7 +65,7 @@ export default function DailyLogModal({ onClose, C, font }) {
 
   async function download() {
     const bad = log.tasks.find(t => Number(t.downtime) > 0 && !t.reason);
-    if (bad) { setStatus({ ok: false, msg: `Pick a reason code for "${bad.task || 'the row'}" — it has downtime.` }); return; }
+    if (bad) { setStatus({ ok: false, msg: `Pick a reason code for "${bad.task || 'the row'}" - it has downtime.` }); return; }
     if (log.tasks.some(t => t.reason === 'D6') && !log.otherDowntimeReason.trim()) {
       setStatus({ ok: false, msg: 'A row uses D6: describe it under "Other Downtime Reason".' }); return;
     }
@@ -145,7 +145,7 @@ export default function DailyLogModal({ onClose, C, font }) {
                       <td style={{ padding: '0 4px' }}><input type="number" min="0" step="0.25" style={cellIn} value={t.downtime} onChange={e => setTask(i, { downtime: e.target.value === '' ? '' : Math.max(0, Number(e.target.value)) })} /></td>
                       <td style={{ padding: '0 4px' }}>
                         <select style={cellIn} value={t.reason} onChange={e => setTask(i, { reason: e.target.value })}>
-                          <option value="">—</option>
+                          <option value="">-</option>
                           {REASON_CODES.map(c => <option key={c}>{c}</option>)}
                         </select>
                       </td>
@@ -163,7 +163,7 @@ export default function DailyLogModal({ onClose, C, font }) {
               <button onClick={addTask} style={{ ...btn, padding: '6px 12px', background: C.surface2, color: C.ink2 }}>+ Add task</button>
               <button onClick={prefill} style={{ ...btn, padding: '6px 12px', background: C.surface2, color: C.ink2 }} title="Discard edits and prefill again">Reset to prefill</button>
               <div style={{ flex: 1 }} />
-              <div style={{ fontSize: 12 }}>Score (average actual status): <b>{score === '' ? '—' : `${score}%`}</b></div>
+              <div style={{ fontSize: 12 }}>Score (average actual status): <b>{score === '' ? '-' : `${score}%`}</b></div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10, marginBottom: 14 }}>

@@ -49,7 +49,7 @@ function IssueFlag({ label, value }) {
   const hasIssue = value && value.trim();
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 6, background: hasIssue ? '#dc262610' : '#10b98110', border: `1px solid ${hasIssue ? '#dc262633' : '#10b98133'}`, marginBottom: 10 }}>
-      <span style={{ fontSize: 14, lineHeight: 1 }}>{hasIssue ? '⚠' : '✓'}</span>
+      <span style={{ fontSize: 14, lineHeight: 1 }}>{hasIssue ? '!' : '✓'}</span>
       <div>
         <div style={{ fontSize: 9, color: hasIssue ? '#dc2626' : '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>{label}</div>
         <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5 }}>{value || 'No issues reported'}</div>
@@ -142,10 +142,10 @@ export default function HandoverModal({ mode = 'new', handover = null, role = 'u
         <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                {isView ? `Shift Handover — ${handover?.shiftDate || ''}` : 'New Shift Handover'}
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', letterSpacing: '0', }}>
+                {isView ? `Shift Handover - ${handover?.shiftDate || ''}` : 'New Shift Handover'}
               </div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace', marginTop: 3 }}>KMC Production · Shift Handover Log</div>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'inherit', marginTop: 3 }}>KMC Production · Shift Handover Log</div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {isView && handover?.shift && (
@@ -165,12 +165,11 @@ export default function HandoverModal({ mode = 'new', handover = null, role = 'u
 
         {saved ? (
           <div style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>{mode === 'new' ? '📋' : '✅'}</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', marginBottom: 6 }}>
               {mode === 'new' ? 'Handover Logged' : 'Handover Acknowledged'}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 24 }}>Record saved to the handover register.</div>
-            <button onClick={onClose} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Close</button>
+            <button onClick={onClose} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0', }}>Close</button>
           </div>
 
         ) : isView ? (
@@ -214,7 +213,7 @@ export default function HandoverModal({ mode = 'new', handover = null, role = 'u
                   <Inp value={ackName} onChange={e => setAckName(e.target.value)} placeholder="Full name of incoming supervisor" />
                 </div>
                 {errMsg && <div style={{ marginBottom: 12, padding: '8px 10px', background: '#dc262618', border: '1px solid #dc262644', borderRadius: 4, fontSize: 11, color: '#dc2626' }}>{errMsg}</div>}
-                <button onClick={handleAcknowledge} disabled={busy} style={{ width: '100%', padding: '10px 0', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <button onClick={handleAcknowledge} disabled={busy} style={{ width: '100%', padding: '10px 0', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, letterSpacing: '0' }}>
                   {busy ? 'Saving…' : 'Acknowledge & Sign'}
                 </button>
               </div>
@@ -289,7 +288,7 @@ export default function HandoverModal({ mode = 'new', handover = null, role = 'u
 
             <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
               <button type="button" onClick={onClose} style={{ padding: '9px 20px', background: 'transparent', color: 'var(--text-dim)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" disabled={busy} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              <button type="submit" disabled={busy} style={{ padding: '9px 24px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1, letterSpacing: '0', }}>
                 {busy ? 'Saving…' : 'Log Handover'}
               </button>
             </div>

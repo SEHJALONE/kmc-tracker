@@ -813,10 +813,10 @@ export function stationLabelForModel(label, kind) {
 }
 
 export const SIX = [
-  { m: "Man", icon: "👤", d: "Operator skill, fatigue, attendance", subs: ["Skill gap / lack of training","Fatigue or health issue","Absenteeism / understaffing","Incorrect method used","Communication failure"] },
-  { m: "Machine", icon: "🔧", d: "Equipment, tooling, fixtures", subs: ["Machine breakdown","Tooling failure","Fixture misalignment","Calibration issue","Machine setup delay"] },
-  { m: "Method", icon: "📋", d: "Process, sequence, instructions", subs: ["Incorrect work sequence","Missing work instruction","Outdated procedure","Process not followed","Design / engineering issue"] },
-  { m: "Material", icon: "📦", d: "Parts, consumables, supply", subs: ["Material shortage","Wrong material delivered","Defective incoming part","Consumable exhausted","Material handling delay"] },
-  { m: "Measurement", icon: "📐", d: "Inspection, gauging, data", subs: ["Gauge / instrument error","Measurement method incorrect","Inspection delay","Tolerance issue","Documentation error"] },
-  { m: "Mother Nature", icon: "🌦", d: "Environment, temperature, power", subs: ["High ambient temperature","Humidity / moisture issue","Power fluctuation / outage","Poor ventilation","External noise or vibration"] },
+  { m: "Man", icon: "", d: "Operator skill, fatigue, attendance", subs: ["Skill gap / lack of training","Fatigue or health issue","Absenteeism / understaffing","Incorrect method used","Communication failure"] },
+  { m: "Machine", icon: "", d: "Equipment, tooling, fixtures", subs: ["Machine breakdown","Tooling failure","Fixture misalignment","Calibration issue","Machine setup delay"] },
+  { m: "Method", icon: "", d: "Process, sequence, instructions", subs: ["Incorrect work sequence","Missing work instruction","Outdated procedure","Process not followed","Design / engineering issue"] },
+  { m: "Material", icon: "", d: "Parts, consumables, supply", subs: ["Material shortage","Wrong material delivered","Defective incoming part","Consumable exhausted","Material handling delay"] },
+  { m: "Measurement", icon: "", d: "Inspection, gauging, data", subs: ["Gauge / instrument error","Measurement method incorrect","Inspection delay","Tolerance issue","Documentation error"] },
+  { m: "Mother Nature", icon: "", d: "Environment, temperature, power", subs: ["High ambient temperature","Humidity / moisture issue","Power fluctuation / outage","Poor ventilation","External noise or vibration"] },
 ];

@@ -27,7 +27,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
 
   async function handleExcel() {
     setLoading('excel', true);
-    try { XLSX.writeFile(buildWorkbook(buses, rows, metrics), `KMC_Dashboard_${date}.xlsx`); showToast('Excel downloaded ✓'); }
+    try { XLSX.writeFile(buildWorkbook(buses, rows, metrics), `KMC_Dashboard_${date}.xlsx`); showToast('Excel downloaded'); }
     catch (e) { console.error(e); showToast('Excel export failed', false); }
     finally { setLoading('excel', false); }
   }
@@ -42,20 +42,20 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
       if (type === 'overall') {
         const doc = await buildPDF(buses, rows, metrics, logo);
         doc.save(`KMC_Dashboard_${date}.pdf`);
-        showToast('Overall report downloaded ✓');
+        showToast('Overall report downloaded');
       } else if (type === 'vin') {
         if (!selectedVin) { showToast('Select a VIN first', false); return; }
         const vinRows = rows.filter(r => r.vin === selectedVin);
         const vinBuses = buses.filter(b => b.vin === selectedVin);
         const doc = await buildPDF(vinBuses.length ? vinBuses : buses, vinRows, metrics, logo);
         doc.save(`KMC_VIN_${selectedVin}_${date}.pdf`);
-        showToast(`VIN report for ${selectedVin} downloaded ✓`);
+        showToast(`VIN report for ${selectedVin} downloaded`);
       } else if (type === 'station') {
         if (!selectedStation) { showToast('Select a station first', false); return; }
         const stRows = rows.filter(r => r.station === selectedStation);
         const doc = await buildPDF(buses, stRows, metrics, logo);
         doc.save(`KMC_Station_${selectedStation.replace(/[^a-zA-Z0-9]/g, '_')}_${date}.pdf`);
-        showToast(`Station report downloaded ✓`);
+        showToast(`Station report downloaded`);
       }
     } catch (e) { console.error(e); showToast('PDF export failed', false); }
     finally { setLoading('pdf', false); }
@@ -67,7 +67,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
       const logo = await fetchLogoBase64('/kmc logo 2.png');
       const doc  = await buildSlidePDF(buses, rows, metrics, logo);
       doc.save(`KMC_Presentation_${date}.pdf`);
-      showToast('Presentation PDF downloaded ✓');
+      showToast('Presentation PDF downloaded');
     } catch (e) { console.error(e); showToast('Slide PDF failed', false); }
     finally { setLoading('scpdf', false); }
   }
@@ -96,7 +96,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
       a.href = canvas.toDataURL('image/png');
       a.download = `KMC_CoverSlide_${date}.png`;
       a.click();
-      showToast('Cover slide PNG downloaded ✓');
+      showToast('Cover slide PNG downloaded');
     } catch (e) { console.error(e); showToast('PNG export failed', false); }
     finally { setLoading('png', false); }
   }
@@ -111,7 +111,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
       background: 'transparent',
       border: `1px solid ${busy[id] ? 'var(--border)' : border}`,
       borderRadius: 4, padding: '6px 14px',
-      fontSize: 12, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
+      fontSize: 12, fontWeight: 700, letterSpacing: '0',
       fontFamily: "'Inter', system-ui, sans-serif", cursor: busy[id] ? 'not-allowed' : 'pointer',
       color: busy[id] ? 'var(--text-dim)' : color, transition: 'all 0.15s',
     }}>
@@ -144,7 +144,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
       {reportSelector && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setReportSelector(false)}>
           <div style={{ background: theme === 'dark' ? '#0d1526' : '#fff', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '28px 32px', maxWidth: 460, width: '100%', fontFamily: "'Inter', system-ui, sans-serif" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-heading)', marginBottom: 6 }}>Select Report Type</div>
+            <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: '0', color: 'var(--text-heading)', marginBottom: 6 }}>Select Report Type</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 24 }}>Choose the scope of the PDF report to generate</div>
 
             {/* Overall Report */}
@@ -220,7 +220,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
             background: 'var(--accent-alpha)',
             border: '1px solid var(--accent-border)',
             borderRadius: 4, padding: '6px 16px',
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0',
             fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
             color: 'var(--accent-text)', transition: 'all 0.15s',
           }}
@@ -237,7 +237,7 @@ export default function ExportPanel({ buses, rows, allRows, metrics, filters = {
             background: theme === 'dark' ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.08)',
             border: `1px solid ${theme === 'dark' ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.4)'}`,
             borderRadius: 4, padding: '6px 14px',
-            fontSize: 12, fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0',
             fontFamily: "'Inter', system-ui, sans-serif", cursor: 'pointer',
             color: theme === 'dark' ? '#a5b4fc' : '#4f46e5', transition: 'all 0.15s',
           }}

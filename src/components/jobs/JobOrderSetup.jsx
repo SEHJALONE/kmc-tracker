@@ -63,7 +63,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="kmc-panel" style={{ padding: '16px 18px', display: 'grid', gap: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{job ? `Edit job order ${job.id}` : 'New job order — Machine Shop'}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{job ? `Edit job order ${job.id}` : 'New job order - Machine Shop'}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div>
             <label style={label} htmlFor="jo-project">Bus project</label>
@@ -83,7 +83,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
             <div>
               <label style={label} htmlFor="jo-status">Status</label>
               <select id="jo-status" style={inp} value={status} onChange={e => setStatus(e.target.value)}>
-                <option value="open">Open — operators can start it</option>
+                <option value="open">Open - operators can start it</option>
                 <option value="closed">Closed</option>
               </select>
             </div>
@@ -96,17 +96,17 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
             ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Choose the project and bus model first.</div>
             : (
               <>
-                {options.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>No {busModel} VINs on {project} yet — type them below, or add them in Type Approvals.</div>}
+                {options.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>No {busModel} VINs on {project} yet - type them below, or add them in Type Approvals.</div>}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {options.map(v => (
                     <button key={v} type="button" onClick={() => toggleVin(v)} className="kmc-btn"
-                      style={{ fontFamily: 'monospace', fontSize: 12, padding: '5px 9px', ...(vins.includes(v) ? { borderColor: '#10b981', color: '#10b981', background: 'rgba(16,185,129,.1)' } : {}) }}>
-                      {vins.includes(v) ? '✓ ' : ''}{v}
+                      style={{ fontFamily: 'inherit', fontSize: 12, padding: '5px 9px', ...(vins.includes(v) ? { borderColor: '#10b981', color: '#10b981', background: 'rgba(16,185,129,.1)' } : {}) }}>
+                      {vins.includes(v) ? '' : ''}{v}
                     </button>
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, maxWidth: 420 }}>
-                  <input style={{ ...inp, fontFamily: 'monospace' }} placeholder="Type a VIN…" value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && addTyped()} />
+                  <input style={{ ...inp, fontFamily: 'inherit' }} placeholder="Type a VIN…" value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={e => e.key === 'Enter' && addTyped()} />
                   <button className="kmc-btn" onClick={addTyped}>+ Add</button>
                   {options.length > 1 && <button className="kmc-btn ghost" onClick={() => setVins(vins.length === options.length ? [] : options)}>{vins.length === options.length ? 'None' : 'All'}</button>}
                 </div>
@@ -123,7 +123,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
       {busModel && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-            <div className="kmc-label">Cut list — {busModel} · {cutParts.length} of {items.length} parts to cut</div>
+            <div className="kmc-label">Cut list - {busModel} · {cutParts.length} of {items.length} parts to cut</div>
             <span style={{ flex: 1 }} />
             {cutList && <button className="kmc-btn ghost" onClick={reload}>Reload saved {busModel} cut list</button>}
           </div>
@@ -136,7 +136,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
         </div>
       )}
 
-      {error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>⚠ {error}</div>}
+      {error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <button className="kmc-btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : job ? 'Save job order' : 'Submit job order'}</button>
         {onCancel && <button className="kmc-btn" onClick={onCancel}>Cancel</button>}

@@ -19,13 +19,13 @@ const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 const isEVS = (m = '') => m.toUpperCase().includes('EVS');
 
 function fmt(ms) {
-  if (!ms || ms < 0) return '—';
+  if (!ms || ms < 0) return '-';
   const h = Math.floor(ms / 3600000);
   const d = Math.floor(h / 24);
   return d > 0 ? `${d}d ${h % 24}h` : `${h}h`;
 }
 function fmtDate(ts) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const d = new Date(ts);
   return isNaN(d) ? String(ts) : d.toLocaleString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
@@ -78,7 +78,7 @@ function SlideHeader({ now, slideNum, total }) {
       }}>
         <span>{now}</span>
         <span style={{ color: '#334155' }}>·</span>
-        <span>KIIRA MOTORS CORPORATION — CONFIDENTIAL</span>
+        <span>KIIRA MOTORS CORPORATION - CONFIDENTIAL</span>
         <span style={{ color: '#334155' }}>·</span>
         <span style={{ color: '#64748b' }}>SLIDE {slideNum} / {total}</span>
       </div>
@@ -221,7 +221,7 @@ function CoverSlide({ buses, rows = [], metrics, stationTimes, now, slideNum, to
               {item
                 ? <>
                     <div style={{ fontSize: 11, color: '#f1f5f9', fontWeight: 700, lineHeight: 1.3 }}>
-                      {item.name || item.label || '—'}
+                      {item.name || item.label || '-'}
                     </div>
                     <div style={{ fontSize: 9, color: '#475569', fontFamily: "'Space Mono', monospace", marginTop: 3 }}>
                       {item.hours ? `avg ${item.hours.toFixed(1)}h` : ''}
@@ -304,7 +304,7 @@ function AnalyticsSlide({ metrics, now, slideNum, total }) {
           {overrun.length > 0 && (
             <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px', flex: downtime.length > 0 || rework.length > 0 ? '0 0 auto' : 1 }}>
               <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                Overrun by Station — Top {overrun.length}
+                Overrun by Station - Top {overrun.length}
               </div>
               {overrun.map((item, i) => {
                 const pct = (item.totalMin / (overrun[0]?.totalMin || 1)) * 100;
@@ -327,7 +327,7 @@ function AnalyticsSlide({ metrics, now, slideNum, total }) {
           {downtime.length > 0 && (
             <div style={{ background: 'rgba(13,21,38,0.85)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, padding: '10px 14px', flex: 1 }}>
               <div style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Space Mono', monospace", marginBottom: 8, paddingBottom: 4, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                Downtime by Reason — Pareto
+                Downtime by Reason - Pareto
               </div>
               {downtime.map((d, i) => {
                 const pct = (d.mins / (downtime[0]?.mins || 1)) * 100;
@@ -459,7 +459,7 @@ function TableRow({ bus, idx }) {
           fontSize: 8, fontWeight: 700,
           fontFamily: "'Space Mono', monospace",
         }}>
-          {bus.model || '—'}
+          {bus.model || '-'}
         </span>
       </div>
       {/* Line */}
@@ -523,7 +523,7 @@ function TableSlide({ rows, slideNum, total, now, globalRowOffset, metrics }) {
           BUS REPORT
         </span>
         {[
-          { label: 'FLOOR',    value: metrics?.total    || '—', color: '#64748b' },
+          { label: 'FLOOR',    value: metrics?.total    || '-', color: '#64748b' },
           { label: 'ON TRACK', value: onTrack,                  color: '#10b981' },
           { label: 'SLOW',     value: slow,                     color: '#f59e0b' },
           { label: 'DELAYED',  value: delayed,                  color: '#dc2626' },
@@ -605,10 +605,10 @@ export default function Presentation({ buses, rows, allRows, startDate, endDate,
 
         return {
           vin:         bus.vin,
-          model:       bus.model || '—',
-          lineName:    LINES.find(l => l.id === lineId)?.label || lineId || '—',
-          stationName: bus.station?.name || bus.stationCode || '—',
-          stationCode: bus.stationCode || '—',
+          model:       bus.model || '-',
+          lineName:    LINES.find(l => l.id === lineId)?.label || lineId || '-',
+          stationName: bus.station?.name || bus.stationCode || '-',
+          stationCode: bus.stationCode || '-',
           atStation:   fmt(curMs),
           totalTime:   fmt(totalMs),
           firstEntry:  fmtDate(firstTs),

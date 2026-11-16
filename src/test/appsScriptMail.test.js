@@ -160,7 +160,9 @@ describe('open Start/End tasks', () => {
     const other = await signIn(env, 'op.two');
     expect((await env.call({ action: 'saveTravelTask', session: other, payload: JSON.stringify({ id: 'task-abc123', status: 'discarded' }) })).message).toBe('not-your-task');
 
-    await env.call({ action: 'saveTravelTask', session, payload: JSON.stringify({ id: 'task-abc123', status: 'closed', closedAt: new Date(t0 + 2 * HOUR).toISOString() }) });
+    // Closed "an hour ago": listTravelTasks only returns tasks closed in the last
+    // 30 days, so a fixed date here starts failing a month after it is written.
+    await env.call({ action: 'saveTravelTask', session, payload: JSON.stringify({ id: 'task-abc123', status: 'closed', closedAt: new Date(Date.now() - HOUR).toISOString() }) });
     const [t] = (await env.call({ action: 'listTravelTasks', session })).tasks;
     expect(t.status).toBe('closed');
     expect(t.activities[0].doneAt).toBe(doneAt);

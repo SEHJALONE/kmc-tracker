@@ -5,17 +5,17 @@ import { useState } from 'react';
 // User Management. Removing one here does not change existing accounts: their
 // saved department stays on them until an admin edits the account.
 const inp = {
-  background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 5,
-  color: 'var(--text-primary)', fontSize: 12, padding: '6px 8px', outline: 'none',
+  background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 10,
+  color: 'var(--text-primary)', fontSize: 13, padding: '6px 8px', outline: 'none',
   fontFamily: "'Inter', system-ui, sans-serif", width: '100%', boxSizing: 'border-box',
 };
 const btn = {
-  background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 6,
-  color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600, padding: '6px 10px',
+  background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 10,
+  color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, padding: '6px 10px',
   cursor: 'pointer', fontFamily: "'Inter', system-ui, sans-serif", whiteSpace: 'nowrap',
 };
 const danger = { ...btn, color: '#f87171', borderColor: 'rgba(248,113,113,0.35)' };
-const note = { fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 };
+const note = { fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 };
 
 export default function DepartmentsTab({ draft, touch }) {
   const [newDept, setNewDept] = useState('');
@@ -53,21 +53,21 @@ export default function DepartmentsTab({ draft, touch }) {
       </div>
 
       {list.map((dep, i) => (
-        <div key={i} style={{ border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 12 }}>
+        <div key={i} style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, padding: 12 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 10 }}>
             <input
               style={{ ...inp, fontWeight: 700, fontSize: 13 }}
               value={dep.name}
               aria-label="Department name"
               onChange={e => { const v = e.target.value; touch(d => { d.departments[i].name = v; return d; }); }}
-              onBlur={e => { if (!e.target.value.trim()) alert('A department needs a name — remove it instead.'); else if (taken(e.target.value, i)) alert('Two departments have the same name.'); }}
+              onBlur={e => { if (!e.target.value.trim()) alert('A department needs a name - remove it instead.'); else if (taken(e.target.value, i)) alert('Two departments have the same name.'); }}
             />
             <button style={btn} onClick={() => move(i, -1)} disabled={i === 0} title="Move up">↑</button>
             <button style={btn} onClick={() => move(i, 1)} disabled={i === list.length - 1} title="Move down">↓</button>
             <button style={danger} onClick={() => { if (window.confirm(`Remove the department "${dep.name}"?`)) touch(d => { d.departments.splice(i, 1); return d; }); }}>Remove</button>
           </div>
 
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 700, marginBottom: 6 }}>
             Lines / divisions ({dep.units.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -78,7 +78,7 @@ export default function DepartmentsTab({ draft, touch }) {
                 <button style={danger} onClick={() => touch(d => { d.departments[i].units.splice(k, 1); return d; })} title="Remove">✕</button>
               </div>
             ))}
-            {!dep.units.length && <div style={note}>None — people in this department won't be asked to pick one.</div>}
+            {!dep.units.length && <div style={note}>None - people in this department won't be asked to pick one.</div>}
             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
               <input style={inp} placeholder="Add a line or division…" value={newUnit[i] || ''}
                 onChange={e => setNewUnit(s => ({ ...s, [i]: e.target.value }))}

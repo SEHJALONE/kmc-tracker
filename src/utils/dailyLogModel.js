@@ -89,7 +89,7 @@ function cardTask(card) {
   const bus = [card.project, card.vin].filter(Boolean).join(' ');
   const dt = cardDowntime(card);
   return {
-    task: bus ? `${where} — ${bus}` : where,
+    task: bus ? `${where} - ${bus}` : where,
     planned: 100,
     actual: cardActual(card),
     downtime: hours(dt.minutes),
@@ -109,7 +109,7 @@ function eventTask(ev) {
   const what = [ev.machineName || ev.workshop, ev.description].filter(Boolean).join(': ');
   const capped = ev.minutes > SHIFT_MIN;
   return {
-    task: `Downtime — ${what}`,
+    task: `Downtime - ${what}`,
     planned: '',
     actual: '',
     downtime: hours(Math.min(ev.minutes, SHIFT_MIN)),

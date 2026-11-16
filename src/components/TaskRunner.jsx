@@ -34,8 +34,8 @@ export function fmtClock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return [Math.floor(s / 3600), Math.floor(s / 60) % 60, s % 60].map(n => String(n).padStart(2, '0')).join(':');
 }
-export const fmtTime = iso => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—');
-const fmtDay = iso => (iso ? new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+export const fmtTime = iso => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-');
+const fmtDay = iso => (iso ? new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-');
 
 export function useNow(intervalMs = 1000) {
   const [now, setNow] = useState(() => Date.now());
@@ -131,7 +131,7 @@ export function TaskSetup({ catalog, lockedCodes = [], openTasks = [], onStart, 
 
   return (
     <div style={{ ...card, maxWidth: machineShop ? 1100 : 720, margin: '0 auto' }}>
-      <div style={hd}>New task — what are you starting?</div>
+      <div style={hd}>New task - what are you starting?</div>
       <div className="tr-grid">
         <div>
           <label style={lbl}>Bus project</label>
@@ -179,12 +179,12 @@ export function TaskSetup({ catalog, lockedCodes = [], openTasks = [], onStart, 
             </div>
             <div>
               <label style={lbl}>Bus VIN</label>
-              <input style={{ ...inp, fontFamily: 'monospace' }} list="tr-vins" value={vin} disabled={!station} onChange={e => setVin(e.target.value.toUpperCase())} placeholder={station ? 'Select or type…' : 'Pick the station first'} />
+              <input style={{ ...inp, fontFamily: 'inherit' }} list="tr-vins" value={vin} disabled={!station} onChange={e => setVin(e.target.value.toUpperCase())} placeholder={station ? 'Select or type…' : 'Pick the station first'} />
               <datalist id="tr-vins">{vinOptions.map(v => <option key={v} value={v} />)}</datalist>
             </div>
             <div>
               <label style={lbl}>Designed time (min)</label>
-              <input style={inp} type="number" min="0" value={designed} onChange={e => setDesigned(e.target.value)} placeholder={station ? 'Not set — enter' : '—'} />
+              <input style={inp} type="number" min="0" value={designed} onChange={e => setDesigned(e.target.value)} placeholder={station ? 'Not set - enter' : '-'} />
             </div>
           </>
         )}
@@ -268,7 +268,7 @@ function TaskClock({ task, now }) {
         ))}
         {/* comet: one lap per minute */}
         <g className="tr-comet"><circle cx="110" cy="6" r="3.2" fill={tone[0]} filter="url(#tc-glow)" /></g>
-        <text x="110" y="114" textAnchor="middle" fontFamily="var(--font-display)" fontSize="40" fill="var(--text-heading)" letterSpacing="1">
+        <text x="110" y="114" textAnchor="middle" fontFamily="var(--font-display)" fontWeight="700" fontSize="32" fill="var(--text-heading)">
           {hh}<tspan opacity={sec % 2 ? 0.35 : 1}>:</tspan>{mm}<tspan fontSize="24" fill={tone[1]} dx="2">{ss}</tspan>
         </text>
         <text x="110" y="134" textAnchor="middle" fontFamily="var(--font-label)" fontWeight="700" fontSize="8.5" fill="var(--text-muted)" letterSpacing="1.2">
@@ -318,22 +318,22 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
     <div className="tr-run">
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-          <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent-text)', fontSize: 15 }}>{task.stationCode}</span>
+          <span style={{ fontFamily: 'inherit', fontWeight: 800, color: 'var(--accent-text)', fontSize: 15 }}>{task.stationCode}</span>
           <span style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600 }}>{stationLabelForModel(task.station, modelKindOf(task.busModel)).replace(/^[^:]+:\s*/, '')}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-          {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{task.vins?.length > 1 ? task.vins.join(' · ') : task.vin}</span> · {task.project}
-          {task.jobOrderId && <> · job order <strong style={{ fontFamily: 'monospace' }}>{task.jobOrderId}</strong></>}
+          {task.busModel} · <span style={{ fontFamily: 'inherit' }}>{task.vins?.length > 1 ? task.vins.join(' · ') : task.vin}</span> · {task.project}
+          {task.jobOrderId && <> · job order <strong style={{ fontFamily: 'inherit' }}>{task.jobOrderId}</strong></>}
           {task.ownerName && readOnly && <> · run by <strong>{task.ownerName}</strong></>}
         </div>
         <TaskClock task={task} now={now} />
         <div className="tr-facts">
           <div><span>Started</span><strong>{fmtDay(task.startedAt)}</strong></div>
           <div><span>Expected end</span><strong style={{ color: overdue ? R : undefined }}>{fmtDay(task.expectedEnd)}</strong></div>
-          <div><span>Designed</span><strong>{task.designedMin ? `${task.designedMin} min` : '—'}</strong></div>
+          <div><span>Designed</span><strong>{task.designedMin ? `${task.designedMin} min` : '-'}</strong></div>
           <div><span>Activities</span><strong>{done} / {acts.length}</strong></div>
         </div>
-        {overdue && <div style={{ fontSize: 12, color: R, margin: '10px 0 0', textAlign: 'center' }}>Past the expected end — reminders are emailed every 6 hours until you close it.</div>}
+        {overdue && <div style={{ fontSize: 12, color: R, margin: '10px 0 0', textAlign: 'center' }}>Past the expected end - reminders are emailed every 6 hours until you close it.</div>}
         {task.synced === false && <div style={{ fontSize: 11, color: AM, margin: '8px 0 0', textAlign: 'center' }}>Saved on this device; not yet on the server (reminders start once it syncs).</div>}
         {readOnly
           ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}><button className="kmc-btn" onClick={onBack}>← Back</button></div>
@@ -349,7 +349,7 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
         <div className="kmc-track" style={{ height: 10, marginBottom: 14 }}>
           <div className="kmc-fill" style={{ width: `${acts.length ? (done / acts.length) * 100 : 0}%`, height: '100%', background: 'var(--g-pink)', transition: 'width .4s' }} />
         </div>
-        {acts.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>No predefined activities for this station — add what you do below.</div>}
+        {acts.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>No predefined activities for this station - add what you do below.</div>}
         {acts.map(a => (
           <div key={a.name} style={{ borderBottom: '1px solid var(--border-subtle)', padding: '8px 0' }}>
             <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
@@ -359,7 +359,7 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
                 {a.name}{a.added && <em style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>(added)</em>}
               </span>
             </label>
-            {a.doneAt && <div style={{ fontSize: 11, color: GR, margin: '3px 0 0 27px' }}>✓ Done {fmtTime(a.doneAt)} · took {takenMin(a)} min</div>}
+            {a.doneAt && <div style={{ fontSize: 11, color: GR, margin: '3px 0 0 27px' }}>Done {fmtTime(a.doneAt)} · took {takenMin(a)} min</div>}
             {confirming === a.name && !a.doneAt && (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0 0 27px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Confirm complete at {fmtTime(new Date(now).toISOString())}?</span>

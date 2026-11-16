@@ -55,6 +55,6 @@ export async function notifyApprovers(sub) {
 
 // One line for the Done page.
 export function describeCardEmail(reply) {
-  if (reply?.approvers) return `📧 ${reply.approvers} approver${reply.approvers === 1 ? '' : 's'} asked to review this card`;
+  if (reply?.approvers) return `${reply.approvers} approver${reply.approvers === 1 ? '' : 's'} asked to review this card`;
   return '';
 }

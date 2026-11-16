@@ -86,7 +86,7 @@ export default function HiddenCoverSlide({ coverRef, buses, rows, metrics }) {
                 color: '#ffffff', textTransform: 'uppercase', lineHeight: 1,
               }}>KMC Bus Production Report</div>
               <div style={{ fontSize: 11, color: '#475569', fontFamily: "'Space Mono', monospace", marginTop: 4, letterSpacing: '0.1em' }}>
-                {now} · KIIRA MOTORS CORPORATION — CONFIDENTIAL
+                {now} · KIIRA MOTORS CORPORATION - CONFIDENTIAL
               </div>
             </div>
           </div>
@@ -165,7 +165,7 @@ export default function HiddenCoverSlide({ coverRef, buses, rows, metrics }) {
                 {item
                   ? <>
                       <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 700, lineHeight: 1.3 }}>
-                        {item.name || item.label || '—'}
+                        {item.name || item.label || '-'}
                       </div>
                       <div style={{ fontSize: 10, color: '#475569', fontFamily: "'Space Mono', monospace", marginTop: 3 }}>
                         {item.hours ? `avg ${item.hours.toFixed(1)}h` : ''}

@@ -41,7 +41,7 @@ function JobsTab({ catalog, jobData }) {
         return (
           <div key={j.id} className="kmc-panel" style={{ padding: '12px 16px', opacity: j.status === 'open' ? 1 : 0.6 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              <strong style={{ fontFamily: 'monospace', color: 'var(--accent-text)' }}>{j.id}</strong>
+              <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)' }}>{j.id}</strong>
               <span style={{ fontSize: 13 }}>{j.project} · {j.busModel}</span>
               <span className="kmc-chip"><span>{j.status}</span><b style={{ background: j.status === 'open' ? 'var(--g-lime)' : 'var(--g-blue)' }}>{cut.length}</b></span>
               <span style={{ flex: 1 }} />
@@ -53,7 +53,7 @@ function JobsTab({ catalog, jobData }) {
               )}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              {cut.length} parts to cut in {groupBySpec(cut).length} specifications · {j.vins.length} VIN{j.vins.length === 1 ? '' : 's'}: <span style={{ fontFamily: 'monospace' }}>{j.vins.join(' · ')}</span>
+              {cut.length} parts to cut in {groupBySpec(cut).length} specifications · {j.vins.length} VIN{j.vins.length === 1 ? '' : 's'}: <span style={{ fontFamily: 'inherit' }}>{j.vins.join(' · ')}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Set up by {j.createdByName || j.createdBy} · {new Date(j.createdAt).toLocaleString()}</div>
           </div>
@@ -83,17 +83,17 @@ function CutListsTab({ jobData }) {
     reader.onload = () => {
       const { items: parsed, errors } = parseCutListCsv(String(reader.result || ''));
       if (file.current) file.current.value = '';
-      if (!parsed.length) { setMsg(`⚠ ${errors.join(' ') || 'No parts found.'}`); return; }
+      if (!parsed.length) { setMsg(`Error: ${errors.join(' ') || 'No parts found.'}`); return; }
       const replace = !items.length || window.confirm(`Replace the ${items.length} parts now in the ${model} cut list with the ${parsed.length} in ${f.name}?\n\nCancel adds them to the end instead.`);
       setDraft(replace ? parsed : [...items, ...parsed]);
-      setMsg(`${parsed.length} parts read from ${f.name}${errors.length ? ` — ${errors.join(' ')}` : ''}. Check them, then Save.`);
+      setMsg(`${parsed.length} parts read from ${f.name}${errors.length ? ` - ${errors.join(' ')}` : ''}. Check them, then Save.`);
     };
     reader.readAsText(f);
   }
   async function save() {
     setBusy(true); setMsg('');
-    try { await jobData.saveCutList(model, draft ?? items); setDraft(null); setMsg('✓ Saved.'); }
-    catch (e) { setMsg(`⚠ ${JOB_ERRORS[e.message] || e.message}`); }
+    try { await jobData.saveCutList(model, draft ?? items); setDraft(null); setMsg('Saved.'); }
+    catch (e) { setMsg(`Error: ${JOB_ERRORS[e.message] || e.message}`); }
     setBusy(false);
   }
 
@@ -103,14 +103,14 @@ function CutListsTab({ jobData }) {
         <select aria-label="Bus model" style={inp} value={model} onChange={e => pickModel(e.target.value)}>
           {BUS_MODELS.map(m => <option key={m} value={m}>{m}{jobData.cutLists[m] ? ` (${jobData.cutLists[m].items.length})` : ''}</option>)}
         </select>
-        <button className="kmc-btn" onClick={() => downloadCsv('cut-list-template.csv', CUT_LIST_TEMPLATE_ROWS)}>⬇ Template</button>
-        {items.length > 0 && <button className="kmc-btn" onClick={() => downloadCsv(`cut-list-${model}.csv`, cutListToRows(items))}>⬇ This cut list</button>}
-        {jobData.canManage && <label className="kmc-btn" style={{ cursor: 'pointer' }}>⬆ Upload CSV<input ref={file} type="file" accept=".csv,text/csv" onChange={upload} style={{ display: 'none' }} /></label>}
+        <button className="kmc-btn" onClick={() => downloadCsv('cut-list-template.csv', CUT_LIST_TEMPLATE_ROWS)}>Template</button>
+        {items.length > 0 && <button className="kmc-btn" onClick={() => downloadCsv(`cut-list-${model}.csv`, cutListToRows(items))}>This cut list</button>}
+        {jobData.canManage && <label className="kmc-btn" style={{ cursor: 'pointer' }}>Upload CSV<input ref={file} type="file" accept=".csv,text/csv" onChange={upload} style={{ display: 'none' }} /></label>}
         <span style={{ flex: 1 }} />
-        {saved?.builtIn && !draft && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Built-in list — save to keep your own.</span>}
+        {saved?.builtIn && !draft && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Built-in list - save to keep your own.</span>}
         {saved?.updatedAt && !draft && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Saved by {saved.updatedBy} · {new Date(saved.updatedAt).toLocaleString()}</span>}
       </div>
-      {msg && <div style={{ fontSize: 13, color: msg.startsWith('⚠') ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{msg}</div>}
+      {msg && <div style={{ fontSize: 13, color: msg.startsWith('Error:') ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{msg}</div>}
       <CutListEditor items={items} onChange={next => setDraft(next.map(makeItem))} materials={jobData.materials} readOnly={!jobData.canManage} />
       {jobData.canManage && (
         <div style={{ display: 'flex', gap: 10, position: 'sticky', bottom: 10 }}>
@@ -139,8 +139,8 @@ function MaterialsTab({ catalog, jobData }) {
     edit([...list, { name: n, machines: [] }]); setName('');
   };
   async function save() {
-    try { await jobData.saveMaterials(list); setDraft(null); setMsg('✓ Saved.'); }
-    catch (e) { setMsg(`⚠ ${JOB_ERRORS[e.message] || e.message}`); }
+    try { await jobData.saveMaterials(list); setDraft(null); setMsg('Saved.'); }
+    catch (e) { setMsg(`Error: ${JOB_ERRORS[e.message] || e.message}`); }
   }
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -196,13 +196,13 @@ export default function JobOrdersPage({ catalog, onBack }) {
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 16px 60px', color: 'var(--text-primary)' }}>
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Machine Shop</div>
-      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: 34, letterSpacing: '.04em', margin: '2px 0 14px', color: 'var(--text-heading)' }}>Job orders</h1>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', margin: '2px 0 14px', color: 'var(--text-heading)' }}>Job orders</h1>
       {!jobData.canManage && !jobData.loading && (
         <div className="kmc-panel" style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
           View only: changes need a Machine Shop supervisor account (an assigned B01–B03 station or the Machine Shop line) or an admin.
         </div>
       )}
-      {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)', marginBottom: 12 }}>⚠ {jobData.error}</div>}
+      {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)', marginBottom: 12 }}>{jobData.error}</div>}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         {TABS.map(t => <button key={t} className={`kmc-btn${tab === t ? ' primary' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>

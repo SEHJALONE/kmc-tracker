@@ -80,8 +80,8 @@ const UI_FONT = "'Inter', system-ui, sans-serif";
 // The Travel Card design language (styles/design.css) for the headline
 // figures: Bebas Neue numerals over Montserrat labels, gradient pills in
 // recessed sockets. Used by the period bar and the register scorecards.
-const DISPLAY_FONT = "'Bebas Neue', 'Montserrat', 'Inter', sans-serif";
-const LABEL_FONT = "'Montserrat', 'Inter', sans-serif";
+const DISPLAY_FONT = "'Inter', system-ui, sans-serif";
+const LABEL_FONT = "'Inter', system-ui, sans-serif";
 const GRAD = {
   red: 'linear-gradient(135deg, #ff8a7a, #dc2626)',
   amber: 'linear-gradient(135deg, #ffd42a, #ff8400)',
@@ -1111,7 +1111,7 @@ function ProductionReportModal({ onClose, capturePages, buses, initialRange, set
                 <input type="date" style={field} value={custom.end} onChange={e => e.target.value && setCustom(c => ({ ...c, end: e.target.value }))} />
               </div>
             )}
-            <div style={{ marginTop: 7, fontFamily: DISPLAY_FONT, fontSize: 20, letterSpacing: '0.04em', color: C.ink }}>{period.label}</div>
+            <div style={{ marginTop: 7, fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 20, letterSpacing: '-0.01em', color: C.ink }}>{period.label}</div>
           </div>
 
           <div style={{ fontFamily: UI_FONT, fontSize: 9, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginTop: 4 }}>
@@ -1205,14 +1205,14 @@ function PeriodBar({ range, setRange }) {
       {/* the period now in force, in the display face */}
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 150, marginRight: 'auto' }}>
         <span style={cap}>Reporting period</span>
-        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 24, letterSpacing: '0.04em', lineHeight: 1, color: C.ink }}>
+        <span style={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', lineHeight: 1, color: C.ink }}>
           {current.kind === 'range' ? current.short : current.label}
         </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button style={pill(false)} onClick={() => setYear(y => y - 1)} aria-label="Previous year">‹</button>
-        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 22, letterSpacing: '0.05em', color: C.ink, minWidth: 92, textAlign: 'center' }}>{fyLabel(year)}</span>
+        <span style={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 22, letterSpacing: '-0.01em', color: C.ink, minWidth: 92, textAlign: 'center' }}>{fyLabel(year)}</span>
         <button style={pill(false)} onClick={() => setYear(y => y + 1)} aria-label="Next year">›</button>
       </div>
 
@@ -1296,7 +1296,7 @@ function RegisterCard({ title, value, unit, tone, icon, parts, flags, onOpen }) 
         {flags > 0 && <Chip tone="warn">{flags} date{flags === 1 ? '' : 's'} to fix</Chip>}
       </div>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-        <span style={{ fontFamily: DISPLAY_FONT, fontSize: 44, lineHeight: 0.9, letterSpacing: '0.02em', color: C.ink }}>{value}</span>
+        <span style={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 34, lineHeight: 1, letterSpacing: '-0.02em', color: C.ink }}>{value}</span>
         <span style={{ fontSize: 11, color: C.ink2, fontWeight: 600 }}>{unit}</span>
       </div>
       <SplitBar parts={parts} />
@@ -1349,7 +1349,7 @@ function RegisterDetailModal({ detail, periodLabel, onClose }) {
         <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontFamily: LABEL_FONT, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.muted }}>{periodLabel}</div>
-            <div style={{ fontFamily: DISPLAY_FONT, fontSize: 30, letterSpacing: '0.04em', lineHeight: 1 }}>{title}</div>
+            <div style={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 30, letterSpacing: '-0.01em', lineHeight: 1 }}>{title}</div>
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{summary}</div>
           <button onClick={onClose} style={{ background: C.surface2, border: 'none', color: C.ink2, borderRadius: 999, padding: '8px 15px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Close</button>
@@ -2195,7 +2195,7 @@ function ScoreboardToolbar({
       <button
         style={{ ...btn, background: selectorOpen ? C.redWash : C.surface2, color: selectorOpen ? C.red : C.ink2 }}
         onClick={() => setSelectorOpen(o => !o)}
-      >⚙ {selectorOpen ? 'Hide' : 'Set'} Line Targets</button>
+      >{selectorOpen ? 'Hide' : 'Set'} Line Targets</button>
       <button style={btn} onClick={toggleTheme} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>

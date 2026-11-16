@@ -19,7 +19,7 @@ const lineColors = {
 };
 
 function fmtHours(h) {
-  if (h == null || !isFinite(h) || h <= 0) return '—';
+  if (h == null || !isFinite(h) || h <= 0) return '-';
   const hrs  = Math.floor(h);
   const mins = Math.round((h - hrs) * 60);
   return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
@@ -103,13 +103,13 @@ function TaktTimePanel({ taktHoursPerDay, setTaktHoursPerDay, taktTarget, setTak
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: ratio != null ? 14 : 0 }}>
         <TaktKpiBox
           label="Required Takt"
-          value={reqTakt != null ? fmtHours(reqTakt) : '—'}
+          value={reqTakt != null ? fmtHours(reqTakt) : '-'}
           sub={targetPerWeek > 0 ? `${taktTarget} buses${periodDef.label} ≈ ${targetPerWeek.toFixed(1)}/wk @ ${hours}h/day` : 'set target to calculate'}
           color={statusColor}
         />
         <TaktKpiBox
           label="Actual Cycle Time"
-          value={actualCycle != null ? fmtHours(actualCycle) : '—'}
+          value={actualCycle != null ? fmtHours(actualCycle) : '-'}
           sub={prodRate > 0 ? `based on ${prodRateStr}/day × ${hours}h shift` : 'no production data'}
           color={reqTakt && actualCycle ? (actualCycle <= reqTakt ? '#10b981' : '#dc2626') : 'var(--text-primary)'}
         />
@@ -256,7 +256,7 @@ function ProductionTrendChart({ data }) {
           {d.count > 0 && <circle cx={xOf(i)} cy={yOf(d.count)} r={7} fill="var(--panel-solid)" stroke="#2492b3" strokeWidth={3} />}
           {d.count > 0 && (
             <text x={xOf(i)} y={yOf(d.count) - 13} textAnchor="middle" fontSize={16}
-              fill="var(--text-heading)" fontFamily="var(--font-display)">{d.count}</text>
+              fill="var(--text-heading)" fontFamily="var(--font-display)" fontWeight="700">{d.count}</text>
           )}
           {i % 2 === 0 && (
             <>
@@ -374,7 +374,7 @@ function DowntimeInsights({ modelColor }) {
   if (error) {
     return (
       <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
-        ⚠ {error}
+        {error}
       </div>
     );
   }
@@ -390,7 +390,7 @@ function DowntimeInsights({ modelColor }) {
       {/* ── #1 + #2: Root-Cause Pareto with sub-cause drill-down ── */}
       {data.byCause.length > 0 && (
         <DowntimePanel
-          title="Downtime by Root Cause — 6M analysis"
+          title="Downtime by Root Cause - 6M analysis"
           note={`${fmtMin(totalMin)} total · ${aggregated?.total?.count || 0} events`}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -461,7 +461,7 @@ function DowntimeInsights({ modelColor }) {
 
       {/* ── #4: Designed vs Actual variance by station ── */}
       {data.byStationVar.length > 0 && (
-        <DowntimePanel title="Designed vs Actual Time by Station — top downtimes" note="from downtimes tab">
+        <DowntimePanel title="Designed vs Actual Time by Station - top downtimes" note="from downtimes tab">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             {data.byStationVar.map((s, idx) => {
               const lc = lineColors[s.line] || '#64748b';
@@ -508,14 +508,14 @@ function DowntimeInsights({ modelColor }) {
 
       {/* ── #5: Corrective-action log ── */}
       {data.actionLog.length > 0 && (
-        <DowntimePanel title="Corrective Actions Log — biggest downtimes" note={`${data.actionLog.length} entries`}>
+        <DowntimePanel title="Corrective Actions Log - biggest downtimes" note={`${data.actionLog.length} entries`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {data.actionLog.map((r, i) => {
               const stn = STATIONS[r.stationCode];
               return (
                 <div key={r.id || i} style={{ display: 'grid', gridTemplateColumns: '120px 60px 1fr', gap: 12, alignItems: 'start', padding: '8px 0', borderBottom: i < data.actionLog.length - 1 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stn?.name || r.stationCode || '—'}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stn?.name || r.stationCode || '-'}</div>
                     <div style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: "'Inter', system-ui, sans-serif", marginTop: 1 }}>
                       {r.stationCode}{r.project ? ` · ${r.project}` : ''}
                     </div>
@@ -567,7 +567,7 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
   return (
     <DowntimePanel
       title="CAPA Pareto"
-      note={<span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'monospace' }}>KMC.DQHSE.02/26-PR0010</span>}
+      note={<span style={{ fontSize: 8, color: 'var(--text-dim)', fontFamily: 'inherit' }}>KMC.DQHSE.02/26-PR0010</span>}
     >
       {/* Toggle */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -594,7 +594,7 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
 
       {items.length === 0 ? (
         <div style={{ fontSize: 10, color: 'var(--text-dim)', textAlign: 'center', padding: '12px 0' }}>
-          {view === 'category' ? 'No CAPA category data yet — submit a travel card with downtime + RCA method.' : 'No data.'}
+          {view === 'category' ? 'No CAPA category data yet - submit a travel card with downtime + RCA method.' : 'No data.'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -605,7 +605,7 @@ function CAPAPareto({ aggregated, causeColor, fmtMin }) {
               <div key={label(item) || i}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 3 }}>
                   <span style={{ fontSize: 10, color: clr, fontWeight: 600 }}>{label(item)}</span>
-                  <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'monospace' }}>
+                  <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'inherit' }}>
                     {fmtMin(item.totalMin)} · {item.count} {item.count === 1 ? 'event' : 'events'}
                   </span>
                 </div>
@@ -633,7 +633,7 @@ function HandoverSummaryCard({ onOpenHandover }) {
     <div style={{ background: 'var(--bg-surface)', border: `1px solid ${safetyCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
-          Shift Handover Log <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC Production</span>
+          Shift Handover Log <span style={{ fontFamily: 'inherit', fontSize: 8, color: 'var(--text-dim)' }}>KMC Production</span>
         </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
           {[
@@ -644,7 +644,7 @@ function HandoverSummaryCard({ onOpenHandover }) {
             { label: 'Total',         value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'inherit', lineHeight: 1 }}>{s.value}</div>
               <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
@@ -673,7 +673,7 @@ function NCRSummaryCard() {
     <div style={{ background: 'var(--bg-surface)', border: `1px solid ${criticalCount > 0 ? '#dc262655' : 'var(--border-subtle)'}`, borderLeft: `3px solid ${accentColor}`, borderRadius: 8, padding: '14px 18px', boxShadow: 'var(--shadow-card)', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 4 }}>
-          NCR Register <span style={{ fontFamily: 'monospace', fontSize: 8, color: 'var(--text-dim)' }}>KMC Quality</span>
+          NCR Register <span style={{ fontFamily: 'inherit', fontSize: 8, color: 'var(--text-dim)' }}>KMC Quality</span>
         </div>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'baseline' }}>
           {[
@@ -684,7 +684,7 @@ function NCRSummaryCard() {
             { label: 'Total',     value: loading ? '…' : summary.total, color: 'var(--text-heading)' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'monospace', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, fontFamily: 'inherit', lineHeight: 1 }}>{s.value}</div>
               <div style={{ fontSize: 8, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
@@ -829,7 +829,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
         code,
         name:       STATIONS[code]?.name || code,
         line:       STATIONS[code]?.line,
-        lineName:   LINES.find(l => l.id === STATIONS[code]?.line)?.label || STATIONS[code]?.line || '—',
+        lineName:   LINES.find(l => l.id === STATIONS[code]?.line)?.label || STATIONS[code]?.line || '-',
         totalMin,
         count:      overrunCountByStation[code],
         avgMin:     Math.round(totalMin / overrunCountByStation[code]),
@@ -1139,7 +1139,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                 paddingBottom: 6, borderBottom: '1px solid rgba(255,255,255,0.04)',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <span>Downtime by Station — top {metrics.overrunPareto.length} (total downtime minutes)</span>
+                <span>Downtime by Station - top {metrics.overrunPareto.length} (total downtime minutes)</span>
                 <span style={{ color: 'var(--text-dim)' }}>from travel card data</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1200,7 +1200,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
           {metrics.hasDowntimeData && (
             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Downtime by Reason — Pareto</span>
+                <span>Downtime by Reason - Pareto</span>
                 <span style={{ color: 'var(--text-muted)' }}>
                   {Math.floor(metrics.totalDowntimeMin / 60)}h {Math.round(metrics.totalDowntimeMin % 60)}m total
                 </span>
@@ -1281,7 +1281,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
           {metrics.stationEfficiency.filter(s => s.efficiency !== null).length > 0 && (
             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 14, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Station Efficiency — Planned ÷ Actual Time</span>
+                <span>Station Efficiency - Planned ÷ Actual Time</span>
                 <span style={{ display: 'flex', gap: 14 }}>
                   <span style={{ color: '#10b981' }}>● ≥95% on plan</span>
                   <span style={{ color: '#f59e0b' }}>● 80–94%</span>
@@ -1312,7 +1312,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
                         <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(100 / 130) * 100}%`, width: 2, background: 'var(--text-secondary)', borderRadius: 1 }} />
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 800, color, textAlign: 'right', fontFamily: "'Inter', system-ui, sans-serif" }}>
-                        {eff !== null ? `${eff}%` : '—'}
+                        {eff !== null ? `${eff}%` : '-'}
                       </div>
                     </div>
                   );
@@ -1328,7 +1328,7 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
           {weeklyProduction.some(w => w.count > 0) && (
             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: '18px 20px', boxShadow: 'var(--shadow-card)', backdropFilter: 'blur(12px)', transition: 'background 0.25s ease' }}>
               <div style={{ fontSize: 9, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: "'Inter', system-ui, sans-serif", marginBottom: 12, paddingBottom: 6, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Weekly Production Trend — buses reaching QA (last 12 weeks)</span>
+                <span>Weekly Production Trend - buses reaching QA (last 12 weeks)</span>
                 <span style={{ color: '#3b82f6' }}>
                   avg {(weeklyProduction.filter(w => w.count > 0).reduce((s, w) => s + w.count, 0) / Math.max(weeklyProduction.filter(w => w.count > 0).length, 1)).toFixed(1)}/wk
                 </span>
@@ -1339,19 +1339,19 @@ export default function Dashboard({ buses: busesProp, allRows: allRowsProp, filt
 
           {allRows.length === 0 && allRows.length > 0 && (
             <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
-              ⚠ No records found for the selected date. Try "All Time" or a different date.
+              No records found for the selected date. Try "All Time" or a different date.
             </div>
           )}
 
           {allRows.length === 0 && allRows.length === 0 && (
             <div style={{ background: 'var(--warning-alpha)', border: '1px solid var(--warning-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--warning-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
-              ⚠ Performance metrics require historical data. They will populate as your travel tool logs more moves.
+              Performance metrics require historical data. They will populate as your travel tool logs more moves.
             </div>
           )}
 
           {!hasEstimates && allRows.length > 0 && (
             <div style={{ background: 'var(--info-alpha)', border: '1px solid var(--info-border)', borderRadius: 6, padding: '11px 14px', fontSize: 11, color: 'var(--info-color)', fontFamily: "'Inter', system-ui, sans-serif", letterSpacing: '0.04em' }}>
-              ℹ Station estimated times are loading — performance rankings will switch to variance-based once they arrive.
+              Station estimated times are loading - performance rankings will switch to variance-based once they arrive.
             </div>
           )}
 

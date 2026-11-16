@@ -39,7 +39,7 @@ describe('buildDailyLog', () => {
     expect(log.division).toBe('Body Shop');
     expect(log.unit).toBe('Machine Shop');
     expect(log.tasks).toHaveLength(1);
-    expect(log.tasks[0].task).toMatch(/Band Saw — KDC-12 VIN001/);
+    expect(log.tasks[0].task).toMatch(/Band Saw - KDC-12 VIN001/);
     expect(log.tasks[0].actual).toBe(67);
     expect(log.operator.name).toBe('Okello J');
     expect(log.supervisor.name).toBe('Sup A');

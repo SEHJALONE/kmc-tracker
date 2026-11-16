@@ -24,7 +24,7 @@ export function emailProblem(raw) {
     return { message: `"${domain}" looks mistyped. Did you mean ${suggestion}?`, suggestion };
   }
   if (!/^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(email) || email.includes('..')) {
-    return { message: 'That email address is not complete — it should look like name@example.com.' };
+    return { message: 'That email address is not complete - it should look like name@example.com.' };
   }
   return null;
 }

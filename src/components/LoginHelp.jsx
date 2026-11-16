@@ -12,7 +12,7 @@ const STEPS = [
   { t: 'Open the Travel Card', d: 'Pick the Project, Bus Model, Bus VIN, Production Line and Station from the drop-downs. Note the designated time shown for the station.' },
   { t: 'Add the team', d: 'Type each staff member\'s name and click Add, check the PPE quantities (prefilled from the crew size), then Continue to Activities.' },
   { t: 'Report the work', d: 'Set your clock-in time, then mark every activity Complete, Incomplete, Issue noted or Rework needed.' },
-  { t: 'Consumables', d: 'Enter the quantity of each consumable used. Use Add for anything not listed — it stays on that station for everyone\'s next fill-in until someone removes it with ×. Leave the quantity empty if it wasn\'t used this time.' },
+  { t: 'Consumables', d: 'Enter the quantity of each consumable used. Use Add for anything not listed - it stays on that station for everyone\'s next fill-in until someone removes it with ×. Leave the quantity empty if it wasn\'t used this time.' },
   { t: 'Downtime (if over time)', d: 'If the work ran past the designated time, choose the root causes, the minutes each one cost, and complete the root-cause analysis and corrective actions.' },
   { t: 'Submit & download', d: 'After sign-off the card is submitted. Download the Station Report or Full Bus Report from the final page.' },
 ];
@@ -47,7 +47,7 @@ export default function LoginHelp({ theme = 'dark', onClose }) {
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 6 }}>
           <div>
-            <div id="login-help-title" style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.06em', color: 'var(--text-heading)', textTransform: 'uppercase' }}>
+            <div id="login-help-title" style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0', color: 'var(--text-heading)', }}>
               How to use the tracker
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -81,10 +81,10 @@ export default function LoginHelp({ theme = 'dark', onClose }) {
             style={{
               flex: '1 1 200px', textAlign: 'center', textDecoration: 'none',
               background: 'var(--accent)', color: '#fff', borderRadius: 6, padding: '12px 14px',
-              fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              fontSize: 13, fontWeight: 700, letterSpacing: '0',
             }}
           >
-            ⬇ Download user guide (PDF)
+            Download user guide (PDF)
           </a>
           <a
             href={USER_GUIDE_URL} target="_blank" rel="noopener noreferrer"

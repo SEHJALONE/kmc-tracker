@@ -21,17 +21,17 @@ const css = `
   .tch { max-width: 1120px; margin: 0 auto; color: var(--text-primary); }
   .tch-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
   .tch-choice { display: flex; align-items: center; gap: 22px; padding: 22px 24px; }
-  .tch-choice h3 { font-family: var(--font-display); font-weight: 400; font-size: 30px; letter-spacing: .05em; color: var(--text-heading); margin: 2px 0 6px; line-height: 1; }
+  .tch-choice h3 { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; color: var(--text-heading); margin: 2px 0 6px; line-height: 1.15; }
   .tch-choice p { font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0 0 12px; }
   .tch-steps { display: flex; gap: 6px; flex-wrap: wrap; }
   .tch-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
   .tch-graphs { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; margin-top: 20px; }
   .tch-graphs > .kmc-panel { padding: 18px 20px; }
   .tch-sec { margin-top: 24px; }
-  .tch-timer { font-family: var(--font-display); font-size: 30px; letter-spacing: .04em; color: var(--text-heading); font-variant-numeric: tabular-nums; line-height: 1; }
+  .tch-timer { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: 0; color: var(--text-heading); font-variant-numeric: tabular-nums; line-height: 1; }
   .tch-back { margin-bottom: 16px; }
   .tch-orb-badge { position: absolute; top: 6%; right: 6%; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 999px; background: var(--g-amber);
-    color: #fff; font-family: var(--font-display); font-size: 20px; display: flex; align-items: center; justify-content: center;
+    color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center;
     box-shadow: 0 4px 12px rgba(0,0,0,.35); border: 3px solid var(--orb-ring); z-index: 2; }
   @media (max-width: 900px) { .tch-hero { grid-template-columns: minmax(0, 1fr); } .tch-graphs { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 760px) { .tch-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -90,13 +90,13 @@ function OpenTaskRibbon({ n, task, now, onOpen, onClose }) {
       side={<><button className="kmc-btn" onClick={onOpen}>Open</button><button className="kmc-btn primary" onClick={onClose}>Close</button></>}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
         <span className="tch-timer">{fmtClock(elapsed)}</span>
-        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-text)', fontSize: 14 }}>{task.stationCode}</span>
+        <span style={{ fontFamily: 'inherit', fontWeight: 700, color: 'var(--accent-text)', fontSize: 14 }}>{task.stationCode}</span>
         {task.jobOrderId && <span className="kmc-chip"><span>{task.jobOrderId}</span><b style={{ background: grad('teal') }}>JO</b></span>}
         {overdue && <span className="kmc-chip"><span>past expected end</span><b style={{ background: grad('red') }}>!</b></span>}
         {task.synced === false && <span style={{ fontSize: 11, color: 'var(--warning-color)' }}>saved on this device</span>}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {task.busModel} · <span style={{ fontFamily: 'monospace' }}>{(task.vins && task.vins.length > 1) ? `${task.vins.length} VINs` : task.vin}</span> · started {fmtTime(task.startedAt)}
+        {task.busModel} · <span style={{ fontFamily: 'inherit' }}>{(task.vins && task.vins.length > 1) ? `${task.vins.length} VINs` : task.vin}</span> · started {fmtTime(task.startedAt)}
       </div>
       <div className="kmc-track" style={{ height: 8, marginTop: 8, maxWidth: 320 }} title={`${done} of ${acts.length} activities`}>
         <div className="kmc-fill" style={{ height: '100%', width: `${acts.length ? (done / acts.length) * 100 : 0}%`, background: grad('lime', 90) }} />
@@ -148,7 +148,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
     return (
       <div className="tch"><style>{css}</style>{back}
         <div className="kmc-panel" style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 14px', padding: '12px 16px', lineHeight: 1.5 }}>
-          Closing <strong style={{ color: 'var(--text-heading)' }}>{current.stationCode}</strong> · {current.vin}{current.jobOrderId ? ` (job order ${current.jobOrderId}${current.vins?.length > 1 ? `, ${current.vins.length} VINs — the card is filed under the first and lists them all` : ''})` : ''}. Start ({fmtTime(current.startedAt)}) and end ({fmtTime(view.endedAt)}) times and the ticked activities are filled in — check them and submit. The task stays open until the card is submitted.
+          Closing <strong style={{ color: 'var(--text-heading)' }}>{current.stationCode}</strong> · {current.vin}{current.jobOrderId ? ` (job order ${current.jobOrderId}${current.vins?.length > 1 ? `, ${current.vins.length} VINs - the card is filed under the first and lists them all` : ''})` : ''}. Start ({fmtTime(current.startedAt)}) and end ({fmtTime(view.endedAt)}) times and the ticked activities are filled in - check them and submit. The task stays open until the card is submitted.
         </div>
         {renderLegacy({
           taskPrefill: prefill, onExit: home,
@@ -270,8 +270,8 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
             <Ribbon key={s.recordId || s.timestamp} n={i + 1} tone="teal"
               side={<span className="kmc-chip"><span>{s.actualTime} min</span><b style={{ background: grad(tone) }}>{label}</b></span>}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-text)' }}>{s.stationCode}</span>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{s.vin}</span>
+                <span style={{ fontFamily: 'inherit', fontWeight: 700, color: 'var(--accent-text)' }}>{s.stationCode}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'inherit' }}>{s.vin}</span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
                 {new Date(s.timestamp).toLocaleDateString()}{Number(s.designedTime) > 0 ? ` · designed ${s.designedTime} min` : ''}
