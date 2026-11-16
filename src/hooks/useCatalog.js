@@ -57,6 +57,15 @@ export function extractCatalog(csvText) {
   try { return JSON.parse(chunks.map(c => c.val).join('')); } catch { return null; }
 }
 
+// The catalog as it is on the server right now (no caching). Null on failure.
+export async function readLiveCatalog() {
+  try {
+    const res = await fetch(CATALOG_READ_URL + '&t=' + Date.now());
+    if (!res.ok) return null;
+    return extractCatalog(await res.text());
+  } catch { return null; }
+}
+
 export function useCatalog() {
   const [catalog, setCatalog] = useState(() => ({ ...EMPTY_CATALOG }));
   const [loading, setLoading] = useState(true);

@@ -64,7 +64,10 @@ export default function TypeApprovals({ catalog, refreshCatalog, onBack }) {
       setResult(r);
       setFile(null);
       if (input.current) input.current.value = '';
-      refreshCatalog?.();
+      // Read the catalog again now and once more shortly after: the sheet can take
+      // a few seconds to show a save, and every screen works from this copy.
+      refreshCatalog?.(true);
+      setTimeout(() => refreshCatalog?.(true), 8000);
     } catch (e) {
       setError(ERRORS[e.message] || e.message);
     }

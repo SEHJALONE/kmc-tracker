@@ -22,6 +22,21 @@ const trackerKinds = item => {
 
 const minus = (a, b) => a.filter(x => !b.includes(x));
 
+// VIN lists change outside Catalog Admin (VIN Register uploads go straight to
+// the server). The editor saves the whole catalog as it was when it opened, so
+// a save would wipe VINs uploaded meanwhile. Keep the live lists, except for
+// projects this admin changed in the Vehicles tab.
+//   opened: projectVins when the editor opened, draft: now, live: on the server
+export function mergeProjectVins(opened = {}, draft = {}, live = null) {
+  if (!live) return draft;
+  const out = { ...live };
+  for (const [project, list] of Object.entries(draft || {})) {
+    const edited = JSON.stringify(list) !== JSON.stringify((opened || {})[project]);
+    if (edited || !(project in out)) out[project] = list;
+  }
+  return out;
+}
+
 export function catalogVisibilityChanges(before, after) {
   const hidden = [];
   const shown = [];

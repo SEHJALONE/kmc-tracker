@@ -5,7 +5,8 @@ import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
-import { catalogVisibilityChanges } from '../utils/catalogGuard';
+import { catalogVisibilityChanges, mergeProjectVins } from '../utils/catalogGuard';
+import { readLiveCatalog } from '../hooks/useCatalog';
 import { travelCardGaps, fixGap, syncStationToTravelCard } from '../utils/catalogGaps';
 
 // ── Admin catalog editor ────────────────────────────────────────────────────
@@ -141,6 +142,8 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
   const tabs = TABS.filter(t => role === 'systemadmin' || !SYSTEMADMIN_TABS.includes(t));
   const [tab, setTab] = useState(tabs.includes(initialTab) ? initialTab : 'Projects');
   const [draft, setDraft] = useState(() => buildInitial(catalog));
+  // VIN lists as they were when the editor opened (see mergeProjectVins).
+  const [openedVins] = useState(() => structuredCloneSafe(draft.projectVins));
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState('');
 
@@ -175,10 +178,11 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
       lineModels: draft.lineModels,
       stationModels: draft.stationModels,
       dwi: draft.dwi,
-      projectVins: draft.projectVins,
+      projectVins: draft.projectVins,   // replaced below with the server's lists merged in
       // A non-system-admin cannot see this tab; keep what is saved as it is.
       departments: role === 'systemadmin' ? normalizeDepartments(draft.departments) : (catalog.departments ?? null),
     };
+    payload.projectVins = mergeProjectVins(openedVins, draft.projectVins, (await readLiveCatalog())?.projectVins || null);
     const r = await saveCatalog(payload);
     if (r?.ok) { setStatus('Saved - visible to everyone.'); setDirty(false); }
     else if (r?.error === 'unauthorized') setStatus('Not saved - the server refused this sign-in (no valid session, or the account is not systemadmin/useradmin). Sign out, sign in again as systemadmin or useradmin, then Save all.');
