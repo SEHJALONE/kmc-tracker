@@ -32,6 +32,8 @@ export function describeRequestError(code) {
       return 'A request for this username is already waiting for approval.';
     case 'rate-limited':
       return 'Too many requests were sent just now. Try again in a while.';
+    case 'bad-email':
+      return 'That email address looks wrong — check it for typos (for example gmail.com, not gmial.com).';
     case 'missing-fields':
       return 'Name, email, username and password are all required.';
     default:

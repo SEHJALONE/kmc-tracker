@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { submitAccessRequest } from '../hooks/useAccessRequests';
+import { emailProblem } from '../utils/emailCheck';
 import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { useDepartments } from '../data/departments';
 
@@ -71,7 +72,8 @@ export default function SignUpModal({ onClose, theme = 'dark' }) {
   async function handleSubmit() {
     setError('');
     if (!form.fullName.trim())    return setError('Full name is required.');
-    if (!form.email.trim() || !form.email.includes('@')) return setError('A valid email is required.');
+    const badEmail = emailProblem(form.email);
+    if (badEmail) return setError(badEmail.message);
     if (!form.username.trim())    return setError('Please choose a username.');
     if (!form.department)         return setError('Select your department.');
     if (lineOptions.length && !form.productionLines.length) return setError('Select at least one line or division.');

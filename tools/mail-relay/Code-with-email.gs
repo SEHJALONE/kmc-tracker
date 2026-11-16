@@ -1465,6 +1465,10 @@ function submitAccessRequest_(payload) {
       String(d.password || "").length < 8) {
     return response({ status: "error", message: "missing-fields" });
   }
+  // A mistyped address is refused (with a suggestion) rather than stored: the
+  // applicant would never get the approval email.
+  const emailIssue = emailProblem_(d.email);
+  if (emailIssue) return response({ status: "error", message: "bad-email", suggestion: emailIssue.suggestion || "" });
 
   // A form anyone can reach: cap how fast it can be filled.
   const cache = CacheService.getScriptCache();
@@ -1505,6 +1509,24 @@ function submitAccessRequest_(payload) {
   let adminNotified = false;
   try { adminNotified = notifyAdminsOfRequest_(Object.assign({}, d, { username: username })); } catch (err) { adminNotified = false; }
   return response({ status: "ok", id, adminNotified: adminNotified });
+}
+
+// Same rules as src/utils/emailCheck.js (keep the two in step).
+const EMAIL_TYPOS_ = {
+  "gmial.com": "gmail.com", "gmal.com": "gmail.com", "gmai.com": "gmail.com", "gamil.com": "gmail.com",
+  "gnail.com": "gmail.com", "gmaill.com": "gmail.com", "gmail.co": "gmail.com", "gmail.con": "gmail.com",
+  "gmail.cm": "gmail.com", "gmail.om": "gmail.com", "gmail.comm": "gmail.com", "gmail.coom": "gmail.com",
+  "gmailcom": "gmail.com", "yahooo.com": "yahoo.com", "yaho.com": "yahoo.com", "yahoo.con": "yahoo.com",
+  "hotmial.com": "hotmail.com", "hotmail.con": "hotmail.com", "outlok.com": "outlook.com", "outlook.con": "outlook.com",
+};
+function emailProblem_(raw) {
+  const email = String(raw || "").trim().toLowerCase();
+  if (!email || /\s/.test(email)) return { message: "bad-email" };
+  const at = email.lastIndexOf("@");
+  const domain = at > 0 ? email.slice(at + 1) : "";
+  if (EMAIL_TYPOS_[domain]) return { message: "bad-email", suggestion: email.slice(0, at) + "@" + EMAIL_TYPOS_[domain] };
+  if (!/^[^@]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(email) || email.indexOf("..") > -1) return { message: "bad-email" };
+  return null;
 }
 
 function listAccessRequests_() {
