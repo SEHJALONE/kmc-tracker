@@ -190,24 +190,25 @@ body { background: var(--page-overlay), var(--page-image) center / cover fixed, 
 .kmc-dialog { width: 100%; max-width: 920px; background: var(--panel-solid); color: var(--text-primary); border: 1px solid var(--border-medium);
   border-radius: 16px; box-shadow: var(--panel-shadow); font-family: var(--font-body); }
 
-/* ── Home: modules as a list, grouped by job ── */
-.kmc-home { max-width: 760px; margin: 0 auto; padding: 76px clamp(14px, 4vw, 24px) 40px; }
-.kmc-home-group { margin-top: 22px; }
-.kmc-home-group > h2 { font-size: 13px; font-weight: 600; color: var(--text-muted); margin: 0 0 8px 4px; }
-.kmc-home-list { overflow: hidden; }
-.kmc-home-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; background: transparent; border: 0;
-  border-top: 1px solid var(--border-subtle); color: inherit; font-family: var(--font-body); text-align: left; cursor: pointer; min-height: 60px; }
-.kmc-home-row:first-child { border-top: 0; }
-.kmc-home-row:hover, .kmc-home-row:focus-visible { background: var(--input-bg); outline: none; }
-.kmc-home-row .txt { min-width: 0; flex: 1; }
-.kmc-home-row .name { font-size: 15px; font-weight: 600; color: var(--text-heading); }
-.kmc-home-row .what { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-.kmc-home-row .count { flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
-  background: var(--socket-bg); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kmc-home-row .count.due { background: rgba(255,154,10,0.16); color: var(--c-amber); }
-.kmc-home-row .go { flex-shrink: 0; color: var(--text-dim); }
+/* ── Home: one small picture card per module ── */
+.kmc-home { max-width: 1040px; margin: 0 auto; padding: 76px clamp(14px, 4vw, 24px) 40px; }
+.kmc-home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 26px; }
+.kmc-home-card { position: relative; height: 138px; border: 0; border-radius: 16px; overflow: hidden; cursor: pointer; padding: 0;
+  background-color: #1a1c24; background-size: cover; background-position: center; box-shadow: var(--panel-shadow);
+  font-family: var(--font-body); text-align: left; transition: transform .15s ease; }
+.kmc-home-card:hover { transform: translateY(-2px); }
+.kmc-home-card:active { transform: scale(0.98); }
+.kmc-home-card:focus-visible { outline: 3px solid var(--accent-border); outline-offset: 2px; }
+.kmc-home-card .shade { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 62%, rgba(0,0,0,0.82) 100%); }
+.kmc-home-card .name { color: #fff; font-size: 16px; font-weight: 700; line-height: 1.2; text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+.kmc-home-card .what { color: rgba(255,255,255,0.84); font-size: 12px; line-height: 1.35; }
+.kmc-home-card .count, .kmc-home-card .tag { position: absolute; top: 10px; right: 10px; z-index: 2; font-size: 11px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.kmc-home-card .count { background: #ff9a0a; color: #2b1700; font-variant-numeric: tabular-nums; }
+.kmc-home-card .tag { background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25); font-weight: 600; }
 .kmc-home-top { position: fixed; top: 14px; right: 14px; display: flex; align-items: center; gap: 8px; z-index: 10; }
-@media (max-width: 520px) { .kmc-home-top .hide-xs { display: none; } .kmc-home-row .what { display: none; } }
+@media (max-width: 520px) { .kmc-home-top .hide-xs { display: none; } .kmc-home-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .kmc-home-card { height: 118px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .kmc-orb, .kmc-orb > .face { animation: none !important; transition: none !important; }

@@ -1,21 +1,24 @@
 import ThemeSwitch from './ui/ThemeSwitch';
 import Avatar from './ui/Avatar';
 
-// Home: every module the signed-in person can open, as a plain list grouped by
-// the job it belongs to. A count on a row is work waiting there (open Start/End
-// tasks, cards to review); amber means someone is waiting on this person.
+// Home: one picture card per module the signed-in person can open. A badge on a
+// card is work waiting there (open Start/End tasks, cards to review).
 //
 // `counts`: { openTasks, toReview, awaitingReview } - any may be missing.
 
-function Row({ name, what, onClick, count = null, due = false }) {
+const BUS = n => (n === 1 ? '/Bus background.png' : `/Bus background ${n}.png`);
+
+function Card({ name, what, onClick, img, tint, count = null, tag = null, theme }) {
+  const picture = Array.isArray(img) ? img[theme === 'dark' ? 0 : 1] : img;
   return (
-    <button type="button" className="kmc-home-row" onClick={onClick}>
-      <span className="txt">
-        <span className="name" style={{ display: 'block' }}>{name}</span>
-        <span className="what" style={{ display: 'block' }}>{what}</span>
+    <button type="button" className="kmc-home-card" onClick={onClick}
+      style={{ backgroundImage: `url('${picture}'), linear-gradient(135deg, ${tint} 0%, #101623 100%)` }}>
+      {count && <span className="count">{count}</span>}
+      {tag && <span className="tag">{tag}</span>}
+      <span className="shade">
+        <span className="name">{name}</span>
+        <span className="what">{what}</span>
       </span>
-      {count && <span className={`count${due ? ' due' : ''}`}>{count}</span>}
-      <svg className="go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
     </button>
   );
 }
@@ -35,49 +38,24 @@ export default function HomeScreen({
   const isGeneralUser = role === 'user';
   const { openTasks = 0, toReview = 0, awaitingReview = 0 } = counts;
 
-  const groups = [
-    {
-      title: 'Daily work',
-      rows: [
-        { name: 'Travel Card', what: 'Start a station job, or file a card for work already done', onClick: onSelectTravelCard,
-          count: openTasks ? plural(openTasks, 'open task') : null, due: true },
-        canAccessTracker && { name: 'Bus Tracker', what: 'Line tracker, reports and dashboard', onClick: onSelectTracker },
-        isGeneralUser && onSelectMySubmissions && { name: 'My Submissions', what: 'Cards you filed, their status, and edits before review', onClick: onSelectMySubmissions,
-          count: awaitingReview ? `${awaitingReview} awaiting review` : null },
-      ],
-    },
-    {
-      title: 'Supervision',
-      rows: [
-        (isSupervisor || isSystemAdmin) && onSelectPendingReviews && { name: 'Pending Reviews', what: 'Cards waiting for your decision', onClick: onSelectPendingReviews,
-          count: toReview ? `${toReview} to review` : null, due: true },
-        (isSupervisor || isSystemAdmin) && onSelectDailyFleetLog && { name: 'Daily Fleet Log', what: 'Log where each bus is, as a check on the cards', onClick: onSelectDailyFleetLog },
-        onSelectShopFloor && { name: 'Shop Floor', what: 'Who is working where: open tasks and running clocks', onClick: onSelectShopFloor },
-        onSelectJobOrders && { name: 'Job Orders', what: 'Machine Shop cut lists and machines', onClick: onSelectJobOrders },
-      ],
-    },
-    {
-      title: 'Registers and costing',
-      rows: [
-        onSelectTypeApprovals && { name: 'VIN Register', what: "Upload a project's VINs from a CSV", onClick: onSelectTypeApprovals },
-        hasCeeAccess && onSelectCostEstimation && { name: 'Cost Estimation', what: 'Machines, rates and the cost report', onClick: onSelectCostEstimation },
-      ],
-    },
-    {
-      title: 'Administration',
-      rows: [
-        isSystemAdmin && onSelectAccessRequests && { name: 'Access Requests', what: 'Grant system access to people who asked', onClick: onSelectAccessRequests },
-        isSystemAdmin && onSelectUserManagement && { name: 'User Management', what: 'Roles, stations and access rights', onClick: onSelectUserManagement },
-      ],
-    },
-    {
-      title: 'In development (system admin only)',
-      rows: [
-        isSystemAdmin && { name: 'DPN Scoreboard', what: 'IMS objectives and live production KPIs', onClick: onSelectScoreboard },
-        isSystemAdmin && { name: 'Shift Handover', what: 'Log, acknowledge, safety and quality flags', onClick: onSelectHandover },
-      ],
-    },
-  ].map(g => ({ ...g, rows: g.rows.filter(Boolean) })).filter(g => g.rows.length);
+  const cards = [
+    { name: 'Travel Card', what: 'Start a station job or file a card', onClick: onSelectTravelCard, img: [BUS(1), BUS(3)], tint: '#d6177a',
+      count: openTasks ? plural(openTasks, 'open task') : null },
+    canAccessTracker && { name: 'Bus Tracker', what: 'Line tracker, reports, dashboard', onClick: onSelectTracker, img: [BUS(2), BUS(4)], tint: '#6b1fb0' },
+    isGeneralUser && onSelectMySubmissions && { name: 'My Submissions', what: 'Status of the cards you filed', onClick: onSelectMySubmissions, img: [BUS(4), BUS(2)], tint: '#0e7490',
+      count: awaitingReview ? `${awaitingReview} awaiting review` : null },
+    (isSupervisor || isSystemAdmin) && onSelectPendingReviews && { name: 'Pending Reviews', what: 'Cards waiting for your decision', onClick: onSelectPendingReviews, img: [BUS(3), BUS(1)], tint: '#92400e',
+      count: toReview ? `${toReview} to review` : null },
+    (isSupervisor || isSystemAdmin) && onSelectDailyFleetLog && { name: 'Daily Fleet Log', what: 'Log where each bus is', onClick: onSelectDailyFleetLog, img: [BUS(3), BUS(1)], tint: '#10b981' },
+    onSelectShopFloor && { name: 'Shop Floor', what: 'Open tasks and running clocks', onClick: onSelectShopFloor, img: [BUS(1), BUS(2)], tint: '#16a34a' },
+    onSelectJobOrders && { name: 'Job Orders', what: 'Machine Shop cut lists and machines', onClick: onSelectJobOrders, img: '/Job order bg.webp', tint: '#b45309' },
+    onSelectTypeApprovals && { name: 'VIN Register', what: "Upload a project's VINs", onClick: onSelectTypeApprovals, img: [BUS(4), BUS(3)], tint: '#4338ca' },
+    hasCeeAccess && onSelectCostEstimation && { name: 'Cost Estimation', what: 'Machines, rates, cost report', onClick: onSelectCostEstimation, img: [BUS(4), BUS(2)], tint: '#0f766e' },
+    isSystemAdmin && onSelectAccessRequests && { name: 'Access Requests', what: 'Grant access to new people', onClick: onSelectAccessRequests, img: [BUS(4), BUS(2)], tint: '#1e3a5f' },
+    isSystemAdmin && onSelectUserManagement && { name: 'User Management', what: 'Roles, stations, access rights', onClick: onSelectUserManagement, img: [BUS(1), BUS(3)], tint: '#7c3aed' },
+    isSystemAdmin && { name: 'DPN Scoreboard', what: 'IMS objectives and KPIs', onClick: onSelectScoreboard, img: [BUS(2), BUS(4)], tint: '#7a1417', tag: 'In development' },
+    isSystemAdmin && { name: 'Shift Handover', what: 'Log, acknowledge, flags', onClick: onSelectHandover, img: [BUS(3), BUS(1)], tint: '#b8860b', tag: 'In development' },
+  ].filter(Boolean);
 
   const firstName = String(userName || '').trim().split(/\s+/)[0];
 
@@ -95,26 +73,17 @@ export default function HomeScreen({
         {onLogout && <button type="button" className="kmc-btn" onClick={onLogout}>Sign out</button>}
       </div>
 
-      <header style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <img src={logo} alt="Kiira Motors Corporation" style={{ height: 44, width: 'auto' }} />
-        <div style={{ minWidth: 0 }}>
-          <h1 className="kmc-title" style={{ margin: 0 }}>Bus Production Tracker</h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-            {firstName ? `Signed in as ${firstName}.` : 'Choose where to go.'}
-            {toReview > 0 && (isSupervisor || isSystemAdmin) ? ` ${plural(toReview, 'card')} waiting for review.` : ''}
-            {openTasks > 0 ? ` ${plural(openTasks, 'task')} still open.` : ''}
-          </div>
+      <header style={{ textAlign: 'center' }}>
+        <img src={logo} alt="Kiira Motors Corporation" style={{ height: 48, width: 'auto' }} />
+        <h1 className="kmc-title" style={{ margin: '10px 0 0' }}>Bus Production Tracker</h1>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+          {firstName ? `Signed in as ${firstName}.` : 'Choose where to go.'}
         </div>
       </header>
 
-      {groups.map(g => (
-        <section key={g.title} className="kmc-home-group">
-          <h2>{g.title}</h2>
-          <div className="kmc-panel kmc-home-list">
-            {g.rows.map(r => <Row key={r.name} {...r} />)}
-          </div>
-        </section>
-      ))}
+      <div className="kmc-home-cards">
+        {cards.map(c => <Card key={c.name} theme={theme} {...c} />)}
+      </div>
 
       <div style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'center', marginTop: 28 }}>
         Kiira Motors Corporation, {new Date().getFullYear()}

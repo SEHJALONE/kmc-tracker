@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import PageShell from './ui/PageShell';
 import Avatar from './ui/Avatar';
+import { MoreAccessRequest } from './MoreAccess';
 import { emailProblem } from '../utils/emailCheck';
 import {
   cachedProfile, cacheProfile, fetchMyProfile, saveMyProfile, resizePhoto,
@@ -203,6 +204,9 @@ export default function AccountSettings({ theme, onToggleTheme, onBack, username
           {msg && <span role="status" style={{ fontSize: 13, fontWeight: 600, color: msg.ok ? 'var(--c-lime)' : 'var(--c-red)' }}>{msg.text}</span>}
         </div>
       </form>
+      <div style={{ maxWidth: 760, margin: '20px auto 0' }}>
+        <MoreAccessRequest assignedStations={stations} />
+      </div>
     </PageShell>
   );
 }

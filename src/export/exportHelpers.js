@@ -2,14 +2,14 @@ export const isKDC = (m = '') => m.toUpperCase().includes('KDC');
 export const isEVS = (m = '') => m.toUpperCase().includes('EVS');
 
 export function fmt(ms) {
-  if (!ms || ms < 0) return '—';
+  if (!ms || ms < 0) return '-';
   const h = Math.floor(ms / 3600000);
   const d = Math.floor(h / 24);
   return d > 0 ? `${d}d ${h % 24}h` : `${h}h`;
 }
 
 export function fmtDate(ts) {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const d = new Date(ts);
   return isNaN(d) ? String(ts) : d.toLocaleString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',

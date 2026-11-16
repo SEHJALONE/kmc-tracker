@@ -8,7 +8,7 @@ export function buildWorkbook(buses, rows, metrics) {
 
   // ── Sheet 1: Summary ─────────────────────────────────────────
   const summaryData = [
-    ['KMC Bus Production Tracker — Dashboard Export'],
+    ['KMC Bus Production Tracker - Dashboard Export'],
     [`Generated: ${stamp}`],
     [],
     ['Metric', 'Value'],
@@ -27,17 +27,17 @@ export function buildWorkbook(buses, rows, metrics) {
   }
   summaryData.push(
     [],
-    ['Best station',               metrics.bestStation?.name  || '—'],
-    ['Best station avg dwell',     metrics.bestStation  ? `${metrics.bestStation.hours.toFixed(1)}h`  : '—'],
-    ['Best station efficiency',    metrics.bestStation?.efficiency  != null ? `${metrics.bestStation.efficiency}%`  : '—'],
-    ['Slowest station',            metrics.worstStation?.name || '—'],
-    ['Slowest station avg dwell',  metrics.worstStation ? `${metrics.worstStation.hours.toFixed(1)}h` : '—'],
-    ['Slowest station efficiency', metrics.worstStation?.efficiency != null ? `${metrics.worstStation.efficiency}%` : '—'],
+    ['Best station',               metrics.bestStation?.name  || '-'],
+    ['Best station avg dwell',     metrics.bestStation  ? `${metrics.bestStation.hours.toFixed(1)}h`  : '-'],
+    ['Best station efficiency',    metrics.bestStation?.efficiency  != null ? `${metrics.bestStation.efficiency}%`  : '-'],
+    ['Slowest station',            metrics.worstStation?.name || '-'],
+    ['Slowest station avg dwell',  metrics.worstStation ? `${metrics.worstStation.hours.toFixed(1)}h` : '-'],
+    ['Slowest station efficiency', metrics.worstStation?.efficiency != null ? `${metrics.worstStation.efficiency}%` : '-'],
     [],
-    ['Best line',                  metrics.bestLine?.label  || '—'],
-    ['Best line avg dwell/station',  metrics.bestLine  ? `${metrics.bestLine.hours.toFixed(1)}h`  : '—'],
-    ['Slowest line',               metrics.worstLine?.label || '—'],
-    ['Slowest line avg dwell/station', metrics.worstLine ? `${metrics.worstLine.hours.toFixed(1)}h` : '—'],
+    ['Best line',                  metrics.bestLine?.label  || '-'],
+    ['Best line avg dwell/station',  metrics.bestLine  ? `${metrics.bestLine.hours.toFixed(1)}h`  : '-'],
+    ['Slowest line',               metrics.worstLine?.label || '-'],
+    ['Slowest line avg dwell/station', metrics.worstLine ? `${metrics.worstLine.hours.toFixed(1)}h` : '-'],
   );
   const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
   ws1['!cols'] = [{ wch: 36 }, { wch: 24 }];
@@ -57,9 +57,9 @@ export function buildWorkbook(buses, rows, metrics) {
     const lineId   = bus.station?.line;
     const lineTot  = lineId ? majorStationCountForLine(lineId) : 0;
     return {
-      VIN: bus.vin, Model: bus.model || '—',
-      Line: LINES.find(l => l.id === lineId)?.label || lineId || '—',
-      'Station Code': bus.stationCode, 'Station Name': bus.station?.name || bus.stationCode || '—',
+      VIN: bus.vin, Model: bus.model || '-',
+      Line: LINES.find(l => l.id === lineId)?.label || lineId || '-',
+      'Station Code': bus.stationCode, 'Station Name': bus.station?.name || bus.stationCode || '-',
       Status: getStatus(curMs), 'Time at Station': fmt(curMs), 'Total on Floor': fmt(totalMs),
       'First Entry': fmtDate(firstTs), 'Stations Visited': visited, 'Line Stations': lineTot,
       'Progress (%)': lineTot > 0 ? Math.min(Math.round((visited / lineTot) * 100), 100) : 0,
@@ -90,12 +90,12 @@ export function buildWorkbook(buses, rows, metrics) {
     const effRows = (metrics.stationEfficiency || []).map(s => ({
       'Station Code': s.code,
       'Station Name': s.name || s.code,
-      Line: LINES.find(l => l.id === s.line)?.label || s.line || '—',
-      'Avg Actual (h)': s.hours != null ? +s.hours.toFixed(2) : '—',
-      'Planned (h)':    s.estimatedHours != null ? +s.estimatedHours.toFixed(2) : '—',
-      'Efficiency (%)': s.efficiency != null ? s.efficiency : '—',
-      'Variance (%)':   s.variancePct != null ? s.variancePct : '—',
-      Rating: s.efficiency == null ? '—' : s.efficiency >= 95 ? 'On Plan' : s.efficiency >= 80 ? 'Slight Delay' : 'Bottleneck',
+      Line: LINES.find(l => l.id === s.line)?.label || s.line || '-',
+      'Avg Actual (h)': s.hours != null ? +s.hours.toFixed(2) : '-',
+      'Planned (h)':    s.estimatedHours != null ? +s.estimatedHours.toFixed(2) : '-',
+      'Efficiency (%)': s.efficiency != null ? s.efficiency : '-',
+      'Variance (%)':   s.variancePct != null ? s.variancePct : '-',
+      Rating: s.efficiency == null ? '-' : s.efficiency >= 95 ? 'On Plan' : s.efficiency >= 80 ? 'Slight Delay' : 'Bottleneck',
     }));
     const ws5 = XLSX.utils.json_to_sheet(effRows);
     ws5['!cols'] = [{ wch: 14 }, { wch: 40 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
@@ -122,7 +122,7 @@ export function buildWorkbook(buses, rows, metrics) {
       Rank:             i + 1,
       'Station Code':   r.code,
       'Station Name':   r.name,
-      Line:             LINES.find(l => l.id === r.line)?.label || r.line || '—',
+      Line:             LINES.find(l => l.id === r.line)?.label || r.line || '-',
       'Rework Hours':   +r.hrs.toFixed(2),
     }));
     const wsR = XLSX.utils.json_to_sheet(rwRows);
@@ -133,19 +133,19 @@ export function buildWorkbook(buses, rows, metrics) {
   // ── Sheet 8: Full History ─────────────────────────────────────
   const histRows = rows.map(r => {
     const row = {
-      VIN: r.vin, Model: r.model || '—',
+      VIN: r.vin, Model: r.model || '-',
       'Station Code': r.stationCode,
-      'Station Name': STATIONS[r.stationCode]?.name || '—',
-      Line: STATIONS[r.stationCode] ? LINES.find(l => l.id === STATIONS[r.stationCode].line)?.label || '—' : '—',
-      Timestamp: r.rawTimestamp || '—',
-      'Approval Status': r.approvalStatus || '—',
-      'OHS Issue': r.ohsIssue || '—',
-      'Downtime (min)': r.downtimeMin ?? r.overrunMin ?? '—',
+      'Station Name': STATIONS[r.stationCode]?.name || '-',
+      Line: STATIONS[r.stationCode] ? LINES.find(l => l.id === STATIONS[r.stationCode].line)?.label || '-' : '-',
+      Timestamp: r.rawTimestamp || '-',
+      'Approval Status': r.approvalStatus || '-',
+      'OHS Issue': r.ohsIssue || '-',
+      'Downtime (min)': r.downtimeMin ?? r.overrunMin ?? '-',
     };
-    if (r.downtimeMin  !== undefined) row['Downtime (min)']  = r.downtimeMin  ?? '—';
-    if (r.downtimeReason !== undefined) row['Downtime Reason'] = r.downtimeReason || '—';
-    if (r.reworkFlag   !== undefined) row['Rework Flag']     = r.reworkFlag === true ? 'Yes' : r.reworkFlag === false ? 'No' : '—';
-    if (r.reworkHrs    !== undefined) row['Rework Hours']    = r.reworkHrs   ?? '—';
+    if (r.downtimeMin  !== undefined) row['Downtime (min)']  = r.downtimeMin  ?? '-';
+    if (r.downtimeReason !== undefined) row['Downtime Reason'] = r.downtimeReason || '-';
+    if (r.reworkFlag   !== undefined) row['Rework Flag']     = r.reworkFlag === true ? 'Yes' : r.reworkFlag === false ? 'No' : '-';
+    if (r.reworkHrs    !== undefined) row['Rework Hours']    = r.reworkHrs   ?? '-';
     return row;
   });
   const ws8 = XLSX.utils.json_to_sheet(histRows);

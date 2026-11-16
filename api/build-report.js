@@ -358,13 +358,13 @@ function lineProgress(stationCodes, lineId, model) {
 var isKDC = (m = "") => m.toUpperCase().includes("KDC");
 var isEVS = (m = "") => m.toUpperCase().includes("EVS");
 function fmt(ms) {
-  if (!ms || ms < 0) return "\u2014";
+  if (!ms || ms < 0) return "-";
   const h = Math.floor(ms / 36e5);
   const d = Math.floor(h / 24);
   return d > 0 ? `${d}d ${h % 24}h` : `${h}h`;
 }
 function fmtDate(ts) {
-  if (!ts) return "\u2014";
+  if (!ts) return "-";
   const d = new Date(ts);
   return isNaN(d) ? String(ts) : d.toLocaleString("en-GB", {
     day: "numeric",
@@ -397,6 +397,10 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
   const SLATE = [40, 40, 40];
   const MID = [148, 163, 184];
   const DIM = [71, 85, 105];
+  const NAVY = [20, 32, 63];
+  const GOLD = [224, 169, 27];
+  const GROUND = [233, 238, 240];
+  const RULE = [214, 224, 218];
   const W = 297, H = 210;
   const M = 10;
   const CW = W - M * 2;
@@ -430,10 +434,10 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     const status = getStatus(curMs);
     return {
       vin: bus.vin,
-      model: bus.model || "\u2014",
-      lineName: LINES.find((l) => l.id === lineId)?.label || lineId || "\u2014",
-      stationName: bus.station?.name || bus.stationCode || "\u2014",
-      stationCode: bus.stationCode || "\u2014",
+      model: bus.model || "-",
+      lineName: LINES.find((l) => l.id === lineId)?.label || lineId || "-",
+      stationName: bus.station?.name || bus.stationCode || "-",
+      stationCode: bus.stationCode || "-",
       atStation: fmt(curMs),
       totalTime: fmt(totalMs),
       firstEntry: fmtDate(firstTs),
@@ -452,13 +456,13 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
   const hasAnalytics = metrics.overrunPareto?.length > 0 || metrics.stationEfficiency?.some((s) => s.efficiency != null) || metrics.hasDowntimeData || metrics.hasReworkData;
   const totalPages = (hasAnalytics ? 2 : 1) + Math.ceil(busRows.length / BUSES_PER_PAGE);
   function resetPage(doc2) {
-    doc2.setFillColor(...WHITE);
+    doc2.setFillColor(...GROUND);
     doc2.rect(0, 0, W, H, "F");
   }
   function drawHeader(doc2, pageNum) {
-    doc2.setFillColor(...[15, 23, 42]);
+    doc2.setFillColor(...NAVY);
     doc2.rect(0, 0, W, HDR_H, "F");
-    doc2.setFillColor(...RED);
+    doc2.setFillColor(...GOLD);
     doc2.rect(0, HDR_H, W, 1.5, "F");
     if (logoBase64) {
       try {
@@ -469,7 +473,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     doc2.setFont("helvetica", "bold");
     doc2.setFontSize(13);
     doc2.setTextColor(255, 255, 255);
-    doc2.text("KMC BUS PRODUCTION TRACKER", W / 2, 9, { align: "center" });
+    doc2.text("Bus Production Tracker", W / 2, 9, { align: "center" });
     doc2.setFont("helvetica", "normal");
     doc2.setFontSize(7);
     doc2.setTextColor(180, 190, 210);
@@ -507,17 +511,18 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
   }
   function card(doc2, x, y, w, h, accentColor) {
     doc2.setFillColor(...WHITE);
-    doc2.setDrawColor(...accentColor || LIGHTGRAY);
+    doc2.setDrawColor(...accentColor || RULE);
     doc2.setLineWidth(accentColor ? 0.5 : 0.25);
-    doc2.roundedRect(x, y, w, h, 1, 1, "FD");
+    doc2.roundedRect(x, y, w, h, 3, 3, "FD");
   }
   function drawBarChart(doc2, x, y, w, h, entries, maxVal, title) {
     card(doc2, x, y, w, h);
     doc2.setFont("helvetica", "bold");
     doc2.setFontSize(8.5);
     doc2.setTextColor(...BLACK);
-    doc2.text(title.toUpperCase(), x + 4, y + 7);
-    doc2.setDrawColor(...LIGHTGRAY);
+    doc2.setTextColor(...NAVY);
+    doc2.text(title, x + 4, y + 7);
+    doc2.setDrawColor(...RULE);
     doc2.setLineWidth(0.2);
     doc2.line(x + 3, y + 8.5, x + w - 3, y + 8.5);
     if (!entries.length) return;
@@ -565,7 +570,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     doc2.setTextColor(...accent);
     doc2.text(label.toUpperCase(), x + 4, y + 10);
     if (item) {
-      const name = item.name || item.label || "\u2014";
+      const name = item.name || item.label || "-";
       doc2.setFont("helvetica", "bold");
       doc2.setFontSize(9.5);
       doc2.setTextColor(...BLACK);
@@ -603,15 +608,14 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
   kpis2.forEach(({ label, val, color }, i) => {
     const kx = M + i * (kpiW + KPI_GAP);
     doc.setFillColor(...WHITE);
-    doc.setDrawColor(...color);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(kx, KPI_Y, kpiW, KPI_H, 1.5, 1.5, "FD");
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(kx, KPI_Y, kpiW, KPI_H, 3, 3, "FD");
     doc.setFillColor(...color);
-    doc.roundedRect(kx, KPI_Y, kpiW, 3, 1.5, 1.5, "F");
-    doc.rect(kx, KPI_Y + 1, kpiW, 2, "F");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(...BLACK);
+    doc.circle(kx + kpiW - 4, KPI_Y + 4, 1.1, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(75, 86, 117);
     doc.text(label.toUpperCase(), kx + kpiW / 2, KPI_Y + 11, { align: "center" });
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
@@ -648,14 +652,14 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     const AL_X = M, AR_X = M + AL_W + AGAP;
     let leftY = AY, rightY = AY;
     const sectionTitle = (doc2, x, y, w, title) => {
-      doc2.setFillColor(...[30, 41, 59]);
-      doc2.rect(x, y, w, 7, "F");
-      doc2.setFillColor(...RED);
+      doc2.setFillColor(...NAVY);
+      doc2.roundedRect(x, y, w, 7, 1.5, 1.5, "F");
+      doc2.setFillColor(...GOLD);
       doc2.rect(x, y, 3, 7, "F");
       doc2.setFont("helvetica", "bold");
       doc2.setFontSize(8);
       doc2.setTextColor(...WHITE);
-      doc2.text(title.toUpperCase(), x + 6, y + 5);
+      doc2.text(title, x + 6, y + 5);
       return y + 9;
     };
     const effData = (metrics.stationEfficiency || []).filter((s) => s.efficiency != null).slice(0, 12);
@@ -699,7 +703,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     const paretoData = metrics.downtimePareto?.length > 0 ? metrics.downtimePareto : null;
     const overrunData = metrics.overrunPareto?.length > 0 ? metrics.overrunPareto : null;
     if (overrunData) {
-      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Downtime by Station \u2014 Top ${overrunData.length}`);
+      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Downtime by Station - Top ${overrunData.length}`);
       const maxMin = overrunData[0].totalMin;
       const maxBarW2 = AL_W - 42;
       const rowH2 = Math.min(AH * 0.5 / overrunData.length, 10);
@@ -731,7 +735,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
       rightY += overrunData.length * rowH2 + 5;
     }
     if (paretoData) {
-      rightY = sectionTitle(doc, AR_X, rightY, AL_W, "Downtime by Reason \u2014 Pareto");
+      rightY = sectionTitle(doc, AR_X, rightY, AL_W, "Downtime by Reason - Pareto");
       const maxMinD = paretoData[0].mins;
       const maxBarW3 = AL_W - 42;
       const rowH3 = Math.min((AH - (rightY - AY) - 4) / paretoData.length, 10);
@@ -817,7 +821,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     resetPage(doc);
     drawHeader(doc, pageIdx + busPageOffset);
     const stripY = BODY_Y + 1;
-    doc.setFillColor(...XLIGHT);
+    doc.setFillColor(...WHITE);
     doc.rect(M, stripY, CW, TABLE_STRIP_H, "F");
     doc.setDrawColor(...LIGHTGRAY);
     doc.setLineWidth(0.2);
@@ -827,7 +831,7 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     const pD = chunk.filter((b) => b.status === "Delayed").length;
     const si2 = [
       { label: "BUS REPORT", val: null, color: DARKGRAY },
-      { label: "FLOOR", val: String(metrics.total || "\u2014"), color: SLATE },
+      { label: "FLOOR", val: String(metrics.total || "-"), color: SLATE },
       { label: "ON TRACK", val: String(pOT), color: GREEN },
       { label: "SLOW", val: String(pS), color: AMBER },
       { label: "DELAYED", val: String(pD), color: RED }
@@ -866,9 +870,9 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
     const r02 = pageIdx * BUSES_PER_PAGE + 1, r12 = r02 + chunk.length - 1;
     doc.text(`ROWS ${r02}\u2013${r12}  \xB7  SORTED MOST RECENT FIRST`, W - M, stripY + 5, { align: "right" });
     const thY2 = stripY + TABLE_STRIP_H;
-    doc.setFillColor(...[15, 23, 42]);
+    doc.setFillColor(...NAVY);
     doc.rect(M, thY2, CW, TH_H, "F");
-    doc.setDrawColor(...[15, 23, 42]);
+    doc.setDrawColor(...NAVY);
     doc.setLineWidth(0.1);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
@@ -924,8 +928,9 @@ async function buildPDF(buses, rows, metrics, logoBase64) {
 async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   const W = 297, H = 210;
   const M = 12;
-  const BG = [7, 9, 15];
-  const BG2 = [13, 21, 38];
+  const BG = [8, 15, 30];
+  const BG2 = [17, 27, 51];
+  const GOLD = [242, 197, 61];
   const RED = [220, 38, 38];
   const RED_DIM = [127, 29, 29];
   const GREEN = [16, 185, 129];
@@ -963,10 +968,10 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     const status = getStatus(curMs);
     return {
       vin: bus.vin,
-      model: bus.model || "\u2014",
-      lineName: LINES.find((l) => l.id === lineId)?.label || lineId || "\u2014",
-      stationName: bus.station?.name || bus.stationCode || "\u2014",
-      stationCode: bus.stationCode || "\u2014",
+      model: bus.model || "-",
+      lineName: LINES.find((l) => l.id === lineId)?.label || lineId || "-",
+      stationName: bus.station?.name || bus.stationCode || "-",
+      stationCode: bus.stationCode || "-",
       atStation: fmt(curMs),
       totalTime: fmt(totalMs),
       firstEntry: fmtDate(firstTs),
@@ -997,11 +1002,11 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     doc.rect(0, 0, W, H, "F");
   }
   function drawHeader(slideNum) {
-    doc.setFillColor(...RED);
+    doc.setFillColor(...GOLD);
     doc.rect(0, 0, W, 3, "F");
     doc.setFillColor(10, 16, 28);
     doc.rect(0, 3, W, HDR_H - 3, "F");
-    doc.setDrawColor(...RED_DIM);
+    doc.setDrawColor(38, 54, 90);
     doc.setLineWidth(0.3);
     doc.line(M, HDR_H, W - M, HDR_H);
     if (logoBase64) {
@@ -1013,11 +1018,11 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...WHITE);
-    doc.text("KMC BUS PRODUCTION REPORT", M + (logoBase64 ? 26 : 0), 12);
+    doc.text("Bus Production Report", M + (logoBase64 ? 26 : 0), 12);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(...DIM);
-    doc.text(`${stamp}  \xB7  KIIRA MOTORS CORPORATION \u2014 CONFIDENTIAL`, M + (logoBase64 ? 26 : 0), 18);
+    doc.text(`${stamp}  \xB7  Kiira Motors Corporation, confidential`, M + (logoBase64 ? 26 : 0), 18);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(...DIM);
@@ -1026,7 +1031,7 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   function drawFooter() {
     doc.setFillColor(10, 16, 28);
     doc.rect(0, FTR_Y, W, FTR_H, "F");
-    doc.setDrawColor(...RED_DIM);
+    doc.setDrawColor(38, 54, 90);
     doc.setLineWidth(0.2);
     doc.line(0, FTR_Y, W, FTR_Y);
     doc.setFont("helvetica", "normal");
@@ -1218,7 +1223,7 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     doc.setTextColor(...accent);
     doc.text(title, COL3_X + 4, py + 8);
     if (item) {
-      const name = item.name || item.label || "\u2014";
+      const name = item.name || item.label || "-";
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(...WHITE);
@@ -1335,7 +1340,7 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
       });
     }
     if ((metrics.overrunPareto || []).length > 0) {
-      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Downtime by Station \u2014 Top ${metrics.overrunPareto.length}`);
+      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Downtime by Station - Top ${metrics.overrunPareto.length}`);
       const maxMin = metrics.overrunPareto[0].totalMin;
       const maxBW2 = AL_W - 40;
       const rowH2 = Math.min(AH * 0.5 / metrics.overrunPareto.length, 10);
@@ -1368,7 +1373,7 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
       rightY += metrics.overrunPareto.length * rowH2 + 6;
     }
     if ((metrics.downtimePareto || []).length > 0) {
-      rightY = darkSectionTitle(AR_X, rightY, AL_W, "Downtime by Reason \u2014 Pareto");
+      rightY = darkSectionTitle(AR_X, rightY, AL_W, "Downtime by Reason - Pareto");
       const dtData = metrics.downtimePareto;
       const maxMinD = dtData[0].mins;
       const maxBW3 = AL_W - 36;
@@ -1433,7 +1438,7 @@ async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     const pageDelayed = chunk.filter((b) => b.status === "Delayed").length;
     const summaryItems = [
       { label: "BUS REPORT", val: null, color: MID },
-      { label: "FLOOR", val: String(metrics.total || "\u2014"), color: MID },
+      { label: "FLOOR", val: String(metrics.total || "-"), color: MID },
       { label: "ON TRACK", val: String(pageOnTrack), color: GREEN },
       { label: "SLOW", val: String(pageSlow), color: AMBER },
       { label: "DELAYED", val: String(pageDelayed), color: RED }
@@ -1539,7 +1544,7 @@ function buildWorkbook(buses, rows, metrics) {
   const wb = XLSX.utils.book_new();
   const stamp = (/* @__PURE__ */ new Date()).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const summaryData = [
-    ["KMC Bus Production Tracker \u2014 Dashboard Export"],
+    ["KMC Bus Production Tracker - Dashboard Export"],
     [`Generated: ${stamp}`],
     [],
     ["Metric", "Value"],
@@ -1558,17 +1563,17 @@ function buildWorkbook(buses, rows, metrics) {
   }
   summaryData.push(
     [],
-    ["Best station", metrics.bestStation?.name || "\u2014"],
-    ["Best station avg dwell", metrics.bestStation ? `${metrics.bestStation.hours.toFixed(1)}h` : "\u2014"],
-    ["Best station efficiency", metrics.bestStation?.efficiency != null ? `${metrics.bestStation.efficiency}%` : "\u2014"],
-    ["Slowest station", metrics.worstStation?.name || "\u2014"],
-    ["Slowest station avg dwell", metrics.worstStation ? `${metrics.worstStation.hours.toFixed(1)}h` : "\u2014"],
-    ["Slowest station efficiency", metrics.worstStation?.efficiency != null ? `${metrics.worstStation.efficiency}%` : "\u2014"],
+    ["Best station", metrics.bestStation?.name || "-"],
+    ["Best station avg dwell", metrics.bestStation ? `${metrics.bestStation.hours.toFixed(1)}h` : "-"],
+    ["Best station efficiency", metrics.bestStation?.efficiency != null ? `${metrics.bestStation.efficiency}%` : "-"],
+    ["Slowest station", metrics.worstStation?.name || "-"],
+    ["Slowest station avg dwell", metrics.worstStation ? `${metrics.worstStation.hours.toFixed(1)}h` : "-"],
+    ["Slowest station efficiency", metrics.worstStation?.efficiency != null ? `${metrics.worstStation.efficiency}%` : "-"],
     [],
-    ["Best line", metrics.bestLine?.label || "\u2014"],
-    ["Best line avg dwell/station", metrics.bestLine ? `${metrics.bestLine.hours.toFixed(1)}h` : "\u2014"],
-    ["Slowest line", metrics.worstLine?.label || "\u2014"],
-    ["Slowest line avg dwell/station", metrics.worstLine ? `${metrics.worstLine.hours.toFixed(1)}h` : "\u2014"]
+    ["Best line", metrics.bestLine?.label || "-"],
+    ["Best line avg dwell/station", metrics.bestLine ? `${metrics.bestLine.hours.toFixed(1)}h` : "-"],
+    ["Slowest line", metrics.worstLine?.label || "-"],
+    ["Slowest line avg dwell/station", metrics.worstLine ? `${metrics.worstLine.hours.toFixed(1)}h` : "-"]
   );
   const ws1 = XLSX.utils.aoa_to_sheet(summaryData);
   ws1["!cols"] = [{ wch: 36 }, { wch: 24 }];
@@ -1590,10 +1595,10 @@ function buildWorkbook(buses, rows, metrics) {
     const lineTot = lineId ? majorStationCountForLine(lineId) : 0;
     return {
       VIN: bus.vin,
-      Model: bus.model || "\u2014",
-      Line: LINES.find((l) => l.id === lineId)?.label || lineId || "\u2014",
+      Model: bus.model || "-",
+      Line: LINES.find((l) => l.id === lineId)?.label || lineId || "-",
       "Station Code": bus.stationCode,
-      "Station Name": bus.station?.name || bus.stationCode || "\u2014",
+      "Station Name": bus.station?.name || bus.stationCode || "-",
       Status: getStatus(curMs),
       "Time at Station": fmt(curMs),
       "Total on Floor": fmt(totalMs),
@@ -1620,12 +1625,12 @@ function buildWorkbook(buses, rows, metrics) {
     const effRows = (metrics.stationEfficiency || []).map((s) => ({
       "Station Code": s.code,
       "Station Name": s.name || s.code,
-      Line: LINES.find((l) => l.id === s.line)?.label || s.line || "\u2014",
-      "Avg Actual (h)": s.hours != null ? +s.hours.toFixed(2) : "\u2014",
-      "Planned (h)": s.estimatedHours != null ? +s.estimatedHours.toFixed(2) : "\u2014",
-      "Efficiency (%)": s.efficiency != null ? s.efficiency : "\u2014",
-      "Variance (%)": s.variancePct != null ? s.variancePct : "\u2014",
-      Rating: s.efficiency == null ? "\u2014" : s.efficiency >= 95 ? "On Plan" : s.efficiency >= 80 ? "Slight Delay" : "Bottleneck"
+      Line: LINES.find((l) => l.id === s.line)?.label || s.line || "-",
+      "Avg Actual (h)": s.hours != null ? +s.hours.toFixed(2) : "-",
+      "Planned (h)": s.estimatedHours != null ? +s.estimatedHours.toFixed(2) : "-",
+      "Efficiency (%)": s.efficiency != null ? s.efficiency : "-",
+      "Variance (%)": s.variancePct != null ? s.variancePct : "-",
+      Rating: s.efficiency == null ? "-" : s.efficiency >= 95 ? "On Plan" : s.efficiency >= 80 ? "Slight Delay" : "Bottleneck"
     }));
     const ws5 = XLSX.utils.json_to_sheet(effRows);
     ws5["!cols"] = [{ wch: 14 }, { wch: 40 }, { wch: 28 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 14 }];
@@ -1648,7 +1653,7 @@ function buildWorkbook(buses, rows, metrics) {
       Rank: i + 1,
       "Station Code": r.code,
       "Station Name": r.name,
-      Line: LINES.find((l) => l.id === r.line)?.label || r.line || "\u2014",
+      Line: LINES.find((l) => l.id === r.line)?.label || r.line || "-",
       "Rework Hours": +r.hrs.toFixed(2)
     }));
     const wsR = XLSX.utils.json_to_sheet(rwRows);
@@ -1658,19 +1663,19 @@ function buildWorkbook(buses, rows, metrics) {
   const histRows = rows.map((r) => {
     const row = {
       VIN: r.vin,
-      Model: r.model || "\u2014",
+      Model: r.model || "-",
       "Station Code": r.stationCode,
-      "Station Name": STATIONS[r.stationCode]?.name || "\u2014",
-      Line: STATIONS[r.stationCode] ? LINES.find((l) => l.id === STATIONS[r.stationCode].line)?.label || "\u2014" : "\u2014",
-      Timestamp: r.rawTimestamp || "\u2014",
-      "Approval Status": r.approvalStatus || "\u2014",
-      "OHS Issue": r.ohsIssue || "\u2014",
-      "Downtime (min)": r.downtimeMin ?? r.overrunMin ?? "\u2014"
+      "Station Name": STATIONS[r.stationCode]?.name || "-",
+      Line: STATIONS[r.stationCode] ? LINES.find((l) => l.id === STATIONS[r.stationCode].line)?.label || "-" : "-",
+      Timestamp: r.rawTimestamp || "-",
+      "Approval Status": r.approvalStatus || "-",
+      "OHS Issue": r.ohsIssue || "-",
+      "Downtime (min)": r.downtimeMin ?? r.overrunMin ?? "-"
     };
-    if (r.downtimeMin !== void 0) row["Downtime (min)"] = r.downtimeMin ?? "\u2014";
-    if (r.downtimeReason !== void 0) row["Downtime Reason"] = r.downtimeReason || "\u2014";
-    if (r.reworkFlag !== void 0) row["Rework Flag"] = r.reworkFlag === true ? "Yes" : r.reworkFlag === false ? "No" : "\u2014";
-    if (r.reworkHrs !== void 0) row["Rework Hours"] = r.reworkHrs ?? "\u2014";
+    if (r.downtimeMin !== void 0) row["Downtime (min)"] = r.downtimeMin ?? "-";
+    if (r.downtimeReason !== void 0) row["Downtime Reason"] = r.downtimeReason || "-";
+    if (r.reworkFlag !== void 0) row["Rework Flag"] = r.reworkFlag === true ? "Yes" : r.reworkFlag === false ? "No" : "-";
+    if (r.reworkHrs !== void 0) row["Rework Hours"] = r.reworkHrs ?? "-";
     return row;
   });
   const ws8 = XLSX.utils.json_to_sheet(histRows);

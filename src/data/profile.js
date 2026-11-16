@@ -43,6 +43,12 @@ async function call(action, extra = {}) {
 export const fetchMyProfile = () => call('getMyProfile');
 export const saveMyProfile = (patch) => call('updateMyProfile', { payload: JSON.stringify(patch) });
 
+// Requests for more access (see components/MoreAccess.jsx). Administrators get
+// everyone's list from the same action; everyone else gets their own.
+export const requestMoreAccess = (payload) => call('requestMoreAccess', { payload: JSON.stringify(payload) });
+export const listAccessChangeRequests = () => call('listAccessChangeRequests');
+export const resolveAccessChangeRequest = (id, status, note = '') => call('resolveAccessChangeRequest', { id, status, note });
+
 // A server that predates the Settings page does not know these actions. It
 // answers "unknown-action", or (the script live in Nov 2026) falls through to
 // its Travel Card parser and reports a JSON error.

@@ -6,8 +6,9 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   const W = 297, H = 210;
   const M = 12;
 
-  const BG      = [7,   9,   15 ];
-  const BG2     = [13,  21,  38 ];
+  const BG      = [8,   15,  30 ];   // report kit, dark ground
+  const BG2     = [17,  27,  51 ];   // report kit, dark surface
+  const GOLD    = [242, 197, 61 ];
   const RED     = [220, 38,  38 ];
   const RED_DIM = [127, 29,  29 ];
   const GREEN   = [16,  185, 129];
@@ -44,10 +45,10 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     const progress = lineTot > 0 ? Math.min(Math.round((visited / lineTot) * 100), 100) : 0;
     const status   = getStatus(curMs);
     return {
-      vin: bus.vin, model: bus.model || '—',
-      lineName: LINES.find(l => l.id === lineId)?.label || lineId || '—',
-      stationName: bus.station?.name || bus.stationCode || '—',
-      stationCode: bus.stationCode || '—',
+      vin: bus.vin, model: bus.model || '-',
+      lineName: LINES.find(l => l.id === lineId)?.label || lineId || '-',
+      stationName: bus.station?.name || bus.stationCode || '-',
+      stationCode: bus.stationCode || '-',
       atStation: fmt(curMs), totalTime: fmt(totalMs),
       firstEntry: fmtDate(firstTs), progress, status,
       _latestTs: latestTs || 0,
@@ -81,11 +82,11 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   }
 
   function drawHeader(slideNum) {
-    doc.setFillColor(...RED);
+    doc.setFillColor(...GOLD);
     doc.rect(0, 0, W, 3, 'F');
     doc.setFillColor(10, 16, 28);
     doc.rect(0, 3, W, HDR_H - 3, 'F');
-    doc.setDrawColor(...RED_DIM);
+    doc.setDrawColor(38, 54, 90);
     doc.setLineWidth(0.3);
     doc.line(M, HDR_H, W - M, HDR_H);
     if (logoBase64) {
@@ -94,11 +95,11 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(...WHITE);
-    doc.text('KMC BUS PRODUCTION REPORT', M + (logoBase64 ? 26 : 0), 12);
+    doc.text('Bus Production Report', M + (logoBase64 ? 26 : 0), 12);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(...DIM);
-    doc.text(`${stamp}  ·  KIIRA MOTORS CORPORATION — CONFIDENTIAL`, M + (logoBase64 ? 26 : 0), 18);
+    doc.text(`${stamp}  ·  Kiira Motors Corporation, confidential`, M + (logoBase64 ? 26 : 0), 18);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...DIM);
@@ -108,7 +109,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
   function drawFooter() {
     doc.setFillColor(10, 16, 28);
     doc.rect(0, FTR_Y, W, FTR_H, 'F');
-    doc.setDrawColor(...RED_DIM);
+    doc.setDrawColor(38, 54, 90);
     doc.setLineWidth(0.2);
     doc.line(0, FTR_Y, W, FTR_Y);
     doc.setFont('helvetica', 'normal');
@@ -314,7 +315,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
     doc.setTextColor(...accent);
     doc.text(title, COL3_X + 4, py + 8);
     if (item) {
-      const name = item.name || item.label || '—';
+      const name = item.name || item.label || '-';
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(...WHITE);
@@ -415,7 +416,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
 
     // RIGHT: Downtime Pareto
     if ((metrics.overrunPareto || []).length > 0) {
-      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Downtime by Station — Top ${metrics.overrunPareto.length}`);
+      rightY = darkSectionTitle(AR_X, rightY, AL_W, `Downtime by Station - Top ${metrics.overrunPareto.length}`);
       const maxMin = metrics.overrunPareto[0].totalMin;
       const maxBW2 = AL_W - 40;
       const rowH2 = Math.min((AH * 0.5) / metrics.overrunPareto.length, 10);
@@ -441,7 +442,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
 
     // RIGHT: Downtime Pareto
     if ((metrics.downtimePareto || []).length > 0) {
-      rightY = darkSectionTitle(AR_X, rightY, AL_W, 'Downtime by Reason — Pareto');
+      rightY = darkSectionTitle(AR_X, rightY, AL_W, 'Downtime by Reason - Pareto');
       const dtData = metrics.downtimePareto;
       const maxMinD = dtData[0].mins;
       const maxBW3 = AL_W - 36;
@@ -502,7 +503,7 @@ export async function buildSlidePDF(buses, rows, metrics, logoBase64) {
 
     const summaryItems = [
       { label: 'BUS REPORT', val: null,                         color: MID   },
-      { label: 'FLOOR',      val: String(metrics.total || '—'), color: MID   },
+      { label: 'FLOOR',      val: String(metrics.total || '-'), color: MID   },
       { label: 'ON TRACK',   val: String(pageOnTrack),          color: GREEN },
       { label: 'SLOW',       val: String(pageSlow),             color: AMBER },
       { label: 'DELAYED',    val: String(pageDelayed),          color: RED   },

@@ -98,6 +98,10 @@ function doPost(e) {
     // ── My account (signed-in; each person reads and edits only their own row) ──
     if (e && e.parameter && e.parameter.action === "getMyProfile")    return getMyProfile_(e.parameter);
     if (e && e.parameter && e.parameter.action === "updateMyProfile") return updateMyProfile_(e.parameter);
+    // Asking for more access (extra stations, another module), and the administrators' answer.
+    if (e && e.parameter && e.parameter.action === "requestMoreAccess")          return requestMoreAccess_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "listAccessChangeRequests")   return listAccessChangeRequests_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "resolveAccessChangeRequest") return resolveAccessChangeRequest_(e.parameter);
 
     // ── VIN register (Type Approvals) and Machine Shop job orders ───────────────
     if (e && e.parameter && e.parameter.action === "uploadProjectVins")  return uploadProjectVins_(e.parameter);
@@ -1914,6 +1918,119 @@ function carryNameOnCards_(username, oldName, newName) {
     }
   }
   return count;
+}
+
+// ── Requests for more access (signed-in people) ───────────────────────────────
+// Someone who already has an account asks for more: extra stations, another
+// module (Bus Tracker, Cost Estimation, VIN register), reviewing cards, or
+// anything else in their own words. The request is only a note to the
+// administrators: nothing about the account changes until an administrator
+// edits it in User Management and marks the request done.
+const ACCESS_CHANGE_TAB = "AccessChangeRequests";
+const ACCESS_CHANGE_HEADERS = ["id", "username", "full_name", "email", "stations", "extras", "reason",
+  "status", "submitted_at", "processed_at", "processed_by", "admin_note"];
+const ACCESS_CHANGE_MAX_PENDING = 3;
+
+function accessChangeRow_(headers, row) {
+  const at = function (name) { const c = headers.indexOf(name); return c < 0 ? "" : row[c]; };
+  const arr = function (v) { try { const p = JSON.parse(v || "[]"); return Array.isArray(p) ? p : []; } catch (err) { return []; } };
+  const iso = function (v) { return v instanceof Date ? v.toISOString() : String(v || ""); };
+  return {
+    id: String(at("id") || ""), username: String(at("username") || ""), fullName: String(at("full_name") || ""),
+    email: String(at("email") || ""), stations: arr(at("stations")), extras: arr(at("extras")), reason: String(at("reason") || ""),
+    status: String(at("status") || "pending"), submittedAt: iso(at("submitted_at")), processedAt: iso(at("processed_at")),
+    processedBy: String(at("processed_by") || ""), adminNote: String(at("admin_note") || ""),
+  };
+}
+function accessChangeRows_() {
+  const sh = privateSs_().getSheetByName(ACCESS_CHANGE_TAB);
+  if (!sh) return { sh: null, headers: ACCESS_CHANGE_HEADERS, list: [] };
+  const data = sh.getDataRange().getValues();
+  const headers = data[0].map(function (h) { return String(h).toLowerCase().trim(); });
+  return { sh: sh, headers: headers, list: data.slice(1).map(function (r) { return accessChangeRow_(headers, r); }) };
+}
+
+function requestMoreAccess_(params) {
+  const s = verifySession_(params.session);
+  if (!s) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const clean = function (list, max) {
+    return (Array.isArray(list) ? list : []).map(function (x) { return String(x).trim().slice(0, 60); })
+      .filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, max);
+  };
+  const stations = clean(d.stations, 80), extras = clean(d.extras, 10);
+  const reason = String(d.reason || "").trim().slice(0, 1000);
+  if (!stations.length && !extras.length && reason.length < 5) return response({ status: "error", message: "nothing-requested" });
+
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  let rec;
+  try {
+    const mine = accessChangeRows_().list.filter(function (r) { return r.username.toLowerCase() === String(s.username).toLowerCase() && r.status === "pending"; });
+    if (mine.length >= ACCESS_CHANGE_MAX_PENDING) return response({ status: "error", message: "too-many-pending" });
+    const me = userRecord_(s.username) || {};
+    rec = {
+      id: Utilities.getUuid(), username: s.username, full_name: me.fullName || "", email: me.email || "",
+      stations: JSON.stringify(stations), extras: JSON.stringify(extras), reason: reason,
+      status: "pending", submitted_at: new Date().toISOString(), processed_at: "", processed_by: "", admin_note: "",
+    };
+    appendRecords_(getOrCreate(privateSs_(), ACCESS_CHANGE_TAB, ACCESS_CHANGE_HEADERS), ACCESS_CHANGE_HEADERS, [rec]);
+  } finally { lock.releaseLock(); }
+
+  let notified = false;
+  try {
+    const admins = typeof adminEmails_ === "function" ? adminEmails_() : [];
+    if (admins.length && mailRateOk_("notifyAdmins_count", 20)) {
+      const e = function (x) { return mailEsc_(String(x == null ? "" : x).slice(0, 500)); };
+      mailSend_({
+        to: [admins[0]], bcc: admins.slice(1),
+        subject: "[KMC Tracker] More access requested - " + String(rec.full_name || rec.username).slice(0, 80),
+        html: mailCard_("#dc2626", "Request for more access", "KMC Bus Tracker · " + mailEsc_(mailKampalaNow_()),
+          mailBox_('<p style="color:#94a3b8;font-size:13px;margin:0 0 16px;">Someone who already has an account is asking for more access.</p>' +
+            mailTable_([
+              ["Name", e(rec.full_name || "-"), "font-weight:700;"],
+              ["Username", e(rec.username), "font-family:monospace;"],
+              ["Stations", e(stations.join(", ") || "-")],
+              ["Also asked for", e(extras.join(", ") || "-")],
+            ]) + (reason ? '<p style="color:#94a3b8;font-size:12px;margin:14px 0 0;">Reason: ' + e(reason) + "</p>" : "")) +
+          '<p style="color:#a5b4fc;font-size:12px;">Open <strong>User Management</strong>, change the account, then mark the request done.</p>'),
+      });
+      notified = true;
+    }
+  } catch (err) { notified = false; }
+  return response({ status: "ok", id: rec.id, adminNotified: notified });
+}
+
+// Administrators see every request; everyone else sees their own.
+function listAccessChangeRequests_(params) {
+  const s = verifySession_(params.session);
+  if (!s) return response({ status: "error", message: "unauthorized" });
+  const admin = ADMIN_ROLES.indexOf(s.role) > -1;
+  const list = accessChangeRows_().list.filter(function (r) {
+    return r.id && (admin || r.username.toLowerCase() === String(s.username).toLowerCase());
+  }).sort(function (a, b) { return a.submittedAt < b.submittedAt ? 1 : -1; }).slice(0, 200);
+  return response({ status: "ok", requests: list, admin: admin });
+}
+
+// An administrator closes a request as "done" (after editing the account in
+// User Management) or "declined". This never changes the account itself.
+function resolveAccessChangeRequest_(params) {
+  const s = verifySession_(params.session);
+  if (!s || ADMIN_ROLES.indexOf(s.role) < 0) return response({ status: "error", message: "unauthorized" });
+  const status = String(params.status || "");
+  if (["done", "declined"].indexOf(status) < 0) return response({ status: "error", message: "bad-status" });
+  const rows = accessChangeRows_();
+  if (!rows.sh) return response({ status: "error", message: "request-not-found" });
+  const idCol = rows.headers.indexOf("id");
+  const data = rows.sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) !== String(params.id)) continue;
+    const set = function (name, v) { const c = rows.headers.indexOf(name); if (c > -1) rows.sh.getRange(i + 1, c + 1).setValue(v); };
+    set("status", status); set("processed_at", new Date().toISOString()); set("processed_by", s.username);
+    set("admin_note", String(params.note || "").slice(0, 500));
+    return response({ status: "ok", id: String(params.id) });
+  }
+  return response({ status: "error", message: "request-not-found" });
 }
 
 // One account by username (never includes the password), or null.

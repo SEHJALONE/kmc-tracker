@@ -1,3 +1,4 @@
+import { AccessChangeInbox } from './MoreAccess';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ThemeSwitch from './ui/ThemeSwitch';
 import { StatTile } from './ui/Charts';
@@ -272,6 +273,8 @@ export default function UserManagement({ onBack, onToggleTheme = null, theme = '
         <StatTile label="Administrators" value={users.filter(u => u.role === 'systemadmin' || u.role === 'useradmin').length} tone="red" sub="system & user admins" />
         <StatTile label="No email on file" value={users.filter(u => !u.email).length} tone="pink" sub="will not receive notifications" />
       </div>
+
+      {!selected && <AccessChangeInbox onOpenUser={name => { const u = users.find(x => String(x.username).toLowerCase() === String(name).toLowerCase()); if (u) openEdit(u); else setSearch(name); }} />}
 
       {/* No users */}
       {users.length === 0 && (

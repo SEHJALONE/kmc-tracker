@@ -18,6 +18,12 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   const MID        = [148, 163, 184];
   const DIM        = [71,  85,  105];
 
+  // Same palette as the Travel Card reports (src/export/reportKit.js).
+  const NAVY       = [20,  32,  63 ];
+  const GOLD       = [224, 169, 27 ];
+  const GROUND     = [233, 238, 240];
+  const RULE       = [214, 224, 218];
+
   const W = 297, H = 210;
   const M = 10;
   const CW = W - M * 2;
@@ -50,10 +56,10 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     const progress = lineTot > 0 ? Math.min(Math.round((visited / lineTot) * 100), 100) : 0;
     const status   = getStatus(curMs);
     return {
-      vin: bus.vin, model: bus.model || '—',
-      lineName: LINES.find(l => l.id === lineId)?.label || lineId || '—',
-      stationName: (bus.station?.name || bus.stationCode || '—'),
-      stationCode: bus.stationCode || '—',
+      vin: bus.vin, model: bus.model || '-',
+      lineName: LINES.find(l => l.id === lineId)?.label || lineId || '-',
+      stationName: (bus.station?.name || bus.stationCode || '-'),
+      stationCode: bus.stationCode || '-',
       atStation: fmt(curMs), totalTime: fmt(totalMs),
       firstEntry: fmtDate(firstTs), progress, status, _latestTs: latestTs || 0,
     };
@@ -71,16 +77,16 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   const totalPages = (hasAnalytics ? 2 : 1) + Math.ceil(busRows.length / BUSES_PER_PAGE);
 
   function resetPage(doc) {
-    doc.setFillColor(...WHITE);
+    doc.setFillColor(...GROUND);
     doc.rect(0, 0, W, H, 'F');
   }
 
   function drawHeader(doc, pageNum) {
     // Full navy header band
-    doc.setFillColor(...[15, 23, 42]);
+    doc.setFillColor(...NAVY);
     doc.rect(0, 0, W, HDR_H, 'F');
-    // Red bottom accent
-    doc.setFillColor(...RED);
+    // Gold bottom accent
+    doc.setFillColor(...GOLD);
     doc.rect(0, HDR_H, W, 1.5, 'F');
 
     // Logo — left in navy band
@@ -88,7 +94,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
 
     // Title — centred
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(255, 255, 255);
-    doc.text('KMC BUS PRODUCTION TRACKER', W / 2, 9, { align: 'center' });
+    doc.text('Bus Production Tracker', W / 2, 9, { align: 'center' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(180, 190, 210);
     doc.text(`Kiira Motors Corporation  ·  Confidential  ·  ${stamp}`, W / 2, 14.5, { align: 'center' });
 
@@ -117,16 +123,16 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   }
 
   function card(doc, x, y, w, h, accentColor) {
-    doc.setFillColor(...WHITE); doc.setDrawColor(...(accentColor || LIGHTGRAY));
+    doc.setFillColor(...WHITE); doc.setDrawColor(...(accentColor || RULE));
     doc.setLineWidth(accentColor ? 0.5 : 0.25);
-    doc.roundedRect(x, y, w, h, 1, 1, 'FD');
+    doc.roundedRect(x, y, w, h, 3, 3, 'FD');
   }
 
   function drawBarChart(doc, x, y, w, h, entries, maxVal, title) {
     card(doc, x, y, w, h);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...BLACK);
-    doc.text(title.toUpperCase(), x + 4, y + 7);
-    doc.setDrawColor(...LIGHTGRAY); doc.setLineWidth(0.2);
+    doc.setTextColor(...NAVY); doc.text(title, x + 4, y + 7);
+    doc.setDrawColor(...RULE); doc.setLineWidth(0.2);
     doc.line(x + 3, y + 8.5, x + w - 3, y + 8.5);
     if (!entries.length) return;
     const areaY = y + 10.5, areaH = h - 12;
@@ -158,7 +164,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...accent);
     doc.text(label.toUpperCase(), x + 4, y + 10);
     if (item) {
-      const name = item.name || item.label || '—';
+      const name = item.name || item.label || '-';
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...BLACK);
       const nameLines = doc.splitTextToSize(name, w - 8);
       doc.text(nameLines.slice(0, 2), x + 4, y + 17, { lineHeightFactor: 1.3 });
@@ -190,11 +196,11 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
   const kpiW = (CW - KPI_GAP * (kpis2.length - 1)) / kpis2.length;
   kpis2.forEach(({ label, val, color }, i) => {
     const kx = M + i * (kpiW + KPI_GAP);
-    doc.setFillColor(...WHITE); doc.setDrawColor(...color); doc.setLineWidth(0.5);
-    doc.roundedRect(kx, KPI_Y, kpiW, KPI_H, 1.5, 1.5, 'FD');
-    doc.setFillColor(...color); doc.roundedRect(kx, KPI_Y, kpiW, 3, 1.5, 1.5, 'F');
-    doc.rect(kx, KPI_Y + 1, kpiW, 2, 'F');
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...BLACK);
+    // White card, hairline border, a small colour dot: the report kit's KPI tile.
+    doc.setFillColor(...WHITE); doc.setDrawColor(...RULE); doc.setLineWidth(0.25);
+    doc.roundedRect(kx, KPI_Y, kpiW, KPI_H, 3, 3, 'FD');
+    doc.setFillColor(...color); doc.circle(kx + kpiW - 4, KPI_Y + 4, 1.1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(75, 86, 117);
     doc.text(label.toUpperCase(), kx + kpiW / 2, KPI_Y + 11, { align: 'center' });
     doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...color);
     doc.text(val, kx + kpiW / 2, KPI_Y + 23, { align: 'center' });
@@ -238,10 +244,10 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
 
     let leftY = AY, rightY = AY;
     const sectionTitle = (doc, x, y, w, title) => {
-      doc.setFillColor(...[30, 41, 59]); doc.rect(x, y, w, 7, 'F');
-      doc.setFillColor(...RED); doc.rect(x, y, 3, 7, 'F');
+      doc.setFillColor(...NAVY); doc.roundedRect(x, y, w, 7, 1.5, 1.5, 'F');
+      doc.setFillColor(...GOLD); doc.rect(x, y, 3, 7, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...WHITE);
-      doc.text(title.toUpperCase(), x + 6, y + 5);
+      doc.text(title, x + 6, y + 5);
       return y + 9;
     };
 
@@ -277,7 +283,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     const overrunData = metrics.overrunPareto?.length > 0 ? metrics.overrunPareto : null;
 
     if (overrunData) {
-      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Downtime by Station — Top ${overrunData.length}`);
+      rightY = sectionTitle(doc, AR_X, rightY, AL_W, `Downtime by Station - Top ${overrunData.length}`);
       const maxMin = overrunData[0].totalMin;
       const maxBarW2 = AL_W - 42;
       const rowH2 = Math.min((AH * 0.5) / overrunData.length, 10);
@@ -301,7 +307,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     }
 
     if (paretoData) {
-      rightY = sectionTitle(doc, AR_X, rightY, AL_W, 'Downtime by Reason — Pareto');
+      rightY = sectionTitle(doc, AR_X, rightY, AL_W, 'Downtime by Reason - Pareto');
       const maxMinD = paretoData[0].mins;
       const maxBarW3 = AL_W - 42;
       const rowH3 = Math.min((AH - (rightY - AY) - 4) / paretoData.length, 10);
@@ -365,7 +371,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     doc.addPage([W, H], 'landscape');
     resetPage(doc); drawHeader(doc, pageIdx + busPageOffset);
     const stripY = BODY_Y + 1;
-    doc.setFillColor(...XLIGHT); doc.rect(M, stripY, CW, TABLE_STRIP_H, 'F');
+    doc.setFillColor(...WHITE); doc.rect(M, stripY, CW, TABLE_STRIP_H, 'F');
     doc.setDrawColor(...LIGHTGRAY); doc.setLineWidth(0.2);
     doc.line(M, stripY + TABLE_STRIP_H, M + CW, stripY + TABLE_STRIP_H);
     const pOT = chunk.filter(b => b.status === 'On Track').length;
@@ -373,7 +379,7 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     const pD  = chunk.filter(b => b.status === 'Delayed').length;
     const si2 = [
       { label: 'BUS REPORT', val: null, color: DARKGRAY },
-      { label: 'FLOOR', val: String(metrics.total || '—'), color: SLATE },
+      { label: 'FLOOR', val: String(metrics.total || '-'), color: SLATE },
       { label: 'ON TRACK', val: String(pOT), color: GREEN },
       { label: 'SLOW', val: String(pS), color: AMBER },
       { label: 'DELAYED', val: String(pD), color: RED },
@@ -398,8 +404,8 @@ export async function buildPDF(buses, rows, metrics, logoBase64) {
     doc.text(`ROWS ${r02}–${r12}  ·  SORTED MOST RECENT FIRST`, W - M, stripY + 5, { align: 'right' });
 
     const thY2 = stripY + TABLE_STRIP_H;
-    doc.setFillColor(...[15, 23, 42]); doc.rect(M, thY2, CW, TH_H, 'F');
-    doc.setDrawColor(...[15, 23, 42]); doc.setLineWidth(0.1);
+    doc.setFillColor(...NAVY); doc.rect(M, thY2, CW, TH_H, 'F');
+    doc.setDrawColor(...NAVY); doc.setLineWidth(0.1);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...WHITE);
     TABLE_COLS_PDF.forEach((col, i) => doc.text(col.label.toUpperCase(), colXs2[i], thY2 + 5));
 
