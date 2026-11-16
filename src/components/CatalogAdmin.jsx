@@ -146,6 +146,10 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
   const [openedVins] = useState(() => structuredCloneSafe(draft.projectVins));
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState('');
+  // What a save would hide/show, waiting for the admin to confirm in the panel.
+  // (Not window.confirm: some browsers and the in-app browser block pop-ups,
+  // which silently cancelled every save.)
+  const [confirmSave, setConfirmSave] = useState(null);
 
   const touch = (updater) => { setDraft(prev => { const next = updater(structuredCloneSafe(prev)); return next; }); setDirty(true); };
 
@@ -154,19 +158,13 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
     [draft.lines]
   );
 
-  async function handleSave() {
+  async function handleSave(confirmed = false) {
     if (!getSession()) console.warn('Catalog save: no session token in this browser - the server will refuse.');
     // Operators fill Travel Cards against the live catalog. Anything this save
     // would take away from them has to be confirmed, line by line.
     const { hidden, shown } = catalogVisibilityChanges(buildInitial(catalog), draft);
-    if (hidden.length) {
-      const list = arr => arr.slice(0, 12).map(x => `  • ${x}`).join('\n') + (arr.length > 12 ? `\n  … and ${arr.length - 12} more` : '');
-      const ok = window.confirm(
-        `This save will HIDE the following for everyone, straight away:\n\n${list(hidden)}`
-        + (shown.length ? `\n\nIt will also newly show:\n\n${list(shown)}` : '')
-        + '\n\nIf that is not what you meant, press Cancel and check the model ticks.\n\nSave anyway?');
-      if (!ok) { setStatus('Not saved - you cancelled.'); return; }
-    }
+    if (hidden.length && !confirmed) { setConfirmSave({ hidden, shown }); setStatus(''); return; }
+    setConfirmSave(null);
     setStatus('Saving…');
     const payload = {
       projects: draft.projects,
@@ -198,9 +196,29 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
           <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>Edits apply to all users</div>
           <div style={{ flex: 1 }} />
           {status && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{status}</span>}
-          <button style={btnAccent} disabled={saving || !dirty} onClick={handleSave}>{saving ? 'Saving…' : 'Save all'}</button>
+          <button style={btnAccent} disabled={saving || !dirty || !!confirmSave} onClick={() => handleSave(false)}>{saving ? 'Saving…' : 'Save all'}</button>
           <button style={btn} onClick={onClose}>Close</button>
         </div>
+
+        {confirmSave && (
+          <div role="alertdialog" aria-label="Confirm save" style={{ margin: '12px 18px 0', border: '1px solid rgba(239,68,68,0.45)', background: 'rgba(239,68,68,0.08)', borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-heading)', marginBottom: 6 }}>This save hides the following for everyone, straight away</div>
+            <ul style={{ margin: '0 0 8px 18px', padding: 0, fontSize: 13, lineHeight: 1.6 }}>
+              {confirmSave.hidden.slice(0, 15).map(x => <li key={x}>{x}</li>)}
+              {confirmSave.hidden.length > 15 && <li>and {confirmSave.hidden.length - 15} more</li>}
+            </ul>
+            {confirmSave.shown.length > 0 && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+                It also newly shows: {confirmSave.shown.slice(0, 6).join('; ')}{confirmSave.shown.length > 6 ? `; and ${confirmSave.shown.length - 6} more` : ''}.
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>If that is not what you meant, cancel and check the model ticks.</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button style={btnAccent} onClick={() => handleSave(true)}>Save anyway</button>
+              <button style={btn} onClick={() => { setConfirmSave(null); setStatus('Not saved - you cancelled.'); }}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, padding: '10px 18px 0', flexWrap: 'wrap' }}>
