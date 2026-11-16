@@ -4,6 +4,7 @@ import { stationLabelForModel } from '../../data/travelCardSeed';
 import { fetchStationTimes } from '../../hooks/useStationTimes';
 import { canonicalStationCode } from '../../data/stations';
 import { syncStationToTravelCard } from '../../utils/catalogGaps';
+import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintShopProcess';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -107,6 +108,13 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     if (!confirm(`Delete the ${kind}-only activity list for ${code}? ${kind} buses will then show the shared list.`)) return;
     touch(d => { delete d.acts[`${kind}:${code}`]; return d; });
   };
+  // The live catalog can still hold the old Paint Shop list (the Nov 2026
+  // process was only half applied). One button puts the whole process in.
+  const paintOutdated = JSON.stringify(draft.tcLines[PAINT_LINE] || []) !== JSON.stringify(PAINT_TC_LINE);
+  const usePaintProcess = () => touch(d => {
+    const t = applyPaintProcess({ tcLines: d.tcLines, acts: d.acts, res: d.res, stationModels: d.stationModels, stations: d.stations });
+    return { ...d, tcLines: t.tcLines, acts: t.acts, res: t.res, stationModels: t.stationModels, stations: t.stations };
+  });
   const setRes = next => touch(d => { if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d; });
 
   return (
@@ -216,6 +224,18 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
         </>
       )}
       {!line && <div style={note}>Pick a production line to see its stations.</div>}
+      {paintOutdated && (
+        <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
+          <div style={hd}>Paint Shop process</div>
+          <div style={{ ...note, marginBottom: 10 }}>
+            The Paint Shop list here is not the Nov 2026 process (KVP 12 KDC Paint Shop Production Travel Tool Form).
+            Using it gives every model the same {PAINT_TC_LINE.length} paint stations with their activities and consumables,
+            and archives P02-05 and P03-03. Some codes then mean different work (for example P07-02 becomes Branding),
+            so do it between shifts. Nothing is saved until you press Save all.
+          </div>
+          <button style={btn} onClick={usePaintProcess}>Use the Nov 2026 Paint Shop process</button>
+        </div>
+      )}
     </div>
   );
 }
