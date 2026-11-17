@@ -4,6 +4,9 @@
 
 import { PAINT_STATIONS } from './paintShopProcess';
 import { EE_STATION_NAMES } from './eeTrimProcess';
+import { CHASSIS_STATIONS, RETIRED_CHASSIS_CODES, CHASSIS_STATION_NAMES } from './chassisProcess';
+
+const RETIRED_CHASSIS_STATIONS = Object.fromEntries(Object.entries(RETIRED_CHASSIS_CODES).map(([c, st]) => [c, { ...st, active: false }]));
 import { alignKecStations, kecNameFamily } from './kecTemplate.js';
 
 export const SEED_LINES = [
@@ -125,59 +128,10 @@ const RAW_SEED_STATIONS = {
   'W01-13':  { name: 'Rectification',                                                                     line: 'FRAME', order: 17, models: ['KDC','EVS','KEC'] },
   'W01-14':  { name: 'Quality Gate (WQ-03)',                                                              line: 'FRAME', order: 18, models: ['KDC','EVS','KEC'] },
 
-  // ─── CHASSIS LINE 01 ──────────────────────────────────────────────────────────
-  'CQ-01':    { name: 'Chassis Frame Defects Rectification Buffer & Pre-Chassis Assembly', line: 'CHASSIS1', order: 1, models: ['KDC','EVS','KEC'] },
-  // EVS C01-01: VIN Engraving + LV Underbody Wiring Harnesses
-  // KDC C01-01: VIN Engraving only
-  'C01-01':    { name: 'VIN Engraving & LV Underbody Wiring Harness Installation',         line: 'CHASSIS1', order: 2, models: ['KDC','EVS','KEC'] },
-  // EVS C01-02: Air Tanks, Air Pipes and Braking Systems
-  // KDC C01-02: Air Tanks, Air Pipes, Braking Systems + Nylon Pipes, Gear Selector, Hydraulic Pipes
-  'C01-02':    { name: 'Chassis Air Tanks, Air Pipes, Braking & Hydraulic Systems',        line: 'CHASSIS1', order: 3, models: ['KDC','EVS','KEC'] },
-  'C01-02-01': { name: 'Air Tanks / Wiring Harness Sub-Assembly',                          line: 'CHASSIS1', order: 4, models: ['KDC','EVS','KEC'] },
-  // EVS C01-03: Steering System
-  // KDC C01-03: Steering System + Gear Lever Cables, Clutch Radiator, Tyre Bracket
-  'C01-03':    { name: 'Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket', line: 'CHASSIS1', order: 5, models: ['KDC','EVS','KEC'] },
-  'C01-03-01': { name: 'Radiator-Fan Assembly',                                            line: 'CHASSIS1', order: 6, models: ['KDC'] },
-  // Old (wrong) code for the radiator-fan sub-assembly — kept archived so any
-  // travel cards already filed under it still resolve.
-  'C01-01-01': { name: 'Radiator-Fan Assembly (old code — use C01-03-01)',                 line: 'CHASSIS1', order: 6, models: ['KDC'], active: false },
-  // EVS C01-04: Air Tanks, Valves, Brake Pedals, ABS Valves and Pipes Sub-Assembly
-  // KDC C01-04: Low Voltage Underbody Wiring Harness
-  'C01-04':    { name: 'Air Tanks, Valves, Brake Pedals & ABS Valves / LV Underbody Wiring Harness', line: 'CHASSIS1', order: 7, models: ['KDC','EVS','KEC'] },
-  'C01-04-01': { name: 'Wiring Harness Sub-Assembly',                                      line: 'CHASSIS1', order: 8, models: ['KDC','EVS','KEC'] },
-  'CQ-02':     { name: 'Quality Gate',                                                     line: 'CHASSIS1', order: 9, models: ['KDC','EVS','KEC'] },
-
-  // ─── CHASSIS LINE 02 ──────────────────────────────────────────────────────────
-  // EVS C02-01: HV Harnesses, TPMS Modules, Fire Extinguishers, LV Harness Routing
-  // KDC C02-01: TPMS Modules, Fire Extinguisher, Rear LV, AC, Starter Motor, Wiring Harness Routing
-  'C02-01':    { name: 'TPMS Modules, Fire Extinguisher, HV/LV Harnesses & Wiring Harness Routing', line: 'CHASSIS2', order: 1, models: ['KDC','EVS'] },
-  // KEC: its drawing labels two stations "C02-01"; split a/b.
-  'C02-01A':   { name: 'Installation of HV Harnesses',                                     line: 'CHASSIS2', order: 1, models: ['KEC'] },
-  'C02-01B':   { name: 'Air Compressor, Radiator and Air Dryer',                           line: 'CHASSIS2', order: 1.5, models: ['KEC'] },
-  'C02-02-01': { name: 'Engine & Gear Box Sub-Assembly (KDC) / Axles Sub-Assembly (KEC)',   line: 'CHASSIS2', order: 2.5, models: ['KDC','KEC'] },
-  // EVS C02-02: Motor + HV Batteries
-  // KDC C02-02: Diesel Engine and Gear Box + Engine Accessories Termination
-  'C02-02':    { name: 'Motor & HV Batteries (EVS) / Diesel Engine, Gear Box & Accessories (KDC)', line: 'CHASSIS2', order: 2, models: ['KDC','EVS','KEC'] },
-  // EVS C02-03: Front and Rear Axles + Suspensions + Air Bellow Shock Absorbers
-  // KDC C02-03: Engine Cooling and Fuel System
-  'C02-03':    { name: 'Front & Rear Axles & Suspensions (EVS) / Engine Cooling & Fuel System (KDC)', line: 'CHASSIS2', order: 3, models: ['KDC','EVS','KEC'] },
-  'C02-03-01': { name: 'Axles Sub-Assembly',                                               line: 'CHASSIS2', order: 4, models: ['EVS'] },
-  // EVS C02-04: Air Compressor, Radiator, Air Dryer, PDU, MCU
-  // KDC C02-04: Front and Rear Axles, Suspensions, Shock Absorbers
-  'C02-04':    { name: 'Air Compressor, Radiator, Air Dryer, PDU & MCU (EVS) / Axles & Suspensions (KDC)', line: 'CHASSIS2', order: 5, models: ['KDC','EVS','KEC'] },
-  'C02-04-01': { name: 'Axles Sub-Assembly',                                               line: 'CHASSIS2', order: 6, models: ['KDC','KEC'] },
-  // EVS C02-05: HV Battery Accessories, ABS, Speed & Brake-wear Sensor Termination
-  // KDC C02-05: Pneumatic & Steering System Completion, Driver Floorboard, Clutch Bleeding, ABS & Sensor Routing/Termination
-  'C02-05':    { name: 'HV Battery Accessories & Sensor Termination (EVS) / Pneumatic, Steering, Clutch & Sensor Systems (KDC)', line: 'CHASSIS2', order: 7, models: ['KDC','EVS','KEC'] },
-  // EVS C02-06: Wheel Arch Profile + Customer Tyres
-  // KDC C02-06: Air Cleaner, Air Intake, Emissions System & Silencer
-  'C02-05-01': { name: 'Clutch Sub-Assembly',                                              line: 'CHASSIS2', order: 7.5, models: ['KDC'] },
-  'C02-06':    { name: 'Wheel Arch Profile & Tyres (EVS) / Air Cleaner, Air Intake, Emissions & Silencer (KDC)', line: 'CHASSIS2', order: 8, models: ['KDC','EVS'] },
-  'C02-06-01': { name: 'Tires Sub-Assembly',                                               line: 'CHASSIS2', order: 9, models: ['EVS'] },
-  // EVS C02-07: Torquing + Pressure Balancing
-  // KDC C02-07: Installation of Tyres
-  'C02-07':    { name: 'Tyre Torquing & Pressure Balancing (EVS) / Tyre Installation (KDC)', line: 'CHASSIS2', order: 10, models: ['KDC','EVS'] },
-  'C02-07-01': { name: 'Tires Sub-Assembly',                                               line: 'CHASSIS2', order: 11, models: ['KDC'] },
+  // ─── CHASSIS LINES 01 and 02 ─────────────────────────────────────────────────
+  // From "CHASSIS LINE STATIONS" (Nov 2026); KEC follows EVS. See chassisProcess.js.
+  ...CHASSIS_STATIONS,
+  ...RETIRED_CHASSIS_STATIONS,
 
   // ─── PAINT SHOP ───────────────────────────────────────────────────────────────
   // Order follows the document sequence exactly
@@ -324,22 +278,8 @@ export const STATION_MODEL_NAMES = {
   'W01-05': { evs: 'Welding of Exterior Sealing Plates & Additional Brackets; Sealant', kdc: 'Additional Seal Plates & Attachment Brackets; Sealant' },
   'W01-06': { evs: 'Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)', kdc: 'Installation of Fibre Roof & A/C Bolts' },
   'W01-10': { evs: 'External Side Frame, Fibre Strips, Marker Light & Camera Hole', kdc: 'External Side Frame, Fibre Strips & Marker Light' },
-  // CHASSIS LINE 01
-  'C01-01': { evs: 'VIN Engraving & LV Underbody Wiring Harnesses', kdc: 'VIN Engraving' },
-  'C01-02': { evs: 'Chassis Air Tanks, Air Pipes & Braking Systems', kdc: 'Chassis Air Tanks, Air Pipes, Braking, Nylon Pipes, Gear Selector & Hydraulic Pipes' },
-  'C01-02-01': { evs: 'Wiring Harness Sub-Assembly', kdc: 'Air Tanks Sub-Assembly' },
-  'C01-03': { evs: 'Installation of Steering System', kdc: 'Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket' },
-  'C01-04': { evs: 'Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly', kdc: 'Low Voltage Underbody Wiring Harness' },
-  // CHASSIS LINE 02
-  'C02-01': { evs: 'HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing', kdc: 'TPMS & Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing' },
-  'C02-02': { evs: 'Installation of Motor & HV Batteries', kdc: 'Diesel Engine, Gear Box & Engine Accessories Termination' },
-  'C02-02-01': { kdc: 'Engine & Gear Box Sub-Assembly' },
-  'C02-03': { evs: 'Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers', kdc: 'Engine Cooling & Fuel System' },
-  'C02-04': { evs: 'Air Compressor, Radiator, Air Dryer, PDU & MCU', kdc: 'Front & Rear Axles, Suspensions & Shock Absorbers' },
-  'C02-04-01': { kdc: 'Axles Sub-Assembly' },
-  'C02-05': { evs: 'Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors', kdc: 'Pneumatic & Steering Completion, Driver Floorboard, Clutch Bleeding & Sensors' },
-  'C02-06': { evs: 'Wheel Arch Profile & Customer Tyres', kdc: 'Air Cleaner, Air Intake, Emissions System & Silencer' },
-  'C02-07': { evs: 'Torquing & Pressure Balancing of Customer Tyres', kdc: 'Installation of Tyres' },
+  // CHASSIS LINES (chassisProcess.js)
+  ...CHASSIS_STATION_NAMES,
   // PAINT SHOP
   // TRIM LINE & FINAL ASSEMBLY
   // EE stations: the 2026 EVS / KDC EE travel card tools (eeTrimProcess.js)

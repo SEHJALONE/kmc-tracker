@@ -6,6 +6,7 @@
 import { applyKecTemplate } from "./kecTemplate";
 import { PAINT_TC_LINE, PAINT_ACTS, PAINT_RES } from "./paintShopProcess";
 import { EE_ACTS } from "./eeTrimProcess";
+import { CHASSIS_TC_LINES, CHASSIS_ACTS, CHASSIS_RES } from "./chassisProcess";
 
 // ── Station data ──────────────────────────────────────────────────────────────
 export const TC_LINES = {
@@ -146,79 +147,8 @@ export const TC_LINES = {
     "W01-14: Quality Gate and Rectification (WQ-03)",
   ],
 
-  // ── Chassis Line 01 — model-specific ────────────────────────────────────────
-  "Chassis Line 01 — EVS": [
-    "CQ-01: Chassis Frame Defects, Rectification Buffer & Pre-Chassis Assembly",
-    "C01-01: VIN Engraving & LV Underbody Wiring Harnesses",
-    "C01-02: Chassis Air Tanks, Air Pipes & Braking Systems",
-    "C01-02-01: Sub-Assembly",
-    "C01-03: Installation of Steering System",
-    "C01-04: Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 01 — KDC": [
-    "CQ-01: Chassis Frame Defects, Rectification Buffer & Pre-Chassis Assembly",
-    "C01-01: VIN Engraving",
-    "C01-02: Chassis Air Tanks, Air Pipes, Braking, Nylon, Gear Selector & Hydraulic",
-    "C01-02-01: Air Tanks Sub-Assembly",
-    "C01-03: Steering System, Gear Lever Cables, Clutch, Radiator & Spare Tyre Bracket",
-    "C01-03-01: Radiator-Fan Assembly",
-    "C01-04: Low Voltage Underbody Wiring Harness",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 01 — KEC": [
-    "CQ-01: Chassis Frame Buffer & Pre-Chassis Assembly Quality Gate",
-    "C01-01: VIN Engraving",
-    "C01-02: Chassis Air Tanks, Air Pipes & Braking Systems",
-    "C01-02-01: Air Tanks, Valves, Brake Pedals, ABS Valves & Pipes Sub-Assembly",
-    "C01-03: Steering and Cooling Systems",
-    "C01-04: LV and HV Underbody Wiring Harnesses",
-    "C01-04-01: Wiring Harness Sub-Assembly",
-    "CQ-02: Quality Gate",
-  ],
-
-  // ── Chassis Line 02 — model-specific ────────────────────────────────────────
-  "Chassis Line 02 — EVS": [
-    "C02-01: HV Harnesses, TPMS Modules, Fire Extinguishers & LV Harness Routing",
-    "C02-02: Installation of Motor & HV Batteries",
-    "C02-03: Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers",
-    "C02-03-01: Axles Sub-Assembly",
-    "C02-04: Air Compressor, Radiator, Air Dryer, PDU & MCU",
-    "C02-05: Termination of HV Battery Accessories, ABS & Speed/Brake-wear Sensors",
-    "C02-06: Wheel Arch Profile & Customer Tyres",
-    "C02-06-01: Tires Sub-Assembly",
-    "C02-07: Torquing & Pressure Balancing of Customer Tyres",
-    "CQ-02: Quality Gate",
-  ],
-  "Chassis Line 02 — KDC": [
-    "C02-01: TPMS, Fire Extinguisher, Rear LV, A/C, Starter Motor & Harness Routing",
-    "C02-02: Diesel Engine, Gear Box & Engine Accessories Termination",
-    "C02-02-01: Engine and Gear Box Sub-Assembly",
-    "C02-03: Engine Cooling and Fuel System",
-    "C02-04-01: Axles Sub-Assembly",
-    "C02-04: Front & Rear Axles, Suspensions & Shock Absorbers",
-    "C02-05: Pneumatic & Steering Completion, Driver Floorboard, Clutch & Sensors",
-    "C02-05-01: Clutch Sub-Assembly",
-    "C02-06: Air Cleaner, Air Intake, Emissions System & Silencer",
-    "C02-07-01: Tires Sub-Assembly",
-    "C02-07: Installation of Tyres",
-    "CQ-02: Quality Gate",
-  ],
-  // The KEC drawing labels BOTH of its first two stations "C02-01"; they are
-  // split a/b here so each keeps its own travel-card history and station time.
-  "Chassis Line 02 — KEC": [
-    "C02-01a: Installation of HV Harnesses",
-    "C02-01b: Air Compressor, Radiator and Air Dryer",
-    "C02-02: Front & Rear Axles, Suspensions, Air Bellows & Shock Absorbers",
-    "C02-02-01: Axles Sub-Assembly",
-    "C02-03: Installation of Motor and Batteries",
-    "C02-04: Installation of Tyres",
-    "C02-04-01: Tyres Sub-Assembly",
-    "C02-05: Termination of HV Battery Accessories",
-    "CQ-02: Quality Gate",
-  ],
+  // ── Chassis lines, EVS / KDC / KEC (src/data/chassisProcess.js) ──
+  ...CHASSIS_TC_LINES,
 
   // ── Paint Shop (same for every model; src/data/paintShopProcess.js) ──────────
   "Paint Shop": PAINT_TC_LINE,
@@ -372,6 +302,8 @@ export const STATION_MODELS = {
 // Codes that differ between models are namespaced "EVS:CODE" / "KDC:CODE".
 // The component looks up "<model>:<code>" first, then falls back to the bare code.
 export const ACTS = {
+  // ── Chassis lines, EVS / KDC / KEC (src/data/chassisProcess.js) ──
+  ...CHASSIS_ACTS,
   // ── Machine Shop (shared) ───────────────────────────────────────────────────
   "B01-01": ["Receive and store rectangular tubes & steel plates", "Stock labelling and organisation", "Material inspection"],
   "B01-02": ["Band saw setup and tensioning", "Cut rectangular tubes to length", "Deburr and inspect cut ends"],
@@ -479,49 +411,6 @@ export const ACTS = {
   "KDC:W01-13": ["Rectification of logged defects"],
   "KDC:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
 
-  // ── Chassis Line 01 — EVS ───────────────────────────────────────────────────
-  "EVS:CQ-01": ["Chassis frame defects check", "Rectification buffer", "Pre-chassis assembly"],
-  "EVS:C01-01": ["VIN engraving", "Installation of LV underbody wiring harnesses"],
-  "EVS:C01-02": ["Installation of chassis air tanks", "Installation of air pipes", "Installation of braking systems"],
-  "EVS:C01-02-01": ["Sub-assembly build", "Quality check"],
-  "EVS:C01-03": ["Installation of steering system"],
-  "EVS:C01-04": ["Air tanks, valves, brake pedals, ABS valves & pipes sub-assembly"],
-  "EVS:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "EVS:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-  // ── Chassis Line 01 — KDC ───────────────────────────────────────────────────
-  "KDC:CQ-01": ["Chassis frame defects check", "Rectification buffer", "Pre-chassis assembly"],
-  "KDC:C01-01": ["VIN engraving"],
-  "KDC:C01-02": ["Installation of chassis air tanks, air pipes and braking systems", "Installation of nylon pipes", "Installation of gear selector cable", "Installation of hydraulic pipes"],
-  "KDC:C01-02-01": ["Air tanks sub-assembly build", "Quality check"],
-  "KDC:C01-03": ["Installation of steering system", "Installation of gear lever cables", "Installation of clutch", "Installation of radiator", "Installation of spare tyre bracket"],
-  "KDC:C01-03-01": ["Radiator-fan assembly build", "Mounting hardware check"],
-  "KDC:C01-04": ["Installation of low voltage underbody wiring harness"],
-  "KDC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "KDC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-
-  // ── Chassis Line 02 — EVS ───────────────────────────────────────────────────
-  "EVS:C02-01": ["Installation of HV harnesses", "Installation of TPMS modules", "Installation of fire extinguishers", "LV harness routing"],
-  "EVS:C02-02": ["Installation of motor", "Installation of HV batteries"],
-  "EVS:C02-03": ["Installation of front and rear axles", "Installation of suspensions", "Installation of air bellow shock absorbers (if necessary)"],
-  "EVS:C02-03-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "EVS:C02-04": ["Installation of air compressor", "Installation of radiator", "Installation of air dryer", "Installation of the PDU", "Installation of the MCU"],
-  "EVS:C02-05": ["Termination of HV battery accessories", "Termination of ABS", "Termination of speed and brake-wear sensors"],
-  "EVS:C02-06": ["Installation of wheel arch profile", "Installation of customer tyres"],
-  "EVS:C02-06-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "EVS:C02-07": ["Torquing", "Pressure balancing of customer tyres"],
-  // ── Chassis Line 02 — KDC ───────────────────────────────────────────────────
-  "KDC:C02-01": ["Installation of TPMS modules and fire extinguisher", "Installation of rear LV", "Installation of A/C", "Installation of starter motor", "Wiring harness routing"],
-  "KDC:C02-02": ["Installation of diesel engine and gear box", "Termination of engine accessories"],
-  "KDC:C02-02-01": ["Engine and gear box sub-assembly build", "Quality check"],
-  "KDC:C02-03": ["Installation of engine cooling and fuel system"],
-  "KDC:C02-04-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "KDC:C02-04": ["Installation of front and rear axles", "Installation of suspensions", "Installation of shock absorbers"],
-  "KDC:C02-05": ["Pneumatic system and steering system completion", "Installation of driver floor board", "Bleeding of clutch system", "Routing and termination of ABS", "Routing and termination of speed and brake-wear sensors"],
-  "KDC:C02-05-01": ["Clutch sub-assembly build", "Quality check"],
-  "KDC:C02-06": ["Installation of air cleaner", "Installation of air intake", "Installation of emissions system and silencer"],
-  "KDC:C02-07-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "KDC:C02-07": ["Installation of tyres"],
-
   // ── Paint Shop (same for every model; src/data/paintShopProcess.js) ──────────
   ...PAINT_ACTS,
 
@@ -585,24 +474,6 @@ export const ACTS = {
   "KEC:W01-12": ["Installation of passenger door"],
   "KEC:W01-13": ["Installation of compartment doors"],
   "KEC:W01-14": ["Quality gate (WQ-03)", "Defect rectification", "Sign-off"],
-  // ── 13m KEC — Chassis Line 01 ───────────────────────────────────────────────
-  "KEC:CQ-01": ["Chassis frame buffer", "Pre-chassis assembly", "Quality gate inspection"],
-  "KEC:C01-01": ["VIN engraving"],
-  "KEC:C01-02": ["Installation of chassis air tanks", "Installation of air pipes", "Installation of braking systems"],
-  "KEC:C01-02-01": ["Air tanks, valves, brake pedals, ABS valves and pipes sub-assembly", "Quality check"],
-  "KEC:C01-03": ["Installation of steering system", "Installation of cooling system"],
-  "KEC:C01-04": ["Installation of LV underbody wiring harnesses", "Installation of HV underbody wiring harnesses"],
-  "KEC:C01-04-01": ["Wiring harness sub-assembly build", "Continuity & quality check"],
-  "KEC:CQ-02": ["Quality gate inspection", "Defect logging", "Sign-off"],
-  // ── 13m KEC — Chassis Line 02 ───────────────────────────────────────────────
-  "KEC:C02-01a": ["Installation of HV harnesses"],
-  "KEC:C02-01b": ["Installation of air compressor", "Installation of radiator", "Installation of air dryer"],
-  "KEC:C02-02": ["Installation of front and rear axles", "Installation of suspensions", "Installation of air bellows", "Installation of shock absorbers"],
-  "KEC:C02-02-01": ["Axles sub-assembly build", "Axle oil filling"],
-  "KEC:C02-03": ["Installation of motor", "Installation of batteries"],
-  "KEC:C02-04": ["Installation of tyres"],
-  "KEC:C02-04-01": ["Tyre sub-assembly build", "Wheel balancing"],
-  "KEC:C02-05": ["Termination of HV battery accessories"],
   // ── 13m KEC — Trim Line ─────────────────────────────────────────────────────
   "KEC:T01-01": ["Installation of floor boards", "Installation of heat shield"],
   "KEC:T01-01 EE": ["Installation of rear HV components", "Installation of exterior side lights", "Installation of turn signals"],
@@ -703,53 +574,11 @@ export const RES = {
     "W01-10": ["Underbody Sealant (ml)", "Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Weld Bead Protection Compound (L)"],
     "W01-11": ["Welding Wire ER70S-6 (kg)", "CO₂ Gas (L)", "Seal Plates (pcs)"],
   },
-  "Chassis Line 01 — KEC": {
-    "C01-01": ["VIN Engraving Tool Tip"],
-    "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Coolant Pipe (m)", "Mounting Bolts M12", "Thread Lock (ml)"],
-    "C01-04": ["LV Underbody Wiring Harness", "HV Underbody Wiring Harness", "Cable Ties (pack)", "Split Loom 20mm (m)"],
-  },
-  "Chassis Line 02 — KEC": {
-    "C02-01a": ["HV Harness Set", "Cable Ties (pack)"],
-    "C02-01b": ["Air Compressor", "Radiator", "Air Dryer"],
-    "C02-02": ["Front & Rear Axles", "Suspensions", "Air Bellows", "Shock Absorbers", "Thread Lock (ml)"],
-    "C02-03": ["Motor Mounting Hardware", "HV Batteries", "Thread Lock (ml)"],
-    "C02-04": ["Customer Tyres", "Valve Cores"],
-    "C02-05": ["Connector Pins", "Cable Ties (pack)"],
-  },
+  ...CHASSIS_RES,
   "Trim Line & Final Assembly — KEC": {
     "T01-01 EE": ["HV Component Set", "Exterior Side Lights", "Turn Signals", "Cable Ties (pack)"],
     "T01-02 EE": ["Connector Pins", "Cable Ties (pack)"],
     "T01-10": ["VCU", "USB Harness", "Side Cameras", "Cable Ties (pack)"],
-  },
-  "Chassis Line 01 — EVS": {
-    "C01-01": ["VIN Engraving Tool Tip", "Cable Ties (pack)", "Split Loom 20mm (m)"],
-    "C01-02": ["Air Tanks", "Air Pipes (m)", "Brake Components", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Mounting Bolts M12", "Thread Lock (ml)"],
-    "C01-04": ["Air Tank Valves", "Brake Pedals", "ABS Valves", "Mounting Bolts M10"],
-  },
-  "Chassis Line 01 — KDC": {
-    "C01-01": ["VIN Engraving Tool Tip"],
-    "C01-02": ["Air Tanks", "Nylon Pipe 8mm (m)", "Nylon Pipe 10mm (m)", "Gear Selector Cable", "Hydraulic Pipe (m)", "Fittings & Clamp Set"],
-    "C01-03": ["Steering Components", "Gear Lever Cables", "Clutch", "Radiator", "Spare Tyre Bracket", "Mounting Bolts M12"],
-    "C01-03-01": ["Radiator Unit", "Fan Blade Set", "Mounting Hardware"],
-    "C01-04": ["LV Underbody Wiring Harness", "Cable Ties (pack)"],
-  },
-  "Chassis Line 02 — EVS": {
-    "C02-01": ["HV Harness Set", "TPMS Sensor Set", "Fire Extinguisher Bracket", "Cable Ties (pack)"],
-    "C02-02": ["Motor Mounting Hardware", "HV Batteries", "Thread Lock (ml)"],
-    "C02-03": ["Front & Rear Axles", "Suspensions", "Air Bellow Shock Absorbers", "Thread Lock (ml)"],
-    "C02-04": ["Air Compressor", "Radiator", "Air Dryer", "PDU", "MCU"],
-    "C02-06": ["Wheel Arch Profile Set", "Customer Tyres"],
-    "C02-07": ["Torque Wrench", "Tyre Pressure Gauge"],
-  },
-  "Chassis Line 02 — KDC": {
-    "C02-01": ["TPMS Sensor Set", "Fire Extinguisher", "Rear LV Harness", "A/C Components", "Starter Motor", "Cable Ties (pack)"],
-    "C02-02": ["Diesel Engine", "Gear Box", "Gasket Set", "Mounting Bolts M16"],
-    "C02-03": ["Coolant Pipe (m)", "Fuel Line (m)", "Fuel Connectors"],
-    "C02-04": ["Front & Rear Axles", "Suspensions", "Shock Absorbers", "Thread Lock (ml)"],
-    "C02-06": ["Air Cleaner Kit", "Air Intake", "Emissions System", "Silencer", "Exhaust Clamps"],
-    "C02-07": ["Customer Tyres", "Valve Cores"],
   },
   "Paint Shop": PAINT_RES,
   "Trim Line & Final Assembly — EVS": {
@@ -772,7 +601,6 @@ export function mergeConsumables(local, sharedNames) {
   }
   return out;
 }
-
 
 // Persisted consumables show on every fill-in; only the ones actually used
 // (quantity > 0) belong on the submitted card.

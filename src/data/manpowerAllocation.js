@@ -11,6 +11,8 @@
 // The KEC reuses the EVS chassis lists and the KDC welding/trim/paint lists.
 // Leadership, buffer/transfer rows and stations with nobody are left out.
 
+import { CHASSIS_MANPOWER } from './chassisProcess.js';
+
 const VICTOR = ['Victor Bwanatai'];
 const JOB = ['Eng. Job Masede'];
 const DANIEL = ['Daniel Enyagu'];
@@ -24,10 +26,6 @@ const MASKING = ['Vincent W Musitwa', 'Livingston Magala'];
 
 const UHOOP = ['Onesmus Irunva', 'Jonathan Owiny', 'Alex Bakashaba', 'Lovisa Nyangoma'];
 
-const AXLES = ['Mathias Kasumba', 'Ivan Ssekide', 'Peter Ochom'];
-const DRIVE = ['Isaac Wandwasi', 'Nasser Kato'];
-const MOTOR = ['Isaac Wandwasi', 'Nasser Kato', 'Peter Ochom'];
-const TYRES = ['Ivan Ssekide', 'Nasser Kato', 'Denise Nfudu'];
 
 export const MANPOWER = {
   // ── Machine Shop ────────────────────────────────────────────────────────────
@@ -60,25 +58,13 @@ export const MANPOWER = {
   'W01-12': ['Pricilia Lanyero'],
   'W01-13': ['Pricilia Lanyero'],
 
-  // ── Chassis Line 01 ─────────────────────────────────────────────────────────
+  // ── Chassis Lines 01 and 02 ("CHASSIS LINE STATIONS", Nov 2026; chassisProcess.js) ──
+  // Quality gates and EE-team stations keep the names they had: the document
+  // gives a team (QIT, QIR, EE team) there, not people.
   'CQ-01': ['Calvin Otim'],
-  'C01-01': ['Ivan Ssekide', 'Lucy Lean Sinakwoyo'],  // VIN engraving
-  'C01-02': ['Steven Kato', 'Peter Ochom', 'Denise Nfudu'],
-  'C01-03': ['Ivan Ssekide'],
-
-  // ── Chassis Line 02 (document follows the EVS numbering) ────────────────────
   'C02-01': ['Roshan Kyasimire', 'James Twesige'],
-  'C02-02': [...DRIVE, 'Oscar Anyeko'],
-  'C02-03-01': AXLES,
-  'C02-03': AXLES,
-  'C02-04': MOTOR,
-  'C02-06': [...TYRES, 'Burnet Kushaba Buhwezi'],
   'CQ-02': ['Ivan Ssekide', 'Mathias Kasumba'],
-  'KDC:C02-03': MOTOR,                  // Engine cooling
-  'KDC:C02-04-01': AXLES,
-  'KDC:C02-04': AXLES,
-  'KDC:C02-06': [],                     // Air intake & exhaust: nobody allocated
-  'KDC:C02-07': TYRES,
+  ...CHASSIS_MANPOWER,
 
   // ── Paint Shop (placed by activity; process from the Nov 2026 travel tool form) ──
   'PQ-01': ['Deo Ssenkindu'],

@@ -6,6 +6,7 @@ import { canonicalStationCode } from '../../data/stations';
 import { syncStationToTravelCard } from '../../utils/catalogGaps';
 import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintShopProcess';
 import { eeProcessOutdated, applyEeProcess } from '../../data/eeTrimProcess';
+import { chassisProcessOutdated, applyChassisProcess } from '../../data/chassisProcess';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -122,6 +123,12 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     const t = applyEeProcess({ tcLines: d.tcLines, acts: d.acts, stations: d.stations });
     return { ...d, tcLines: t.tcLines, acts: t.acts, stations: t.stations };
   });
+  // Chassis Lines 01 and 02 from "CHASSIS LINE STATIONS" (Nov 2026).
+  const chassisOutdated = chassisProcessOutdated({ tcLines: draft.tcLines, acts: draft.acts });
+  const useChassisProcess = () => touch(d => {
+    const t = applyChassisProcess({ tcLines: d.tcLines, acts: d.acts, res: d.res, stations: d.stations });
+    return { ...d, tcLines: t.tcLines, acts: t.acts, res: t.res, stations: t.stations };
+  });
   const setRes = next => touch(d => { if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d; });
 
   return (
@@ -231,6 +238,19 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
         </>
       )}
       {!line && <div style={note}>Pick a production line to see its stations.</div>}
+      {chassisOutdated && (
+        <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
+          <div style={hd}>Chassis lines process</div>
+          <div style={{ ...note, marginBottom: 10 }}>
+            The Chassis Line 01 and 02 lists here are not the Nov 2026 process (CHASSIS LINE STATIONS).
+            Using it replaces the EVS, KDC and KEC chassis stations, activities and consumables (KEC follows EVS),
+            moves the quality gates to the end of their lines (CQ-02 goes to Chassis Line 02) and archives
+            stations no model uses any more. Some codes then mean different work (for example EVS C02-04 becomes
+            Steering and Pneumatic), so do it between shifts. Nothing is saved until you press Save all.
+          </div>
+          <button style={btn} onClick={useChassisProcess}>Use the Nov 2026 chassis process</button>
+        </div>
+      )}
       {eeOutdated && (
         <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
           <div style={hd}>EE stations process</div>

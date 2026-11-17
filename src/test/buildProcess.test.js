@@ -67,7 +67,8 @@ describe('build process per model', () => {
     const codes = visible('12m KDC').map(s => s.code);
     expect(codes).toContain('C01-03-01');
     expect(codes).not.toContain('C01-01-01');
-    expect(codes).toEqual(expect.arrayContaining(['C02-02-01', 'C02-05-01', 'T01-11-01']));
+    expect(codes).toEqual(expect.arrayContaining(['C01-02-01', 'C02-02-01', 'C02-04-01', 'T01-11-01']));
+    expect(codes).not.toContain('C02-05-01'); // archived Nov 2026 (not in CHASSIS LINE STATIONS)
   });
 });
 
@@ -102,8 +103,8 @@ describe('tracker station names by family', () => {
   it('resolves KEC names and families', () => {
     expect(modelFamilyOf('13m KEC')).toBe('KEC');
     const st = { code: 'C02-03', ...SEED_STATIONS['C02-03'] };
-    expect(stationNameForModel(st, '13m KEC')).toBe('Front & Rear Axles, Suspensions & Air Bellow Shock Absorbers');
-    expect(stationNameForModel(st, '12m KDC')).toBe('Engine Cooling & Fuel System');
+    expect(stationNameForModel(st, '13m KEC')).toBe('Installation of Suspension System');
+    expect(stationNameForModel(st, '12m KDC')).toBe('Installation of Engine Cooling System, Fuel System and AC Pump');
     expect(stationDisplayNames(st).differs).toBe(true);
   });
   it('U-hoop web frame cell is coach-only in the tracker too', () => {
