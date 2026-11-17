@@ -7,6 +7,7 @@ import { syncStationToTravelCard } from '../../utils/catalogGaps';
 import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintShopProcess';
 import { eeProcessOutdated, applyEeProcess } from '../../data/eeTrimProcess';
 import { chassisProcessOutdated, applyChassisProcess } from '../../data/chassisProcess';
+import { trimProcessOutdated, applyTrimProcess } from '../../data/trimProcess';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -129,6 +130,12 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     const t = applyChassisProcess({ tcLines: d.tcLines, acts: d.acts, res: d.res, stations: d.stations });
     return { ...d, tcLines: t.tcLines, acts: t.acts, res: t.res, stations: t.stations };
   });
+  // KDC main trim stations from the Trim Travel Card (FM004 Rev #01).
+  const trimOutdated = trimProcessOutdated({ tcLines: draft.tcLines, acts: draft.acts });
+  const useTrimProcess = () => touch(d => {
+    const t = applyTrimProcess({ tcLines: d.tcLines, acts: d.acts });
+    return { ...d, tcLines: t.tcLines, acts: t.acts };
+  });
   const setRes = next => touch(d => { if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d; });
 
   return (
@@ -238,6 +245,17 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
         </>
       )}
       {!line && <div style={note}>Pick a production line to see its stations.</div>}
+      {trimOutdated && (
+        <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
+          <div style={hd}>KDC trim process</div>
+          <div style={{ ...note, marginBottom: 10 }}>
+            The KDC Trim Line main stations here are not the Trim Travel Card (KMC.DPD.04/26-FM004, Rev #01).
+            Using it replaces the names and activities of T01-01 to T01-11 for KDC. EE stations, sub-assembly
+            stations, consumables, EVS and KEC stay as they are. Nothing is saved until you press Save all.
+          </div>
+          <button style={btn} onClick={useTrimProcess}>Use the KDC Trim Travel Card</button>
+        </div>
+      )}
       {chassisOutdated && (
         <div style={{ ...box, borderColor: 'rgba(255,154,10,0.45)', background: 'rgba(255,154,10,0.08)' }}>
           <div style={hd}>Chassis lines process</div>

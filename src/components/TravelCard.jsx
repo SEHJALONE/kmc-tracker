@@ -190,6 +190,7 @@ function newRecordId() {
 // Older imports read the seed from this file; keep them working.
 export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { useStationConsumables } from '../hooks/useStationConsumables';
+import { TRAVEL_CARD_DOC } from '../data/travelCardRef';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const R = "#dc2626";
@@ -1189,7 +1190,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         <img src={theme === 'dark' ? '/kmc logo 2.png' : '/kmc logo.png'} alt="KMC" style={css.logo} />
         <div>
           <div style={css.t1}>Production Travel Card</div>
-          <div style={css.t2}>KMC.DPN.05/26-FM004 · Rev #01</div>
+          <div style={css.t2}>{TRAVEL_CARD_DOC}</div>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button style={css.addBtn} onClick={saveSession} title="Save your progress so you can continue later">

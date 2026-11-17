@@ -6,6 +6,7 @@
 import { applyKecTemplate } from "./kecTemplate";
 import { PAINT_TC_LINE, PAINT_ACTS, PAINT_RES } from "./paintShopProcess";
 import { EE_ACTS } from "./eeTrimProcess";
+import { TRIM_LABELS, TRIM_ACTS } from "./trimProcess";
 import { CHASSIS_TC_LINES, CHASSIS_ACTS, CHASSIS_RES } from "./chassisProcess";
 
 // ── Station data ──────────────────────────────────────────────────────────────
@@ -185,32 +186,32 @@ export const TC_LINES = {
     "T01-12: Quality Inspection and Rectification (TQ-01)",
   ],
   "Trim Line & Final Assembly — KDC": [
-    "T01-01: Installation of Floor Boards, A/C & Heat Shield",
+    TRIM_LABELS["T01-01"],
     "T01-01 EE: Installation of Rear LV Components",
     "T01-01-01: Floorboard Preparation (sub-assembly)",
-    "T01-02: Carpet Installation",
+    TRIM_LABELS["T01-02"],
     "T01-02-01: Carpets Preparation (sub-assembly)",
-    "T01-03: Carpet Welding, A/C & Accessories, Side Board Profiles, Escape Hatch",
+    TRIM_LABELS["T01-03"],
     "T01-03 EE: Installation of Cooling Pipes, Antenna, Height Marker Lights, Ceiling, Front Wall and Dashboard Harnesses, and A/C Terminations",
     "T01-03-01: A/C Sub-Assembly",
-    "T01-04: Roof/Side Boards, Airducts, Pneumatic Pipes, Moulds, Panels & Latch Cable",
+    TRIM_LABELS["T01-04"],
     "T01-04 EE: Installation and Termination of Front Wall Components",
     "T01-04-01: Dashboard, Roof & Air Duct Preparation (sub-assembly)",
-    "T01-05: Installation of Side Glass",
-    "T01-06: Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Side Panels",
+    TRIM_LABELS["T01-05"],
+    TRIM_LABELS["T01-06"],
     "T01-06 EE: Installation of Exterior Lights and USB Harnesses",
-    "T01-07: Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant",
+    TRIM_LABELS["T01-07"],
     "T01-07 EE: Installation and Termination of Dashboard Components, Display Screens and Interior Lights",
-    "T01-08: Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers & Rear Seats",
+    TRIM_LABELS["T01-08"],
     "T01-08 EE: Installation of Cameras and Speakers",
-    "T01-09: Passenger Door & Locks, Exterior Accessories, Mirrors, Dampers & Sealant",
+    TRIM_LABELS["T01-09"],
     "T01-09 EE: Installation and Termination of Ceiling Driver Cabin Components and Destination Signages",
     "T01-09-01: Passenger Doors Sub-Assembly",
-    "T01-10: Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks",
+    TRIM_LABELS["T01-10"],
     "T01-10 EE: Installation of Steering Column Assembly, Radar Sensors and Underbody Routing",
     "T01-10-01: Electrical System Sub-Assembly",
     "T01-11 EE: First Start, Programming, Testing and Debugging, Camera Calibrations",
-    "T01-11: A/C Refilling, Rubber for Aluminium, Door Fine-Tuning & Quality Inspection",
+    TRIM_LABELS["T01-11"],
     "T01-11-01: Seat and Armrest Assembly (sub-assembly)",
   ],
   // 13m KEC — EE work is drawn inside each trim station on the KEC drawing;
@@ -416,6 +417,8 @@ export const ACTS = {
 
   // ── Trim Line EE stations, EVS and KDC (src/data/eeTrimProcess.js) ──
   ...EE_ACTS,
+  // KDC main trim stations: Trim Travel Card (src/data/trimProcess.js)
+  ...TRIM_ACTS,
 
   // ── Trim Line — EVS ─────────────────────────────────────────────────────────
   "EVS:T01-01": ["Installation of floor boards", "Installation of A/C", "Installation of heat shield"],
@@ -437,23 +440,12 @@ export const ACTS = {
   "EVS:T01-11": ["ECAS", "Fine tuning of passenger doors"],
   "EVS:T01-12": ["Quality inspection and rectification (TQ-01)"],
   // ── Trim Line — KDC ─────────────────────────────────────────────────────────
-  "KDC:T01-01": ["Installation of floor boards", "Installation of A/C and heat shield"],
   "KDC:T01-01-01": ["Floorboard preparation (sub-assembly)"],
-  "KDC:T01-02": ["Carpet installation"],
   "KDC:T01-02-01": ["Carpets preparation (sub-assembly)"],
-  "KDC:T01-03": ["Carpet welding", "A/C installation", "A/C accessories installation", "Side board aluminium profiles", "Escape hatch installation"],
   "KDC:T01-03-01": ["A/C sub-assembly"],
-  "KDC:T01-04": ["Installation of roof boards", "Installation of side boards", "Installation of airducts", "Installation of pneumatic pipes", "Installation of front and rear mould", "Installation of left/right panel", "Latch cable preparation"],
   "KDC:T01-04-01": ["Dashboard, roof and air duct preparation (sub-assembly)"],
-  "KDC:T01-05": ["Installation of side glass"],
-  "KDC:T01-06": ["Installation of dashboard", "Installation of front and rear windshields", "Installation of steps aluminium floor profiles", "Installation of airduct doors", "Installation of rear side panels"],
-  "KDC:T01-07": ["Installation of step poles", "Installation of pillar and waist beam column covers", "Installation of side mirror brackets and water rails", "Installation of curtain rails", "Installation of E-valves", "Installation of A/C air grille and curtains", "Installation of rubber for aluminium", "Side glass sealant application"],
-  "KDC:T01-08": ["Installation of driver seat", "Installation of driver cabins", "Installation of driver guard rail", "Installation of barriers", "Installation of sun visor rods", "Installation of seat brackets", "Installation of inspection cover", "Installation of steering column cover", "Placement of fire extinguisher, trash-can", "Installation of false roof panel", "Installation of rear seats"],
-  "KDC:T01-09": ["Installation of passenger door and locks", "Installation of exterior body accessories", "Installation of side mirrors, dampers and wipers", "Compartment door sealant application, aluminium strips"],
   "KDC:T01-09-01": ["Passenger doors sub-assembly"],
-  "KDC:T01-10": ["Installation of passenger seats", "Filling oils, coolant and mechanical checks"],
   "KDC:T01-10-01": ["Electrical system sub-assembly"],
-  "KDC:T01-11": ["A/C refilling", "Rubber for aluminium", "Fine tuning passenger doors", "Quality inspection and rectification"],
   "KDC:T01-11-01": ["Assembly of seats and armrests (sub-assembly)"],
 
   // ── 13m KEC — Frame & Body Welding ──────────────────────────────────────────

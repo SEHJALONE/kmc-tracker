@@ -117,7 +117,7 @@ children.push(
                new TextRun({ text: "KMC_Bus_Production_Tracker_User_Manual.docx", bold: true, size: 20, color: DARK }),
                new TextRun({ text: ". This Version 2.0 file is named KMC_Bus_Production_Tracker_User_Manual_v2.docx.", size: 20, color: GREY })] }),
   new Paragraph({ spacing: { before: 680, after: 0 }, alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: "Document reference: KMC.DPN.05/26-FM004  ·  Manual Rev 2.0", size: 20, color: GREY })] }),
+    children: [new TextRun({ text: "Document reference: KMC.DPD.04/26-FM004  ·  Manual Rev 2.0", size: 20, color: GREY })] }),
   new Paragraph({ spacing: { before: 100, after: 0 }, alignment: AlignmentType.CENTER,
     children: [new TextRun({ text: "Models supported: KDC (diesel) and EVS (electric)", size: 20, color: GREY })] }),
   new Paragraph({ children: [new PageBreak()] }),

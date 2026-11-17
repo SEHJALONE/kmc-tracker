@@ -6,12 +6,13 @@ import { STATIONS, LINES, modelFamilyOf, stationNameForModel, isSubassembly } fr
 import { parsePpe } from '../utils/ppe';
 import { delayLabel } from '../utils/delay';
 import { TOKENS, css, esc, pill, stamp, safeName, topBar, hero, kpiBand, htmlToPdf, planPageCuts } from './reportKit';
+import { TRAVEL_CARD_DOC } from '../data/travelCardRef';
 
 // Tests and callers import these from here.
 export { esc, planPageCuts };
 
-const DOC_CODE = 'KMC.DPN.05/26-FM004 · Rev #01';
-const DOC_FOOTER = DOC_CODE.replace('·', '-');
+const DOC_CODE = TRAVEL_CARD_DOC;
+const DOC_FOOTER = DOC_CODE.replaceAll(' · ', ' - ');
 
 // Model cut-out renders in /public.
 const MODEL_RENDER = {

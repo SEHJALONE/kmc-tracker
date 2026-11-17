@@ -4,6 +4,7 @@
 
 import { PAINT_STATIONS } from './paintShopProcess';
 import { EE_STATION_NAMES } from './eeTrimProcess';
+import { TRIM_STATION_NAMES } from './trimProcess';
 import { CHASSIS_STATIONS, RETIRED_CHASSIS_CODES, CHASSIS_STATION_NAMES } from './chassisProcess';
 
 const RETIRED_CHASSIS_STATIONS = Object.fromEntries(Object.entries(RETIRED_CHASSIS_CODES).map(([c, st]) => [c, { ...st, active: false }]));
@@ -293,6 +294,10 @@ export const STATION_MODEL_NAMES = {
   // QUALITY INSPECTION & TESTING
   'Q01-02': { evs: 'Speed Test', kdc: 'Vehicle Exhaust & Speed Test', kec: 'Speed Test' },
 };
+// KDC main trim names from the Trim Travel Card (trimProcess.js); EVS names stay.
+for (const [code, names] of Object.entries(TRIM_STATION_NAMES)) {
+  STATION_MODEL_NAMES[code] = { ...(STATION_MODEL_NAMES[code] || {}), ...names };
+}
 
 const FAMILIES = ['EVS', 'KDC', 'KEC'];
 
