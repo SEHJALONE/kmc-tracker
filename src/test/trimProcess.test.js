@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { TC_LINES, ACTS } from '../data/travelCardSeed';
 import { SEED_STATIONS, stationNameForModel } from '../data/stations';
 import { EE_ACTS } from '../data/eeTrimProcess';
-import { TRIM_LINE, TRIM_ACTS, TRIM_LABELS, LEFT_TO_EE, trimProcessOutdated, applyTrimProcess } from '../data/trimProcess';
+import { TRIM_LINE, TRIM_ACTS, TRIM_LABELS, LEFT_TO_EE, LEFT_TO_SUB_ASSEMBLY, trimProcessOutdated, applyTrimProcess } from '../data/trimProcess';
 import { TRAVEL_CARD_DOC } from '../data/travelCardRef';
 
 describe('KDC Trim Travel Card', () => {
@@ -17,9 +17,11 @@ describe('KDC Trim Travel Card', () => {
     expect(ACTS['KDC:T01-09-01']).toEqual(['Passenger doors sub-assembly']);
   });
 
-  it('leaves EE work out of the main stations', () => {
-    const all = Object.values(TRIM_ACTS).flat();
-    for (const rows of Object.values(LEFT_TO_EE)) for (const r of rows) expect(all).not.toContain(r);
+  it('leaves EE and sub-assembly work out of the main stations', () => {
+    const main = Object.entries(TRIM_ACTS).filter(([k]) => /^KDC:T01-\d\d$/.test(k)).flatMap(([, v]) => v);
+    for (const rows of [...Object.values(LEFT_TO_EE), ...Object.values(LEFT_TO_SUB_ASSEMBLY)]) for (const r of rows) expect(main).not.toContain(r);
+    expect(main.some(a => /debugging/i.test(a))).toBe(false);
+    expect(ACTS['KDC:T01-04-01']).toContain('Cargo rack sub-assembly');
   });
 
   it('EVS trim is unchanged and KEC follows KDC', () => {

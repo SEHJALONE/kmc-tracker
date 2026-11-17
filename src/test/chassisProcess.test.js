@@ -20,6 +20,19 @@ describe('Nov 2026 chassis process', () => {
     expect(codes('Chassis Line 02 — KDC')).toEqual(['C02-01', 'C02-02-01', 'C02-02', 'C02-03', 'C02-04-01', 'C02-04', 'C02-05', 'C02-06', 'C02-07', 'CQ-02']);
   });
 
+  it('keeps LV and HV harness work apart from VIN engraving', () => {
+    for (const fam of ['EVS', 'KDC', 'KEC']) {
+      expect(ACTS[`${fam}:C01-01`]).toEqual(['VIN engraving']);
+      expect(TC_LINES[`Chassis Line 01 — ${fam}`][0]).toBe('C01-01: VIN Engraving');
+      expect(ACTS[`${fam}:C01-04`]).toEqual(['Installation of LV underbody wiring harness']);
+    }
+    expect(ACTS['EVS:C02-01']).toEqual(['Installation of HV wiring harness']);
+    expect(SEED_STATIONS['C01-01'].name).toBe('VIN Engraving');
+    for (const fam of ['12m EVS', '12m KDC', '13m KEC']) {
+      expect(stationNameForModel({ code: 'C01-01', ...SEED_STATIONS['C01-01'] }, fam)).toBe('VIN Engraving');
+    }
+  });
+
   it('KEC shares the EVS chassis', () => {
     for (const n of ['01', '02']) {
       expect(TC_LINES[`Chassis Line ${n} — KEC`]).toEqual(TC_LINES[`Chassis Line ${n} — EVS`]);

@@ -64,6 +64,446 @@ var PAINT_STATIONS = Object.fromEntries([
   ...Object.entries(RETIRED_PAINT_CODES).map(([code, name], i) => [code, { name, line: PAINT_LINE_ID, order: STEPS.length + 1 + i, models: [...ALL_MODELS], active: false }])
 ]);
 
+// src/data/eeTrimProcess.js
+var EVS = [
+  ["T01-01 EE", "Installation of Rear LV Components", [
+    "Routing of Rear Wall Low Voltage Harnesses",
+    "Installation and termination of Rear Wall Compartment components (Switch Box, VCU, Fan, CAN Slaves, ABS and ECAS modules)",
+    "Installation and termination of Low Voltage Batteries and MRCB",
+    "Installation and termination of Charging Port sensor"
+  ]],
+  ["T01-02 EE", "Installation and Termination of HV Components, Drilling and Taping for the Front Electrical Cabinet", [
+    "Installation of HV components (HV Cabinet, Charging Ports)",
+    "Termination of HV Components (PDU, MCU and HV Cabinet)",
+    "Drilling and Taping for the Front Electrical Cabinet"
+  ]],
+  ["T01-03 EE", "Installation of Cooling Pipes, Antenna, Height Marker Lights, Ceiling, Front Wall and Dashboard Harnesses, and A/C Terminations", [
+    "Drilling of holes, riveting of cable tie holders and installation of cable ties",
+    "Sub-assembly of the Roof harnesses (Ceiling harness, Antenna, Camera cables, AC cables)",
+    "Installation and clamping of the Roof top Harnesses",
+    "Installation of the Front Wall Harness",
+    "Routing and termination of the dashboard, Side Mirror and underbody harnesses",
+    "Installation of the radio antenna and termination of the AC Unit",
+    "Installation of height marker lights (front and rear lights)"
+  ]],
+  ["T01-04 EE", "Installation and Termination of Front Wall Components", [
+    "Installation of Wiper Washer Tank, Wiper Motor, Defroster Unit and OBD Bracket",
+    "Installation of the Low-Speed Alarm ECU and Electric Horns",
+    "Installation of defroster pipes onto the Dashboard"
+  ]],
+  ["T01-06 EE", "Installation and Termination of Exterior Lights, Speakers and Passenger USB Ports", [
+    "Installation of side position lights and turn signals",
+    "Installation of front Wall and Rear Wall lights (Combination lights, grill lights, fog lights, license plate lights)",
+    "Installation and Termination of Passenger USB ports",
+    "Installation and termination of speakers"
+  ]],
+  ["T01-07 EE", "Installation and Termination of Dashboard Components, Display Screens and Interior Lights", [
+    "Installation and termination of Dashboard Accessories (Driver USB port, Goose-neck Microphone, Rocker Switches, AC Panel, Shifter Panel, Side Mirror Joystick Switch, Instrument Cluster, Reverse Display, Audio-Video Unit, Destination Signage Panel, TPMS Display Screen, Wi-Fi Router)",
+    "Drilling, Taping, Installation and termination of Display Screens"
+  ]],
+  ["T01-08 EE", "Installation of Cameras, Passenger Stop Buttons and Interior Lights", [
+    "Installation and termination of Interior and Exterior Cameras (Driver cabin, Middle Door, Rear In-cabin, Reverse and Side Cameras)",
+    "Installation and Termination of Passenger Stop Buttons",
+    "Installation and termination of Interior Lights (Roof spotlights/Driver Work lights, Aisle lights and step lights)"
+  ]],
+  ["T01-09 EE", "Installation of Ceiling Driver Cabin Components, Destination Signages, Electrical Cabinet Components, HV Insulation Resistance Tests and Battery MSDs", [
+    "Installation of Manual Sunshades (Driver Window and Front Right)",
+    "Installation of Driver Mirror and Stop Signage",
+    "Installation of Destination Signages (Front, Side and Rear signages)",
+    "Installation and termination of the 230 V AC Outlet and Front Electrical Cabinet Components (Inverter, CAN Master, CAN Slave Modules, and DVR)",
+    "HV Insulation Resistance Tests and Installation of Battery MSDs"
+  ]],
+  ["T01-10 EE", "Installation of Steering Column Assembly, Radar Sensors, BMS Unit and Underbody Routing", [
+    "Installation of Steering column Assembly (Start Key Unit, Combination Switches Unit, and Horn Clock Spring Unit)",
+    "Installation and Termination of Radar Sensors",
+    "Installation and Termination of the BMS unit",
+    "Underbody routing (termination of step lights, driver seat, position light and turn signal)"
+  ]],
+  ["T01-11 EE", "First Start, Programming, Testing and Debugging, Camera Calibrations", [
+    "First start, ECU Programming, Static tests and debugging",
+    "Camera Calibrations",
+    "ECAS Calibration"
+  ]]
+];
+var KDC = [
+  ["T01-01 EE", "Installation of Rear LV Components", [
+    "Installation and termination of Rear Wall Compartment components (Engine Start-stop switch, limit switch, reverse buzzer, luggage compartment light)",
+    "Installation and termination of Rear Side Compartment Components (LV batteries, Switch box, Bussman module, ABS module)"
+  ]],
+  ["T01-03 EE", "Installation of Cooling Pipes, Antenna, Height Marker Lights, Ceiling, Front Wall and Dashboard Harnesses, and A/C Terminations", [
+    "Sub-assembly of the Roof harnesses (Ceiling harness, Antenna, Camera cables, AC cables)",
+    "Drilling of holes, riveting of cable tie holders and installation of cable ties",
+    "Installation and clamping of the Roof top Harnesses",
+    "Routing and termination of the dashboard, Side Mirror and underbody harnesses",
+    "Installation of the Front Wall Harness",
+    "Installation of the radio antenna and termination of the AC Unit",
+    "Installation of height marker lights (front and rear lights)"
+  ]],
+  ["T01-04 EE", "Installation and Termination of Front Wall Components", [
+    "Installation of Wiper Washer Tank, Wiper Motor, Electric and Air Horns",
+    "Installation of the Defroster Unit and OBD Bracket",
+    "Termination and Installation of the Relay Box",
+    "Installation and termination of the Bussman module, Digital Video Recorder (DVR), pressure switches and sensors",
+    "Installation of defroster pipes and Logo light onto the dashboard"
+  ]],
+  ["T01-06 EE", "Installation of Exterior Lights and USB Harnesses", [
+    "Installation of side position lights and turn signals",
+    "Installation of front Wall and Rear Wall lights (Combination lights, grill lights, fog lights, license plate lights)",
+    "Installation of USB Trunking and Harnesses"
+  ]],
+  ["T01-07 EE", "Installation and Termination of Dashboard Components, Display Screens and Interior Lights", [
+    "Installation and termination of Dashboard Accessories (Driver USB port, Goose-neck Microphone, Rocker Switches, AC Panel, Shifter Panel, Side Mirror Joystick Switch, Instrument Cluster, Reverse Display, Audio-Video Unit, Destination Signage Panel, TPMS Display Screen, Wi-Fi Router)",
+    "Drilling, Taping, Installation and termination of Display Screens",
+    "Installation and termination of Interior Lights (Roof spotlights/Driver Work lights, step lights and luggage compartment lights)"
+  ]],
+  ["T01-08 EE", "Installation of Cameras and Speakers", [
+    "Installation and termination of speakers (Reading Lights Assembly)",
+    "Installation and termination of Interior Cameras",
+    "Installation of Exterior Cameras (Reverse Camera)"
+  ]],
+  ["T01-09 EE", "Installation and Termination of Ceiling Driver Cabin Components and Destination Signages", [
+    "Installation of Manual Sunshades (Driver Window and Front Right)",
+    "Installation of Driver Mirror (electronic clock) and Seat Belt Signage",
+    "Installation of Destination Signages (Front, Side and Rear signages)",
+    "Installation and termination of 220 V AC Outlet"
+  ]],
+  ["T01-10 EE", "Installation of Steering Column Assembly, Radar Sensors and Underbody Routing", [
+    "Installation of Steering column Assembly (Combination Switch Unit, Clock Spring Unit, Start Key Unit)",
+    "Installation and Termination of Radar Sensors",
+    "Installation of Aisle lights",
+    "Underbody routing (termination of step lights, driver seat, position light, turn signal, aisle lights, fridge)"
+  ]],
+  ["T01-11 EE", "First Start, Programming, Testing and Debugging, Camera Calibrations", [
+    "First start, ECM and Ad-Blue Configuration, Static tests and Debugging",
+    "Camera Calibrations"
+  ]]
+];
+var STEPS2 = { EVS, KDC };
+var EE_LABELS = Object.fromEntries(Object.entries(STEPS2).map(([fam, steps]) => [fam, Object.fromEntries(steps.map(([code, title]) => [code, `${code}: ${title}`]))]));
+var EE_ACTS = Object.fromEntries(Object.entries(STEPS2).flatMap(([fam, steps]) => steps.map(([code, , acts]) => [`${fam}:${code}`, [...acts]])));
+var EE_STATION_NAMES = (() => {
+  const out = {};
+  for (const [fam, steps] of Object.entries(STEPS2)) {
+    for (const [code, title] of steps) {
+      const k = code.replace(" EE", "-EE");
+      out[k] = { ...out[k] || {}, [fam.toLowerCase()]: title };
+    }
+  }
+  return out;
+})();
+
+// src/data/trimProcess.js
+var STEPS3 = [
+  ["T01-01", "Installation of Floor Boards, A/C and Heat Shields", [
+    "Transfer to Trim Buffer",
+    "Quality Gate",
+    "Installation of Floor Boards",
+    "A/C and Heat Shields Installation"
+  ]],
+  ["T01-02", "Carpet Installation", [
+    "Carpet Installation"
+  ]],
+  ["T01-03", "A/C and Accessories, Carpet Welding, Side Boards and Escape Hatch", [
+    "Installation of A/C & accessories",
+    "Carpet Welding",
+    "Side Board and Escape Hatch Installation"
+  ]],
+  ["T01-04", "Door Pneumatic Pipes, Roof Boards, Cargo Racks, Moulds, Panels and Side Glass Preparation", [
+    "Installation of Door Pneumatic Pipes",
+    "Roof Boards, Cargo racks, Front and Rear Mold, Left/right Panel Installation",
+    "Side Glass Surface Preparation"
+  ]],
+  ["T01-05", "Installation of Side Glass", [
+    "Side Glass Installation"
+  ]],
+  ["T01-06", "Aluminium Floor Profiles, Rear Side Panels and Windshields", [
+    "Installation of Aluminium Floor Profiles",
+    "Rear Side Panels, Front and Rear Windshields Installation"
+  ]],
+  ["T01-07", "Step Poles, Column Covers, Curtain Rails, A/C Grille, E-Valves, Glass Sealant, Mirror Brackets and Water Rails", [
+    "Installation of Step Poles, Pillar and Waist Beam Column Covers, Curtain Rails, A/C Air Grille and Curtains, E-Valves",
+    "Glass Sealant Application",
+    "Side Mirror Bracket and Water-Rails Installation"
+  ]],
+  ["T01-08", "Passenger Steps, Driver Seat, Guard Rail, Barrier, E-Hammers, Fridge, Covers, Rear Seats and Fire Extinguisher", [
+    "Installation of passenger Steps, Driver Seat",
+    "Installation of Driver Guard Rail, Barrier, E-hammers, Fridge, Inspection Cover, Steering Column Cover",
+    "Rear Seats (9), Fire Extinguisher, Trash-Can Compartment Door Locks"
+  ]],
+  ["T01-09", "Passenger Doors, Seat Brackets, Sunvisor Rods, Mirrors, Dampers, Wipers, Compartment Door Sealant and Aluminium Strips", [
+    "Passenger Door and Locks Installation",
+    "Seat Brackets Installation",
+    "Sunvisor Rods, Side Mirrors, Dampers and Wipers Installation",
+    "Compartment door Sealant Application",
+    "Aluminium Side Panel Strips Installation"
+  ]],
+  ["T01-10", "Passenger Seats, Filling Oils, Diesel and Coolant, Mechanical Checks", [
+    "Passenger Seats Installation",
+    "Filling Oils, Diesel, Coolant",
+    "Mechanical Checks"
+  ]],
+  ["T01-11", "Rubber for Aluminium, Door Fine Tuning, Quality Inspection and Rectification", [
+    "Rubber for Aluminium",
+    "Fine Tuning Passenger Doors",
+    "Quality Inspection and Rectification"
+  ]]
+];
+var TRIM_LABELS = Object.fromEntries(STEPS3.map(([code, name]) => [code, `${code}: ${name}`]));
+var TRIM_ACTS = Object.fromEntries(STEPS3.map(([code, , acts]) => [`KDC:${code}`, [...acts]]));
+TRIM_ACTS["KDC:T01-04-01"] = ["Dashboard, roof and air duct preparation (sub-assembly)", "Cargo rack sub-assembly"];
+var TRIM_STATION_NAMES = Object.fromEntries(STEPS3.map(([code, name]) => [code, { kdc: name }]));
+
+// src/data/chassisProcess.js
+var LINE = { 1: "Chassis Line 01", 2: "Chassis Line 02" };
+var TRACKER_LINE = { 1: "CHASSIS1", 2: "CHASSIS2" };
+var EVS2 = [
+  [1, "C01-01", "VIN Engraving", ["VIN engraving"], ["VIN Engraving Tool Tip"]],
+  [
+    1,
+    "C01-02",
+    "Installation of Air Tanks, Valves and Pneumatic Pipes",
+    ["Installation of air tanks", "Installation of valves", "Installation of pneumatic pipes"],
+    ["Air Tanks", "Air Tank Valves", "Air Pipes (m)", "Fittings & Clamp Set"]
+  ],
+  [
+    1,
+    "C01-03",
+    "Installation of the Steering System",
+    ["Installation of the steering system"],
+    ["Steering Components", "Mounting Bolts M12", "Thread Lock (ml)"]
+  ],
+  [
+    1,
+    "C01-04",
+    "Installation of LV Underbody Wiring Harness",
+    ["Installation of LV underbody wiring harness"],
+    ["LV Underbody Wiring Harness", "Cable Ties (pack)", "Split Loom 20mm (m)"]
+  ],
+  [
+    1,
+    "CQ-01",
+    "Chassis Frame Buffer, Pre-Chassis Assembly and Quality Gate",
+    ["Chassis frame buffer and pre-chassis assembly quality gate", "Quality gate"],
+    []
+  ],
+  [
+    2,
+    "C02-01",
+    "Installation of HV Wiring Harness",
+    ["Installation of HV wiring harness"],
+    ["HV Harness Set", "Cable Ties (pack)"]
+  ],
+  [2, "C02-02-01", "Motor Sub-Assemblies", ["Motor sub-assemblies"], []],
+  [
+    2,
+    "C02-02",
+    "Installation of Battery, Motor and Cooling System",
+    ["Installation of batteries", "Installation of motor", "Installation of cooling system"],
+    ["Motor Mounting Hardware", "HV Batteries", "Radiator", "Thread Lock (ml)"]
+  ],
+  [2, "C02-03-01", "Axles Sub-Assemblies", ["Axles sub-assemblies"], []],
+  [
+    2,
+    "C02-03",
+    "Installation of Suspension System",
+    ["Installation of suspension system"],
+    ["Front & Rear Axles", "Suspensions", "Air Bellow Shock Absorbers", "Thread Lock (ml)"]
+  ],
+  [
+    2,
+    "C02-04",
+    "Steering and Pneumatic System Installation",
+    ["Steering system installation", "Pneumatic system installation"],
+    ["Air Compressor", "Air Dryer", "Air Pipes (m)", "Fittings & Clamp Set"]
+  ],
+  [
+    2,
+    "C02-05",
+    "Tire Installation and Bus Lowering",
+    ["Tire installation", "Bus lowering"],
+    ["Customer Tyres", "Valve Cores", "Torque Wrench", "Tyre Pressure Gauge"]
+  ],
+  [2, "CQ-02", "Quality Gate", ["Quality gate inspection (QIT)", "Quality gate inspection (QIR)"], []]
+];
+var KDC2 = [
+  [1, "C01-01", "VIN Engraving", ["VIN engraving"], ["VIN Engraving Tool Tip"]],
+  [1, "C01-02-01", "Sub-Assemblies for Air Tanks", ["Sub-assemblies for air tanks"], []],
+  [
+    1,
+    "C01-02",
+    "Installation of Air Tanks, Valves, Nylon Pipes, Gear Selector Cable, Fuel Lines, Hydraulic Pipes and Clutch Pipes",
+    [
+      "Installation of air tanks and valves",
+      "Installation of nylon pipes",
+      "Installation of gear selector cable",
+      "Installation of fuel lines",
+      "Installation of hydraulic pipes",
+      "Installation of clutch pipes"
+    ],
+    ["Air Tanks", "Nylon Pipe 8mm (m)", "Nylon Pipe 10mm (m)", "Gear Selector Cable", "Fuel Line (m)", "Hydraulic Pipe (m)", "Fittings & Clamp Set"]
+  ],
+  [
+    1,
+    "C01-03-01",
+    "Cooling System Sub-Assemblies (Radiator-Fan Assemblies)",
+    ["Radiator-fan assemblies"],
+    ["Radiator Unit", "Fan Blade Set", "Mounting Hardware"]
+  ],
+  [
+    1,
+    "C01-03",
+    "Installation of the Steering System, Spare Tire Brackets and Cooling System",
+    ["Installation of the steering system", "Installation of spare tire brackets", "Installation of cooling system"],
+    ["Steering Components", "Spare Tyre Bracket", "Radiator", "Mounting Bolts M12"]
+  ],
+  [
+    1,
+    "C01-04",
+    "Installation of LV Underbody Wiring Harness",
+    ["Installation of LV underbody wiring harness"],
+    ["LV Underbody Wiring Harness", "Cable Ties (pack)"]
+  ],
+  [
+    1,
+    "CQ-01",
+    "Chassis Frame Buffer, Pre-Chassis Assembly and Quality Gate",
+    ["Chassis frame buffer and pre-chassis assembly quality gate", "Systems quality inspection and defect rectification"],
+    []
+  ],
+  [
+    2,
+    "C02-01",
+    "Installation of Fire Extinguishers, Routing and Termination of ABS Cables, Termination of the Alternator and Starter",
+    ["Installation of fire extinguishers", "Routing and termination of ABS cables", "Termination of the alternator and starter"],
+    ["Fire Extinguisher", "Starter Motor", "Cable Ties (pack)"]
+  ],
+  [2, "C02-02-01", "Engine-Gearbox Sub-Assemblies", ["Engine-gearbox sub-assemblies"], []],
+  [
+    2,
+    "C02-02",
+    "Installation of Engine-Gear Box Assembly",
+    ["Installation of engine-gear box assembly"],
+    ["Diesel Engine", "Gear Box", "Gasket Set", "Mounting Bolts M16"]
+  ],
+  [
+    2,
+    "C02-03",
+    "Installation of Engine Cooling System, Fuel System and AC Pump",
+    ["Installation of engine cooling system", "Installation of fuel system", "Installation of AC pump"],
+    ["Coolant Pipe (m)", "Fuel Line (m)", "Fuel Connectors", "A/C Components"]
+  ],
+  [2, "C02-04-01", "Axles Sub-Assemblies", ["Axles sub-assemblies"], []],
+  [
+    2,
+    "C02-04",
+    "Integration of Front and Rear Axles",
+    ["Integration of front and rear axles"],
+    ["Front & Rear Axles", "Suspensions", "Shock Absorbers", "Thread Lock (ml)"]
+  ],
+  [
+    2,
+    "C02-05",
+    "Completion of Steering and Pneumatic System",
+    ["Completion of steering system", "Completion of pneumatic system"],
+    []
+  ],
+  [
+    2,
+    "C02-06",
+    "Installation of Exhaust System, Clutch System and Air Intake System",
+    ["Installation of exhaust system", "Installation of clutch system", "Installation of air intake system"],
+    ["Air Cleaner Kit", "Air Intake", "Emissions System", "Silencer", "Exhaust Clamps"]
+  ],
+  [2, "C02-07", "Tire Installation and Bus Lowering", ["Tire installation", "Bus lowering"], ["Customer Tyres", "Valve Cores"]],
+  [
+    2,
+    "CQ-02",
+    "Painted Body Buffer Transfer, Inspection and Quality Gate",
+    ["Painted body buffer transfer and inspection", "Quality gate"],
+    []
+  ]
+];
+var STEPS4 = { EVS: EVS2, KDC: KDC2 };
+var SOURCE = { EVS: "EVS", KDC: "KDC", KEC: "EVS" };
+var CHASSIS_TC_LINES = {};
+var CHASSIS_ACTS = {};
+var CHASSIS_RES = {};
+for (const [fam, src] of Object.entries(SOURCE)) {
+  for (const n of [1, 2]) {
+    const line = `${LINE[n]} \u2014 ${fam}`;
+    const steps = STEPS4[src].filter((s) => s[0] === n);
+    CHASSIS_TC_LINES[line] = steps.map(([, code, title]) => `${code}: ${title}`);
+    CHASSIS_RES[line] = Object.fromEntries(steps.filter((s) => s[4].length).map(([, code, , , res]) => [code, [...res]]));
+    for (const [, code, , acts] of steps) CHASSIS_ACTS[`${fam}:${code}`] = [...acts];
+  }
+}
+var CHASSIS_STATIONS = (() => {
+  const out = {};
+  for (const [fam, steps] of Object.entries(STEPS4)) {
+    for (const [n, code, title] of steps) {
+      const st = out[code] || { name: title, line: TRACKER_LINE[n], models: [] };
+      st.models.push(fam);
+      if (fam === "EVS") st.models.push("KEC");
+      out[code] = st;
+    }
+  }
+  const order = { 1: [], 2: [] };
+  for (const [n, code] of KDC2) order[n].push(code);
+  order[2].splice(order[2].indexOf("C02-03"), 0, "C02-03-01");
+  for (const n of [1, 2]) order[n].forEach((code, i) => {
+    out[code].order = i + 1;
+  });
+  for (const st of Object.values(out)) st.models = ["KDC", "EVS", "KEC"].filter((m) => st.models.includes(m));
+  return out;
+})();
+var RETIRED_CHASSIS_CODES = {
+  "C01-01-01": { name: "Radiator-Fan Assembly (old code, use C01-03-01)", line: "CHASSIS1", order: 90, models: ["KDC"] },
+  "C01-04-01": { name: "Wiring Harness Sub-Assembly", line: "CHASSIS1", order: 91, models: ["KDC", "EVS", "KEC"] },
+  "C02-01A": { name: "Installation of HV Harnesses", line: "CHASSIS2", order: 90, models: ["KEC"] },
+  "C02-01B": { name: "Air Compressor, Radiator and Air Dryer", line: "CHASSIS2", order: 91, models: ["KEC"] },
+  "C02-05-01": { name: "Clutch Sub-Assembly", line: "CHASSIS2", order: 92, models: ["KDC"] },
+  "C02-06-01": { name: "Tires Sub-Assembly", line: "CHASSIS2", order: 93, models: ["EVS", "KEC"] },
+  "C02-07-01": { name: "Tires Sub-Assembly", line: "CHASSIS2", order: 94, models: ["KDC"] }
+};
+var CHASSIS_STATION_NAMES = (() => {
+  const out = {};
+  for (const [fam, steps] of Object.entries(STEPS4)) {
+    for (const [, code, title] of steps) out[code] = { ...out[code] || {}, [fam.toLowerCase()]: title };
+  }
+  return out;
+})();
+var IVAN = "Ivan Ssekide";
+var NASSER = "Nasser Kato";
+var STEVEN = "Steven Kato";
+var DENISE = "Denise Nfudu";
+var PETER = "Peter Ocom";
+var MATHIAS = "Mathias Kasumba";
+var VICTOR = "Victor Bwanatai";
+var ISAAC = "Isaac Wandwasi";
+var STEERING_TEAM = [MATHIAS, IVAN, VICTOR];
+var BY_DOCUMENT = {
+  "C01-01": [IVAN, NASSER],
+  "C01-02": [STEVEN, DENISE, PETER],
+  "C01-03": STEERING_TEAM,
+  "EVS:C02-02-01": [ISAAC, NASSER],
+  "EVS:C02-02": [ISAAC, NASSER],
+  "EVS:C02-03-01": STEERING_TEAM,
+  "EVS:C02-03": STEERING_TEAM,
+  "EVS:C02-04": [PETER, DENISE],
+  "EVS:C02-05": [MATHIAS, IVAN],
+  "KDC:C01-02-01": [DENISE],
+  "KDC:C01-03-01": [ISAAC, NASSER],
+  "KDC:C02-02-01": [ISAAC, NASSER],
+  "KDC:C02-02": [ISAAC, NASSER],
+  "KDC:C02-03": [STEVEN, NASSER],
+  "KDC:C02-04-01": STEERING_TEAM,
+  "KDC:C02-04": [MATHIAS, IVAN],
+  "KDC:C02-05": [VICTOR, DENISE],
+  "KDC:C02-06": [PETER, DENISE],
+  "KDC:C02-07": [MATHIAS, IVAN]
+};
+var CHASSIS_MANPOWER = Object.fromEntries(Object.entries(BY_DOCUMENT).flatMap(([k, v]) => k.startsWith("EVS:") ? [[k, [...v]], [k.replace("EVS:", "KEC:"), [...v]]] : [[k, [...v]]]));
+
 // src/data/kecTemplate.js
 var KEC_STATION_SOURCE = {
   CHASSIS1: "EVS",
@@ -89,6 +529,7 @@ function alignKecStations(stations) {
 }
 
 // src/data/stations.js
+var RETIRED_CHASSIS_STATIONS = Object.fromEntries(Object.entries(RETIRED_CHASSIS_CODES).map(([c, st]) => [c, { ...st, active: false }]));
 var SEED_LINES = [
   { id: "MACHINE", label: "Machine Shop", models: ["KDC", "EVS", "KEC"] },
   { id: "BODY", label: "Frame Parts Making", models: ["KDC", "EVS", "KEC"] },
@@ -203,58 +644,10 @@ var RAW_SEED_STATIONS = {
   "W01-12": { name: "Underbody Welding and Sealant Application", line: "FRAME", order: 16, models: ["KDC", "EVS", "KEC"] },
   "W01-13": { name: "Rectification", line: "FRAME", order: 17, models: ["KDC", "EVS", "KEC"] },
   "W01-14": { name: "Quality Gate (WQ-03)", line: "FRAME", order: 18, models: ["KDC", "EVS", "KEC"] },
-  // ─── CHASSIS LINE 01 ──────────────────────────────────────────────────────────
-  "CQ-01": { name: "Chassis Frame Defects Rectification Buffer & Pre-Chassis Assembly", line: "CHASSIS1", order: 1, models: ["KDC", "EVS", "KEC"] },
-  // EVS C01-01: VIN Engraving + LV Underbody Wiring Harnesses
-  // KDC C01-01: VIN Engraving only
-  "C01-01": { name: "VIN Engraving & LV Underbody Wiring Harness Installation", line: "CHASSIS1", order: 2, models: ["KDC", "EVS", "KEC"] },
-  // EVS C01-02: Air Tanks, Air Pipes and Braking Systems
-  // KDC C01-02: Air Tanks, Air Pipes, Braking Systems + Nylon Pipes, Gear Selector, Hydraulic Pipes
-  "C01-02": { name: "Chassis Air Tanks, Air Pipes, Braking & Hydraulic Systems", line: "CHASSIS1", order: 3, models: ["KDC", "EVS", "KEC"] },
-  "C01-02-01": { name: "Air Tanks / Wiring Harness Sub-Assembly", line: "CHASSIS1", order: 4, models: ["KDC", "EVS", "KEC"] },
-  // EVS C01-03: Steering System
-  // KDC C01-03: Steering System + Gear Lever Cables, Clutch Radiator, Tyre Bracket
-  "C01-03": { name: "Steering System, Gear Lever Cables, Clutch Radiator & Tyre Bracket", line: "CHASSIS1", order: 5, models: ["KDC", "EVS", "KEC"] },
-  "C01-03-01": { name: "Radiator-Fan Assembly", line: "CHASSIS1", order: 6, models: ["KDC"] },
-  // Old (wrong) code for the radiator-fan sub-assembly — kept archived so any
-  // travel cards already filed under it still resolve.
-  "C01-01-01": { name: "Radiator-Fan Assembly (old code \u2014 use C01-03-01)", line: "CHASSIS1", order: 6, models: ["KDC"], active: false },
-  // EVS C01-04: Air Tanks, Valves, Brake Pedals, ABS Valves and Pipes Sub-Assembly
-  // KDC C01-04: Low Voltage Underbody Wiring Harness
-  "C01-04": { name: "Air Tanks, Valves, Brake Pedals & ABS Valves / LV Underbody Wiring Harness", line: "CHASSIS1", order: 7, models: ["KDC", "EVS", "KEC"] },
-  "C01-04-01": { name: "Wiring Harness Sub-Assembly", line: "CHASSIS1", order: 8, models: ["KDC", "EVS", "KEC"] },
-  "CQ-02": { name: "Quality Gate", line: "CHASSIS1", order: 9, models: ["KDC", "EVS", "KEC"] },
-  // ─── CHASSIS LINE 02 ──────────────────────────────────────────────────────────
-  // EVS C02-01: HV Harnesses, TPMS Modules, Fire Extinguishers, LV Harness Routing
-  // KDC C02-01: TPMS Modules, Fire Extinguisher, Rear LV, AC, Starter Motor, Wiring Harness Routing
-  "C02-01": { name: "TPMS Modules, Fire Extinguisher, HV/LV Harnesses & Wiring Harness Routing", line: "CHASSIS2", order: 1, models: ["KDC", "EVS"] },
-  // KEC: its drawing labels two stations "C02-01"; split a/b.
-  "C02-01A": { name: "Installation of HV Harnesses", line: "CHASSIS2", order: 1, models: ["KEC"] },
-  "C02-01B": { name: "Air Compressor, Radiator and Air Dryer", line: "CHASSIS2", order: 1.5, models: ["KEC"] },
-  "C02-02-01": { name: "Engine & Gear Box Sub-Assembly (KDC) / Axles Sub-Assembly (KEC)", line: "CHASSIS2", order: 2.5, models: ["KDC", "KEC"] },
-  // EVS C02-02: Motor + HV Batteries
-  // KDC C02-02: Diesel Engine and Gear Box + Engine Accessories Termination
-  "C02-02": { name: "Motor & HV Batteries (EVS) / Diesel Engine, Gear Box & Accessories (KDC)", line: "CHASSIS2", order: 2, models: ["KDC", "EVS", "KEC"] },
-  // EVS C02-03: Front and Rear Axles + Suspensions + Air Bellow Shock Absorbers
-  // KDC C02-03: Engine Cooling and Fuel System
-  "C02-03": { name: "Front & Rear Axles & Suspensions (EVS) / Engine Cooling & Fuel System (KDC)", line: "CHASSIS2", order: 3, models: ["KDC", "EVS", "KEC"] },
-  "C02-03-01": { name: "Axles Sub-Assembly", line: "CHASSIS2", order: 4, models: ["EVS"] },
-  // EVS C02-04: Air Compressor, Radiator, Air Dryer, PDU, MCU
-  // KDC C02-04: Front and Rear Axles, Suspensions, Shock Absorbers
-  "C02-04": { name: "Air Compressor, Radiator, Air Dryer, PDU & MCU (EVS) / Axles & Suspensions (KDC)", line: "CHASSIS2", order: 5, models: ["KDC", "EVS", "KEC"] },
-  "C02-04-01": { name: "Axles Sub-Assembly", line: "CHASSIS2", order: 6, models: ["KDC", "KEC"] },
-  // EVS C02-05: HV Battery Accessories, ABS, Speed & Brake-wear Sensor Termination
-  // KDC C02-05: Pneumatic & Steering System Completion, Driver Floorboard, Clutch Bleeding, ABS & Sensor Routing/Termination
-  "C02-05": { name: "HV Battery Accessories & Sensor Termination (EVS) / Pneumatic, Steering, Clutch & Sensor Systems (KDC)", line: "CHASSIS2", order: 7, models: ["KDC", "EVS", "KEC"] },
-  // EVS C02-06: Wheel Arch Profile + Customer Tyres
-  // KDC C02-06: Air Cleaner, Air Intake, Emissions System & Silencer
-  "C02-05-01": { name: "Clutch Sub-Assembly", line: "CHASSIS2", order: 7.5, models: ["KDC"] },
-  "C02-06": { name: "Wheel Arch Profile & Tyres (EVS) / Air Cleaner, Air Intake, Emissions & Silencer (KDC)", line: "CHASSIS2", order: 8, models: ["KDC", "EVS"] },
-  "C02-06-01": { name: "Tires Sub-Assembly", line: "CHASSIS2", order: 9, models: ["EVS"] },
-  // EVS C02-07: Torquing + Pressure Balancing
-  // KDC C02-07: Installation of Tyres
-  "C02-07": { name: "Tyre Torquing & Pressure Balancing (EVS) / Tyre Installation (KDC)", line: "CHASSIS2", order: 10, models: ["KDC", "EVS"] },
-  "C02-07-01": { name: "Tires Sub-Assembly", line: "CHASSIS2", order: 11, models: ["KDC"] },
+  // ─── CHASSIS LINES 01 and 02 ─────────────────────────────────────────────────
+  // From "CHASSIS LINE STATIONS" (Nov 2026); KEC follows EVS. See chassisProcess.js.
+  ...CHASSIS_STATIONS,
+  ...RETIRED_CHASSIS_STATIONS,
   // ─── PAINT SHOP ───────────────────────────────────────────────────────────────
   // Order follows the document sequence exactly
   // Paint Shop: same for every model (src/data/paintShopProcess.js)
@@ -262,7 +655,7 @@ var RAW_SEED_STATIONS = {
   // ─── TRIM LINE & FINAL ASSEMBLY ───────────────────────────────────────────────
   // Stations follow document station codes. "EE" suffix = electrical sub-station at same physical station.
   "T01-01": { name: "Installation of Floor Boards, A/C & Heat Shield", line: "TRIM", order: 1, models: ["KDC", "EVS", "KEC"] },
-  "T01-01-EE": { name: "Rear Wall & Rear Side Compartment Components (KDC) / \u2014 (EVS)", line: "TRIM", order: 2, models: ["KDC", "KEC"] },
+  "T01-01-EE": { name: "Installation of Rear LV Components", line: "TRIM", order: 2, models: ["KDC", "EVS", "KEC"] },
   "T01-01-01": { name: "Floorboard Preparation (Sub-Assembly)", line: "TRIM", order: 3, models: ["KDC", "EVS", "KEC"] },
   "T01-02": { name: "Carpet Installation", line: "TRIM", order: 4, models: ["KDC", "EVS", "KEC"] },
   "T01-02-EE": { name: "Installation and Termination of HV Components", line: "TRIM", order: 5, models: ["EVS", "KEC"] },
@@ -281,7 +674,7 @@ var RAW_SEED_STATIONS = {
   "T01-08": { name: "Driver Seat, Driver Cabins, Guard Rail, Barriers, Sun Visor Rods, Seat Brackets, Inspection Cover, Steering Column Cover, False Roof Panel, Rear Seats", line: "TRIM", order: 18, models: ["KDC", "EVS", "KEC"] },
   "T01-08-EE": { name: "Interior Cameras & Speakers / Reading Lights", line: "TRIM", order: 19, models: ["KDC", "EVS"] },
   "T01-09": { name: "Passenger Door & Locks; Exterior Body Accessories; Side Mirrors, Dampers & Wipers; Compartment Door Sealant & Aluminium Strips", line: "TRIM", order: 20, models: ["KDC", "EVS", "KEC"] },
-  "T01-09-EE": { name: "Interior EE Components and Lighting Systems", line: "TRIM", order: 21, models: ["KDC", "KEC"] },
+  "T01-09-EE": { name: "Ceiling Driver Cabin Components and Destination Signages", line: "TRIM", order: 21, models: ["KDC", "EVS", "KEC"] },
   "T01-09-01": { name: "Passenger Doors Sub-Assembly", line: "TRIM", order: 22, models: ["KDC", "EVS", "KEC"] },
   "T01-10": { name: "Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks", line: "TRIM", order: 23, models: ["KDC", "EVS", "KEC"] },
   "T01-10-EE": { name: "BMS, USB, Steering Column, Exterior & Side Cameras; Underbody Routing & Termination", line: "TRIM", order: 24, models: ["KDC", "EVS"] },
@@ -331,6 +724,33 @@ function lookupStation(rawCode) {
   if (!rawCode) return null;
   const code = canonicalStationCode(rawCode);
   return STATIONS[code] ? { code, ...STATIONS[code] } : null;
+}
+var STATION_MODEL_NAMES = {
+  // FRAME & BODY WELDING
+  "W01-01A": { kdc: "Back Seat, Heat Shield, Floor Sub-frame Plates & Rear Fascia to U-Hoop" },
+  "W01-01B": { kdc: "U-Hoop, Driver Cabin Floor, Chassis Infuses & Front Fascia to Chassis" },
+  "W01-02": { evs: "Passenger Door Step & Additional Chassis Infuse Profiles", kdc: "Coach Frame Alignment, Door Step & Chassis Infuse Profiles" },
+  "W01-04": { evs: "Welding of Chassis Frame Profiles, Brackets & Inner Sealing Plates", kdc: "Welding of Attachment Brackets & Sealing Plates" },
+  "W01-05": { evs: "Welding of Exterior Sealing Plates & Additional Brackets; Sealant", kdc: "Additional Seal Plates & Attachment Brackets; Sealant" },
+  "W01-06": { evs: "Fibre Roof, A/C Bolts; Cargo Rack & Ladder Bolts (7m EVS)", kdc: "Installation of Fibre Roof & A/C Bolts" },
+  "W01-10": { evs: "External Side Frame, Fibre Strips, Marker Light & Camera Hole", kdc: "External Side Frame, Fibre Strips & Marker Light" },
+  // CHASSIS LINES (chassisProcess.js)
+  ...CHASSIS_STATION_NAMES,
+  // PAINT SHOP
+  // TRIM LINE & FINAL ASSEMBLY
+  // EE stations: the 2026 EVS / KDC EE travel card tools (eeTrimProcess.js)
+  ...EE_STATION_NAMES,
+  "T01-06": { evs: "Dashboard, Windshields, Floor Profiles, Airduct Doors, Waist Beam & Rear Panels", kdc: "Dashboard, Windshields, Floor Profiles, Airduct Doors & Rear Panels" },
+  "T01-07": { evs: "Poles, Column Covers, Curtain Rails, E-Valves/Hammers, A/C Grille & Sealant", kdc: "Step Poles, Column Covers, Mirror Brackets, Rails, E-Valves, A/C Grille & Sealant" },
+  "T01-08": { evs: "Driver Seat & Cabins, Barriers, Brackets, Covers, Extinguisher, Water Rails & False Roof", kdc: "Driver Seat & Cabins, Guard Rail, Barriers, Brackets, Covers, False Roof & Rear Seats" },
+  "T01-10": { evs: "Installation of Seats; Filling Oils, Coolant & Mechanical Checks", kdc: "Installation of Passenger Seats; Filling Oils, Coolant & Mechanical Checks" },
+  "T01-11": { evs: "ECAS & Fine Tuning of Passenger Doors", kdc: "A/C Refilling, Door Fine-Tuning & Quality Inspection" },
+  "T01-12": { evs: "Quality Inspection and Rectification (TQ-01)" },
+  // QUALITY INSPECTION & TESTING
+  "Q01-02": { evs: "Speed Test", kdc: "Vehicle Exhaust & Speed Test", kec: "Speed Test" }
+};
+for (const [code, names] of Object.entries(TRIM_STATION_NAMES)) {
+  STATION_MODEL_NAMES[code] = { ...STATION_MODEL_NAMES[code] || {}, ...names };
 }
 var FAMILIES = ["EVS", "KDC", "KEC"];
 function modelFamilyOf(model = "") {

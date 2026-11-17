@@ -20,12 +20,10 @@ const STEPS = [
   ['T01-01', 'Installation of Floor Boards, A/C and Heat Shields', [
     'Transfer to Trim Buffer',
     'Quality Gate',
-    'Floorboard Preparation',
     'Installation of Floor Boards',
     'A/C and Heat Shields Installation',
   ]],
   ['T01-02', 'Carpet Installation', [
-    'Carpets Preparation',
     'Carpet Installation',
   ]],
   ['T01-03', 'A/C and Accessories, Carpet Welding, Side Boards and Escape Hatch', [
@@ -33,8 +31,7 @@ const STEPS = [
     'Carpet Welding',
     'Side Board and Escape Hatch Installation',
   ]],
-  ['T01-04', 'Dashboard Preparation, Cargo Racks, Door Pneumatic Pipes, Roof Boards, Moulds and Panels', [
-    'Dashboard Preparation and Cargo Rack Sub-Assembly',
+  ['T01-04', 'Door Pneumatic Pipes, Roof Boards, Cargo Racks, Moulds, Panels and Side Glass Preparation', [
     'Installation of Door Pneumatic Pipes',
     'Roof Boards, Cargo racks, Front and Rear Mold, Left/right Panel Installation',
     'Side Glass Surface Preparation',
@@ -57,7 +54,6 @@ const STEPS = [
     'Rear Seats (9), Fire Extinguisher, Trash-Can Compartment Door Locks',
   ]],
   ['T01-09', 'Passenger Doors, Seat Brackets, Sunvisor Rods, Mirrors, Dampers, Wipers, Compartment Door Sealant and Aluminium Strips', [
-    'Passenger Doors Sub-Assembly',
     'Passenger Door and Locks Installation',
     'Seat Brackets Installation',
     'Sunvisor Rods, Side Mirrors, Dampers and Wipers Installation',
@@ -65,19 +61,29 @@ const STEPS = [
     'Aluminium Side Panel Strips Installation',
   ]],
   ['T01-10', 'Passenger Seats, Filling Oils, Diesel and Coolant, Mechanical Checks', [
-    'Seats Preparation and Electrical System Sub-Assembly',
     'Passenger Seats Installation',
     'Filling Oils, Diesel, Coolant',
     'Mechanical Checks',
   ]],
   ['T01-11', 'Rubber for Aluminium, Door Fine Tuning, Quality Inspection and Rectification', [
     'Rubber for Aluminium',
-    'Debugging, Fine Tuning Passenger Doors',
+    'Fine Tuning Passenger Doors',
     'Quality Inspection and Rectification',
   ]],
 ];
 
-// Card rows that are EE work, so they stay with the EE stations.
+// Card rows that are sub-assembly work: each has its own sub-assembly
+// station (T01-xx-01), so it is filed there, not again at the main station.
+export const LEFT_TO_SUB_ASSEMBLY = {
+  'T01-01': ['Floorboard Preparation'],
+  'T01-02': ['Carpets Preparation'],
+  'T01-04': ['Dashboard Preparation and Cargo Rack Sub-Assembly'],
+  'T01-09': ['Passenger Doors Sub-Assembly'],
+  'T01-10': ['Seats Preparation and Electrical System Sub-Assembly'],
+};
+
+// Card rows that are EE work, so they stay with the EE stations. "Debugging"
+// is also dropped from T01-11's door fine tuning: it is done at T01-11 EE.
 export const LEFT_TO_EE = {
   'T01-03': ['Drilling of holes for riveting of cable tie holders'],
   'T01-04': ['Installation of Washer Tank', 'Termination and Installation of the Relay Box'],
@@ -89,6 +95,8 @@ export const LEFT_TO_EE = {
 
 export const TRIM_LABELS = Object.fromEntries(STEPS.map(([code, name]) => [code, `${code}: ${name}`]));
 export const TRIM_ACTS = Object.fromEntries(STEPS.map(([code, , acts]) => [`KDC:${code}`, [...acts]]));
+// The card's cargo rack sub-assembly is filed with the dashboard sub-assembly.
+TRIM_ACTS['KDC:T01-04-01'] = ['Dashboard, roof and air duct preparation (sub-assembly)', 'Cargo rack sub-assembly'];
 // Bus Tracker names (KEC trim names follow KDC there).
 export const TRIM_STATION_NAMES = Object.fromEntries(STEPS.map(([code, name]) => [code, { kdc: name }]));
 

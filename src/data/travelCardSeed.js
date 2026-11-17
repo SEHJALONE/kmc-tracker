@@ -443,7 +443,6 @@ export const ACTS = {
   "KDC:T01-01-01": ["Floorboard preparation (sub-assembly)"],
   "KDC:T01-02-01": ["Carpets preparation (sub-assembly)"],
   "KDC:T01-03-01": ["A/C sub-assembly"],
-  "KDC:T01-04-01": ["Dashboard, roof and air duct preparation (sub-assembly)"],
   "KDC:T01-09-01": ["Passenger doors sub-assembly"],
   "KDC:T01-10-01": ["Electrical system sub-assembly"],
   "KDC:T01-11-01": ["Assembly of seats and armrests (sub-assembly)"],
