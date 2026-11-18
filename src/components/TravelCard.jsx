@@ -411,6 +411,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const [curCode, setCurCode] = useState(() => prefillStation ? prefillStation.split(":")[0].trim() : "");
   const [curSt, setCurSt] = useState(prefillStation);
   const [designedTime, setDesignedTime] = useState(0);
+  // True only when the Station Times sheet supplied the designed time. Then it
+  // is shown read-only; otherwise the operator types it and the box stays open
+  // while they type (it used to close after the first digit).
+  const [designedFromSheet, setDesignedFromSheet] = useState(false);
 
   // Staff (per station — pool is station-scoped, loaded dynamically in onStation)
   const [operators, setOperators] = useState([]);
@@ -567,7 +571,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   function buildSessionSnapshot() {
     return {
       savedAt: new Date().toISOString(),
-      page, curProj, busModel, vin, curLine, curSt, curCode, designedTime,
+      page, curProj, busModel, vin, curLine, curSt, curCode, designedTime, designedFromSheet,
       operators, selOps, ppe, clockIn, clockOut, workDays,
       actualTime, grossTime, breakTime,
       actStatuses, actTimes, otherActs, resQtys, removedRes, otherRes,
@@ -594,6 +598,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCurProj(snap.curProj ?? ""); setBusModel(snap.busModel ?? ""); setVin(snap.vin ?? "");
     setCurLine(snap.curLine ?? ""); setCurSt(snap.curSt ?? ""); setCurCode(snap.curCode ?? "");
     setDesignedTime(snap.designedTime ?? 0);
+    setDesignedFromSheet(!!snap.designedFromSheet);
     setOperators(snap.operators ?? []); setSelOps(snap.selOps ?? []);
     setPpe(snap.ppe ?? parsePpe(snap.hseCount).items); setPpeTouched(true); setClockIn(snap.clockIn ?? ""); setClockOut(snap.clockOut ?? ""); setWorkDays(snap.workDays ?? []);
     setActualTime(snap.actualTime ?? 0); setGrossTime(snap.grossTime ?? 0); setBreakTime(snap.breakTime ?? 0);
@@ -807,6 +812,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       ? (stationTimesApi.getMinutes(`${modelKind}:${code}`) ?? stationTimesApi.getMinutes(code) ?? 0)
       : 0;
     setDesignedTime(mins);
+    setDesignedFromSheet(mins > 0);
     setActStatuses({}); setActTimes({});
     setOtherActs([]); setOtherActName("");
 
@@ -1293,10 +1299,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 <input type="number" style={{ ...css.inp, maxWidth: 90, fontSize: 12 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />
               </div>
             )}
-            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime > 0 && (
+            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedFromSheet && designedTime > 0 && (
               <div style={{ ...css.pill, marginTop: 8 }}>Designed time: <strong style={{ marginLeft: 4 }}>{designedTime} min</strong></div>
             )}
-            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && designedTime === 0 && (
+            {!isAdmin && !isUser && !timesLoading && !timesError && curCode && !(designedFromSheet && designedTime > 0) && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11, color: T.dim, fontFamily: T.mono }}>
                 No cycle time set - enter manually:&nbsp;
                 <input type="number" style={{ ...css.inp, maxWidth: 80, fontSize: 12, display: "inline", width: 80 }} value={designedTime || ""} onChange={e => setDesignedTime(Number(e.target.value) || 0)} min="0" placeholder="min" />

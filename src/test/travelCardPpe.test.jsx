@@ -57,3 +57,25 @@ describe('TravelCard PPE and clock times', () => {
     expect(screen.getAllByDisplayValue(/2026-11-03T/).length).toBe(2)
   })
 })
+
+describe('TravelCard designed time typed by the operator', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    // Station Times sheet loads but has no time for this station.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+      ok: true, status: 200, text: () => Promise.resolve(''), json: () => Promise.resolve({}),
+    })))
+  })
+
+  it('keeps the box open so more than one digit can be typed', async () => {
+    render(<TravelCard role="supervisor" prefillModel="12m EVS" prefillVin="VIN1" lockedStation="B01-01" />)
+    await screen.findByText(/No cycle time set/)
+    // Look the box up again before every keystroke, as an operator would.
+    const box = () => screen.getByPlaceholderText('min')
+    fireEvent.change(box(), { target: { value: '4' } })
+    fireEvent.change(box(), { target: { value: '45' } })
+    fireEvent.change(box(), { target: { value: '450' } })
+    expect(box().value).toBe('450')
+    expect(screen.queryByText(/Designed time:/)).toBeNull()
+  })
+})
