@@ -272,6 +272,24 @@ var EVS2 = [
     ["Installation of the steering system"],
     ["Steering Components", "Mounting Bolts M12", "Thread Lock (ml)"]
   ],
+  // EE sub-stations at C01-03 (Nov 2026): HV battery cooling. EVS and KEC only.
+  [
+    1,
+    "C01-03-01 EE",
+    "HV Battery Cooling System Sub-Assembly",
+    ["Dressing of the cooling hose with insulation sheath"],
+    []
+  ],
+  [
+    1,
+    "C01-03 EE",
+    "Installation of HV Battery Cooling System",
+    [
+      "Installation of the insulated cooling pipes in the battery compartments",
+      "Securing of the cooling pipes onto the attachment points using clamps and bolts"
+    ],
+    []
+  ],
   [
     1,
     "C01-04",
@@ -424,6 +442,7 @@ var KDC2 = [
   ]
 ];
 var STEPS4 = { EVS: EVS2, KDC: KDC2 };
+var trackerCode = (code) => code.replace(/ EE$/, "-EE");
 var SOURCE = { EVS: "EVS", KDC: "KDC", KEC: "EVS" };
 var CHASSIS_TC_LINES = {};
 var CHASSIS_ACTS = {};
@@ -440,7 +459,8 @@ for (const [fam, src] of Object.entries(SOURCE)) {
 var CHASSIS_STATIONS = (() => {
   const out = {};
   for (const [fam, steps] of Object.entries(STEPS4)) {
-    for (const [n, code, title] of steps) {
+    for (const [n, tcCode, title] of steps) {
+      const code = trackerCode(tcCode);
       const st = out[code] || { name: title, line: TRACKER_LINE[n], models: [] };
       st.models.push(fam);
       if (fam === "EVS") st.models.push("KEC");
@@ -450,6 +470,7 @@ var CHASSIS_STATIONS = (() => {
   const order = { 1: [], 2: [] };
   for (const [n, code] of KDC2) order[n].push(code);
   order[2].splice(order[2].indexOf("C02-03"), 0, "C02-03-01");
+  order[1].splice(order[1].indexOf("C01-03") + 1, 0, "C01-03-01-EE", "C01-03-EE");
   for (const n of [1, 2]) order[n].forEach((code, i) => {
     out[code].order = i + 1;
   });
@@ -468,7 +489,10 @@ var RETIRED_CHASSIS_CODES = {
 var CHASSIS_STATION_NAMES = (() => {
   const out = {};
   for (const [fam, steps] of Object.entries(STEPS4)) {
-    for (const [, code, title] of steps) out[code] = { ...out[code] || {}, [fam.toLowerCase()]: title };
+    for (const [, tcCode, title] of steps) {
+      const code = trackerCode(tcCode);
+      out[code] = { ...out[code] || {}, [fam.toLowerCase()]: title };
+    }
   }
   return out;
 })();
@@ -758,7 +782,7 @@ function modelFamilyOf(model = "") {
   return FAMILIES.find((f) => m.includes(f)) || null;
 }
 function isSubassembly(code) {
-  return typeof code === "string" && /-\d+-\d+$/.test(code.trim().toUpperCase());
+  return typeof code === "string" && /-\d+-\d+(-EE)?$/.test(code.trim().toUpperCase().replace(/\s+/g, "-"));
 }
 function isMajorStation(code) {
   return !!STATIONS[code] && !isSubassembly(code);

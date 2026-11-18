@@ -337,9 +337,10 @@ export function stationNameForModel(station, model) {
 //
 // Subassembly codes carry a third numeric segment (e.g. "C01-02-01", "T01-09-01").
 // Electrical "-EE" sub-stations are NOT subassemblies — they belong to their
-// parent major station and stay on the critical path.
+// parent major station and stay on the critical path — except an EE
+// sub-assembly, which keeps the third segment ("C01-03-01 EE", HV battery cooling).
 export function isSubassembly(code) {
-  return typeof code === 'string' && /-\d+-\d+$/.test(code.trim().toUpperCase());
+  return typeof code === 'string' && /-\d+-\d+(-EE)?$/.test(code.trim().toUpperCase().replace(/\s+/g, '-'));
 }
 
 // True only for known critical-path (major) stations.
@@ -374,5 +375,6 @@ export function lineProgress(stationCodes, lineId, model) {
 // vanishing from the board.
 export function trackerStationCode(rawCode) {
   const code = canonicalStationCode(rawCode);
-  return isSubassembly(code) ? code.replace(/-\d+$/, '') : code;
+  // C01-02-01 -> C01-02; the EE sub-assembly C01-03-01-EE -> C01-03-EE.
+  return isSubassembly(code) ? code.replace(/-\d+(-EE)?$/, '$1') : code;
 }

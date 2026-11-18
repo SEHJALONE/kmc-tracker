@@ -99,7 +99,7 @@ describe('line progress', () => {
   it('counts only this line and this model’s critical-path stations', () => {
     const p = lineProgress(['C01-01', 'C01-02', 'C01-02-01', 'B01-01', 'CQ-01'], 'CHASSIS1', '13m KEC');
     expect(p.visited).toBe(3);           // subassembly + other line ignored
-    expect(p.total).toBe(5);             // C01-01..04 and CQ-01 (CQ-02 is on Chassis Line 02)
+    expect(p.total).toBe(6);             // C01-01..04, C01-03 EE and CQ-01 (CQ-02 is on Chassis Line 02)
     expect(lineProgress(['C01-03-01'], 'CHASSIS1', '12m KDC').visited).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TC_LINES, ACTS, RES } from '../data/travelCardSeed';
-import { SEED_STATIONS, stationNameForModel } from '../data/stations';
+import { SEED_STATIONS, stationNameForModel, isSubassembly, trackerStationCode } from '../data/stations';
 import { manpowerFor } from '../data/manpowerAllocation';
 import {
   CHASSIS_TC_LINES, CHASSIS_ACTS, chassisProcessOutdated, applyChassisProcess, RETIRED_CHASSIS_CODES,
@@ -14,7 +14,7 @@ describe('Nov 2026 chassis process', () => {
   });
 
   it('follows the document order, with each quality gate closing its line', () => {
-    expect(codes('Chassis Line 01 — EVS')).toEqual(['C01-01', 'C01-02', 'C01-03', 'C01-04', 'CQ-01']);
+    expect(codes('Chassis Line 01 — EVS')).toEqual(['C01-01', 'C01-02', 'C01-03', 'C01-03-01 EE', 'C01-03 EE', 'C01-04', 'CQ-01']);
     expect(codes('Chassis Line 02 — EVS')).toEqual(['C02-01', 'C02-02-01', 'C02-02', 'C02-03-01', 'C02-03', 'C02-04', 'C02-05', 'CQ-02']);
     expect(codes('Chassis Line 01 — KDC')).toEqual(['C01-01', 'C01-02-01', 'C01-02', 'C01-03-01', 'C01-03', 'C01-04', 'CQ-01']);
     expect(codes('Chassis Line 02 — KDC')).toEqual(['C02-01', 'C02-02-01', 'C02-02', 'C02-03', 'C02-04-01', 'C02-04', 'C02-05', 'C02-06', 'C02-07', 'CQ-02']);
@@ -31,6 +31,29 @@ describe('Nov 2026 chassis process', () => {
     for (const fam of ['12m EVS', '12m KDC', '13m KEC']) {
       expect(stationNameForModel({ code: 'C01-01', ...SEED_STATIONS['C01-01'] }, fam)).toBe('VIN Engraving');
     }
+  });
+
+  it('adds the HV battery cooling EE stations for EVS and KEC only', () => {
+    for (const fam of ['EVS', 'KEC']) {
+      expect(codes(`Chassis Line 01 — ${fam}`)).toEqual(['C01-01', 'C01-02', 'C01-03', 'C01-03-01 EE', 'C01-03 EE', 'C01-04', 'CQ-01']);
+      expect(ACTS[`${fam}:C01-03-01 EE`]).toEqual(['Dressing of the cooling hose with insulation sheath']);
+      expect(ACTS[`${fam}:C01-03 EE`]).toEqual([
+        'Installation of the insulated cooling pipes in the battery compartments',
+        'Securing of the cooling pipes onto the attachment points using clamps and bolts',
+      ]);
+    }
+    expect(ACTS['KDC:C01-03 EE']).toBeUndefined();
+    expect(SEED_STATIONS['C01-03-EE']).toMatchObject({ line: 'CHASSIS1', models: ['EVS', 'KEC'] });
+    expect(SEED_STATIONS['C01-03-01-EE'].models).toEqual(['EVS', 'KEC']);
+    expect(ACTS['EVS:C01-03']).toEqual(['Installation of the steering system']);
+  });
+
+  it('treats the cooling sub-assembly as a feeder of the cooling EE station', () => {
+    expect(isSubassembly('C01-03-01 EE')).toBe(true);
+    expect(isSubassembly('C01-03 EE')).toBe(false);
+    expect(isSubassembly('T01-02 EE')).toBe(false);
+    expect(trackerStationCode('C01-03-01 EE')).toBe('C01-03-EE');
+    expect(trackerStationCode('C01-02-01')).toBe('C01-02');
   });
 
   it('KEC shares the EVS chassis', () => {

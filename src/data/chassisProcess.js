@@ -23,6 +23,12 @@ const EVS = [
     ['Air Tanks', 'Air Tank Valves', 'Air Pipes (m)', 'Fittings & Clamp Set']],
   [1, 'C01-03', 'Installation of the Steering System', ['Installation of the steering system'],
     ['Steering Components', 'Mounting Bolts M12', 'Thread Lock (ml)']],
+  // EE sub-stations at C01-03 (Nov 2026): HV battery cooling. EVS and KEC only.
+  [1, 'C01-03-01 EE', 'HV Battery Cooling System Sub-Assembly',
+    ['Dressing of the cooling hose with insulation sheath'], []],
+  [1, 'C01-03 EE', 'Installation of HV Battery Cooling System',
+    ['Installation of the insulated cooling pipes in the battery compartments',
+      'Securing of the cooling pipes onto the attachment points using clamps and bolts'], []],
   [1, 'C01-04', 'Installation of LV Underbody Wiring Harness', ['Installation of LV underbody wiring harness'],
     ['LV Underbody Wiring Harness', 'Cable Ties (pack)', 'Split Loom 20mm (m)']],
   [1, 'CQ-01', 'Chassis Frame Buffer, Pre-Chassis Assembly and Quality Gate',
@@ -83,6 +89,8 @@ const KDC = [
 ];
 
 const STEPS = { EVS, KDC };
+// Travel Card writes "C01-03 EE"; the tracker station list uses "C01-03-EE".
+const trackerCode = code => code.replace(/ EE$/, '-EE');
 // The KEC chassis is the EVS chassis.
 const SOURCE = { EVS: 'EVS', KDC: 'KDC', KEC: 'EVS' };
 
@@ -104,7 +112,8 @@ for (const [fam, src] of Object.entries(SOURCE)) {
 export const CHASSIS_STATIONS = (() => {
   const out = {};
   for (const [fam, steps] of Object.entries(STEPS)) {
-    for (const [n, code, title] of steps) {
+    for (const [n, tcCode, title] of steps) {
+      const code = trackerCode(tcCode);
       const st = out[code] || { name: title, line: TRACKER_LINE[n], models: [] };
       st.models.push(fam);
       if (fam === 'EVS') st.models.push('KEC');
@@ -116,6 +125,8 @@ export const CHASSIS_STATIONS = (() => {
   const order = { 1: [], 2: [] };
   for (const [n, code] of KDC) order[n].push(code);
   order[2].splice(order[2].indexOf('C02-03'), 0, 'C02-03-01');
+  // EVS / KEC HV battery cooling EE stations come right after steering (C01-03).
+  order[1].splice(order[1].indexOf('C01-03') + 1, 0, 'C01-03-01-EE', 'C01-03-EE');
   for (const n of [1, 2]) order[n].forEach((code, i) => { out[code].order = i + 1; });
   for (const st of Object.values(out)) st.models = ['KDC', 'EVS', 'KEC'].filter(m => st.models.includes(m));
   return out;
@@ -136,7 +147,10 @@ export const RETIRED_CHASSIS_CODES = {
 export const CHASSIS_STATION_NAMES = (() => {
   const out = {};
   for (const [fam, steps] of Object.entries(STEPS)) {
-    for (const [, code, title] of steps) out[code] = { ...(out[code] || {}), [fam.toLowerCase()]: title };
+    for (const [, tcCode, title] of steps) {
+      const code = trackerCode(tcCode);
+      out[code] = { ...(out[code] || {}), [fam.toLowerCase()]: title };
+    }
   }
   return out;
 })();
