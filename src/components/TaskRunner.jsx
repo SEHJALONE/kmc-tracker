@@ -6,6 +6,7 @@ import { fetchStationTimes } from '../hooks/useStationTimes';
 import { workingMinutes, addWorkingMinutes } from '../utils/workTime';
 import { isMachineShopLine } from '../data/jobOrders';
 import { MachineShopJobsLive } from './jobs/MachineShopJobs';
+import JobWaste from './jobs/JobWaste';
 
 // Start/End Travel Card: pick the bus and station, press Start, tick activities
 // off as they are done, press Close. Closing opens the normal card with the
@@ -373,6 +374,11 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
           <input style={inp} value={newAct} onChange={e => setNewAct(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Other activity (not in list)…" />
           <button style={btn} onClick={add}>+ Add</button>
         </div>}
+        {task.jobOrderId && (
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+            <JobWaste task={task} readOnly={readOnly} onSave={waste => onUpdate({ waste })} />
+          </div>
+        )}
       </div>
     </div>
   );

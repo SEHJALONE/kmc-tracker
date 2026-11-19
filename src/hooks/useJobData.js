@@ -17,6 +17,8 @@ function shape(r) {
   for (const [m, v] of Object.entries(saved)) cutLists[m] = { items: (v.items || []).map(makeItem), updatedBy: v.updatedBy, updatedAt: v.updatedAt };
   return {
     jobOrders: (r.jobOrders || []).map(j => ({ ...j, items: (j.items || []).map(makeItem) })),
+    // Machine runs on these job orders (tracker, edit lock). Empty before the script redeploy.
+    runs: Array.isArray(r.runs) ? r.runs : [],
     cutLists,
     materials: Array.isArray(r.settings?.materials) && r.settings.materials.length ? r.settings.materials : DEFAULT_MATERIALS,
     specMachines: r.settings?.specMachines || {},
@@ -51,6 +53,7 @@ export function useJobData() {
     ...(data || empty),
     loading, error, refresh,
     saveJobOrder: job => call('saveJobOrder', job),
+    setJobStatus: (job, status) => call('saveJobOrder', { ...job, status, statusOnly: true }),
     saveCutList: (busModel, items) => call('saveCutList', { busModel, items }),
     saveMaterials: materials => call('saveJoMaterials', { materials }),
     assignMachines: (id, specMachines) => call('assignJobMachines', { id, specMachines }),
@@ -63,5 +66,7 @@ export const JOB_ERRORS = {
   'missing-items': 'The job order has no parts. Add parts or load the cut list.',
   'missing-project-or-model': 'Choose the project and the bus model.',
   'too-many-items': 'Too many parts for one job order. Split it into two.',
+  'job-order-started': 'A machine has already run on this job order, so it can no longer be edited. Close it and set up a new one instead.',
+  'bad-period': 'Choose a period whose start is before its end.',
   'job-order-not-found': 'That job order no longer exists. Refresh and try again.',
 };

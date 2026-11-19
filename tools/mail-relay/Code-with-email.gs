@@ -106,6 +106,7 @@ function doPost(e) {
     // ── VIN register (Type Approvals) and Machine Shop job orders ───────────────
     if (e && e.parameter && e.parameter.action === "uploadProjectVins")  return uploadProjectVins_(e.parameter);
     if (e && e.parameter && e.parameter.action === "listJobData")        return listJobData_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "jobReport")          return jobReport_(e.parameter);
     if (e && e.parameter && e.parameter.action === "saveJobOrder")       return saveJobOrder_(e.parameter);
     if (e && e.parameter && e.parameter.action === "assignJobMachines")  return assignJobMachines_(e.parameter);
     if (e && e.parameter && e.parameter.action === "saveCutList")        return saveCutList_(e.parameter);
@@ -2085,7 +2086,7 @@ const TRAVEL_TASK_HEADERS = [
   "task_id", "owner", "owner_name", "status", "started_at", "expected_end", "closed_at",
   "project", "bus_model", "vin", "production_line", "station", "station_code", "designed_min",
   "activities", "record_id", "reminder_count", "last_reminder_at", "updated_at",
-  "job_order_id", "vins",
+  "job_order_id", "vins", "waste",
 ];
 const TRAVEL_TASK_STATUSES = ["open", "closed", "discarded"];
 
@@ -2104,6 +2105,7 @@ function travelTaskRow_(headers, row) {
     reminderCount: Number(at("reminder_count")) || 0, lastReminderAt: iso(at("last_reminder_at")),
     updatedAt: iso(at("updated_at")),
     jobOrderId: String(at("job_order_id") || ""), vins: (function () { try { const v = JSON.parse(at("vins") || "[]"); return Array.isArray(v) ? v : []; } catch (err) { return []; } })(),
+    waste: (function () { try { const v = JSON.parse(at("waste") || "[]"); return Array.isArray(v) ? v : []; } catch (err) { return []; } })(),
   };
 }
 
@@ -2120,6 +2122,7 @@ function saveTravelTask_(params) {
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), TRAVEL_TASKS_TAB, TRAVEL_TASK_HEADERS);
+    headerIndex_(sh, TRAVEL_TASK_HEADERS);   // adds columns new since the tab was made (waste)
     const data = sh.getDataRange().getValues();
     const headers = data[0].map(h => String(h).toLowerCase().trim());
     const idCol = headers.indexOf("task_id");
@@ -2127,6 +2130,11 @@ function saveTravelTask_(params) {
     const clip = (v, n) => String(v == null ? "" : v).slice(0, n || 300);
     const acts = JSON.stringify((Array.isArray(d.activities) ? d.activities : []).slice(0, 200).map(a => ({
       name: clip(a && a.name, 500), doneAt: clip(a && a.doneAt, 40), added: !!(a && a.added),
+    })));
+    // Machine Shop waste per specification: [{ spec, material, amount, unit }].
+    const waste = JSON.stringify((Array.isArray(d.waste) ? d.waste : []).slice(0, 100).map(w => ({
+      spec: clip(w && w.spec, 60), material: clip(w && w.material, 60), unit: clip(w && w.unit, 20),
+      amount: w && w.amount !== "" && w.amount != null && Number(w.amount) >= 0 ? Number(w.amount) : "",
     })));
 
     for (let i = 1; i < data.length; i++) {
@@ -2141,6 +2149,7 @@ function saveTravelTask_(params) {
       if (d.startedAt) set("started_at", clip(d.startedAt, 40));
       if (d.expectedEnd) set("expected_end", clip(d.expectedEnd, 40));
       if (d.activities) set("activities", acts);
+      if (Array.isArray(d.waste)) set("waste", waste);
       if (d.recordId) set("record_id", clip(d.recordId, 80));
       set("updated_at", now);
       return response({ status: "ok", id: d.id });
@@ -2157,6 +2166,7 @@ function saveTravelTask_(params) {
       designed_min: Number(d.designedMin) || 0, activities: acts, record_id: "",
       reminder_count: 0, last_reminder_at: "", updated_at: now,
       job_order_id: clip(d.jobOrderId, 40), vins: JSON.stringify((Array.isArray(d.vins) ? d.vins : []).slice(0, 200).map(v => clip(v, 20))),
+      waste: waste,
     }]);
     return response({ status: "ok", id: d.id, created: true });
   } finally { lock.releaseLock(); }
@@ -2322,6 +2332,23 @@ function jobOrderRow_(h, r) {
   };
 }
 
+// Start/End tasks filed against job orders (machine runs), for the job
+// tracker, the edit lock and reports. `ids`: only these job orders.
+function jobRuns_(ss, ids) {
+  const sh = ss.getSheetByName(TRAVEL_TASKS_TAB);
+  if (!sh) return [];
+  const data = sh.getDataRange().getValues();
+  const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+  if (h.indexOf("job_order_id") < 0) return [];
+  return data.slice(1).map(function (r) { return travelTaskRow_(h, r); }).filter(function (t) {
+    return t.id && t.jobOrderId && t.status !== "discarded" && (!ids || ids[t.jobOrderId]);
+  }).map(function (t) {
+    return { id: t.id, jobOrderId: t.jobOrderId, status: t.status, owner: t.owner, ownerName: t.ownerName,
+      stationCode: t.stationCode, station: t.station, startedAt: t.startedAt, closedAt: t.closedAt, updatedAt: t.updatedAt,
+      designedMin: t.designedMin, activities: t.activities, waste: t.waste };
+  });
+}
+
 function listJobData_(params) {
   const user = verifySession_(params.session);
   if (!user) return response({ status: "error", message: "unauthorized" });
@@ -2346,8 +2373,36 @@ function listJobData_(params) {
     });
   }
   const s = joSettingsGet_();
-  return response({ status: "ok", jobOrders: jobOrders, cutLists: cutLists,
+  const ids = {};
+  jobOrders.forEach(function (j) { ids[j.id] = true; });
+  return response({ status: "ok", jobOrders: jobOrders, cutLists: cutLists, runs: jobRuns_(ss, ids),
     settings: { materials: s.materials || null, specMachines: s.specMachines || {} }, canManage: canManageJobs_(user) });
+}
+
+// Machine Shop report for a period: the job orders worked on, set up or still
+// open in it, with all their runs. The browser adds it up (buildJobReport).
+function jobReport_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const from = String(d.from || ""), to = String(d.to || "");
+  if (!from || !to || !(from < to)) return response({ status: "error", message: "bad-period" });
+  const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
+  const jsh = ss.getSheetByName(JOB_ORDERS_TAB);
+  if (!jsh) return response({ status: "ok", jobOrders: [], runs: [] });
+  const data = jsh.getDataRange().getValues();
+  const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+  const all = data.slice(1).map(function (r) { return jobOrderRow_(h, r); }).filter(function (j) { return j.id && j.createdAt < to; });
+  const runs = jobRuns_(ss, null);
+  const touched = {};
+  runs.forEach(function (r) {
+    if (r.startedAt < to && (r.status === "open" || (r.closedAt || r.updatedAt) >= from)) touched[r.jobOrderId] = true;
+  });
+  const jobOrders = all.filter(function (j) { return touched[j.id] || j.status === "open" || j.updatedAt >= from; });
+  const ids = {};
+  jobOrders.forEach(function (j) { ids[j.id] = true; });
+  return response({ status: "ok", jobOrders: jobOrders, runs: runs.filter(function (r) { return ids[r.jobOrderId]; }) });
 }
 
 function saveJobOrder_(params) {
@@ -2376,6 +2431,11 @@ function saveJobOrder_(params) {
       for (let i = 1; i < data.length; i++) {
         if (String(data[i][h.indexOf("id")]) !== String(d.id)) continue;
         const set = function (n, v) { const c = h.indexOf(n); if (c > -1) sh.getRange(i + 1, c + 1).setValue(v); };
+        // Close / reopen only.
+        if (d.statusOnly) { set("status", status); set("updated_at", now); return response({ status: "ok", id: String(d.id) }); }
+        // Once a machine has run on it, the order stays as it was cut.
+        const only = {}; only[String(d.id)] = true;
+        if (jobRuns_(SpreadsheetApp.openById(TRACKER_SHEET_ID), only).length) return response({ status: "error", message: "job-order-started" });
         set("project", project); set("bus_model", busModel); set("vins", JSON.stringify(vins)); set("status", status);
         set("items", itemsText); set("notes", joClip_(d.notes, 500)); set("updated_at", now);
         if (d.specMachines && typeof d.specMachines === "object") set("spec_machines", JSON.stringify(d.specMachines));

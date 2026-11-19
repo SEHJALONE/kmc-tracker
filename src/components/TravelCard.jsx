@@ -175,6 +175,7 @@ import { workingMinutes, defaultWorkDays, mergeWorkDays } from '../utils/workTim
 import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
 import { PPE_ITEMS, prefillPpe, encodePpe, parsePpe } from '../utils/ppe';
+import { wasteText } from '../data/jobOrders';
 import { buildDelay, delayFormState } from '../utils/delay';
 import { activityTimesFromTask, cleanActivityTimes } from '../utils/activityTimes';
 
@@ -730,6 +731,8 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setActTimes(Object.fromEntries(Object.entries(activityTimesFromTask(taskPrefill.startedAt, taskPrefill.activities)).map(([a, m]) => [a, String(m)])));
     setOtherActs((taskPrefill.activities || []).filter(a => a.added).map(a => a.name));
     if (taskPrefill.jobOrderId) {
+      const w = wasteText(taskPrefill.waste);
+      if (w) setWaste(cur => cur || w);
       const vins = (taskPrefill.vins || []).filter(Boolean);
       setGenComments(g => g || `Machine Shop job order ${taskPrefill.jobOrderId}${vins.length ? ` - VINs: ${vins.join(", ")}` : ""}.`);
     }

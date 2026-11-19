@@ -17,6 +17,14 @@ export function machineShopMachines(catalog, busModel) {
   return [...seen.values()];
 }
 
+// Every machine for a specification: those ticked for its material first, then
+// all the other Machine Shop machines (any machine may be chosen).
+export function machineChoicesFor(material, materials, machines) {
+  const preferred = machineOptionsFor(material, materials, machines);
+  const set = new Set(preferred.map(m => m.code));
+  return { preferred, others: machines.filter(m => !set.has(m.code)) };
+}
+
 // Machines that can cut a material, in Machine Shop order, as {code,label,station}.
 export function machineOptionsFor(material, materials, machines) {
   const allowed = machinesForMaterial(material, materials).map(c => c.toUpperCase());

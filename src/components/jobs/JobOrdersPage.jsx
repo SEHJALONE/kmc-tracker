@@ -1,18 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
 import { BUS_MODELS } from '../../utils/tcCatalog';
-import { groupBySpec, parseCutListCsv, cutListToRows, CUT_LIST_TEMPLATE_ROWS, downloadCsv, makeItem } from '../../data/jobOrders';
+import { groupBySpec, parseCutListCsv, cutListToRows, CUT_LIST_TEMPLATE_ROWS, downloadCsv, makeItem, jobProgress, JOB_STATES } from '../../data/jobOrders';
 import { machineShopMachines } from '../../utils/machines';
 import { useJobData, JOB_ERRORS } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
+import JobTracker from './JobTracker';
+import JobReport from './JobReport';
 
 // Machine Shop job orders, for its supervisors (and admins):
-//   Job orders            set up, edit, close and reopen job orders
+//   Tracker               which job orders are being machined now, and how far
+//   Job orders            set up, close and reopen job orders; edit them until
+//                         machining starts
 //   Cut lists             one per bus model: upload a CSV (template provided),
 //                         edit every field, download it back
 //   Materials & machines  which machines cut each material type; add types
+//   Reports               a period's jobs, models, material cut and waste (PDF / CSV)
 
-const TABS = ['Job orders', 'Cut lists', 'Materials & machines'];
+const TABS = ['Job orders', 'Tracker', 'Cut lists', 'Materials & machines', 'Reports'];
 const inp = { padding: '8px 10px', borderRadius: 10, border: '1px solid var(--input-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box' };
 
 function JobsTab({ catalog, jobData }) {
@@ -38,16 +43,25 @@ function JobsTab({ catalog, jobData }) {
       {!list.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>{jobData.loading ? 'Loading…' : 'No job orders yet.'}</div>}
       {list.map(j => {
         const cut = j.items.filter(it => it.cut);
+        const p = jobProgress(j, jobData.runs);
+        const [stateLabel, stateColor] = JOB_STATES[p.state];
+        const locked = p.runs.length > 0;
         return (
           <div key={j.id} className="kmc-panel" style={{ padding: '12px 16px', opacity: j.status === 'open' ? 1 : 0.6 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)' }}>{j.id}</strong>
               <span style={{ fontSize: 13 }}>{j.project} · {j.busModel}</span>
               <span className="kmc-chip"><span>{j.status}</span><b style={{ background: j.status === 'open' ? 'var(--g-lime)' : 'var(--g-blue)' }}>{cut.length}</b></span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: stateColor }}>{stateLabel}{p.runs.length ? ` · ${p.done}/${p.total} parts cut` : ''}</span>
               <span style={{ flex: 1 }} />
-              {jobData.canManage && <button className="kmc-btn" onClick={() => setEditing(j)}>Edit</button>}
               {jobData.canManage && (
-                <button className="kmc-btn ghost" onClick={() => jobData.saveJobOrder({ ...j, status: j.status === 'open' ? 'closed' : 'open' }).catch(e => alert(JOB_ERRORS[e.message] || e.message))}>
+                <button className="kmc-btn" disabled={locked} onClick={() => setEditing(j)}
+                  title={locked ? 'A machine has already run on this job order, so it can no longer be edited.' : 'Edit this job order'}>
+                  {locked ? 'Edit (machining started)' : 'Edit'}
+                </button>
+              )}
+              {jobData.canManage && (
+                <button className="kmc-btn ghost" onClick={() => jobData.setJobStatus(j, j.status === 'open' ? 'closed' : 'open').catch(e => alert(JOB_ERRORS[e.message] || e.message))}>
                   {j.status === 'open' ? 'Close' : 'Reopen'}
                 </button>
               )}
@@ -207,6 +221,8 @@ export default function JobOrdersPage({ catalog, onBack }) {
         {TABS.map(t => <button key={t} className={`kmc-btn${tab === t ? ' primary' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>
       {tab === 'Job orders' && <JobsTab catalog={catalog} jobData={jobData} />}
+      {tab === 'Tracker' && <JobTracker catalog={catalog} jobData={jobData} />}
+      {tab === 'Reports' && <JobReport catalog={catalog} />}
       {tab === 'Cut lists' && <CutListsTab jobData={jobData} />}
       {tab === 'Materials & machines' && <MaterialsTab catalog={catalog} jobData={jobData} />}
     </div>

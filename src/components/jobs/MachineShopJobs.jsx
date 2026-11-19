@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { groupBySpec, partLabel } from '../../data/jobOrders';
-import { machineShopMachines, machineOptionsFor } from '../../utils/machines';
+import { groupBySpec, partLabel, jobStarted } from '../../data/jobOrders';
+import { machineShopMachines, machineChoicesFor } from '../../utils/machines';
 import { JOB_ERRORS, useJobData } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
@@ -68,6 +68,11 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
         <button className="kmc-btn" onClick={() => setStep('list')}>No - show job orders ({jobs.length})</button>
       </div>
     </div>
+  );
+
+  if (step === 'edit' && job) return (
+    <JobOrderSetup catalog={catalog} jobData={jobData} job={job}
+      onCancel={() => setStep('review')} onSaved={() => { setChoice({}); setStep('review'); }} />
   );
 
   if (step === 'setup') return (
@@ -150,13 +155,16 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
   }
 
   const machineSelect = g => {
-    const opts = machineOptionsFor(g.material, jobData.materials, machines);
+    const { preferred, others } = machineChoicesFor(g.material, jobData.materials, machines);
     const value = machineForSpec(merged, g.spec, defaults);
+    const opt = o => <option key={o.code} value={o.code}>{o.code} · {o.label}</option>;
     return (
       <select aria-label={`Machine for ${g.spec}`} value={value} onChange={e => setChoice(c => ({ ...c, [g.spec]: e.target.value }))}
         style={{ ...inp, width: 260, padding: '6px 8px', fontSize: 13, borderColor: value ? '#10b981' : 'var(--warning-color)' }}>
-        <option value="">{opts.length ? 'Choose machine…' : `No machine cuts ${g.material || 'this material'}`}</option>
-        {opts.map(o => <option key={o.code} value={o.code}>{o.code} · {o.label}</option>)}
+        <option value="">Choose machine…</option>
+        {preferred.length > 0 && <optgroup label={`Set for ${g.material || 'this material'}`}>{preferred.map(opt)}</optgroup>}
+        {others.length > 0 && <optgroup label={preferred.length ? 'Other machines' : 'All machines'}>{others.map(opt)}</optgroup>}
+        {value && !machines.some(m => m.code === value) && <option value={value}>{value}</option>}
       </select>
     );
   };
@@ -168,6 +176,10 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
           <button className="kmc-btn ghost" onClick={() => setStep('list')}>← Job orders</button>
           <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)', fontSize: 15 }}>{job.id}</strong>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{job.project} · {job.busModel} · {cutItems.length} parts to cut</span>
+          <span style={{ flex: 1 }} />
+          {jobData.canManage && !jobStarted(job, jobData.runs) && !jobRuns.length && (
+            <button className="kmc-btn" onClick={() => setStep('edit')}>Edit job order</button>
+          )}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'inherit' }}>VINs: {job.vins.join(' · ')}</div>
         {jobRuns.length > 0 && (
@@ -180,7 +192,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
       <div>
         <div className="kmc-label" style={{ marginBottom: 6 }}>1 · Choose the machine for each specification</div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-          A machine set for a specification cuts every part under it. Only machines that cut that material are offered. The choices are saved for this job order and suggested next time for {busModel}.
+          A machine set for a specification cuts every part under it. Every Machine Shop machine is listed, with the ones set for that material first. The choices are saved for this job order and suggested next time for {busModel}.
         </div>
         <CutListEditor items={cutItems} onChange={() => {}} materials={jobData.materials} readOnly machineFor={machineSelect} />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>

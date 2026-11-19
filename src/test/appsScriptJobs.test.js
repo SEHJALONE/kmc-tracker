@@ -170,4 +170,25 @@ describe('Machine Shop job orders', () => {
     expect(r.tasks).toHaveLength(1);
     expect(r.tasks[0]).toMatchObject({ owner: 'op', ownerName: 'Op One', jobOrderId: 'JO-261113-ABCD', vins: ['ZZZBUS00000000064', 'ZZZBUS00000000065'] });
   });
+
+  it('runs carry their waste, show on the job, lock editing, and appear in the period report', async () => {
+    const { id } = await call('saveJobOrder', sup, job);
+    expect((await call('saveJobOrder', sup, { ...job, id, notes: 'before machining' })).status).toBe('ok');
+    const task = { id: 'task-run-2', status: 'open', startedAt: new Date().toISOString(), project: job.project, busModel: job.busModel, vin: job.vins[0], vins: job.vins,
+      line: 'Machine Shop', station: 'B01-02: Band Saw', stationCode: 'B01-02', jobOrderId: id, activities: [{ name: '#16 · Column', doneAt: '', added: true }],
+      waste: [{ spec: '□40x40x3.0', material: 'Hollow section', amount: '', unit: 'mm' }] };
+    expect((await call('saveTravelTask', op, task)).status).toBe('ok');
+    expect((await call('saveTravelTask', op, { id: task.id, waste: [{ spec: '□40x40x3.0', material: 'Hollow section', amount: 320, unit: 'mm' }, { spec: 'x', amount: -4, unit: 'kg' }] })).status).toBe('ok');
+    const data = await call('listJobData', op, {});
+    expect(data.runs).toHaveLength(1);
+    expect(data.runs[0]).toMatchObject({ jobOrderId: id, status: 'open', stationCode: 'B01-02', waste: [{ spec: '□40x40x3.0', amount: 320, unit: 'mm' }, { spec: 'x', amount: '' }] });
+    // Machining has started: no more edits, but it can still be closed.
+    expect((await call('saveJobOrder', sup, { ...job, id, notes: 'after' })).message).toBe('job-order-started');
+    expect((await call('saveJobOrder', sup, { ...job, id, status: 'closed', statusOnly: true })).status).toBe('ok');
+    const from = new Date(Date.now() - 86400000).toISOString(), to = new Date(Date.now() + 86400000).toISOString();
+    const rep = await call('jobReport', op, { from, to });
+    expect(rep.jobOrders.map(j => j.id)).toEqual([id]);
+    expect(rep.runs).toHaveLength(1);
+    expect((await call('jobReport', op, { from: to, to: from })).message).toBe('bad-period');
+  });
 });
