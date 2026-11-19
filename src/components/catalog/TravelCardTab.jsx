@@ -4,6 +4,7 @@ import { stationLabelForModel } from '../../data/travelCardSeed';
 import { fetchStationTimes } from '../../hooks/useStationTimes';
 import { canonicalStationCode } from '../../data/stations';
 import { syncStationToTravelCard } from '../../utils/catalogGaps';
+import { lineMatchesStation, lineFamilyOf } from '../../utils/stationLine';
 import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintShopProcess';
 import { eeProcessOutdated, applyEeProcess } from '../../data/eeTrimProcess';
 import { chassisProcessOutdated, applyChassisProcess } from '../../data/chassisProcess';
@@ -84,6 +85,7 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     const c = newCode.trim().toUpperCase().replace(/\s+/g, '-');
     if (!c || !line) return;
     if (lineStations.some(s => codeOf(s) === c)) { setCode(c); return; }
+    if (!lineMatchesStation(line, c)) { alert(`${c} belongs to ${lineFamilyOf(c)}, not "${line}". Pick that line first, then add the station.`); return; }
     touch(d => { d.tcLines[line] = [...(d.tcLines[line] || []), `${c}: ${newName.trim() || c}`]; return d; });
     setCode(c); setNewCode(''); setNewName('');
   };

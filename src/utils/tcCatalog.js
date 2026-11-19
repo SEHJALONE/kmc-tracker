@@ -4,6 +4,7 @@
 // and Catalog Admin's Travel Card tab all read through here, so an edit in the
 // catalog lands exactly where the card shows it.
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
+import { lineMatchesStation } from './stationLine';
 
 export const BUS_MODELS = ['10.5m KDC', '12m KDC', '7m EVS', '8.5m EVS', '10.5m EVS', '12m EVS', '13m KEC'];
 
@@ -56,5 +57,19 @@ export function resolveTcCatalog(catalog = {}, base = null) {
       return list.filter(a => { const t = activityModelTag(a); return !t || t === busModel; });
     },
     resFor: (line, code) => (line && code && res[line] && res[line][code]) || [],
+    // The line a station is filed under for this bus model. Keeps `prefer`
+    // when it really holds the station, else the model's own variant
+    // ("… — KEC"), else any line that lists it. Lines whose name contradicts
+    // the station code (C01-xx under Trim) never qualify. Null if none does.
+    lineForStation: (code, busModel, prefer = '') => {
+      const c = codeOf(code);
+      if (!c) return null;
+      const kind = modelKindOf(busModel);
+      const holds = (ln) => lineMatchesStation(ln, c) &&
+        (lines[ln] || []).some(s => codeOf(s) === c && stationVisible(s, kind));
+      const candidates = Object.keys(lines).filter(ln => lineVisible(ln, kind) && holds(ln));
+      if (prefer && candidates.includes(prefer)) return prefer;
+      return candidates.find(ln => ln.endsWith(`— ${kind}`)) || candidates[0] || null;
+    },
   };
 }

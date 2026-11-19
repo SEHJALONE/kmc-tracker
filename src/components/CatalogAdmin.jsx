@@ -5,7 +5,7 @@ import { SEED_LINES, SEED_STATIONS } from '../data/stations';
 import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
-import { catalogVisibilityChanges, mergeProjectVins } from '../utils/catalogGuard';
+import { catalogVisibilityChanges, mergeProjectVins, misfiledStations } from '../utils/catalogGuard';
 import { readLiveCatalog } from '../hooks/useCatalog';
 import { travelCardGaps, fixGap, syncStationToTravelCard } from '../utils/catalogGaps';
 
@@ -162,6 +162,12 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
     if (!getSession()) console.warn('Catalog save: no session token in this browser - the server will refuse.');
     // Operators fill Travel Cards against the live catalog. Anything this save
     // would take away from them has to be confirmed, line by line.
+    // A station under the wrong line files every card for it under that line.
+    const misfiled = misfiledStations(draft);
+    if (misfiled.length) {
+      setStatus(`Not saved - ${misfiled.map(m => `${m.code} is under "${m.line}" but belongs to ${m.belongs}`).join('; ')}. Remove it from that line in the Travel Card tab (or add it to the right line), then Save all.`);
+      return;
+    }
     const { hidden, shown } = catalogVisibilityChanges(buildInitial(catalog), draft);
     if (hidden.length && !confirmed) { setConfirmSave({ hidden, shown }); setStatus(''); return; }
     setConfirmSave(null);

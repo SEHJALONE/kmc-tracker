@@ -805,12 +805,42 @@ function submissionExists_(ss, id) {
   return sh.getRange(2, c + 1, sh.getLastRow() - 1, 1).getValues().some(r => String(r[0]).toLowerCase() === id);
 }
 
+// A station code fixes its line: C01-xx is always Chassis Line 01, T01-xx
+// always Trim Line, and so on. A card that arrives with a line that contradicts
+// its station (an older app version, a stale line box) is filed under the
+// station's own line. Same rule as src/utils/stationLine.js in the site.
+var LINE_FAMILY_RULES_ = [
+  [/^(C01-|CQ-01)/i, "Chassis Line 01"],
+  [/^(C02-|CQ-02)/i, "Chassis Line 02"],
+  [/^(T01|TQ)-/i, "Trim Line & Final Assembly"],
+  [/^(W01|WQ)-/i, "Frame & Body Welding"],
+  [/^(P\d{2}|PQ)-/i, "Paint Shop"],
+  [/^B0[1-3]-/i, "Machine Shop"],
+  [/^(B0[4-9]|B10)-/i, "Frame Parts Making"],
+  [/^E\d{2}-/i, "Electrophoresis"],
+  [/^Q\d{2}-/i, "Quality Inspection & Testing"],
+];
+var PER_MODEL_LINES_ = ["Frame & Body Welding", "Chassis Line 01", "Chassis Line 02", "Trim Line & Final Assembly"];
+function lineFamilyOf_(code) {
+  var c = String(code || "").split(":")[0].trim();
+  for (var i = 0; i < LINE_FAMILY_RULES_.length; i++) if (LINE_FAMILY_RULES_[i][0].test(c)) return LINE_FAMILY_RULES_[i][1];
+  return null;
+}
+function correctLine_(line, code, busModel) {
+  var family = lineFamilyOf_(code);
+  var base = String(line || "").split(/\s+[—–-]\s+(?=(EVS|KDC|KEC)\s*$)/)[0].trim();
+  if (!family || base === family) return line;
+  if (PER_MODEL_LINES_.indexOf(family) < 0) return family;
+  var m = String(busModel || "");
+  return family + " — " + (m.indexOf("KDC") > -1 ? "KDC" : m.indexOf("KEC") > -1 ? "KEC" : "EVS");
+}
+
 function writeSubmission(ss, d, id) {
   const sh = getOrCreate(ss, "submissions", SUBMISSION_HEADERS);
   const down = downtimeOf_(d);
   appendRecords_(sh, SUBMISSION_HEADERS, [{
     record_id: id, timestamp: d.timestamp, bus_model: d.busModel, project: d.project, vin: d.vin,
-    production_line: d.line, station: d.station, station_code: d.stationCode,
+    production_line: correctLine_(d.line, d.stationCode, d.busModel), station: d.station, station_code: d.stationCode,
     hse_resources: d.hseResources || 0, clock_in: d.clockIn, clock_out: d.clockOut,
     actual_time_min: d.actualTime, gross_time_min: Number(d.grossTime) || "", break_min: Number(d.breakMinutes) || 0,
     designed_time_min: d.designedTime,
@@ -953,6 +983,7 @@ function updateSubmission_(d, actor) {
   if (!d.recordId) return response({ status: "error", message: "missing-record-id" });
   d = Object.assign({}, d);
   delete d.session;
+  if (d.line !== undefined && d.stationCode) d.line = correctLine_(d.line, d.stationCode, d.busModel);
   const isReviewer = CARD_REVIEW_ROLES.indexOf(actor.role) > -1;
   const ss = SpreadsheetApp.openById(TRACKER_SHEET_ID);
   const sh = ss.getSheetByName("submissions");

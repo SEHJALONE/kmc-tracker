@@ -174,6 +174,7 @@ import { useStationPresets, presetFor } from '../hooks/useStationPresets';
 import { workingMinutes, defaultWorkDays, mergeWorkDays } from '../utils/workTime';
 import { SIX, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { resolveTcCatalog, modelKindOf } from '../utils/tcCatalog';
+import { lineMatchesStation } from '../utils/stationLine';
 import { PPE_ITEMS, prefillPpe, encodePpe, parsePpe } from '../utils/ppe';
 import { wasteText } from '../data/jobOrders';
 import { buildDelay, delayFormState } from '../utils/delay';
@@ -672,7 +673,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     // the first resolved one, and offer the rest as a restricted dropdown.
     const resolved = lockedCodes.map(resolveCode).filter(Boolean);
     if (resolved.length) {
-      setCurLine(resolved[0].lineName);
+      // Assigned stations can sit on different lines (chassis + trim). Keep the
+      // line of the station already chosen (e.g. from a Start/End task) instead
+      // of jumping to the first assigned station's line.
+      const keep = curCode && resolved.find(r => sameStationCode(r.station.split(":")[0].trim(), curCode));
+      setCurLine((keep || resolved[0]).lineName);
       setLockedStationOptions(resolved.map(r => r.station));
       setLockedLineOf(Object.fromEntries(resolved.map(r => [r.station, r.lineName])));
     }
@@ -753,6 +758,10 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const stations = curLine ? tc.stationsFor(curLine, busModel) : [];
   const acts = tc.actsFor(curCode, busModel);
   const resList = tc.resFor(curLine, curCode);
+  // The line written to the sheet comes from the station, never from a stale
+  // line box: C01-xx is always Chassis Line 01 (see src/utils/stationLine.js).
+  const saveLine = (curCode && tc.lineForStation(curCode, busModel, curLine)) || curLine;
+  const lineMismatch = !!curCode && !lineMatchesStation(saveLine, curCode);
 
   // Bus projects offered in the dropdown: union of locally-remembered projects
   // (which carry VIN memory) and active catalog projects added by an admin.
@@ -809,6 +818,11 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     setCurSt(v);
     const code = v.split(":")[0].trim();
     setCurCode(code);
+    // The line always follows the station: a C01-02 card is Chassis Line 01
+    // whatever the line box said before (assigned-station resets, Start/End
+    // prefill, a restored session).
+    const stLine = tc.lineForStation(code, busModel, curLine);
+    if (stLine && stLine !== curLine) setCurLine(stLine);
     // A "KEC:T01-05"-style row in the Station Times sheet wins over the bare
     // code, since the KEC reuses some codes for different work.
     const mins = stationTimesApi
@@ -862,6 +876,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!busModel) { alert("Select a bus model."); return; }
     if (!curLine) { alert("Select a production line."); return; }
     if (!curSt) { alert("Select a station."); return; }
+    if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Pick the line again, then the station.`); return; }
     if (!vin) { alert("Select or add a Bus VIN."); return; }
     // Editing an existing card shouldn't silently reset its original
     // clock-out to "now" — only a fresh submission auto-stamps it.
@@ -900,6 +915,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   }
 
   async function saveEditedCard(gross, brkMin, actual) {
+    if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Go back to the first page and pick the line and station again.`); return; }
     saveQtyMemory(resQtys, curCode);
     saveOtherResMemory(otherRes, curCode);
     if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
@@ -912,7 +928,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       recordId: editRec.recordId,
       timestamp: editRec.timestamp,
       busModel, project: curProj, vin,
-      line: curLine, station: curSt, stationCode: curCode,
+      line: saveLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, workDays: workDaysToSave, actualTime: actual, designedTime,
       grossTime: gross, breakMinutes: brkMin,
@@ -956,6 +972,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   }
 
   async function submitUserCard(gross, brkMin, actual) {
+    if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Go back to the first page and pick the line and station again.`); return; }
     saveQtyMemory(resQtys, curCode);
     saveOtherResMemory(otherRes, curCode);
     if (curCode) LS.set(`kmc_station_ops_${curCode}`, operators);
@@ -965,7 +982,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       recordId: newRecordId(),
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
-      line: curLine, station: curSt, stationCode: curCode,
+      line: saveLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, workDays: workDaysToSave, actualTime: actual, designedTime,
       hasDowntime: false,
@@ -1042,6 +1059,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   }
 
   async function submit() {
+    if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Go back to the first page and pick the line and station again.`); return; }
     if (!revName) { alert("Enter a reviewer name."); return; }
     if (!appStatus) { alert("Select an approval status."); return; }
 
@@ -1055,7 +1073,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       recordId: newRecordId(),
       timestamp: new Date().toISOString(),
       busModel, project: curProj, vin,
-      line: curLine, station: curSt, stationCode: curCode,
+      line: saveLine, station: curSt, stationCode: curCode,
       operators: selOps, hseResources: encodePpe(ppe),
       clockIn, clockOut, workDays: workDaysToSave, actualTime, designedTime, hasDowntime,
       grossTime, breakMinutes: breakTime,

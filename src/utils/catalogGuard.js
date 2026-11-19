@@ -6,6 +6,7 @@
 // `before` and `after` are both in the editor's draft shape (seed with the
 // catalog merged over it — see buildInitial in CatalogAdmin.jsx).
 import { resolveTcCatalog, codeOf } from './tcCatalog';
+import { lineMatchesStation, lineFamilyOf } from './stationLine';
 
 const KINDS = ['EVS', 'KDC', 'KEC'];
 
@@ -74,4 +75,18 @@ export function catalogVisibilityChanges(before, after) {
   }
 
   return { hidden, shown };
+}
+
+// Travel Card stations listed under a line their code does not belong to
+// (C01-02 under Trim Line). Cards filled against such an entry are saved under
+// the wrong line, so Catalog Admin refuses to save until they are moved.
+export function misfiledStations(draft = {}) {
+  const out = [];
+  for (const [line, stations] of Object.entries(draft.tcLines || {})) {
+    for (const s of stations || []) {
+      const code = codeOf(s);
+      if (!lineMatchesStation(line, code)) out.push({ line, code, belongs: lineFamilyOf(code) });
+    }
+  }
+  return out;
 }
