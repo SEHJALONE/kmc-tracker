@@ -6,7 +6,7 @@ import { useSubmissionsData } from '../hooks/useSubmissionsData';
 import { workingMinutes } from '../utils/workTime';
 import { delayLabel } from '../utils/delay';
 import { cleanActivityTimes } from '../utils/activityTimes';
-import { lineMatchesStation, correctLineFor } from '../utils/stationLine';
+import { lineNeedsRepair, correctLineFor } from '../utils/stationLine';
 
 // "2026-11-14T08:30" for a datetime-local box, from whatever the sheet holds.
 function toLocalInput(v) {
@@ -107,7 +107,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
     let changes = null;
     // A card filed under the wrong line (C01-02 under Trim) is rewritten with
     // the right line as part of the review, even if nothing else was edited.
-    const wrongLine = !lineMatchesStation(selected.line, selected.stationCode);
+    const wrongLine = lineNeedsRepair(selected.line, selected.stationCode, selected.busModel);
     if (wrongLine || (draft && JSON.stringify(draft) !== JSON.stringify(draftOf(selected)))) {
       changes = cardChanges(selected, draft || draftOf(selected));
       if (typeof changes === 'string') {
@@ -249,7 +249,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
               {draft ? 'Discard edits' : 'Edit details'}
             </button>
           </div>
-          {!lineMatchesStation(selected.line, selected.stationCode) && (
+          {lineNeedsRepair(selected.line, selected.stationCode, selected.busModel) && (
             <div style={{ fontSize: 12, color: R, border: `1px solid ${R}`, borderRadius: 6, padding: '8px 10px', marginBottom: 10 }}>
               This card was saved under {selected.line || 'no line'}, but {selected.stationCode} belongs to {correctLineFor(selected.line, selected.stationCode, selected.busModel)}. Submitting the review saves it under the right line.
             </div>

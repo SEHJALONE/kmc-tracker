@@ -45,11 +45,19 @@ const PER_MODEL = new Set(['Frame & Body Welding', 'Chassis Line 01', 'Chassis L
 // The right line name for a card: the line itself when it fits the station,
 // otherwise the station's own family (with the model suffix where the plant
 // runs one line per model). Used to repair cards saved under the wrong line.
+// Also repairs a model suffix that contradicts the bus ("— KDC" on an EVS).
 export function correctLineFor(line, stationOrCode, busModel = '') {
-  if (lineMatchesStation(line, stationOrCode)) return line;
-  const family = lineFamilyOf(stationOrCode);
-  if (!PER_MODEL.has(family)) return family;
   const m = String(busModel);
-  const kind = m.includes('KDC') ? 'KDC' : m.includes('KEC') ? 'KEC' : 'EVS';
+  const kind = !m ? null : m.includes('KDC') ? 'KDC' : m.includes('KEC') ? 'KEC' : 'EVS';
+  const suffix = /—\s*(EVS|KDC|KEC)\s*$/.exec(String(line || ''));
+  const suffixOk = !suffix || !kind || suffix[1] === kind;
+  if (lineMatchesStation(line, stationOrCode) && suffixOk) return line;
+  const family = lineFamilyOf(stationOrCode) || lineBaseOf(line);
+  if (!PER_MODEL.has(family) || !kind) return family;
   return `${family} — ${kind}`;
+}
+
+// True when the card's line needs repairing (wrong family or wrong model).
+export function lineNeedsRepair(line, stationOrCode, busModel = '') {
+  return correctLineFor(line, stationOrCode, busModel) !== line;
 }

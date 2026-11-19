@@ -37,6 +37,11 @@ describe('station code decides the line', () => {
     expect(correctLineFor('Trim Line & Final Assembly — EVS', 'C01-02', '10.5m EVS')).toBe('Chassis Line 01 — EVS');
     expect(correctLineFor('Machine Shop', 'W01-13', '13m KEC')).toBe('Frame & Body Welding — KEC');
     expect(correctLineFor('Chassis Line 01 — KDC', 'C01-02', '12m KDC')).toBe('Chassis Line 01 — KDC');
+    // CQ-02 is the Chassis Line 02 quality gate.
+    expect(correctLineFor('Chassis Line 01 — KEC', 'CQ-02', '13m KEC')).toBe('Chassis Line 02 — KEC');
+    // An EVS bus filed under the KDC version of its line.
+    expect(correctLineFor('Frame & Body Welding — KDC', 'W01-01', '10.5m EVS')).toBe('Frame & Body Welding — EVS');
+    expect(correctLineFor('Paint Shop', 'P01-01', '12m KDC')).toBe('Paint Shop');
   });
 });
 
@@ -77,6 +82,17 @@ describe('Apps Script files the station line', () => {
     expect(r.status).toBe('ok');
     const [head, row] = env.rows('submissions');
     expect(row[head.indexOf('production_line')]).toBe('Chassis Line 01 — EVS');
+  });
+  it('repairs a model suffix that contradicts the bus', async () => {
+    const env = loadScripts([SOURCE]);
+    const card = {
+      timestamp: '2026-11-10T08:00:00.000Z', busModel: '10.5m EVS', project: 'P', vin: 'VINX3',
+      line: 'Frame & Body Welding — KDC', station: 'W01-01: Six Parts', stationCode: 'W01-01', clockIn: '2026-11-10 08:00', clockOut: '2026-11-10 09:00',
+      actualTime: 60, designedTime: 55, activityStatuses: {}, resourcesUsed: {}, operators: ['A. Op'],
+    };
+    await env.call({ payload: JSON.stringify(card) });
+    const [head, row] = env.rows('submissions');
+    expect(row[head.indexOf('production_line')]).toBe('Frame & Body Welding — EVS');
   });
   it('leaves a correct line alone', async () => {
     const env = loadScripts([SOURCE]);

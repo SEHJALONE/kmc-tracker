@@ -827,12 +827,15 @@ function lineFamilyOf_(code) {
   return null;
 }
 function correctLine_(line, code, busModel) {
-  var family = lineFamilyOf_(code);
-  var base = String(line || "").split(/\s+[—–-]\s+(?=(EVS|KDC|KEC)\s*$)/)[0].trim();
-  if (!family || base === family) return line;
-  if (PER_MODEL_LINES_.indexOf(family) < 0) return family;
   var m = String(busModel || "");
-  return family + " — " + (m.indexOf("KDC") > -1 ? "KDC" : m.indexOf("KEC") > -1 ? "KEC" : "EVS");
+  var kind = !m ? null : m.indexOf("KDC") > -1 ? "KDC" : m.indexOf("KEC") > -1 ? "KEC" : "EVS";
+  var base = String(line || "").split(/\s+[—–-]\s+(?=(EVS|KDC|KEC)\s*$)/)[0].trim();
+  var suffix = /—\s*(EVS|KDC|KEC)\s*$/.exec(String(line || ""));
+  var family = lineFamilyOf_(code);
+  if ((!family || base === family) && (!suffix || !kind || suffix[1] === kind)) return line;
+  family = family || base;
+  if (PER_MODEL_LINES_.indexOf(family) < 0 || !kind) return family;
+  return family + " — " + kind;
 }
 
 function writeSubmission(ss, d, id) {
