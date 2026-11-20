@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { groupBySpec, partLabel, jobStarted } from '../../data/jobOrders';
+import { groupBySpec, partLabel, jobStarted, specKey, jobHeading } from '../../data/jobOrders';
 import { machineShopMachines, machineChoicesFor } from '../../utils/machines';
 import { JOB_ERRORS, useJobData } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
+import JobComments from './JobComments';
 
 // Start/End when the line is Machine Shop. Machine Shop work runs from job
 // orders, not from a station pick:
@@ -20,9 +21,9 @@ const label = { display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: 
 const inp = { width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--input-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box' };
 
 // Machine chosen for a specification: this job order's choice, else the last
-// one used for this bus model.
+// one used for this bus model (or other project).
 export function machineForSpec(job, spec, defaults) {
-  return (job.specMachines || {})[spec] || (defaults || {})[`${job.busModel}|${spec}`] || '';
+  return (job.specMachines || {})[spec] || (defaults || {})[`${specKey(job)}|${spec}`] || '';
 }
 
 // Parts (to cut) per machine code, from the specification → machine choices.
@@ -37,9 +38,11 @@ export function partsByMachine(job, defaults) {
   return out;
 }
 
-export default function MachineShopJobs({ catalog, jobData, project, busModel, openTasks = [], lockedCodes = [], onStart }) {
-  const [step, setStep] = useState(jobData.canManage ? 'ask' : 'list');
-  const [jobId, setJobId] = useState('');
+// initialJobId: open that job order straight at the machine choice (My job
+// orders, other projects); onBack then leaves instead of listing job orders.
+export default function MachineShopJobs({ catalog, jobData, project, busModel, openTasks = [], lockedCodes = [], onStart, initialJobId = '', onBack = null }) {
+  const [step, setStep] = useState(initialJobId ? 'review' : jobData.canManage ? 'ask' : 'list');
+  const [jobId, setJobId] = useState(initialJobId);
   const [choice, setChoice] = useState({});           // spec → machine code (unsaved edits)
   const [machine, setMachine] = useState('');
   const [designed, setDesigned] = useState('');
@@ -47,7 +50,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
   const [error, setError] = useState('');
 
   // The job data may arrive after this mounts: ask a supervisor once it does.
-  const [asked, setAsked] = useState(jobData.canManage);
+  const [asked, setAsked] = useState(jobData.canManage || !!initialJobId);
   useEffect(() => {
     if (jobData.canManage && !asked) { setAsked(true); if (step === 'list' && !jobId) setStep('ask'); }
   }, [jobData.canManage, asked, step, jobId]);
@@ -81,6 +84,13 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
       onSaved={id => { setJobId(id); setChoice({}); setStep('review'); }} />
   );
 
+  if (initialJobId && !job) return (
+    <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
+      {jobData.loading ? 'Loading the job order…' : `Job order ${initialJobId} is no longer open.`}
+      {onBack && <div style={{ marginTop: 10 }}><button className="kmc-btn" onClick={onBack}>← Back</button></div>}
+    </div>
+  );
+
   if (step === 'list' || !job) return (
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -109,6 +119,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'inherit' }}>{j.vins.join(' · ')}</div>
             {j.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{j.notes}</div>}
+            <JobComments job={j} limit={1} markSeen={false} />
           </button>
         );
       })}
@@ -146,7 +157,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
     const parts = byMachine[machine] || [];
     const startedAt = new Date().toISOString();
     onStart({
-      project, busModel, vin: job.vins[0] || '', vins: job.vins, line: 'Machine Shop',
+      project: job.project, busModel: job.busModel || '', vin: job.vins[0] || job.projectId || '', vins: job.vins, line: 'Machine Shop',
       station: m?.station || machine, stationCode: machine, designedMin: Number(designed) || 0, startedAt,
       jobOrderId: job.id,
       // Parts are the activities; "added" so they carry over to the card as they are.
@@ -173,15 +184,17 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
     <div style={{ display: 'grid', gap: 14 }}>
       <div className="kmc-panel" style={{ padding: '14px 16px' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
-          <button className="kmc-btn ghost" onClick={() => setStep('list')}>← Job orders</button>
+          <button className="kmc-btn ghost" onClick={() => (onBack ? onBack() : setStep('list'))}>← {onBack ? 'Back' : 'Job orders'}</button>
           <strong style={{ fontFamily: 'inherit', color: 'var(--accent-text)', fontSize: 15 }}>{job.id}</strong>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{job.project} · {job.busModel} · {cutItems.length} parts to cut</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{jobHeading(job)} · {cutItems.length} parts to cut</span>
           <span style={{ flex: 1 }} />
           {jobData.canManage && !jobStarted(job, jobData.runs) && !jobRuns.length && (
             <button className="kmc-btn" onClick={() => setStep('edit')}>Edit job order</button>
           )}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'inherit' }}>VINs: {job.vins.join(' · ')}</div>
+        {job.vins.length > 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, fontFamily: 'inherit' }}>VINs: {job.vins.join(' · ')}</div>}
+        {job.notes && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{job.notes}</div>}
+        <JobComments job={job} />
         {jobRuns.length > 0 && (
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
             Running now: {jobRuns.map(t => <span key={t.id} className="kmc-chip" style={{ marginRight: 6 }}><span>{t.stationCode}</span><b style={{ background: 'var(--g-lime)' }}>●</b></span>)}
@@ -192,7 +205,7 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
       <div>
         <div className="kmc-label" style={{ marginBottom: 6 }}>1 · Choose the machine for each specification</div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-          A machine set for a specification cuts every part under it. Every Machine Shop machine is listed, with the ones set for that material first. The choices are saved for this job order and suggested next time for {busModel}.
+          A machine set for a specification cuts every part under it. Every Machine Shop machine is listed, with the ones set for that material first. The choices are saved for this job order and suggested next time for {job.busModel || job.projectId}.
         </div>
         <CutListEditor items={cutItems} onChange={() => {}} materials={jobData.materials} readOnly machineFor={machineSelect} />
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>

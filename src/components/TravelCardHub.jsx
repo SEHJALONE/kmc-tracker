@@ -6,6 +6,11 @@ import { TaskSetup, TaskRunning, TASK_RUNNER_CSS, fmtClock, fmtTime, useNow } fr
 import { resolveTcCatalog } from '../utils/tcCatalog';
 import { syncTaskActivities } from '../utils/taskActivities';
 import { StatTile, ColumnChart, RingGauge, Legend, Ribbon, SectionHead, grad } from './ui/Charts';
+import { isOtherTask, jobLine } from '../data/jobOrders';
+import { useJobData } from '../hooks/useJobData';
+import MyJobOrders, { myJobLines } from './jobs/MyJobOrders';
+import LegacyJobRuns from './jobs/LegacyJobRuns';
+import { unseenComments } from './jobs/JobComments';
 
 // What tapping "Travel Card" opens: the two ways to fill a card on top, then the
 // person's own numbers and their open (not yet closed) Start/End tasks.
@@ -14,6 +19,9 @@ import { StatTile, ColumnChart, RingGauge, Legend, Ribbon, SectionHead, grad } f
 //                are ticked off; Close opens the card with everything filled in.
 //                Several tasks can be open at once.
 //   Legacy card  the existing form, for cards filled in after the fact.
+//   Job orders   the open job orders on this person's lines (bus and other
+//                projects), with supervisors' comments; Start runs one. Runs on
+//                other projects close straight away (no bus card to fill).
 
 const PENDING = ['pending_review', 'pending', ''];
 
@@ -30,6 +38,9 @@ const css = `
   .tch-sec { margin-top: 24px; }
   .tch-timer { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: 0; color: var(--text-heading); font-variant-numeric: tabular-nums; line-height: 1; }
   .tch-back { margin-bottom: 16px; }
+  .tch-jobs { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px 20px; margin-top: 18px; }
+  .tch-jobs h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--text-heading); margin: 2px 0 4px; }
+  .tch-jobs p { font-size: 13px; line-height: 1.5; color: var(--text-secondary); margin: 0; }
   .tch-orb-badge { position: absolute; top: 6%; right: 6%; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 999px; background: var(--g-amber);
     color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center;
     box-shadow: 0 4px 12px rgba(0,0,0,.35); border: 3px solid var(--orb-ring); z-index: 2; }
@@ -96,7 +107,7 @@ function OpenTaskRibbon({ n, task, now, onOpen, onClose }) {
         {task.synced === false && <span style={{ fontSize: 11, color: 'var(--warning-color)' }}>saved on this device</span>}
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {task.busModel} · <span style={{ fontFamily: 'inherit' }}>{(task.vins && task.vins.length > 1) ? `${task.vins.length} VINs` : task.vin}</span> · started {fmtTime(task.startedAt)}
+        {isOtherTask(task) ? task.project : task.busModel} · <span style={{ fontFamily: 'inherit' }}>{(task.vins && task.vins.length > 1) ? `${task.vins.length} VINs` : task.vin}</span> · started {fmtTime(task.startedAt)}
       </div>
       <div className="kmc-track" style={{ height: 8, marginTop: 8, maxWidth: 320 }} title={`${done} of ${acts.length} activities`}>
         <div className="kmc-fill" style={{ height: '100%', width: `${acts.length ? (done / acts.length) * 100 : 0}%`, background: grad('lime', 90) }} />
@@ -126,6 +137,11 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
     }
   }, [catalog, catalogLoaded, tasks.tasks]); // eslint-disable-line react-hooks/exhaustive-deps
   const { submissions, loading } = useSubmissionsData();
+  // Job orders waiting on this person's lines, and supervisors' comments not yet read.
+  const jobData = useJobData();
+  const jobLines = myJobLines(jobData);
+  const pendingJobs = jobData.jobOrders.filter(j => j.status === 'open' && jobLines.includes(jobLine(j)));
+  const newComments = pendingJobs.reduce((n, j) => n + unseenComments(j), 0);
   const now = useNow(1000);
   // { kind: 'home' | 'legacy' | 'new' | 'task' | 'close', id?, endedAt? }
   const [view, setView] = useState({ kind: initialView });
@@ -140,8 +156,33 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
   const current = view.id ? tasks.tasks.find(t => t.id === view.id) : null;
 
   const back = <button className="kmc-btn tch-back" onClick={home}>← Travel Card home</button>;
+  const legacyJobs = line => go({ kind: 'legacy-jobs', line });
 
-  if (view.kind === 'legacy') return <div className="tch"><style>{css}</style>{back}{renderLegacy({ onExit: home })}</div>;
+  // Bus work closes into the Travel Card. Other projects have no bus card:
+  // the run is closed as it is (times and ticked activities stay on the job order).
+  const closeTask = t => {
+    if (!isOtherTask(t)) { go({ kind: 'close', id: t.id, endedAt: new Date().toISOString() }); return; }
+    const done = (t.activities || []).filter(a => a.doneAt).length;
+    if (!window.confirm(`Close this run on ${t.jobOrderId}? ${done} of ${(t.activities || []).length} ticked. The clock stops now.`)) return;
+    tasks.close(t.id);
+    jobData.refresh();
+    home();
+  };
+
+  if (view.kind === 'legacy') return <div className="tch"><style>{css}</style>{back}{renderLegacy({ onExit: home, onLegacyJobs: legacyJobs })}</div>;
+
+  if (view.kind === 'legacy-jobs') return (
+    <div className="tch"><style>{css}</style>{back}
+      <LegacyJobRuns catalog={catalog} defaultLine={view.line || ''} currentUserName={currentUserName || ''} onExit={home} />
+    </div>
+  );
+
+  if (view.kind === 'jobs') return (
+    <div className="tch"><style>{css}</style>{back}
+      <MyJobOrders catalog={catalog} lockedCodes={lockedCodes} openTasks={tasks.openTasks} onLegacy={legacyJobs}
+        onStart={fields => { const t = tasks.start({ ...fields, ownerName: currentUserName || '' }); go({ kind: 'task', id: t.id }); }} />
+    </div>
+  );
 
   if (view.kind === 'close' && current) {
     const prefill = { taskId: current.id, ...current, endedAt: view.endedAt };
@@ -169,7 +210,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
     <div className="tch"><style>{css}</style>{back}
       <TaskRunning task={current}
         onUpdate={patch => tasks.update(current.id, patch)}
-        onClose={() => go({ kind: 'close', id: current.id, endedAt: new Date().toISOString() })}
+        onClose={() => closeTask(current)}
         onDiscard={() => { tasks.discard(current.id); home(); }}
         onBack={home} />
     </div>
@@ -209,6 +250,22 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
               <span className="kmc-chip"><span>All time</span><b style={{ background: grad('blue') }}>{loading && !mine.length ? '…' : stats.total}</b></span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="kmc-panel tch-jobs">
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Job orders · {jobLines.join(', ')}</div>
+          <h3>My job orders</h3>
+          <p>Pending bus and other-project job orders on your line, with your supervisor's comments. Start one to time it, or fill in an old job.</p>
+        </div>
+        <div className="tch-steps">
+          <span className="kmc-chip"><span>Pending</span><b style={{ background: grad('amber') }}>{jobData.loading && !pendingJobs.length ? '…' : pendingJobs.length}</b></span>
+          {newComments > 0 && <span className="kmc-chip"><span>New comments</span><b style={{ background: grad('red') }}>{newComments}</b></span>}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="kmc-btn primary" onClick={() => go({ kind: 'jobs' })}>Open job orders</button>
+          <button className="kmc-btn" onClick={() => legacyJobs('')}>Legacy job order</button>
         </div>
       </div>
 
@@ -256,7 +313,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
         {tasks.openTasks.map((t, i) => (
           <OpenTaskRibbon key={t.id} n={i + 1} task={t} now={now}
             onOpen={() => go({ kind: 'task', id: t.id })}
-            onClose={() => go({ kind: 'close', id: t.id, endedAt: new Date().toISOString() })} />
+            onClose={() => closeTask(t)} />
         ))}
       </div>
 

@@ -177,10 +177,17 @@ export const liveRuns = (job, runs) => (runs || []).filter(r => r.jobOrderId ===
 // A job order can be edited until machining starts on it.
 export const jobStarted = (job, runs) => liveRuns(job, runs).length > 0;
 
+// The pieces of work a job order is made of, as the activity names its runs
+// tick off: Machine Shop parts to cut, or a Paint Shop / Parts Making order's steps.
+export function workLabels(job) {
+  if (isActivityJob(job)) return (job.activities || []).filter(a => a && a.name).map(activityLabel);
+  return (job.items || []).filter(it => it.cut).map(partLabel);
+}
+
 export function jobProgress(job, runs) {
   const mine = liveRuns(job, runs);
-  const parts = (job.items || []).filter(it => it.cut);
-  const labels = new Set(parts.map(partLabel));
+  const parts = workLabels(job);
+  const labels = new Set(parts);
   const doneAt = {};
   for (const r of mine) for (const a of r.activities || []) {
     if (a.doneAt && labels.has(a.name) && (!doneAt[a.name] || a.doneAt < doneAt[a.name])) doneAt[a.name] = a.doneAt;
@@ -217,6 +224,8 @@ export function buildJobReport(jobOrders, runs, { from, to, minutes = null } = {
   const machines = new Map();
   const models = new Map();
   for (const job of jobOrders || []) {
+    // Machine Shop only (Paint Shop / Parts Making orders have no cut list), and never deleted orders.
+    if (job.status === 'deleted' || (job.line && job.line !== MACHINE_SHOP_LINE)) continue;
     const p = jobProgress(job, runs);
     const byLabel = new Map((job.items || []).filter(it => it.cut).map(it => [partLabel(it), it]));
     const cutNow = Object.entries(p.doneAt).filter(([, at]) => inRange(at, from, to)).map(([l]) => byLabel.get(l)).filter(Boolean);
@@ -247,11 +256,12 @@ export function buildJobReport(jobOrders, runs, { from, to, minutes = null } = {
       }
     }
     const finished = inRange(finishedAt, from, to);
-    const md = models.get(job.busModel) || { model: job.busModel, jobs: 0, finished: 0, vins: new Set(), pieces: 0 };
+    const modelKey = job.busModel || `Other: ${job.projectId || job.project}`;
+    const md = models.get(modelKey) || { model: modelKey, jobs: 0, finished: 0, vins: new Set(), pieces: 0 };
     md.jobs += 1; if (finished) md.finished += 1;
     (job.vins || []).forEach(v => md.vins.add(v));
     md.pieces += cutNow.reduce((n, it) => n + (Number(it.qty) || 0), 0);
-    models.set(job.busModel, md);
+    models.set(modelKey, md);
     jobs.push({
       id: job.id, project: job.project, busModel: job.busModel, vins: job.vins || [], createdAt: job.createdAt,
       createdBy: job.createdByName || job.createdBy, state: p.state, done: p.done, total: p.total, finished, finishedAt,
@@ -295,3 +305,105 @@ export function jobReportRows(rep) {
 
 export const MACHINE_SHOP_LINE = 'Machine Shop';
 export const isMachineShopLine = line => String(line || '').trim().toLowerCase() === 'machine shop';
+
+// ── Other (non-bus) projects ─────────────────────────────────────────────────
+// Work that is not a bus: a project with its own ID (register in Other
+// Projects → Projects), and job orders on the three lines that take such work:
+//   Machine Shop   a cut list, cut on machines (as for buses)
+//   Paint Shop     a list of steps (activities) to tick off
+//   Parts Making   a list of steps, done by the welding / frame parts people
+// Job orders of other projects have kind "other" and IDs OP-yyMMdd-XXXX; their
+// runs are Start/End tasks like any other, but close straight away instead of
+// opening a bus Travel Card.
+export const JO_LINES = ['Machine Shop', 'Paint Shop', 'Parts Making'];
+export const LINE_TINT = { 'Machine Shop': '#b45309', 'Paint Shop': '#0e7490', 'Parts Making': '#7c3aed' };
+
+// Travel Card (catalog) lines whose stations do each job-order line's work.
+const CATALOG_LINE_RE = { 'Machine Shop': /machine shop/i, 'Paint Shop': /paint/i, 'Parts Making': /parts making|weld/i };
+export const catalogLineMatches = (joLine, catalogLine) => !!CATALOG_LINE_RE[joLine]?.test(String(catalogLine || ''));
+
+// The job-order lines a person works on, from their assigned stations and
+// lines. Same rule as the server's joLineScope_.
+export function lineScope(assignedStations, assignedLines) {
+  const st = (assignedStations || []).map(c => String(c).toUpperCase());
+  const ln = assignedLines || [];
+  const out = [];
+  if (st.some(c => /^B0[1-3]-/.test(c)) || ln.includes('MACHINE')) out.push('Machine Shop');
+  if (st.some(c => /^(B0[4-9]|B1\d|W)/.test(c)) || ln.includes('BODY') || ln.includes('FRAME')) out.push('Parts Making');
+  if (st.some(c => /^P/.test(c)) || ln.includes('PAINT')) out.push('Paint Shop');
+  return out;
+}
+
+export const jobLine = job => job?.line || MACHINE_SHOP_LINE;
+export const isOtherJob = job => job?.kind === 'other';
+export const isActivityJob = job => jobLine(job) !== MACHINE_SHOP_LINE;
+export const isOtherTask = task => /^OP-/.test(String(task?.jobOrderId || ''));
+export const isLiveJob = job => job && job.status !== 'deleted';
+// Cut lists of other projects sit beside the bus models' under this key.
+export const cutListKey = projectId => `OP:${String(projectId || '').toUpperCase()}`;
+// Remembered machine per specification: per bus model, or per other project.
+export const specKey = job => job.busModel || cutListKey(job.projectId);
+
+export function jobHeading(job) {
+  if (isOtherJob(job)) return [job.projectId, job.project, job.title].filter(Boolean).join(' · ');
+  return `${job.project} · ${job.busModel}`;
+}
+
+export function stateLabel(job, state) {
+  if (isActivityJob(job)) return { running: 'Working now', machined: 'Done' }[state] || JOB_STATES[state]?.[0] || state;
+  return JOB_STATES[state]?.[0] || state;
+}
+
+// One Paint Shop / Parts Making step.
+export function makeActivity(x = {}) {
+  return {
+    id: x.id || uid(),
+    name: String(x.name ?? '').trim(),
+    qty: x.qty === '' || x.qty == null ? '' : Number(x.qty) || 0,
+    unit: String(x.unit ?? '').trim(),
+    notes: String(x.notes ?? '').trim(),
+  };
+}
+export function activityLabel(a) {
+  const q = a.qty !== '' && a.qty != null && Number(a.qty) > 0 ? `×${a.qty}${a.unit ? ` ${a.unit}` : ''}` : '';
+  return [a.name, q].filter(Boolean).join(' · ');
+}
+
+export const ACTIVITY_COLUMNS = ['ACTIVITY', 'QUANTITY', 'UNIT', 'NOTES'];
+export const ACTIVITY_TEMPLATE_ROWS = [ACTIVITY_COLUMNS, ['Surface preparation', '1', 'lot', ''], ['Primer coat', '', '', 'two passes']];
+export function parseActivitiesCsv(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return { activities: [], errors: ['The file is empty.'] };
+  const h = rows[0].map(norm);
+  const at = (r, ...names) => { const i = h.findIndex(x => names.includes(x)); return i < 0 ? '' : r[i] ?? ''; };
+  if (!h.some(x => ['ACTIVITY', 'NAME', 'STEP', 'TASK'].includes(x))) return { activities: [], errors: ['No ACTIVITY column - download the template and use its headings.'] };
+  const activities = rows.slice(1).map(r => makeActivity({ name: at(r, 'ACTIVITY', 'NAME', 'STEP', 'TASK'), qty: at(r, 'QUANTITY', 'QTY'), unit: at(r, 'UNIT'), notes: at(r, 'NOTES', 'NOTE', 'REMARKS') }))
+    .filter(a => a.name);
+  return { activities, errors: activities.length ? [] : ['No activities found under the headings.'] };
+}
+
+// Project register CSV. LINES: any of Machine Shop, Paint Shop, Parts Making,
+// separated by ";" (blank = all three).
+export const PROJECT_COLUMNS = ['PROJECT ID', 'PROJECT NAME', 'CLIENT', 'DESCRIPTION', 'LINES'];
+export const PROJECT_TEMPLATE_ROWS = [PROJECT_COLUMNS, ['PRJ-001', 'Steel water tank', 'Client name', '10,000 litre tank, painted', 'Machine Shop; Paint Shop']];
+export function parseProjectsCsv(text) {
+  const rows = parseCsv(text);
+  if (!rows.length) return { projects: [], errors: ['The file is empty.'] };
+  const h = rows[0].map(norm);
+  const at = (r, ...names) => { const i = h.findIndex(x => names.includes(x)); return i < 0 ? '' : String(r[i] ?? '').trim(); };
+  const errors = [];
+  if (!h.some(x => ['PROJECTID', 'ID'].includes(x))) errors.push('No PROJECT ID column - download the template and use its headings.');
+  if (!h.some(x => ['PROJECTNAME', 'NAME', 'PROJECT'].includes(x))) errors.push('No PROJECT NAME column.');
+  if (errors.length) return { projects: [], errors };
+  const projects = [];
+  rows.slice(1).forEach((r, i) => {
+    const id = at(r, 'PROJECTID', 'ID').toUpperCase();
+    const name = at(r, 'PROJECTNAME', 'NAME', 'PROJECT');
+    if (!id && !name) return;
+    if (!id || !name) { errors.push(`Row ${i + 2}: needs both a project ID and a name.`); return; }
+    const lines = at(r, 'LINES', 'LINE').split(/[;|]/).map(s => s.trim()).map(s => JO_LINES.find(l => l.toLowerCase() === s.toLowerCase())).filter(Boolean);
+    projects.push({ id, name, client: at(r, 'CLIENT', 'CUSTOMER'), description: at(r, 'DESCRIPTION', 'DETAILS'), lines });
+  });
+  if (!projects.length && !errors.length) errors.push('No projects found under the headings.');
+  return { projects, errors };
+}

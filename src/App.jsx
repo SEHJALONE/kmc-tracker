@@ -33,8 +33,9 @@ import AccountSettings from './components/AccountSettings';
 import { cachedProfile, clearProfileCache } from './data/profile';
 import TypeApprovals from './components/TypeApprovals';
 import JobOrdersPage from './components/jobs/JobOrdersPage';
+import OtherProjectsPage from './components/jobs/OtherProjectsPage';
 import ShopFloor from './components/ShopFloor';
-import { isMachineShopLead } from './data/jobOrders';
+import { isMachineShopLead, lineScope } from './data/jobOrders';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
@@ -168,6 +169,8 @@ export default function App() {
   }, [authed, manageUser, canEditCatalog]);
 
   const [tcPrefill, setTcPrefill] = useState(null);
+  // Travel Card hub view to open on ("jobs": My job orders from the home tile).
+  const [tcView, setTcView] = useState('');
   const [editingSubmission, setEditingSubmission] = useState(null);
   const { submissions: allCards, editSubmission: saveSubmissionEdit } = useSubmissionsData();
 
@@ -300,6 +303,13 @@ export default function App() {
   const hasTypeApproval = role === 'systemadmin' || role === 'useradmin' || roles.includes('typeapproval');
   // Machine Shop job orders: its supervisors/managers and admins (see isMachineShopLead).
   const hasJobOrders = isMachineShopLead(role, assignedStations, assignedLines);
+  // Lines that take job orders (Machine Shop, Paint Shop, Parts Making) this person works on.
+  const jobLines = lineScope(assignedStations || (assignedStation ? [assignedStation] : []), assignedLines);
+  const isAdminRole = role === 'systemadmin' || role === 'useradmin';
+  // Other (non-bus) projects: admins and the supervisors, managers and directors of those lines.
+  const hasOtherProjects = isAdminRole || (['supervisor', 'manager', 'director'].includes(role) && jobLines.length > 0);
+  // My job orders: anyone on those lines (and admins).
+  const hasMyJobs = isAdminRole || jobLines.length > 0;
   // Shop floor: everyone who supervises.
   const hasShopFloor = ['supervisor', 'manager', 'director', 'systemadmin', 'useradmin'].includes(role);
 
@@ -360,7 +370,7 @@ export default function App() {
       userName={currentUserName}
       username={username}
       userPhoto={myPhoto}
-      onSelectTravelCard={() => setMode('travelcard')}
+      onSelectTravelCard={() => { setTcView(''); setMode('travelcard'); }}
       onSelectTracker={() => setMode('tracker')}
       onSelectHandover={() => setMode('handover')}
       onSelectScoreboard={() => setMode('scoreboard')}
@@ -373,6 +383,8 @@ export default function App() {
       onSelectTypeApprovals={hasTypeApproval ? () => setMode('type-approvals') : null}
       onSelectJobOrders={hasJobOrders ? () => setMode('job-orders') : null}
       onSelectShopFloor={hasShopFloor ? () => setMode('shop-floor') : null}
+      onSelectOtherProjects={hasOtherProjects ? () => setMode('other-projects') : null}
+      onSelectMyJobs={hasMyJobs ? () => { setTcView('jobs'); setMode('travelcard'); } : null}
       role={role}
       canAccessTracker={canAccessTracker}
       hasCeeAccess={hasCeeAccess}
@@ -392,6 +404,10 @@ export default function App() {
   // Open to anyone who reaches it; changes are refused unless Machine Shop supervisor/admin.
   if (mode === 'job-orders') return (
     <JobOrdersPage catalog={catalog} onBack={() => setMode('home')} />
+  );
+
+  if (mode === 'other-projects') return (
+    <OtherProjectsPage catalog={catalog} currentUserName={currentUserName || ''} onBack={() => setMode('home')} />
   );
 
   if (mode === 'shop-floor') return (
@@ -533,9 +549,9 @@ export default function App() {
           catalogLoaded={catalogLoaded}
           onRefreshCatalog={refreshCatalog}
           lockedCodes={(assignedStations && assignedStations.length) ? assignedStations : (assignedStation ? [assignedStation] : [])}
-          initialView={editingSubmission || tcPrefill ? 'legacy' : 'home'}
-          onHome={() => { setTcPrefill(null); setEditingSubmission(null); }}
-          renderLegacy={({ taskPrefill = null, onCardSubmitted = null, onExit = null } = {}) => (
+          initialView={editingSubmission || tcPrefill ? 'legacy' : tcView || 'home'}
+          onHome={() => { setTcPrefill(null); setEditingSubmission(null); setTcView(''); }}
+          renderLegacy={({ taskPrefill = null, onCardSubmitted = null, onExit = null, onLegacyJobs = null } = {}) => (
             <TravelCard
               key={taskPrefill ? taskPrefill.taskId : 'legacy'}
               prefillVin={tcPrefill?.vin ?? ''}
@@ -554,6 +570,7 @@ export default function App() {
               taskPrefill={taskPrefill}
               onCardSubmitted={onCardSubmitted}
               onExit={onExit}
+              onLegacyJobs={onLegacyJobs}
             />
           )}
         />

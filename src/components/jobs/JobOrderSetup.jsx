@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { BUS_MODELS } from '../../utils/tcCatalog';
-import { makeItem } from '../../data/jobOrders';
+import { makeItem, parseCutListCsv } from '../../data/jobOrders';
 import { cleanVin } from '../../utils/vinUpload';
 import { JOB_ERRORS } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
@@ -13,7 +13,7 @@ import CutListEditor from './CutListEditor';
 const label = { display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 };
 const inp = { width: '100%', padding: '9px 11px', borderRadius: 10, border: '1px solid var(--input-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box' };
 
-export default function JobOrderSetup({ catalog, jobData, job = null, project: fixedProject = '', busModel: fixedModel = '', onSaved, onCancel }) {
+export default function JobOrderSetup({ catalog, jobData, job = null, project: fixedProject = '', busModel: fixedModel = '', legacy = false, onSaved, onCancel }) {
   const projects = useMemo(() => (catalog.projects || []).filter(p => p && p.name && p.active !== false).map(p => p.name), [catalog.projects]);
   const [project, setProject] = useState(job?.project || fixedProject);
   const [busModel, setBusModel] = useState(job?.busModel || fixedModel);
@@ -25,6 +25,26 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
   const [status, setStatus] = useState(job?.status || 'open');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const file = useRef(null);
+
+  // A cut list CSV for this order only (same template as Job Orders, Cut lists).
+  function upload(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      if (file.current) file.current.value = '';
+      const { items: parsed, errors } = parseCutListCsv(String(r.result || ''));
+      if (!parsed.length) { setMsg(`Error: ${errors.join(' ') || 'No parts found.'}`); return; }
+      const replace = !items.length || window.confirm(`Replace the ${items.length} parts below with the ${parsed.length} in ${f.name}?
+
+Cancel adds them to the end instead.`);
+      setItems(replace ? parsed : [...items, ...parsed]);
+      setMsg(`${parsed.length} parts read from ${f.name}${errors.length ? ` - ${errors.join(' ')}` : ''}.`);
+    };
+    r.readAsText(f);
+  }
 
   const projectVins = ((catalog.projectVins || {})[project] || []).filter(v => !busModel || !v.model || v.model === busModel).map(v => cleanVin(v.vin));
   const options = [...new Set([...projectVins, ...vins])];
@@ -53,7 +73,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
     if (!items.some(it => it.cut)) return setError('Tick at least one part to cut.');
     setBusy(true);
     try {
-      const r = await jobData.saveJobOrder({ id: job?.id, project, busModel, vins, items, notes, status, specMachines: job?.specMachines });
+      const r = await jobData.saveJobOrder({ id: job?.id, project, busModel, vins, items, notes, status, specMachines: job?.specMachines, legacy });
       onSaved?.(r.id);
     } catch (e) { setError(JOB_ERRORS[e.message] || e.message); }
     setBusy(false);
@@ -63,7 +83,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="kmc-panel" style={{ padding: '16px 18px', display: 'grid', gap: 14 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{job ? `Edit job order ${job.id}` : 'New job order - Machine Shop'}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-heading)' }}>{job ? `Edit job order ${job.id}` : legacy ? 'Legacy job order - Machine Shop' : 'New job order - Machine Shop'}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
           <div>
             <label style={label} htmlFor="jo-project">Bus project</label>
@@ -126,7 +146,9 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
             <div className="kmc-label">Cut list - {busModel} · {cutParts.length} of {items.length} parts to cut</div>
             <span style={{ flex: 1 }} />
             {cutList && <button className="kmc-btn ghost" onClick={reload}>Reload saved {busModel} cut list</button>}
+            <label className="kmc-btn" style={{ cursor: 'pointer' }}>Upload CSV<input ref={file} type="file" accept=".csv,text/csv" onChange={upload} style={{ display: 'none' }} /></label>
           </div>
+          {msg && <div style={{ fontSize: 12, marginBottom: 8, color: msg.startsWith('Error:') ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{msg}</div>}
           {!cutList && items.length === 0 && (
             <div className="kmc-panel" style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>
               There is no saved cut list for {busModel} yet. Add specifications and parts below, or upload one in Job Orders → Cut lists.
@@ -138,7 +160,7 @@ export default function JobOrderSetup({ catalog, jobData, job = null, project: f
 
       {error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button className="kmc-btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : job ? 'Save job order' : 'Submit job order'}</button>
+        <button className="kmc-btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : job ? 'Save job order' : legacy ? 'Save and fill in runs' : 'Submit job order'}</button>
         {onCancel && <button className="kmc-btn" onClick={onCancel}>Cancel</button>}
       </div>
     </div>

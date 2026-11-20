@@ -193,6 +193,7 @@ function newRecordId() {
 export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, usedOtherRes, stationLabelForModel } from '../data/travelCardSeed';
 import { useStationConsumables } from '../hooks/useStationConsumables';
 import { TRAVEL_CARD_DOC } from '../data/travelCardRef';
+import { JO_LINES, catalogLineMatches } from '../data/jobOrders';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const R = "#dc2626";
@@ -341,7 +342,7 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null, taskPrefill = null, onCardSubmitted = null, onExit = null }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null, taskPrefill = null, onCardSubmitted = null, onExit = null, onLegacyJobs = null }) {
   // Normalize single/multi station-lock props into one list. A single assigned
   // station keeps the old fully-locked (disabled dropdown) behavior; multiple
   // assigned stations (same line, e.g. a station head over several stations)
@@ -1305,6 +1306,15 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 {curSt && !(isMultiLocked ? lockedStationOptions : stations).includes(curSt) && <option>{curSt}</option>}
               </Sel>
             </div>
+            {/* Legacy job orders: Machine Shop, Paint Shop and Parts Making work done from a job order */}
+            {onLegacyJobs && !taskPrefill && !editSubmission && JO_LINES.some(l => catalogLineMatches(l, curLine)) && (
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--warning-color)" }}>
+                <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1, minWidth: 220 }}>
+                  Filling in an old job order on the {JO_LINES.find(l => catalogLineMatches(l, curLine))}? Use the legacy job order form: pick the job order or upload its cut list, then fill in each run.
+                </span>
+                <button type="button" className="kmc-btn primary" onClick={() => onLegacyJobs(JO_LINES.find(l => catalogLineMatches(l, curLine)))}>Legacy job order</button>
+              </div>
+            )}
             {/* Admin can always override the designed (cycle) time */}
             {isAdmin && curCode && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>

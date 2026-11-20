@@ -7,6 +7,8 @@ import { workingMinutes, addWorkingMinutes } from '../utils/workTime';
 import { isMachineShopLine } from '../data/jobOrders';
 import { MachineShopJobsLive } from './jobs/MachineShopJobs';
 import JobWaste from './jobs/JobWaste';
+import { JobCommentsLive } from './jobs/JobComments';
+import { isOtherTask } from '../data/jobOrders';
 
 // Start/End Travel Card: pick the bus and station, press Start, tick activities
 // off as they are done, press Close. Closing opens the normal card with the
@@ -323,7 +325,7 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
           <span style={{ fontSize: 13, color: 'var(--text-heading)', fontWeight: 600 }}>{stationLabelForModel(task.station, modelKindOf(task.busModel)).replace(/^[^:]+:\s*/, '')}</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-          {task.busModel} · <span style={{ fontFamily: 'inherit' }}>{task.vins?.length > 1 ? task.vins.join(' · ') : task.vin}</span> · {task.project}
+          {task.busModel ? `${task.busModel} · ` : ''}<span style={{ fontFamily: 'inherit' }}>{task.vins?.length > 1 ? task.vins.join(' · ') : task.vin}</span> · {task.project}
           {task.jobOrderId && <> · job order <strong style={{ fontFamily: 'inherit' }}>{task.jobOrderId}</strong></>}
           {task.ownerName && readOnly && <> · run by <strong>{task.ownerName}</strong></>}
         </div>
@@ -336,10 +338,11 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
         </div>
         {overdue && <div style={{ fontSize: 12, color: R, margin: '10px 0 0', textAlign: 'center' }}>Past the expected end - reminders are emailed every 6 hours until you close it.</div>}
         {task.synced === false && <div style={{ fontSize: 11, color: AM, margin: '8px 0 0', textAlign: 'center' }}>Saved on this device; not yet on the server (reminders start once it syncs).</div>}
+        {task.jobOrderId && <JobCommentsLive jobOrderId={task.jobOrderId} />}
         {readOnly
           ? <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}><button className="kmc-btn" onClick={onBack}>← Back</button></div>
           : <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button className="kmc-btn primary" style={{ fontSize: 14, padding: '13px 28px' }} onClick={onClose}>■ Close &amp; fill card</button>
+          <button className="kmc-btn primary" style={{ fontSize: 14, padding: '13px 28px' }} onClick={onClose}>{isOtherTask(task) ? '■ Close run' : <>■ Close &amp; fill card</>}</button>
           <button className="kmc-btn" onClick={onBack}>← Back (keeps running)</button>
           <button className="kmc-btn ghost" onClick={() => { if (confirm('Discard this task? Nothing is filed and the timer is thrown away.')) onDiscard(); }}>Discard</button>
         </div>}
@@ -374,7 +377,7 @@ export function TaskRunning({ task, onUpdate, onClose, onDiscard, onBack, readOn
           <input style={inp} value={newAct} onChange={e => setNewAct(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} placeholder="Other activity (not in list)…" />
           <button style={btn} onClick={add}>+ Add</button>
         </div>}
-        {task.jobOrderId && (
+        {task.jobOrderId && isMachineShopLine(task.line) && (
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
             <JobWaste task={task} readOnly={readOnly} onSave={waste => onUpdate({ waste })} />
           </div>

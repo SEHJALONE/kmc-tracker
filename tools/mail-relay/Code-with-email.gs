@@ -111,6 +111,11 @@ function doPost(e) {
     if (e && e.parameter && e.parameter.action === "assignJobMachines")  return assignJobMachines_(e.parameter);
     if (e && e.parameter && e.parameter.action === "saveCutList")        return saveCutList_(e.parameter);
     if (e && e.parameter && e.parameter.action === "saveJoMaterials")    return saveJoMaterials_(e.parameter);
+    // Supervisors: delete a job order (with a reason) and comment on one.
+    if (e && e.parameter && e.parameter.action === "deleteJobOrder")     return deleteJobOrder_(e.parameter);
+    if (e && e.parameter && e.parameter.action === "commentJobOrder")    return commentJobOrder_(e.parameter);
+    // Other (non-bus) projects: the register of project IDs.
+    if (e && e.parameter && e.parameter.action === "saveOtherProjects")  return saveOtherProjects_(e.parameter);
 
     // ── Access requests ─────────────────────────────────────────────────────────
     if (e && e.parameter && e.parameter.action === "submitAccessRequest") {
@@ -2121,6 +2126,8 @@ const TRAVEL_TASK_HEADERS = [
   "project", "bus_model", "vin", "production_line", "station", "station_code", "designed_min",
   "activities", "record_id", "reminder_count", "last_reminder_at", "updated_at",
   "job_order_id", "vins", "waste",
+  // source "legacy": a past run filled in after the fact; note: who ran it.
+  "source", "note",
 ];
 const TRAVEL_TASK_STATUSES = ["open", "closed", "discarded"];
 
@@ -2140,6 +2147,7 @@ function travelTaskRow_(headers, row) {
     updatedAt: iso(at("updated_at")),
     jobOrderId: String(at("job_order_id") || ""), vins: (function () { try { const v = JSON.parse(at("vins") || "[]"); return Array.isArray(v) ? v : []; } catch (err) { return []; } })(),
     waste: (function () { try { const v = JSON.parse(at("waste") || "[]"); return Array.isArray(v) ? v : []; } catch (err) { return []; } })(),
+    source: String(at("source") || ""), note: String(at("note") || ""),
   };
 }
 
@@ -2200,7 +2208,7 @@ function saveTravelTask_(params) {
       designed_min: Number(d.designedMin) || 0, activities: acts, record_id: "",
       reminder_count: 0, last_reminder_at: "", updated_at: now,
       job_order_id: clip(d.jobOrderId, 40), vins: JSON.stringify((Array.isArray(d.vins) ? d.vins : []).slice(0, 200).map(v => clip(v, 20))),
-      waste: waste,
+      waste: waste, source: d.source === "legacy" ? "legacy" : "", note: clip(d.note, 300),
     }]);
     return response({ status: "ok", id: d.id, created: true });
   } finally { lock.releaseLock(); }
@@ -2307,20 +2315,48 @@ function uploadProjectVins_(params) {
 // then run each machine as a Start/End task whose activities are its parts.
 const JOB_ORDERS_TAB = "job_orders";
 const JOB_ORDER_HEADERS = ["id", "project", "bus_model", "vins", "status", "items", "spec_machines", "notes",
-  "created_by", "created_by_name", "created_at", "updated_at"];
+  "created_by", "created_by_name", "created_at", "updated_at",
+  // Other (non-bus) projects and the supervisors' tools. kind: "bus" | "other";
+  // line: Machine Shop | Paint Shop | Parts Making; activities: the steps of a
+  // Paint Shop / Parts Making order; comments: supervisors' notes to the
+  // operators; status "deleted" keeps the row with who, when and why.
+  "kind", "line", "project_id", "title", "activities", "due_date", "comments", "legacy",
+  "deleted_by", "deleted_at", "delete_reason"];
+const JO_LINES = ["Machine Shop", "Paint Shop", "Parts Making"];
 const CUT_LISTS_TAB = "cut_lists";
 const CUT_LIST_HEADERS = ["bus_model", "items", "updated_by", "updated_at"];
 const JO_SETTINGS_TAB = "jo_settings";
 const JO_CELL_MAX = 45000;
 
-function canManageJobs_(user) {
-  if (!user) return false;
-  if (ADMIN_ROLES.indexOf(user.role) > -1) return true;
-  if (["supervisor", "manager", "director"].indexOf(user.role) < 0) return false;
-  const me = userRecord_(user.username) || {};
-  const stations = me.assignedStations || [], lines = me.assignedLines || [];
-  return stations.some(function (c) { return /^B0[1-3]-/i.test(String(c)); }) || lines.indexOf("MACHINE") > -1;
+// The job-order lines a person works on, from their assigned stations and
+// lines: Machine Shop (B01-B03, MACHINE), Parts Making (frame parts B04 and up,
+// welding W..; BODY, FRAME) and Paint Shop (P.., PAINT). Same rule as the
+// site's lineScope (src/data/jobOrders.js).
+function joLineScope_(stations, lines) {
+  const st = (stations || []).map(function (c) { return String(c).toUpperCase(); });
+  const ln = lines || [];
+  const out = [];
+  if (st.some(function (c) { return /^B0[1-3]-/.test(c); }) || ln.indexOf("MACHINE") > -1) out.push("Machine Shop");
+  if (st.some(function (c) { return /^(B0[4-9]|B1\d|W)/.test(c); }) || ln.indexOf("BODY") > -1 || ln.indexOf("FRAME") > -1) out.push("Parts Making");
+  if (st.some(function (c) { return /^P/.test(c); }) || ln.indexOf("PAINT") > -1) out.push("Paint Shop");
+  return out;
 }
+function userLineScope_(user) {
+  const me = userRecord_(user.username) || {};
+  return joLineScope_(me.assignedStations, me.assignedLines);
+}
+// Lines whose job orders this person may set up, edit, comment on and delete.
+function manageLines_(user) {
+  if (!user) return [];
+  if (ADMIN_ROLES.indexOf(user.role) > -1) return JO_LINES.slice();
+  if (["supervisor", "manager", "director"].indexOf(user.role) < 0) return [];
+  return userLineScope_(user);
+}
+function canManageLine_(user, line) { return manageLines_(user).indexOf(line) > -1; }
+function canManageJobs_(user) { return canManageLine_(user, "Machine Shop"); }
+const lineError_ = function (line) { return line === "Machine Shop" ? "not-machine-shop-supervisor" : "not-line-supervisor"; };
+
+function otherProjects_() { const s = joSettingsGet_(); return Array.isArray(s.otherProjects) ? s.otherProjects : []; }
 
 function joJson_(v, fallback) { try { const x = JSON.parse(v || ""); return x == null ? fallback : x; } catch (err) { return fallback; } }
 const joClip_ = function (v, n) { return String(v == null ? "" : v).trim().slice(0, n || 200); };
@@ -2363,7 +2399,32 @@ function jobOrderRow_(h, r) {
     specMachines: joJson_(at("spec_machines"), {}), notes: String(at("notes") || ""),
     createdBy: String(at("created_by") || ""), createdByName: String(at("created_by_name") || ""),
     createdAt: iso(at("created_at")), updatedAt: iso(at("updated_at")),
+    kind: String(at("kind") || "") === "other" ? "other" : "bus", line: String(at("line") || "") || "Machine Shop",
+    projectId: String(at("project_id") || ""), title: String(at("title") || ""), activities: joJson_(at("activities"), []),
+    dueDate: iso(at("due_date")).slice(0, 10), comments: joJson_(at("comments"), []), legacy: String(at("legacy") || "") === "yes",
+    deletedBy: String(at("deleted_by") || ""), deletedAt: iso(at("deleted_at")), deleteReason: String(at("delete_reason") || ""),
   };
+}
+
+// One Paint Shop / Parts Making step, tidied.
+function joActivity_(x, i) {
+  x = x || {};
+  return { id: joClip_(x.id || ("a" + i), 40), name: joClip_(x.name, 200), qty: x.qty === "" || x.qty == null ? "" : Math.max(0, Math.min(100000, Number(x.qty) || 0)),
+    unit: joClip_(x.unit, 20), notes: joClip_(x.notes, 300) };
+}
+
+// The job_orders tab with every current column, and its rows.
+function jobOrdersSheet_() {
+  const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), JOB_ORDERS_TAB, JOB_ORDER_HEADERS);
+  headerIndex_(sh, JOB_ORDER_HEADERS);   // adds columns new since the tab was made
+  const data = sh.getDataRange().getValues();
+  return { sh: sh, data: data, h: data[0].map(function (x) { return String(x).toLowerCase().trim(); }) };
+}
+function findJobOrder_(t, id) {
+  for (let i = 1; i < t.data.length; i++) {
+    if (String(t.data[i][t.h.indexOf("id")]) === String(id)) return { row: i + 1, job: jobOrderRow_(t.h, t.data[i]) };
+  }
+  return null;
 }
 
 // Start/End tasks filed against job orders (machine runs), for the job
@@ -2379,7 +2440,7 @@ function jobRuns_(ss, ids) {
   }).map(function (t) {
     return { id: t.id, jobOrderId: t.jobOrderId, status: t.status, owner: t.owner, ownerName: t.ownerName,
       stationCode: t.stationCode, station: t.station, startedAt: t.startedAt, closedAt: t.closedAt, updatedAt: t.updatedAt,
-      designedMin: t.designedMin, activities: t.activities, waste: t.waste };
+      designedMin: t.designedMin, activities: t.activities, waste: t.waste, source: t.source, note: t.note };
   });
 }
 
@@ -2409,8 +2470,11 @@ function listJobData_(params) {
   const s = joSettingsGet_();
   const ids = {};
   jobOrders.forEach(function (j) { ids[j.id] = true; });
+  const manage = manageLines_(user);
   return response({ status: "ok", jobOrders: jobOrders, cutLists: cutLists, runs: jobRuns_(ss, ids),
-    settings: { materials: s.materials || null, specMachines: s.specMachines || {} }, canManage: canManageJobs_(user) });
+    settings: { materials: s.materials || null, specMachines: s.specMachines || {} },
+    otherProjects: Array.isArray(s.otherProjects) ? s.otherProjects : [],
+    canManage: manage.indexOf("Machine Shop") > -1, manageLines: manage, scope: userLineScope_(user) });
 }
 
 // Machine Shop report for a period: the job orders worked on, set up or still
@@ -2442,51 +2506,152 @@ function jobReport_(params) {
 function saveJobOrder_(params) {
   const user = verifySession_(params.session);
   if (!user) return response({ status: "error", message: "unauthorized" });
-  if (!canManageJobs_(user)) return response({ status: "error", message: "not-machine-shop-supervisor" });
   let d;
   try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
-  const project = joClip_(d.project, 120), busModel = joClip_(d.busModel, 40);
-  const vins = (Array.isArray(d.vins) ? d.vins : []).map(function (v) { return joClip_(v, 20).toUpperCase(); }).filter(Boolean).slice(0, 200);
+  const kind = d.kind === "other" ? "other" : "bus";
+  const line = kind === "bus" ? "Machine Shop" : joClip_(d.line, 40);
+  if (JO_LINES.indexOf(line) < 0) return response({ status: "error", message: "bad-line" });
+  // Supervisors of the line set up job orders. Anyone on the line may file a
+  // legacy one (an old job, filled in after the fact): it is saved closed.
+  const legacy = !!d.legacy && !d.id;
+  if (!canManageLine_(user, line) && !(legacy && (userLineScope_(user).indexOf(line) > -1 || ADMIN_ROLES.indexOf(user.role) > -1))) {
+    return response({ status: "error", message: lineError_(line) });
+  }
+  let project = joClip_(d.project, 120);
+  const busModel = kind === "bus" ? joClip_(d.busModel, 40) : "";
+  const projectId = kind === "other" ? joClip_(d.projectId, 40).toUpperCase() : "";
+  const vins = kind === "bus" ? (Array.isArray(d.vins) ? d.vins : []).map(function (v) { return joClip_(v, 20).toUpperCase(); }).filter(Boolean).slice(0, 200) : [];
   const items = (Array.isArray(d.items) ? d.items : []).slice(0, 400).map(joItem_);
-  if (!project || !busModel) return response({ status: "error", message: "missing-project-or-model" });
-  if (!vins.length) return response({ status: "error", message: "missing-vins" });
-  if (!items.length) return response({ status: "error", message: "missing-items" });
-  const status = ["open", "closed"].indexOf(d.status) > -1 ? d.status : "open";
-  const itemsText = JSON.stringify(items);
-  if (itemsText.length > JO_CELL_MAX) return response({ status: "error", message: "too-many-items" });
+  const activities = (Array.isArray(d.activities) ? d.activities : []).slice(0, 200).map(joActivity_).filter(function (a) { return a.name; });
+  if (kind === "bus") {
+    if (!project || !busModel) return response({ status: "error", message: "missing-project-or-model" });
+    if (!vins.length) return response({ status: "error", message: "missing-vins" });
+  } else {
+    const p = otherProjects_().filter(function (x) { return String(x.id).toUpperCase() === projectId; })[0];
+    if (!p) return response({ status: "error", message: "unknown-other-project" });
+    project = p.name;
+  }
+  if (line === "Machine Shop" && !items.length) return response({ status: "error", message: "missing-items" });
+  if (line !== "Machine Shop" && !activities.length) return response({ status: "error", message: "missing-activities" });
+  const status = legacy ? "closed" : ["open", "closed"].indexOf(d.status) > -1 ? d.status : "open";
+  const itemsText = JSON.stringify(items), actsText = JSON.stringify(activities);
+  if (itemsText.length > JO_CELL_MAX || actsText.length > JO_CELL_MAX) return response({ status: "error", message: "too-many-items" });
   const now = new Date().toISOString();
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(String(d.dueDate || "")) ? String(d.dueDate) : "";
 
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const sh = getOrCreate(SpreadsheetApp.openById(TRACKER_SHEET_ID), JOB_ORDERS_TAB, JOB_ORDER_HEADERS);
-    const data = sh.getDataRange().getValues();
-    const h = data[0].map(function (x) { return String(x).toLowerCase().trim(); });
+    const t = jobOrdersSheet_();
     if (d.id) {
-      for (let i = 1; i < data.length; i++) {
-        if (String(data[i][h.indexOf("id")]) !== String(d.id)) continue;
-        const set = function (n, v) { const c = h.indexOf(n); if (c > -1) sh.getRange(i + 1, c + 1).setValue(v); };
-        // Close / reopen only.
-        if (d.statusOnly) { set("status", status); set("updated_at", now); return response({ status: "ok", id: String(d.id) }); }
-        // Once a machine has run on it, the order stays as it was cut.
-        const only = {}; only[String(d.id)] = true;
-        if (jobRuns_(SpreadsheetApp.openById(TRACKER_SHEET_ID), only).length) return response({ status: "error", message: "job-order-started" });
-        set("project", project); set("bus_model", busModel); set("vins", JSON.stringify(vins)); set("status", status);
-        set("items", itemsText); set("notes", joClip_(d.notes, 500)); set("updated_at", now);
-        if (d.specMachines && typeof d.specMachines === "object") set("spec_machines", JSON.stringify(d.specMachines));
-        return response({ status: "ok", id: String(d.id) });
-      }
-      return response({ status: "error", message: "job-order-not-found" });
+      const f = findJobOrder_(t, d.id);
+      if (!f) return response({ status: "error", message: "job-order-not-found" });
+      if (!canManageLine_(user, f.job.line)) return response({ status: "error", message: lineError_(f.job.line) });
+      if (f.job.status === "deleted") return response({ status: "error", message: "job-order-deleted" });
+      const set = function (n, v) { const c = t.h.indexOf(n); if (c > -1) t.sh.getRange(f.row, c + 1).setValue(v); };
+      // Close / reopen only.
+      if (d.statusOnly) { set("status", status); set("updated_at", now); return response({ status: "ok", id: String(d.id) }); }
+      // Once work has run on it, the order stays as it was worked.
+      const only = {}; only[String(d.id)] = true;
+      if (jobRuns_(SpreadsheetApp.openById(TRACKER_SHEET_ID), only).length) return response({ status: "error", message: "job-order-started" });
+      set("project", project); set("bus_model", busModel); set("vins", JSON.stringify(vins)); set("status", status);
+      set("items", itemsText); set("activities", actsText); set("notes", joClip_(d.notes, 500)); set("updated_at", now);
+      set("project_id", projectId); set("title", joClip_(d.title, 200)); set("due_date", dueDate);
+      if (d.specMachines && typeof d.specMachines === "object") set("spec_machines", JSON.stringify(d.specMachines));
+      return response({ status: "ok", id: String(d.id) });
     }
     const stamp = new Date(Date.now() + 3 * 3600000).toISOString().slice(2, 10).replace(/-/g, "");   // yyMMdd, Kampala (UTC+3)
-    const id = "JO-" + stamp + "-" + Utilities.getUuid().replace(/-/g, "").slice(0, 4).toUpperCase();
+    const id = (kind === "other" ? "OP-" : "JO-") + stamp + "-" + Utilities.getUuid().replace(/-/g, "").slice(0, 4).toUpperCase();
     const me = userRecord_(user.username) || {};
-    appendRecords_(sh, JOB_ORDER_HEADERS, [{
+    appendRecords_(t.sh, JOB_ORDER_HEADERS, [{
       id: id, project: project, bus_model: busModel, vins: JSON.stringify(vins), status: status, items: itemsText,
       spec_machines: JSON.stringify(d.specMachines && typeof d.specMachines === "object" ? d.specMachines : {}),
       notes: joClip_(d.notes, 500), created_by: user.username, created_by_name: joClip_(me.fullName || user.username, 120),
-      created_at: now, updated_at: now,
+      created_at: now, updated_at: now, kind: kind, line: line, project_id: projectId, title: joClip_(d.title, 200),
+      activities: actsText, due_date: dueDate, comments: "[]", legacy: legacy ? "yes" : "",
     }]);
     return response({ status: "ok", id: id });
+  } finally { lock.releaseLock(); }
+}
+
+// A supervisor of the job order's line deletes it, giving a reason. The row
+// stays (status "deleted", with who, when and why) so its runs keep their
+// history; it no longer shows to operators.
+function deleteJobOrder_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const reason = joClip_(d.reason, 500);
+  if (reason.length < 3) return response({ status: "error", message: "missing-reason" });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const t = jobOrdersSheet_();
+    const f = findJobOrder_(t, d.id);
+    if (!f) return response({ status: "error", message: "job-order-not-found" });
+    if (!canManageLine_(user, f.job.line)) return response({ status: "error", message: lineError_(f.job.line) });
+    const now = new Date().toISOString();
+    const set = function (n, v) { const c = t.h.indexOf(n); if (c > -1) t.sh.getRange(f.row, c + 1).setValue(v); };
+    set("status", "deleted"); set("deleted_by", user.username); set("deleted_at", now); set("delete_reason", reason); set("updated_at", now);
+    return response({ status: "ok", id: f.job.id });
+  } finally { lock.releaseLock(); }
+}
+
+// A supervisor of the job order's line adds a comment for the operators.
+function commentJobOrder_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const text = joClip_(d.text, 1000);
+  if (!text) return response({ status: "error", message: "missing-comment" });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const t = jobOrdersSheet_();
+    const f = findJobOrder_(t, d.id);
+    if (!f) return response({ status: "error", message: "job-order-not-found" });
+    if (!canManageLine_(user, f.job.line)) return response({ status: "error", message: lineError_(f.job.line) });
+    const me = userRecord_(user.username) || {};
+    const now = new Date().toISOString();
+    const comments = (Array.isArray(f.job.comments) ? f.job.comments : []).concat([{
+      by: user.username, byName: joClip_(me.fullName || user.username, 120), at: now, text: text,
+    }]).slice(-50);
+    t.sh.getRange(f.row, t.h.indexOf("comments") + 1).setValue(JSON.stringify(comments));
+    t.sh.getRange(f.row, t.h.indexOf("updated_at") + 1).setValue(now);
+    return response({ status: "ok", id: f.job.id, comments: comments });
+  } finally { lock.releaseLock(); }
+}
+
+// The register of other (non-bus) projects: { id, name, client, description,
+// lines, active }. Rows are merged in by project ID (an upload never removes
+// a project; send active: false to retire one). Supervisors of the Machine
+// Shop, Paint Shop or Parts Making, and admins.
+function saveOtherProjects_(params) {
+  const user = verifySession_(params.session);
+  if (!user) return response({ status: "error", message: "unauthorized" });
+  if (!manageLines_(user).length) return response({ status: "error", message: "not-line-supervisor" });
+  let d;
+  try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
+  const rows = Array.isArray(d.projects) ? d.projects.slice(0, 500) : [];
+  const out = { added: [], updated: [], invalid: [] };
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const list = otherProjects_().slice();
+    const now = new Date().toISOString();
+    rows.forEach(function (r) {
+      r = r || {};
+      const id = joClip_(r.id, 40).toUpperCase();
+      const name = joClip_(r.name, 120);
+      if (!/^[A-Z0-9][A-Z0-9._\/-]*$/.test(id) || !name) { out.invalid.push(id || name || "(blank)"); return; }
+      const lines = (Array.isArray(r.lines) ? r.lines : []).filter(function (l) { return JO_LINES.indexOf(l) > -1; });
+      const rec = { id: id, name: name, client: joClip_(r.client, 120), description: joClip_(r.description, 500),
+        lines: lines.length ? lines : JO_LINES.slice(), active: r.active !== false, updatedBy: user.username, updatedAt: now };
+      let k = -1;
+      list.forEach(function (p, i) { if (String(p.id).toUpperCase() === id) k = i; });
+      if (k > -1) { list[k] = Object.assign({}, list[k], rec); out.updated.push(id); }
+      else { rec.createdBy = user.username; rec.createdAt = now; list.push(rec); out.added.push(id); }
+    });
+    if (out.added.length || out.updated.length) joSettingsSet_("otherProjects", list);
+    return response({ status: "ok", result: out, projects: list });
   } finally { lock.releaseLock(); }
 }
 
@@ -2516,7 +2681,8 @@ function assignJobMachines_(params) {
       sh.getRange(i + 1, h.indexOf("updated_at") + 1).setValue(new Date().toISOString());
       const s = joSettingsGet_();
       const defaults = s.specMachines || {};
-      Object.keys(map).forEach(function (spec) { defaults[job.busModel + "|" + spec] = map[spec]; });
+      const key = job.busModel || ("OP:" + job.projectId);
+      Object.keys(map).forEach(function (spec) { defaults[key + "|" + spec] = map[spec]; });
       joSettingsSet_("specMachines", defaults);
       return response({ status: "ok", specMachines: merged });
     }
@@ -2530,7 +2696,7 @@ function saveCutList_(params) {
   if (!canManageJobs_(user)) return response({ status: "error", message: "not-machine-shop-supervisor" });
   let d;
   try { d = JSON.parse(params.payload || "{}"); } catch (err) { return response({ status: "error", message: "bad-json" }); }
-  const busModel = joClip_(d.busModel, 40);
+  const busModel = joClip_(d.busModel, 60);   // a bus model, or "OP:<project id>" for an other project
   if (!busModel) return response({ status: "error", message: "missing-model" });
   const items = (Array.isArray(d.items) ? d.items : []).slice(0, 400).map(joItem_);
   const text = JSON.stringify(items);

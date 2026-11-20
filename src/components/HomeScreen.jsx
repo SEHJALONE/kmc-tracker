@@ -29,6 +29,7 @@ export default function HomeScreen({
   onSelectTravelCard, onSelectTracker, onSelectHandover, onSelectScoreboard, onSelectPendingReviews,
   onSelectAccessRequests, onSelectUserManagement, onSelectDailyFleetLog, onSelectCostEstimation,
   onSelectMySubmissions, onSelectTypeApprovals = null, onSelectJobOrders = null, onSelectShopFloor = null,
+  onSelectOtherProjects = null, onSelectMyJobs = null,
   onSelectSettings = null, userName = '', username = '', userPhoto = '', onLogout, theme, toggleTheme,
   role, canAccessTracker = true, hasCeeAccess = false, counts = {},
 }) {
@@ -48,7 +49,9 @@ export default function HomeScreen({
       count: toReview ? `${toReview} to review` : null },
     (isSupervisor || isSystemAdmin) && onSelectDailyFleetLog && { name: 'Daily Fleet Log', what: 'Log where each bus is', onClick: onSelectDailyFleetLog, img: [BUS(3), BUS(1)], tint: '#10b981' },
     onSelectShopFloor && { name: 'Shop Floor', what: 'Open tasks and running clocks', onClick: onSelectShopFloor, img: [BUS(1), BUS(2)], tint: '#16a34a' },
+    onSelectMyJobs && { name: 'My Job Orders', what: 'Pending jobs on your line', onClick: onSelectMyJobs, img: '/Job order bg.webp', tint: '#0e7490' },
     onSelectJobOrders && { name: 'Job Orders', what: 'Machine Shop cut lists and machines', onClick: onSelectJobOrders, img: '/Job order bg.webp', tint: '#b45309' },
+    onSelectOtherProjects && { name: 'Other Projects', what: 'Non-bus work: Machine Shop, Paint, Parts', onClick: onSelectOtherProjects, img: '/Job order bg.webp', tint: '#7c3aed' },
     onSelectTypeApprovals && { name: 'VIN Register', what: "Upload a project's VINs", onClick: onSelectTypeApprovals, img: [BUS(4), BUS(3)], tint: '#4338ca' },
     hasCeeAccess && onSelectCostEstimation && { name: 'Cost Estimation', what: 'Machines, rates, cost report', onClick: onSelectCostEstimation, img: [BUS(4), BUS(2)], tint: '#0f766e' },
     isSystemAdmin && onSelectAccessRequests && { name: 'Access Requests', what: 'Grant access to new people', onClick: onSelectAccessRequests, img: [BUS(4), BUS(2)], tint: '#1e3a5f' },

@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { BUS_MODELS } from '../../utils/tcCatalog';
-import { groupBySpec, parseCutListCsv, cutListToRows, CUT_LIST_TEMPLATE_ROWS, downloadCsv, makeItem, jobProgress, JOB_STATES } from '../../data/jobOrders';
+import { groupBySpec, parseCutListCsv, cutListToRows, CUT_LIST_TEMPLATE_ROWS, downloadCsv, makeItem, jobProgress, JOB_STATES, isOtherJob } from '../../data/jobOrders';
 import { machineShopMachines } from '../../utils/machines';
 import { useJobData, JOB_ERRORS } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
 import JobTracker from './JobTracker';
 import JobReport from './JobReport';
+import JobComments, { JobOrderAdmin } from './JobComments';
 
 // Machine Shop job orders, for its supervisors (and admins):
 //   Tracker               which job orders are being machined now, and how far
@@ -23,7 +24,9 @@ const inp = { padding: '8px 10px', borderRadius: 10, border: '1px solid var(--in
 function JobsTab({ catalog, jobData }) {
   const [editing, setEditing] = useState(null);   // 'new' | job
   const [showClosed, setShowClosed] = useState(false);
-  const list = jobData.jobOrders.filter(j => showClosed || j.status === 'open')
+  const [showDeleted, setShowDeleted] = useState(false);
+  // Bus job orders. Other projects' job orders are set up under Other Projects.
+  const list = jobData.jobOrders.filter(j => !isOtherJob(j) && (showClosed || j.status === 'open'))
     .sort((a, b) => (a.status === b.status ? new Date(b.createdAt) - new Date(a.createdAt) : a.status === 'open' ? -1 : 1));
 
   if (editing) return (
@@ -37,6 +40,11 @@ function JobsTab({ catalog, jobData }) {
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}>
           <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} /> Show closed
         </label>
+        {jobData.canManage && (
+          <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input type="checkbox" checked={showDeleted} onChange={e => setShowDeleted(e.target.checked)} /> Show deleted ({jobData.deletedJobs.filter(j => !isOtherJob(j)).length})
+          </label>
+        )}
         <span style={{ flex: 1 }} />
         <button className="kmc-btn ghost" onClick={jobData.refresh}>↻ Refresh</button>
       </div>
@@ -69,16 +77,42 @@ function JobsTab({ catalog, jobData }) {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
               {cut.length} parts to cut in {groupBySpec(cut).length} specifications · {j.vins.length} VIN{j.vins.length === 1 ? '' : 's'}: <span style={{ fontFamily: 'inherit' }}>{j.vins.join(' · ')}</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Set up by {j.createdByName || j.createdBy} · {new Date(j.createdAt).toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Set up by {j.createdByName || j.createdBy} · {new Date(j.createdAt).toLocaleString()}{j.legacy ? ' · legacy' : ''}</div>
+            <JobComments job={j} markSeen={false} />
+            <JobOrderAdmin job={j} jobData={jobData} />
           </div>
         );
       })}
+      {showDeleted && <DeletedJobs jobs={jobData.deletedJobs.filter(j => !isOtherJob(j))} />}
     </div>
   );
 }
 
-function CutListsTab({ jobData }) {
-  const [model, setModel] = useState(BUS_MODELS.find(m => jobData.cutLists[m]) || BUS_MODELS[0]);
+// Deleted job orders, with who deleted them and why (supervisors only).
+export function DeletedJobs({ jobs }) {
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div className="kmc-label">Deleted job orders ({jobs.length})</div>
+      {!jobs.length && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>None in the last 60 days.</div>}
+      {jobs.map(j => (
+        <div key={j.id} className="kmc-panel" style={{ padding: '10px 14px', opacity: 0.75 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+            <strong style={{ textDecoration: 'line-through' }}>{j.id}</strong>
+            <span style={{ fontSize: 12 }}>{j.kind === 'other' ? `${j.projectId} · ${j.project}` : `${j.project} · ${j.busModel}`}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>deleted by {j.deletedBy} · {j.deletedAt ? new Date(j.deletedAt).toLocaleString() : ''}</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>Reason: {j.deleteReason}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// One cut list per bus model (or, for other projects, per project ID: choices
+// [{ key: 'OP:<id>', label }]).
+export function CutListsTab({ jobData, choices = BUS_MODELS.map(m => ({ key: m, label: m })), canEdit = jobData.canManage }) {
+  const [model, setModel] = useState(choices.find(c => jobData.cutLists[c.key])?.key || choices[0]?.key || '');
+  const labelOf = k => choices.find(c => c.key === k)?.label || k;
   const [draft, setDraft] = useState(null);       // items being edited, null = saved list
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -98,7 +132,7 @@ function CutListsTab({ jobData }) {
       const { items: parsed, errors } = parseCutListCsv(String(reader.result || ''));
       if (file.current) file.current.value = '';
       if (!parsed.length) { setMsg(`Error: ${errors.join(' ') || 'No parts found.'}`); return; }
-      const replace = !items.length || window.confirm(`Replace the ${items.length} parts now in the ${model} cut list with the ${parsed.length} in ${f.name}?\n\nCancel adds them to the end instead.`);
+      const replace = !items.length || window.confirm(`Replace the ${items.length} parts now in the ${labelOf(model)} cut list with the ${parsed.length} in ${f.name}?\n\nCancel adds them to the end instead.`);
       setDraft(replace ? parsed : [...items, ...parsed]);
       setMsg(`${parsed.length} parts read from ${f.name}${errors.length ? ` - ${errors.join(' ')}` : ''}. Check them, then Save.`);
     };
@@ -115,21 +149,21 @@ function CutListsTab({ jobData }) {
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <select aria-label="Bus model" style={inp} value={model} onChange={e => pickModel(e.target.value)}>
-          {BUS_MODELS.map(m => <option key={m} value={m}>{m}{jobData.cutLists[m] ? ` (${jobData.cutLists[m].items.length})` : ''}</option>)}
+          {choices.map(c => <option key={c.key} value={c.key}>{c.label}{jobData.cutLists[c.key] ? ` (${jobData.cutLists[c.key].items.length})` : ''}</option>)}
         </select>
         <button className="kmc-btn" onClick={() => downloadCsv('cut-list-template.csv', CUT_LIST_TEMPLATE_ROWS)}>Template</button>
         {items.length > 0 && <button className="kmc-btn" onClick={() => downloadCsv(`cut-list-${model}.csv`, cutListToRows(items))}>This cut list</button>}
-        {jobData.canManage && <label className="kmc-btn" style={{ cursor: 'pointer' }}>Upload CSV<input ref={file} type="file" accept=".csv,text/csv" onChange={upload} style={{ display: 'none' }} /></label>}
+        {canEdit && <label className="kmc-btn" style={{ cursor: 'pointer' }}>Upload CSV<input ref={file} type="file" accept=".csv,text/csv" onChange={upload} style={{ display: 'none' }} /></label>}
         <span style={{ flex: 1 }} />
         {saved?.builtIn && !draft && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Built-in list - save to keep your own.</span>}
         {saved?.updatedAt && !draft && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Saved by {saved.updatedBy} · {new Date(saved.updatedAt).toLocaleString()}</span>}
       </div>
       {msg && <div style={{ fontSize: 13, color: msg.startsWith('Error:') ? 'var(--accent-text)' : 'var(--text-secondary)' }}>{msg}</div>}
-      <CutListEditor items={items} onChange={next => setDraft(next.map(makeItem))} materials={jobData.materials} readOnly={!jobData.canManage} />
-      {jobData.canManage && (
+      <CutListEditor items={items} onChange={next => setDraft(next.map(makeItem))} materials={jobData.materials} readOnly={!canEdit} />
+      {canEdit && (
         <div style={{ display: 'flex', gap: 10, position: 'sticky', bottom: 10 }}>
           <button className="kmc-btn primary" disabled={busy || (!draft && !saved?.builtIn)} onClick={save}>
-            {busy ? 'Saving…' : draft || saved?.builtIn ? `Save ${model} cut list` : 'No changes'}
+            {busy ? 'Saving…' : draft || saved?.builtIn ? `Save ${labelOf(model)} cut list` : 'No changes'}
           </button>
           {draft && <button className="kmc-btn" onClick={() => { setDraft(null); setMsg(''); }}>Discard changes</button>}
         </div>
