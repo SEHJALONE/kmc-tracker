@@ -35,7 +35,7 @@ import TypeApprovals from './components/TypeApprovals';
 import JobOrdersPage from './components/jobs/JobOrdersPage';
 import OtherProjectsPage from './components/jobs/OtherProjectsPage';
 import ShopFloor from './components/ShopFloor';
-import { isMachineShopLead, lineScope } from './data/jobOrders';
+import { isMachineShopLead, seesAllJobLines, viewLines } from './data/jobOrders';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
@@ -302,12 +302,15 @@ export default function App() {
   // Type Approvals (VIN register): an additional role, like CEE. The server checks it too.
   const hasTypeApproval = role === 'systemadmin' || role === 'useradmin' || roles.includes('typeapproval');
   // Machine Shop job orders: its supervisors/managers and admins (see isMachineShopLead).
-  const hasJobOrders = isMachineShopLead(role, assignedStations, assignedLines);
+  // Admins, directors and supervisors/managers over more than one line see every line's job orders.
+  const myStations = assignedStations || (assignedStation ? [assignedStation] : []);
+  const seesAllLines = seesAllJobLines(role, myStations, assignedLines);
+  const hasJobOrders = seesAllLines || isMachineShopLead(role, assignedStations, assignedLines);
   // Lines that take job orders (Machine Shop, Paint Shop, Parts Making) this person works on.
-  const jobLines = lineScope(assignedStations || (assignedStation ? [assignedStation] : []), assignedLines);
+  const jobLines = viewLines(role, myStations, assignedLines);
   const isAdminRole = role === 'systemadmin' || role === 'useradmin';
   // Other (non-bus) projects: admins and the supervisors, managers and directors of those lines.
-  const hasOtherProjects = isAdminRole || (['supervisor', 'manager', 'director'].includes(role) && jobLines.length > 0);
+  const hasOtherProjects = isAdminRole || seesAllLines || (['supervisor', 'manager', 'director'].includes(role) && jobLines.length > 0);
   // My job orders: anyone on those lines (and admins).
   const hasMyJobs = isAdminRole || jobLines.length > 0;
   // Shop floor: everyone who supervises.

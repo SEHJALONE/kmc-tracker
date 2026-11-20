@@ -79,6 +79,24 @@ describe('Other projects, deleting and commenting on job orders', () => {
     expect(Object.keys((await call('listJobData', op, {})).cutLists)).toEqual(['OP:PRJ-003']);
   });
 
+  it('admins, directors and supervisors over several lines see every line, but change only their own', async () => {
+    await addUser(env, { username: 'dir', role: 'director' });
+    await addUser(env, { username: 'sup.multi', role: 'supervisor', assignedStations: ['P01-01', 'T01-01'] });
+    await addUser(env, { username: 'sup.trim', role: 'supervisor', assignedStations: ['T01-01', 'T01-02'] });
+    const all = ['Machine Shop', 'Paint Shop', 'Parts Making'];
+    expect((await call('listJobData', admin, {})).scope).toEqual(all);
+    const d = await call('listJobData', await signIn(env, 'dir'), {});
+    expect([d.scope, d.manageLines]).toEqual([all, []]);
+    const multi = await signIn(env, 'sup.multi');
+    const m = await call('listJobData', multi, {});
+    expect([m.scope, m.manageLines]).toEqual([all, ['Paint Shop']]);
+    expect((await call('commentJobOrder', multi, { id: 'nope', text: 'x' })).message).toBe('job-order-not-found');
+    const { id } = await call('saveJobOrder', sup, { project: 'P', busModel: '7m EVS', vins: ['V'], items: [{ spec: 'x', qty: 1 }] });
+    expect((await call('commentJobOrder', multi, { id, text: 'x' })).message).toBe('not-machine-shop-supervisor');
+    expect((await call('listJobData', await signIn(env, 'sup.trim'), {})).scope).toEqual([]);   // one line (Trim)
+    expect((await call('listJobData', sup, {})).scope).toEqual(['Machine Shop']);
+  });
+
   it('anyone on the line may file a legacy job order, which is saved closed', async () => {
     await call('saveOtherProjects', admin, { projects: [{ id: 'PRJ-009', name: 'Gate' }] });
     const job = { kind: 'other', line: 'Parts Making', projectId: 'PRJ-009', activities: [{ name: 'Weld frame' }], legacy: true };

@@ -334,7 +334,33 @@ export function lineScope(assignedStations, assignedLines) {
   return out;
 }
 
-export const jobLine = job => job?.line || MACHINE_SHOP_LINE;
+// Same rules as the server's joStationLine_ / seesAllJobLines_: admins,
+// directors, and supervisors or managers who oversee more than one production
+// line see job orders on every line (changing them still needs that line).
+export function stationLineKey(code) {
+  const c = String(code || '').toUpperCase();
+  if (/^B0[1-3]-/.test(c)) return 'MACHINE';
+  if (/^B/.test(c)) return 'BODY';
+  if (/^W/.test(c)) return 'FRAME';
+  if (/^E/.test(c)) return 'ELECTRO';
+  if (/^(C01|CQ-01)/.test(c)) return 'CHASSIS1';
+  if (/^(C02|CQ-02)/.test(c)) return 'CHASSIS2';
+  if (/^P/.test(c)) return 'PAINT';
+  if (/^T/.test(c)) return 'TRIM';
+  if (/^Q/.test(c)) return 'QA';
+  return c.split('-')[0];
+}
+export function seesAllJobLines(role, assignedStations, assignedLines) {
+  if (['systemadmin', 'useradmin', 'director'].includes(role)) return true;
+  if (!['supervisor', 'manager'].includes(role)) return false;
+  const keys = new Set([...(assignedStations || []).filter(Boolean).map(stationLineKey), ...(assignedLines || []).filter(Boolean)]);
+  return keys.size > 1;
+}
+// Lines whose job orders this person sees.
+export const viewLines = (role, assignedStations, assignedLines) =>
+  (seesAllJobLines(role, assignedStations, assignedLines) ? [...JO_LINES] : lineScope(assignedStations, assignedLines));
+
+export const jobLine = job =>job?.line || MACHINE_SHOP_LINE;
 export const isOtherJob = job => job?.kind === 'other';
 export const isActivityJob = job => jobLine(job) !== MACHINE_SHOP_LINE;
 export const isOtherTask = task => /^OP-/.test(String(task?.jobOrderId || ''));

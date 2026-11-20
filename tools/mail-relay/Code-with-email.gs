@@ -2341,8 +2341,35 @@ function joLineScope_(stations, lines) {
   if (st.some(function (c) { return /^P/.test(c); }) || ln.indexOf("PAINT") > -1) out.push("Paint Shop");
   return out;
 }
+// The production line a station code belongs to (prefix rule), for counting
+// how many lines someone oversees.
+function joStationLine_(code) {
+  const c = String(code || "").toUpperCase();
+  if (/^B0[1-3]-/.test(c)) return "MACHINE";
+  if (/^B/.test(c)) return "BODY";
+  if (/^W/.test(c)) return "FRAME";
+  if (/^E/.test(c)) return "ELECTRO";
+  if (/^(C01|CQ-01)/.test(c)) return "CHASSIS1";
+  if (/^(C02|CQ-02)/.test(c)) return "CHASSIS2";
+  if (/^P/.test(c)) return "PAINT";
+  if (/^T/.test(c)) return "TRIM";
+  if (/^Q/.test(c)) return "QA";
+  return c.split("-")[0];
+}
+// Admins, directors, and supervisors or managers who oversee more than one
+// production line see job orders on every line (viewing only; changing them
+// still needs that line, see manageLines_).
+function seesAllJobLines_(role, stations, lines) {
+  if (ADMIN_ROLES.indexOf(role) > -1 || role === "director") return true;
+  if (["supervisor", "manager"].indexOf(role) < 0) return false;
+  const seen = {};
+  (stations || []).forEach(function (c) { if (c) seen[joStationLine_(c)] = true; });
+  (lines || []).forEach(function (l) { if (l) seen[String(l)] = true; });
+  return Object.keys(seen).length > 1;
+}
 function userLineScope_(user) {
   const me = userRecord_(user.username) || {};
+  if (seesAllJobLines_(user.role, me.assignedStations, me.assignedLines)) return JO_LINES.slice();
   return joLineScope_(me.assignedStations, me.assignedLines);
 }
 // Lines whose job orders this person may set up, edit, comment on and delete.
@@ -2350,7 +2377,8 @@ function manageLines_(user) {
   if (!user) return [];
   if (ADMIN_ROLES.indexOf(user.role) > -1) return JO_LINES.slice();
   if (["supervisor", "manager", "director"].indexOf(user.role) < 0) return [];
-  return userLineScope_(user);
+  const me = userRecord_(user.username) || {};
+  return joLineScope_(me.assignedStations, me.assignedLines);   // their own lines only
 }
 function canManageLine_(user, line) { return manageLines_(user).indexOf(line) > -1; }
 function canManageJobs_(user) { return canManageLine_(user, "Machine Shop"); }

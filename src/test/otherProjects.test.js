@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  lineScope, parseProjectsCsv, parseActivitiesCsv, makeActivity, activityLabel, workLabels, jobProgress,
+  lineScope, viewLines, seesAllJobLines, parseProjectsCsv, parseActivitiesCsv, makeActivity, activityLabel, workLabels, jobProgress,
   isOtherTask, specKey, cutListKey, catalogLineMatches, buildJobReport, stateLabel,
 } from '../data/jobOrders';
 
@@ -12,6 +12,16 @@ describe('job-order line scope', () => {
     expect(lineScope(['P01-01'], [])).toEqual(['Paint Shop']);
     expect(lineScope([], ['FRAME', 'PAINT', 'MACHINE'])).toEqual(['Machine Shop', 'Parts Making', 'Paint Shop']);
     expect(lineScope(['C01-02', 'T01-01'], ['TRIM'])).toEqual([]);
+  });
+  it('admins, directors and supervisors over several lines see every line', () => {
+    const all = ['Machine Shop', 'Paint Shop', 'Parts Making'];
+    expect(viewLines('systemadmin', [], [])).toEqual(all);
+    expect(viewLines('director', [], [])).toEqual(all);
+    expect(viewLines('supervisor', ['P01-01', 'C01-02'], [])).toEqual(all);
+    expect(viewLines('supervisor', ['B01-02', 'B01-03'], [])).toEqual(['Machine Shop']);
+    expect(viewLines('manager', [], ['PAINT', 'TRIM'])).toEqual(all);
+    expect(viewLines('user', ['P01-01', 'W01-01A'], [])).toEqual(['Parts Making', 'Paint Shop']);
+    expect(seesAllJobLines('supervisor', ['CQ-01', 'CQ-02'], [])).toBe(true);
   });
   it('matches catalog line names to job-order lines', () => {
     expect(catalogLineMatches('Parts Making', 'Frame Parts Making')).toBe(true);
