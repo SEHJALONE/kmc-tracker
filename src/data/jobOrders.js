@@ -364,6 +364,8 @@ export const jobLine = job =>job?.line || MACHINE_SHOP_LINE;
 export const isOtherJob = job => job?.kind === 'other';
 export const isActivityJob = job => jobLine(job) !== MACHINE_SHOP_LINE;
 export const isOtherTask = task => /^OP-/.test(String(task?.jobOrderId || ''));
+// True until the job data has come in once (a refresh later does not count).
+export const firstLoad = jobData => !(jobData?.loaded ?? !jobData?.loading);
 export const isLiveJob = job => job && job.status !== 'deleted';
 // Cut lists of other projects sit beside the bus models' under this key.
 export const cutListKey = projectId => `OP:${String(projectId || '').toUpperCase()}`;

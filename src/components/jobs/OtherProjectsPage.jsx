@@ -1,23 +1,28 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   JO_LINES, LINE_TINT, MACHINE_SHOP_LINE, PROJECT_TEMPLATE_ROWS, PROJECT_COLUMNS, parseProjectsCsv, downloadCsv,
   cutListKey, isOtherJob, jobLine, jobHeading, jobProgress, stateLabel, JOB_STATES, isActivityJob, groupBySpec,
 } from '../../data/jobOrders';
 import { useJobData, JOB_ERRORS } from '../../hooks/useJobData';
+import { firstLoad } from '../../data/jobOrders';
+import { normalizeProjectProcesses } from '../../data/projectProcess';
+import ProjectProcessEditor from './ProjectProcessEditor';
+import ProjectTracker, { ProjectCard } from './ProjectBoard';
 import OtherJobSetup from './OtherJobSetup';
 import JobTracker from './JobTracker';
 import LegacyJobRuns from './LegacyJobRuns';
 import JobComments, { JobOrderAdmin } from './JobComments';
 import { CutListsTab, DeletedJobs } from './JobOrdersPage';
-import { myJobLines } from './MyJobOrders';
 
 // Other Projects: work that is not a bus, on the Machine Shop, Paint Shop and
 // Parts Making lines.
 //   Job orders   set up per project and line: a cut list (Machine Shop) or a
 //                list of activities (Paint Shop, Parts Making); comment, close,
 //                delete with a reason
-//   Tracker      what is running on them now, and how far each one is
-//   Projects     the register: project IDs and names, typed in or from a CSV
+//   Tracker      each project moving through its lines and stations (from the
+//                runs on its job orders), then every job order and its runs
+//   Projects     picture cards; an admin sets up a project's lines, stations
+//                and PNG; the register of IDs and names, typed in or from a CSV
 //   Cut lists    one per project, for the Machine Shop
 //   Legacy       old jobs filled in after the fact
 
@@ -37,7 +42,6 @@ function JobsTab({ jobData }) {
   const [line, setLine] = useState('');
   const [showClosed, setShowClosed] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
-  const lines = myJobLines(jobData);
   const list = jobData.jobOrders.filter(j => isOtherJob(j) && (!line || jobLine(j) === line) && (showClosed || j.status === 'open'))
     .sort((a, b) => (a.status === b.status ? String(b.createdAt).localeCompare(String(a.createdAt)) : a.status === 'open' ? -1 : 1));
 
@@ -49,7 +53,7 @@ function JobsTab({ jobData }) {
     <div style={{ display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         {manage.length > 0 && <button className="kmc-btn primary" onClick={() => setEditing('new')}>+ New job order</button>}
-        {['', ...lines].map(l => (
+        {['', ...JO_LINES].map(l => (
           <button key={l || 'all'} className={`kmc-btn${line === l ? ' primary' : ' ghost'}`} style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => setLine(l)}>{l || 'All lines'}</button>
         ))}
         <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -63,7 +67,7 @@ function JobsTab({ jobData }) {
         <span style={{ flex: 1 }} />
         <button className="kmc-btn ghost" onClick={jobData.refresh}>↻ Refresh</button>
       </div>
-      {!list.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>{jobData.loading ? 'Loading…' : 'No job orders for other projects yet.'}</div>}
+      {!list.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>{firstLoad(jobData) ? (jobData.error ? 'Could not load the job orders.' : 'Loading…') : line ? `No ${showClosed ? '' : 'open '}job orders for other projects on ${line}.` : `No ${showClosed ? '' : 'open '}job orders for other projects yet.`}</div>}
       {list.map(j => {
         const p = jobProgress(j, jobData.runs);
         const [, color] = JOB_STATES[p.state];
@@ -106,6 +110,44 @@ function JobsTab({ jobData }) {
 
 const blank = { id: '', name: '', client: '', description: '', lines: [...JO_LINES] };
 
+function ProjectCards({ catalog, saveCatalog, canEditCatalog, jobData, processes, children }) {
+  const [editing, setEditing] = useState(null);   // { project?, registerEntry? }
+  const register = jobData.otherProjects || [];
+  const retired = new Set(register.filter(p => p.active === false).map(p => p.id));
+  const cards = [
+    ...Object.values(processes).filter(p => !retired.has(p.id)),
+    ...register.filter(r => r.active !== false && !processes[r.id]).map(r => ({ ...r, lines: (r.lines || []).map(l => ({ line: l, stations: [] })), unset: true })),
+  ].sort((a, b) => a.id.localeCompare(b.id));
+  if (editing) return (
+    <ProjectProcessEditor catalog={catalog} saveCatalog={saveCatalog} jobData={jobData} existing={processes}
+      project={editing.project} registerEntry={editing.registerEntry} onDone={() => setEditing(null)} />
+  );
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="kmc-label">Projects</div>
+        <span style={{ flex: 1 }} />
+        {canEditCatalog && <button className="kmc-btn primary" onClick={() => setEditing({})}>+ Set up a project</button>}
+      </div>
+      {!canEditCatalog && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>An admin sets up each project's lines, stations and picture.</div>}
+      {!cards.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>No projects yet.</div>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+        {cards.map(p => (
+          <ProjectCard key={p.id} proc={p} onClick={canEditCatalog ? () => setEditing(p.unset ? { registerEntry: p } : { project: p }) : undefined}
+            actions={(
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12, color: 'var(--text-muted)' }}>
+                {p.unset ? <span>Lines and stations not set up yet.</span> : <span>{p.lines.reduce((n, l) => n + l.stations.length, 0)} stations on {p.lines.length} line{p.lines.length === 1 ? '' : 's'}</span>}
+                <span style={{ flex: 1 }} />
+                {canEditCatalog && <button className="kmc-btn ghost" style={{ fontSize: 12, padding: '3px 9px' }} onClick={() => setEditing(p.unset ? { registerEntry: p } : { project: p })}>{p.unset ? 'Set up' : 'Edit'}</button>}
+              </div>
+            )} />
+        ))}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function ProjectsTab({ jobData }) {
   const canEdit = (jobData.manageLines || []).length > 0;
   const [draft, setDraft] = useState(blank);
@@ -143,7 +185,7 @@ function ProjectsTab({ jobData }) {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-        Each project not for a bus gets an ID here. Job orders, cut lists and runs are filed under it.
+        The register: each project not for a bus gets an ID here. Job orders, cut lists and runs are filed under it.
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="kmc-btn" onClick={() => downloadCsv('other-projects-template.csv', PROJECT_TEMPLATE_ROWS)}>Template</button>
@@ -158,7 +200,7 @@ function ProjectsTab({ jobData }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
           <thead><tr><th style={th}>Project ID</th><th style={th}>Name</th><th style={th}>Client</th><th style={th}>Description</th><th style={th}>Lines</th><th style={th}>Job orders</th>{canEdit && <th style={th} />}</tr></thead>
           <tbody>
-            {!list.length && <tr><td style={td} colSpan={7}>{jobData.loading ? 'Loading…' : 'No projects yet.'}</td></tr>}
+            {!list.length && <tr><td style={td} colSpan={7}>{firstLoad(jobData) ? 'Loading…' : 'No projects yet.'}</td></tr>}
             {list.map(p => (
               <tr key={p.id} style={{ opacity: p.active === false ? 0.5 : 1 }}>
                 <td style={{ ...td, fontWeight: 700 }}>{p.id}</td>
@@ -209,8 +251,9 @@ function ProjectsTab({ jobData }) {
   );
 }
 
-export default function OtherProjectsPage({ catalog, currentUserName = '', onBack }) {
+export default function OtherProjectsPage({ catalog, saveCatalog, canEditCatalog = false, currentUserName = '', onBack }) {
   const jobData = useJobData();
+  const processes = useMemo(() => normalizeProjectProcesses(catalog?.projectProcesses), [catalog]);
   const [tab, setTab] = useState(TABS[0]);
   const manage = jobData.manageLines || [];
   const msProjects = (jobData.otherProjects || []).filter(p => p.active !== false && (!p.lines?.length || p.lines.includes(MACHINE_SHOP_LINE)));
@@ -219,7 +262,7 @@ export default function OtherProjectsPage({ catalog, currentUserName = '', onBac
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Machine Shop · Paint Shop · Parts Making</div>
       <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', margin: '2px 0 14px', color: 'var(--text-heading)' }}>Other projects</h1>
-      {!manage.length && !jobData.loading && (
+      {!manage.length && !firstLoad(jobData) && (
         <div className="kmc-panel" style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
           View only: setting up projects and job orders needs a supervisor of the Machine Shop, Paint Shop or Parts Making, or an admin. You can still fill in legacy jobs for your own line.
         </div>
@@ -230,8 +273,18 @@ export default function OtherProjectsPage({ catalog, currentUserName = '', onBac
         {TABS.map(t => <button key={t} className={`kmc-btn${tab === t ? ' primary' : ''}`} onClick={() => setTab(t)}>{t}</button>)}
       </div>
       {tab === 'Job orders' && <JobsTab jobData={jobData} />}
-      {tab === 'Tracker' && <JobTracker catalog={catalog} jobData={jobData} filter={isOtherJob} />}
-      {tab === 'Projects' && <ProjectsTab jobData={jobData} />}
+      {tab === 'Tracker' && (
+        <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'minmax(0, 1fr)' }}>
+          <ProjectTracker processes={processes} register={jobData.otherProjects || []} jobData={jobData} />
+          <div className="kmc-label">Job orders</div>
+          <JobTracker catalog={catalog} jobData={jobData} filter={isOtherJob} />
+        </div>
+      )}
+      {tab === 'Projects' && (
+        <ProjectCards catalog={catalog} saveCatalog={saveCatalog} canEditCatalog={canEditCatalog && !!saveCatalog} jobData={jobData} processes={processes}>
+          <div style={{ marginTop: 10 }}><ProjectsTab jobData={jobData} /></div>
+        </ProjectCards>
+      )}
       {tab === 'Cut lists' && (msProjects.length
         ? <CutListsTab key={msProjects.length} jobData={jobData} choices={msProjects.map(p => ({ key: cutListKey(p.id), label: `${p.id} · ${p.name}` }))} canEdit={manage.includes(MACHINE_SHOP_LINE)} />
         : <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>Add a project for the Machine Shop under Projects first.</div>)}

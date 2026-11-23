@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { jobProgress, JOB_STATES, partLabel, groupBySpec, jobLine, jobHeading, stateLabel, isActivityJob, workLabels, MACHINE_SHOP_LINE } from '../../data/jobOrders';
+import { jobProgress, JOB_STATES, partLabel, groupBySpec, jobLine, jobHeading, stateLabel, isActivityJob, workLabels, MACHINE_SHOP_LINE, firstLoad } from '../../data/jobOrders';
 import { machineShopMachines } from '../../utils/machines';
 
 // Job tracker: every open job order (and those finished in the last days) with
@@ -50,8 +50,8 @@ export default function JobTracker({ catalog, jobData, filter = machineShopOnly 
         </label>
         <button className="kmc-btn ghost" onClick={refresh}>↻ Refresh</button>
       </div>
-      {jobData.loading && !rows.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>}
-      {!jobData.loading && !rows.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>No open job orders.</div>}
+      {firstLoad(jobData) && !rows.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{jobData.error ? 'Could not load the job orders.' : 'Loading…'}</div>}
+      {!firstLoad(jobData) && !rows.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>No open job orders.</div>}
 
       {rows.map(({ job, p }) => {
         const [, color] = JOB_STATES[p.state];

@@ -410,7 +410,7 @@ export default function App() {
   );
 
   if (mode === 'other-projects') return (
-    <OtherProjectsPage catalog={catalog} currentUserName={currentUserName || ''} onBack={() => setMode('home')} />
+    <OtherProjectsPage catalog={catalog} saveCatalog={saveCatalog} canEditCatalog={canEditCatalog} currentUserName={currentUserName || ''} onBack={() => setMode('home')} />
   );
 
   if (mode === 'shop-floor') return (

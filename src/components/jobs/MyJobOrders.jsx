@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { JO_LINES, LINE_TINT, jobLine, jobHeading, jobProgress, stateLabel, JOB_STATES, workLabels, isActivityJob, groupBySpec } from '../../data/jobOrders';
 import { lineStations } from '../../utils/machines';
+import { normalizeProjectProcesses, processStationsFor } from '../../data/projectProcess';
 import { sameStationCode } from '../../data/stations';
 import { useJobData } from '../../hooks/useJobData';
+import { firstLoad } from '../../data/jobOrders';
 import { expectedEndFor } from '../TaskRunner';
 import MachineShopJobs from './MachineShopJobs';
 import JobComments, { unseenComments } from './JobComments';
@@ -28,7 +30,12 @@ const LineTag = ({ line }) => (
 // Start a timed run on a Paint Shop / Parts Making order: choose the station,
 // the activities still to do become the run's checklist.
 export function ActivityJobStart({ catalog, job, jobData, lockedCodes = [], onStart, onBack }) {
-  const all = useMemo(() => lineStations(catalog, jobLine(job)), [catalog, job]);
+  // An other project with its process set up runs on its own stations for this line.
+  const all = useMemo(() => {
+    const own = processStationsFor(normalizeProjectProcesses(catalog?.projectProcesses), job.projectId, jobLine(job));
+    if (own.length) return own.map(s => ({ code: s.code, label: s.name || s.code, station: s.name ? `${s.code}: ${s.name}` : s.code, line: jobLine(job) }));
+    return lineStations(catalog, jobLine(job));
+  }, [catalog, job]);
   const mineOnly = all.filter(s => lockedCodes.some(c => sameStationCode(c, s.code)));
   const fallback = { code: jobLine(job) === 'Paint Shop' ? 'PAINT' : 'PARTS', label: jobLine(job), station: jobLine(job), line: jobLine(job) };
   const stations = mineOnly.length ? mineOnly : all.length ? all : [fallback];
@@ -130,8 +137,8 @@ export default function MyJobOrders({ catalog, lockedCodes = [], openTasks = [],
         </div>
       </div>
       {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{jobData.error}</div>}
-      {jobData.loading && !list.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading job orders…</div>}
-      {!jobData.loading && !list.length && (
+      {firstLoad(jobData) && !list.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading job orders…</div>}
+      {!firstLoad(jobData) && !list.length && (
         <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>No open job orders for {filter || lines.join(', ')}.</div>
       )}
       {list.map(j => {

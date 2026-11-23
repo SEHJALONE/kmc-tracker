@@ -7,6 +7,8 @@ import { DEFAULT_CUT_LISTS, DEFAULT_MATERIALS, makeItem, makeActivity } from '..
 // until a supervisor saves their own. Shared across pages in this tab.
 
 let cache = null;
+const LOAD_TIMEOUT_MS = 45000;
+const LOAD_TIMEOUT_MSG = 'The job orders took too long to load. Press Refresh to try again.';
 const listeners = new Set();
 const publish = v => { cache = v; listeners.forEach(f => f(v)); };
 
@@ -43,10 +45,15 @@ export function useJobData() {
 
   useEffect(() => { listeners.add(setData); return () => listeners.delete(setData); }, []);
 
+  // A request the script never answers must not leave the page on "Loading..."
+  // for good: give up after a while and say so (Refresh tries again).
   const refresh = useCallback(async () => {
     setLoading(true);
-    try { publish(shape(await sendViaAppsScript('listJobData', {}))); setError(''); }
+    let timer;
+    const late = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(LOAD_TIMEOUT_MSG)), LOAD_TIMEOUT_MS); });
+    try { publish(shape(await Promise.race([sendViaAppsScript('listJobData', {}), late]))); setError(''); }
     catch (e) { setError(e.message); }
+    finally { clearTimeout(timer); }
     setLoading(false);
   }, []);
 
@@ -61,7 +68,9 @@ export function useJobData() {
   const empty = shape({});
   return {
     ...(data || empty),
-    loading, error, refresh,
+    // loaded: the server has answered at least once. Lists show "Loading..."
+    // only before that; a refresh in the background keeps showing what is known.
+    loaded: !!data, loading, error, refresh,
     saveJobOrder: job => call('saveJobOrder', job),
     setJobStatus: (job, status) => call('saveJobOrder', { ...job, status, statusOnly: true }),
     saveCutList: (busModel, items) => call('saveCutList', { busModel, items }),
@@ -92,3 +101,5 @@ export const JOB_ERRORS = {
   'bad-period': 'Choose a period whose start is before its end.',
   'job-order-not-found': 'That job order no longer exists. Refresh and try again.',
 };
+
+export { firstLoad } from '../data/jobOrders';

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { groupBySpec, partLabel, jobStarted, specKey, jobHeading } from '../../data/jobOrders';
 import { machineShopMachines, machineChoicesFor } from '../../utils/machines';
 import { JOB_ERRORS, useJobData } from '../../hooks/useJobData';
+import { firstLoad } from '../../data/jobOrders';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
 import JobComments from './JobComments';
@@ -99,9 +100,9 @@ export default function MachineShopJobs({ catalog, jobData, project, busModel, o
         <button className="kmc-btn ghost" onClick={jobData.refresh}>↻ Refresh</button>
         {jobData.canManage && <button className="kmc-btn" onClick={() => setStep('setup')}>+ New job order</button>}
       </div>
-      {jobData.loading && !jobs.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading job orders…</div>}
+      {firstLoad(jobData) && !jobs.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading job orders…</div>}
       {jobData.error && <div style={{ fontSize: 13, color: 'var(--accent-text)' }}>{jobData.error}</div>}
-      {!jobData.loading && !jobs.length && (
+      {!firstLoad(jobData) && !jobs.length && (
         <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
           No open job order for {busModel} on {project}. Ask the Machine Shop supervisor to set one up.
         </div>

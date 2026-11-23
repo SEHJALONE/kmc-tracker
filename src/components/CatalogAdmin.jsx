@@ -6,6 +6,7 @@ import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
 import { catalogVisibilityChanges, mergeProjectVins, misfiledStations } from '../utils/catalogGuard';
+import { mergeProjectProcesses } from '../data/projectProcess';
 import { readLiveCatalog } from '../hooks/useCatalog';
 import { travelCardGaps, fixGap, syncStationToTravelCard } from '../utils/catalogGaps';
 
@@ -188,7 +189,10 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
       // A non-system-admin cannot see this tab; keep what is saved as it is.
       departments: role === 'systemadmin' ? normalizeDepartments(draft.departments) : (catalog.departments ?? null),
     };
-    payload.projectVins = mergeProjectVins(openedVins, draft.projectVins, (await readLiveCatalog())?.projectVins || null);
+    const live = await readLiveCatalog();
+    payload.projectVins = mergeProjectVins(openedVins, draft.projectVins, live?.projectVins || null);
+    // Other projects' processes are edited in Other Projects, not here: keep the live ones.
+    payload.projectProcesses = mergeProjectProcesses(live?.projectProcesses, catalog.projectProcesses);
     const r = await saveCatalog(payload);
     if (r?.ok) { setStatus('Saved - visible to everyone.'); setDirty(false); }
     else if (r?.error === 'unauthorized') setStatus('Not saved - the server refused this sign-in (no valid session, or the account is not systemadmin/useradmin). Sign out, sign in again as systemadmin or useradmin, then Save all.');

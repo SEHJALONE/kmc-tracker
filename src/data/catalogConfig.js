@@ -36,6 +36,7 @@ export const EMPTY_CATALOG = {
   sharedStations: {}, // stations kept the same for some models { CODE: ["EVS","KEC"] } (utils/modelOverrides.js)
   dwi: {},           // digital work instructions  { CODE: { title, revision, reference, description, warnings[], steps[], parts[], modelUrl, variants: { KDC?: { steps, parts, warnings, modelUrl }, EVS?: {...} } } }
   departments: null, // departments and their lines/divisions [ { name, units: [] } ] | null = defaults (data/departments.js)
+  projectProcesses: {}, // other (non-bus) projects: lines, stations, picture  { ID: {...} } (data/projectProcess.js)
   projectVins: {},   // travel-card project fleet  { "Project name": [ { vin, model } ] } — model matches the Bus model dropdown (e.g. "7m EVS")
 };
 
@@ -57,6 +58,7 @@ export function normalizeCatalog(raw) {
     dwi:           raw.dwi && typeof raw.dwi === 'object' ? raw.dwi : {},
     projectVins:   raw.projectVins && typeof raw.projectVins === 'object' ? raw.projectVins : {},
     departments:   Array.isArray(raw.departments) ? raw.departments : null,
+    projectProcesses: raw.projectProcesses && typeof raw.projectProcesses === 'object' && !Array.isArray(raw.projectProcesses) ? raw.projectProcesses : {},
   };
 }
 

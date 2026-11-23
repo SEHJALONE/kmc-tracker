@@ -3,6 +3,7 @@ import { BUS_MODELS } from '../../utils/tcCatalog';
 import { groupBySpec, parseCutListCsv, cutListToRows, CUT_LIST_TEMPLATE_ROWS, downloadCsv, makeItem, jobProgress, JOB_STATES, isOtherJob } from '../../data/jobOrders';
 import { machineShopMachines } from '../../utils/machines';
 import { useJobData, JOB_ERRORS } from '../../hooks/useJobData';
+import { firstLoad } from '../../data/jobOrders';
 import CutListEditor from './CutListEditor';
 import JobOrderSetup from './JobOrderSetup';
 import JobTracker from './JobTracker';
@@ -48,7 +49,7 @@ function JobsTab({ catalog, jobData }) {
         <span style={{ flex: 1 }} />
         <button className="kmc-btn ghost" onClick={jobData.refresh}>↻ Refresh</button>
       </div>
-      {!list.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>{jobData.loading ? 'Loading…' : 'No job orders yet.'}</div>}
+      {!list.length && <div className="kmc-panel" style={{ padding: '14px 16px', fontSize: 13, color: 'var(--text-secondary)' }}>{firstLoad(jobData) ? 'Loading…' : 'No job orders yet.'}</div>}
       {list.map(j => {
         const cut = j.items.filter(it => it.cut);
         const p = jobProgress(j, jobData.runs);
