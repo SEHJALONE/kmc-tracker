@@ -9,6 +9,7 @@ import { PAINT_LINE, PAINT_TC_LINE, applyPaintProcess } from '../../data/paintSh
 import { eeProcessOutdated, applyEeProcess } from '../../data/eeTrimProcess';
 import { chassisProcessOutdated, applyChassisProcess } from '../../data/chassisProcess';
 import { trimProcessOutdated, applyTrimProcess } from '../../data/trimProcess';
+import { applyModelEdit, renameForModels, splitStation, shareStation, sharingOf, sharedGroup, slotOf, readSlot } from '../../utils/modelOverrides';
 
 // Catalog Admin → Travel Card. Laid out the way the card itself is filled:
 // pick the bus model, the production line and the station exactly as an
@@ -52,6 +53,10 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
   const [newCode, setNewCode] = useState('');
   const [newName, setNewName] = useState('');
   const [times, setTimes] = useState(null);
+  // Other models this station's edits also go to. Unticked by default, and
+  // cleared whenever another model or station is picked.
+  const [also, setAlso] = useState([]);
+  useEffect(() => { setAlso([]); }, [busModel, line, code]);
   useEffect(() => { fetchStationTimes().then(setTimes).catch(() => setTimes(null)); }, []);
 
   const kind = modelKindOf(busModel);
@@ -62,10 +67,18 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
   const station = lineStations.find(s => codeOf(s) === code) || '';
   const name = station ? station.replace(/^[^:]+:\s*/, '') : '';
   const actsKey = code ? tc.actsKey(code, busModel) : '';
-  const ownList = actsKey && actsKey !== code;
   const actsList = (actsKey && draft.acts[actsKey]) || [];
   const shown = tc.actsFor(code, busModel);
-  const resList = tc.resFor(line, code);
+  // Which models have this station, where each gets its data, and whether this
+  // line is the one the picked model fills it on (else edit the line as is).
+  const sharing = code ? sharingOf(draft, code, line) : [];
+  const me = sharing.find(r => r.kind === kind && r.line === line);
+  const others = sharing.filter(r => r.kind !== kind);
+  const group = code ? sharedGroup(draft, code) : [];
+  const inGroup = group.includes(kind);
+  const resList = me ? readSlot(draft, slotOf(draft, 'res', code, kind, line)) : tc.resFor(line, code);
+  const lineUsers = sharing.filter(r => r.line === line).map(r => r.kind);
+  const canSplit = group.length > 0 || sharing.some(r => r.with.length || r.resWith.length);
   const designed = times && code ? (times.getMinutes(`${kind}:${code}`) ?? times.getMinutes(code)) : null;
 
   // ── edits ──
@@ -75,7 +88,9 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     if (j < 0 || j >= lineStations.length) return;
     const next = [...lineStations]; [next[i], next[j]] = [next[j], next[i]]; setStations(next);
   };
-  const renameStation = v => setStations(lineStations.map(s => (codeOf(s) === code ? `${code}: ${v}` : s)));
+  const renameStation = v => (me
+    ? touch(d => renameForModels(d, { code, kind, line, name: v, also }))
+    : setStations(lineStations.map(s => (codeOf(s) === code ? `${code}: ${v}` : s))));
   const removeStation = c => {
     if (!confirm(`Remove ${c} from "${line}"?\n\nIts activities and consumables are kept (other lines may use the same code).`)) return;
     setStations(lineStations.filter(s => codeOf(s) !== c));
@@ -107,11 +122,22 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     if (key) { d.stations[key].models = [...fams]; syncStationToTravelCard(d, key); }
     return d;
   });
-  const setActs = next => touch(d => { d.acts[actsKey] = next; return d; });
-  const splitActs = () => touch(d => { d.acts[`${kind}:${code}`] = [...(d.acts[code] || [])]; return d; });
-  const mergeActs = () => {
-    if (!confirm(`Delete the ${kind}-only activity list for ${code}? ${kind} buses will then show the shared list.`)) return;
-    touch(d => { delete d.acts[`${kind}:${code}`]; return d; });
+  // An edit for this model reaches only the ticked models (and a shared group);
+  // every other model keeps what it shows now (utils/modelOverrides.js).
+  const setActs = next => touch(d => {
+    if (me) return applyModelEdit(d, { field: 'acts', code, kind, line, next, also });
+    d.acts[actsKey] = next; return d;
+  });
+  const toggleAlso = k => setAlso(a => (a.includes(k) ? a.filter(x => x !== k) : [...a, k]));
+  const split = () => {
+    if (!confirm(`Split ${code}? Every model keeps its own copy of what it shows now, and later edits only change the model they are made for.`)) return;
+    touch(d => splitStation(d, code, line));
+  };
+  const newSharers = also.filter(k => !group.includes(k));
+  const share = () => {
+    if (!confirm(`Share ${code} between ${[kind, ...newSharers].join(', ')}?\n\n${newSharers.join(', ')} will show the ${kind} activities and consumables from now on, and later edits to any of them go to all of them.`)) return;
+    touch(d => shareStation(d, code, [...new Set([...group, ...also])], kind, line));
+    setAlso([]);
   };
   // The live catalog can still hold the old Paint Shop list (the Nov 2026
   // process was only half applied). One button puts the whole process in.
@@ -138,7 +164,10 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     const t = applyTrimProcess({ tcLines: d.tcLines, acts: d.acts });
     return { ...d, tcLines: t.tcLines, acts: t.acts };
   });
-  const setRes = next => touch(d => { if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d; });
+  const setRes = next => touch(d => {
+    if (me) return applyModelEdit(d, { field: 'res', code, kind, line, next, also });
+    if (!d.res[line]) d.res[line] = {}; d.res[line][code] = next; return d;
+  });
 
   return (
     <div>
@@ -217,23 +246,56 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
               <label style={note}>Code<input style={{ ...inp, fontFamily: 'inherit' }} value={code} disabled /></label>
               <label style={note}>Name on the card<input style={inp} value={name} onChange={e => renameStation(e.target.value)} /></label>
             </div>
+            {lineUsers.length > 1 && <div style={{ ...note, marginBottom: 10 }}>{lineUsers.join(', ')} all use this line, so the station name here is the same for them.</div>}
             <ModelChecks label="This station shown for" value={draft.stationModels[code]} onChange={setStationModels} />
             <div style={{ ...note, marginTop: 10 }}>
               Designed time on the card: <strong>{designed ? `${designed} min` : 'not set'}</strong> - read from the Station Times sheet{designed ? '' : ' (operators are asked to type it)'}; change it there.
             </div>
           </div>
 
+          {me && (
+            <div style={box}>
+              <div style={hd}>Models - editing for {kind}</div>
+              <div style={{ display: 'grid', gap: 4, marginBottom: 10 }}>
+                {sharing.map(r => (
+                  <div key={r.kind} style={{ fontSize: 13, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <strong style={{ minWidth: 40 }}>{r.kind}</strong>
+                    <span style={{ color: 'var(--text-dim)' }}>
+                      {r.shared
+                        ? `Shared with ${group.filter(k => k !== r.kind).join(', ')}: an edit to one changes all`
+                        : `Own data${r.with.length ? ` (same activities as ${r.with.join(', ')} today, not linked)` : ''}`}
+                      {r.line !== line ? ` - on "${r.line}"` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {others.length > 0 ? (
+                <>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Edits here also change</span>
+                    {others.map(r => {
+                      const locked = inGroup && r.shared;
+                      return (
+                        <label key={r.kind} style={{ display: 'flex', gap: 5, alignItems: 'center', cursor: locked ? 'default' : 'pointer' }}>
+                          <input type="checkbox" checked={locked || also.includes(r.kind)} disabled={locked} onChange={() => toggleAlso(r.kind)} /> {r.kind}{locked ? ' (shared)' : ''}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{ ...note, marginTop: 6 }}>
+                    Unticked models keep exactly what they show now. The ticks apply to the name, activities and consumables below, and clear when you pick another model or station.
+                  </div>
+                </>
+              ) : <div style={note}>No other model has this station.</div>}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                {newSharers.length > 0 && <button style={btn} onClick={share}>Share with {newSharers.join(', ')} from now on</button>}
+                {canSplit && <button style={btn} onClick={split}>Split: each model keeps its own copy</button>}
+              </div>
+            </div>
+          )}
+
           <div style={box}>
-            <div style={{ ...hd, display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-              <span>Activities - {code}</span>
-              <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
-                {ownList ? `${kind}-only list` : `Shared list${KINDS.some(k => draft.acts[`${k}:${code}`]) ? ` (other models have their own)` : ' (all models)'}`}
-              </span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              {!ownList && <button style={btn} onClick={splitActs}>Give {kind} its own list</button>}
-              {ownList && <button style={btn} onClick={mergeActs}>Use the shared list for {kind}</button>}
-            </div>
+            <div style={hd}>Activities - {code}</div>
             <ListEditor items={actsList} onChange={setActs} placeholder="Activity description" movable
               hint={a => { const t = activityModelTag(a); return t && t !== busModel ? `only shown for ${t}` : ''; }} />
             <div style={{ ...note, marginTop: 6 }}>End an activity with a model in brackets, e.g. “… (7m EVS)”, to show it for that model only.</div>

@@ -758,7 +758,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const visibleLines = tc.visibleLines(busModel);
   const stations = curLine ? tc.stationsFor(curLine, busModel) : [];
   const acts = tc.actsFor(curCode, busModel);
-  const resList = tc.resFor(curLine, curCode);
+  const resList = tc.resFor(curLine, curCode, busModel);
   // The line written to the sheet comes from the station, never from a stale
   // line box: C01-xx is always Chassis Line 01 (see src/utils/stationLine.js).
   const saveLine = (curCode && tc.lineForStation(curCode, busModel, curLine)) || curLine;

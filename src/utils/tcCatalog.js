@@ -56,7 +56,13 @@ export function resolveTcCatalog(catalog = {}, base = null) {
       const list = acts[modelKindOf(busModel) + ':' + code] || acts[code] || [];
       return list.filter(a => { const t = activityModelTag(a); return !t || t === busModel; });
     },
-    resFor: (line, code) => (line && code && res[line] && res[line][code]) || [],
+    // Consumables: a model's own "KEC:P03-01" list on a line every model uses
+    // wins over the shared "P03-01" one, like activities.
+    resFor: (line, code, busModel) => {
+      if (!line || !code || !res[line]) return [];
+      const own = busModel ? res[line][modelKindOf(busModel) + ':' + code] : null;
+      return own || res[line][code] || [];
+    },
     // The line a station is filed under for this bus model. Keeps `prefer`
     // when it really holds the station, else the model's own variant
     // ("… — KEC"), else any line that lists it. Lines whose name contradicts

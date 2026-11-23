@@ -82,6 +82,7 @@ function buildInitial(catalog) {
     res,
     lineModels: { ...LINE_MODELS, ...(catalog.lineModels || {}) },
     stationModels: { ...STATION_MODELS, ...(catalog.stationModels || {}) },
+    sharedStations: { ...(catalog.sharedStations || {}) },
     dwi: catalog.dwi && typeof catalog.dwi === 'object' ? catalog.dwi : {},
     projectVins,
     departments: departmentsFrom(catalog).map(d => ({ name: d.name, units: [...d.units] })),
@@ -181,6 +182,7 @@ function CatalogEditor({ catalog, saveCatalog, saving, listCatalogBackups, resto
       res: draft.res,
       lineModels: draft.lineModels,
       stationModels: draft.stationModels,
+      sharedStations: draft.sharedStations,
       dwi: draft.dwi,
       projectVins: draft.projectVins,   // replaced below with the server's lists merged in
       // A non-system-admin cannot see this tab; keep what is saved as it is.
