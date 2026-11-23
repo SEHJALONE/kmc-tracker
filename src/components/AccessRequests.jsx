@@ -88,6 +88,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
     canAccessTracker: true,  // whether this account can open the Bus Tracker module
     ceeAccess: false,        // supplementary role, independent of the primary role above
     typeApprovalAccess: false, // supplementary role: Type Approvals (VIN register)
+    otherLinesAccess: false, // supplementary role: may pick another line's job orders
   });
 
   function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
@@ -116,6 +117,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       stationLine: preselectedStationLine, supervisorLines: preselectedLines, canAccessTracker: true,
       ceeAccess: !!req.ceeInterest,
       typeApprovalAccess: !!req.typeApprovalInterest,
+      otherLinesAccess: false,
     });
   }
 
@@ -168,7 +170,7 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
       canAccessTracker: form.canAccessTracker,
       // Supplementary roles on top of the primary role above — see the
       // DYNAMIC_USERS_HEADERS "roles" comment in APPS_SCRIPT_CATALOG.md.
-      roles: [form.ceeAccess && 'cee', form.typeApprovalAccess && 'typeapproval'].filter(Boolean),
+      roles: [form.ceeAccess && 'cee', form.typeApprovalAccess && 'typeapproval', form.otherLinesAccess && 'otherlines'].filter(Boolean),
     };
 
     const result = await createUser(newUser);
@@ -651,6 +653,22 @@ export default function AccessRequests({ onBack, onToggleTheme = null, theme = '
                 <span style={{ fontSize: 13, color: text }}>Type Approvals (VIN register) access</span>
                 <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
                   Supplementary - added on top of the role above
+                </span>
+              </label>
+              <label style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
+                border: `1px solid ${inpBor}`, background: inpBg, marginTop: 8,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={form.otherLinesAccess}
+                  onChange={() => setForm(f => ({ ...f, otherLinesAccess: !f.otherLinesAccess }))}
+                  style={{ accentColor: R, width: 14, height: 14 }}
+                />
+                <span style={{ fontSize: 13, color: text }}>Work on other lines (job orders)</span>
+                <span style={{ fontSize: 12, color: dim, marginLeft: 'auto' }}>
+                  Can pick another line's job orders, besides their own
                 </span>
               </label>
             </div>

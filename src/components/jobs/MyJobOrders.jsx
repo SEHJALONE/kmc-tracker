@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { JO_LINES, LINE_TINT, jobLine, jobHeading, jobProgress, stateLabel, JOB_STATES, workLabels, isActivityJob, groupBySpec } from '../../data/jobOrders';
+import { JO_LINES, LINE_TINT, mayWorkOtherLines, otherLineChoices, linesToShow, jobLine, jobHeading, jobProgress, stateLabel, JOB_STATES, workLabels, isActivityJob, groupBySpec } from '../../data/jobOrders';
 import { lineStations } from '../../utils/machines';
 import { normalizeProjectProcesses, processStationsFor } from '../../data/projectProcess';
 import { sameStationCode } from '../../data/stations';
@@ -101,19 +101,32 @@ export function ActivityJobStart({ catalog, job, jobData, lockedCodes = [], onSt
   );
 }
 
-export default function MyJobOrders({ catalog, lockedCodes = [], openTasks = [], onStart, onLegacy }) {
+// The signed-in person's role and supplementary roles (set at sign-in).
+function storedRoles() {
+  try { return { role: localStorage.getItem('kmc_role') || 'user', roles: JSON.parse(localStorage.getItem('kmc_roles') || '[]') }; }
+  catch { return { role: 'user', roles: [] }; }
+}
+
+export default function MyJobOrders({ catalog, lockedCodes = [], openTasks = [], onStart, onLegacy, canPickLine = null }) {
   const jobData = useJobData();
   const [pick, setPick] = useState('');
-  const lines = myJobLines(jobData);
+  const own = myJobLines(jobData);
+  // Defaults to their own lines; they may pick another line to work on.
+  const [otherLine, setOtherLine] = useState('');
+  const allowed = canPickLine ?? (({ role, roles }) => mayWorkOtherLines(role, roles))(storedRoles());
+  const choices = allowed ? otherLineChoices(own) : [];
+  const lines = linesToShow(own, otherLine);
   const [filter, setFilter] = useState('');
   const job = pick ? jobData.jobOrders.find(j => j.id === pick) : null;
+  // On another line their own stations do not apply: any station of that line may be chosen.
+  const locks = job && !own.includes(jobLine(job)) ? [] : lockedCodes;
 
   if (pick && (!job || !isActivityJob(job))) return (
     <MachineShopJobs catalog={catalog} jobData={jobData} project={job?.project || ''} busModel={job?.busModel || ''} openTasks={openTasks}
-      lockedCodes={lockedCodes} initialJobId={pick} onBack={() => setPick('')}
+      lockedCodes={locks} initialJobId={pick} onBack={() => setPick('')}
       onStart={f => onStart({ ...f, expectedEnd: expectedEndFor(f.startedAt, f.designedMin) })} />
   );
-  if (job) return <ActivityJobStart catalog={catalog} job={job} jobData={jobData} lockedCodes={lockedCodes} onStart={onStart} onBack={() => setPick('')} />;
+  if (job) return <ActivityJobStart catalog={catalog} job={job} jobData={jobData} lockedCodes={locks} onStart={onStart} onBack={() => setPick('')} />;
 
   const list = jobData.jobOrders
     .filter(j => j.status === 'open' && lines.includes(jobLine(j)) && (!filter || jobLine(j) === filter))
@@ -128,10 +141,21 @@ export default function MyJobOrders({ catalog, lockedCodes = [], openTasks = [],
           Open job orders on {lines.join(', ')}: bus job orders and other projects. Press Start on one to run its clock; read your supervisor's comments first.
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10, alignItems: 'center' }}>
+          {otherLine && <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Working on {otherLine}, not your own line</span>}
           {lines.length > 1 && ['', ...lines].map(l => (
             <button key={l || 'all'} className={`kmc-btn${filter === l ? ' primary' : ''}`} style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => setFilter(l)}>{l || 'All lines'}</button>
           ))}
           <span style={{ flex: 1 }} />
+          {choices.length > 0 && (
+            <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}>
+              Work on another line
+              <select aria-label="Work on another line" value={otherLine} onChange={e => { setOtherLine(e.target.value); setFilter(''); }}
+                style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid var(--input-border)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 12 }}>
+                <option value="">My line{own.length === 1 ? '' : 's'} ({own.join(', ')})</option>
+                {choices.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </label>
+          )}
           {onLegacy && <button className="kmc-btn" onClick={() => onLegacy(filter || lines[0])}>Fill an old job (legacy)</button>}
           <button className="kmc-btn ghost" onClick={jobData.refresh}>↻ Refresh</button>
         </div>

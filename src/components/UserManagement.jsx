@@ -23,6 +23,7 @@ const ROLE_OPTIONS = [
 const SUPPLEMENTARY_ROLE_OPTIONS = [
   { value: 'cee', label: 'Cost Estimations Engineer', color: '#0f766e' },
   { value: 'typeapproval', label: 'Type Approvals (VIN register)', color: '#4338ca' },
+  { value: 'otherlines', label: 'Work on other lines (job orders)', color: '#b45309' },
 ];
 
 function buildStationsByLine() {

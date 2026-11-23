@@ -312,7 +312,7 @@ export default function App() {
   // Other (non-bus) projects: admins and the supervisors, managers and directors of those lines.
   const hasOtherProjects = isAdminRole || seesAllLines || (['supervisor', 'manager', 'director'].includes(role) && jobLines.length > 0);
   // My job orders: anyone on those lines (and admins).
-  const hasMyJobs = isAdminRole || jobLines.length > 0;
+  const hasMyJobs = isAdminRole || jobLines.length > 0 || roles.includes('otherlines');
   // Shop floor: everyone who supervises.
   const hasShopFloor = ['supervisor', 'manager', 'director', 'systemadmin', 'useradmin'].includes(role);
 

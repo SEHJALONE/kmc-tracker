@@ -364,6 +364,17 @@ export const jobLine = job =>job?.line || MACHINE_SHOP_LINE;
 export const isOtherJob = job => job?.kind === 'other';
 export const isActivityJob = job => jobLine(job) !== MACHINE_SHOP_LINE;
 export const isOtherTask = task => /^OP-/.test(String(task?.jobOrderId || ''));
+// Working on another line: anyone may pick a job-order line that is not their
+// own and run its job orders. Lines shown: that line alone, or their own
+// lines (the default). Lines they may pick: the job-order lines not their own.
+// Who may pick another line: supervisors, managers, directors and admins, and
+// anyone granted the "otherlines" supplementary role (Access Requests or User
+// Management, "Work on other lines").
+export const OTHER_LINES_ROLE = 'otherlines';
+export const mayWorkOtherLines = (role, roles) =>
+  ['supervisor', 'manager', 'director', 'systemadmin', 'useradmin'].includes(role) || (roles || []).includes(OTHER_LINES_ROLE);
+export const otherLineChoices = ownLines => JO_LINES.filter(l => !(ownLines || []).includes(l));
+export const linesToShow = (ownLines, otherLine) => (otherLine && JO_LINES.includes(otherLine) ? [otherLine] : (ownLines || []));
 // True until the job data has come in once (a refresh later does not count).
 export const firstLoad = jobData => !(jobData?.loaded ?? !jobData?.loading);
 export const isLiveJob = job => job && job.status !== 'deleted';
