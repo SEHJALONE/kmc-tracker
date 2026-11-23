@@ -315,7 +315,13 @@ export function stationDisplayNames(station) {
   const base = station?.name || '';
   const m = (station?.code && STATION_MODEL_NAMES[station.code]) || {};
   const kf = kecNameFamily(station?.line);
-  const names = { evs: m.evs || base, kdc: m.kdc || base, kec: kf ? (m[kf] || base) : (m.kec || base) };
+  // Names an admin set per model in Catalog Admin (station.names) win.
+  const own = station?.names && typeof station.names === 'object' ? station.names : {};
+  const names = {
+    evs: own.evs || m.evs || base,
+    kdc: own.kdc || m.kdc || base,
+    kec: own.kec || (kf ? (m[kf] || base) : (m.kec || base)),
+  };
   const used = (Array.isArray(station?.models) && station.models.length ? station.models : FAMILIES)
     .map(f => names[f.toLowerCase()]).filter(Boolean);
   return { ...names, differs: new Set(used).size > 1 };

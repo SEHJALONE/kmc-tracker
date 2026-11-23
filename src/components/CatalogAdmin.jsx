@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import DepartmentsTab from './catalog/DepartmentsTab';
 import { departmentsFrom, normalizeDepartments } from '../data/departments';
-import { SEED_LINES, SEED_STATIONS } from '../data/stations';
+import { SEED_LINES, SEED_STATIONS, stationDisplayNames } from '../data/stations';
 import { getSession } from '../data/session';
 import { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS } from '../data/travelCardSeed';
 import TravelCardTab from './catalog/TravelCardTab';
@@ -508,6 +508,13 @@ function StationsTab({ draft, touch, lineOptions }) {
     .sort((a, b) => (draft.stations[a].order || 0) - (draft.stations[b].order || 0));
 
   const upd = (code, k, v) => touch(d => { d.stations[code][k] = v; return d; });
+  // Bus Tracker name for one model. Empty = the built-in name for that model.
+  const updName = (code, fam, v) => touch(d => {
+    const names = { ...(d.stations[code].names || {}) };
+    if (v) names[fam] = v; else delete names[fam];
+    if (Object.keys(names).length) d.stations[code].names = names; else delete d.stations[code].names;
+    return d;
+  });
   const toggleProj = (code, pid) => touch(d => {
     const cur = Array.isArray(d.stations[code].projects) ? d.stations[code].projects : [];
     d.stations[code].projects = cur.includes(pid) ? cur.filter(x => x !== pid) : [...cur, pid];
@@ -565,6 +572,17 @@ function StationsTab({ draft, touch, lineOptions }) {
                   {lineOptions.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                 </select>
               </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, marginBottom: 8 }}>
+              {['EVS', 'KDC', 'KEC'].map(fam => {
+                const f = fam.toLowerCase();
+                const shown = stationDisplayNames({ code, ...s, names: { ...(s.names || {}), [f]: '' } })[f];
+                return (
+                  <label key={fam} style={{ fontSize: 11, color: 'var(--text-dim)' }}>Name on the Bus Tracker for {fam}
+                    <input style={inp} value={(s.names && s.names[f]) || ''} placeholder={shown} onChange={e => updName(code, f, e.target.value)} />
+                  </label>
+                );
+              })}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '80px 120px 1fr 1fr', gap: 8, marginBottom: 8 }}>
               <label style={{ fontSize: 11, color: 'var(--text-dim)' }}>Order
