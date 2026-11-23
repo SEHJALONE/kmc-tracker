@@ -97,7 +97,9 @@ export default function TravelCardTab({ draft, touch, inp, btn, ListEditor }) {
     if (c === code) setCode('');
   };
   const addStation = () => {
-    const c = newCode.trim().toUpperCase().replace(/\s+/g, '-');
+    // Travel Card EE stations are written "T01-07 EE" (space), so keep that
+    // whether it is typed "T01-07 EE" or "T01-07-EE".
+    const c = newCode.trim().toUpperCase().replace(/\s+/g, '-').replace(/-EE$/, ' EE');
     if (!c || !line) return;
     if (lineStations.some(s => codeOf(s) === c)) { setCode(c); return; }
     if (!lineMatchesStation(line, c)) { alert(`${c} belongs to ${lineFamilyOf(c)}, not "${line}". Pick that line first, then add the station.`); return; }
