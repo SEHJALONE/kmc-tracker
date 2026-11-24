@@ -57,7 +57,11 @@ export function expectedEndFor(startedAt, designedMin) {
 // ── Setup: choose the job, then Start ─────────────────────────────────────────
 // Order: project, bus model, line, station, then VIN. Machine Shop work runs
 // from job orders instead (MachineShopJobs).
-export function TaskSetup({ catalog, lockedCodes = [], openTasks = [], onStart, onCancel }) {
+export function TaskSetup({ catalog, lockedCodes: ownCodes = [], openTasks = [], onStart, onCancel, canPickLine = false }) {
+  // Granted people may leave their assigned stations and work on another line:
+  // the line and station are then picked freely, like an unassigned user.
+  const [borrow, setBorrow] = useState(false);
+  const lockedCodes = borrow ? [] : ownCodes;
   const tc = useMemo(() => resolveTcCatalog(catalog), [catalog]);
   const localProjects = LS_GET('kmc_projects', {});
   const projectNames = [...new Set([
@@ -150,6 +154,14 @@ export function TaskSetup({ catalog, lockedCodes = [], openTasks = [], onStart, 
             {BUS_MODELS.map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
+        {canPickLine && ownCodes.length > 0 && (
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className={`kmc-btn${borrow ? ' primary' : ''}`} onClick={() => { setBorrow(b => !b); setLine(''); setStation(''); setVin(''); setJobMode(false); }}>
+              {borrow ? 'Back to my stations' : 'Work on another line'}
+            </button>
+            {borrow && <span style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b' }}>Working on another line, not your assigned stations</span>}
+          </div>
+        )}
         {!lockedCodes.length && (
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={lbl}>Production line</label>

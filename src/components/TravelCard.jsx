@@ -342,12 +342,18 @@ function AddRow({ placeholder, onAdd }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null, taskPrefill = null, onCardSubmitted = null, onExit = null, onLegacyJobs = null }) {
+export default function TravelCard({ prefillVin = "", prefillModel = "", prefillStation = "", lockedStation = null, lockedStations = null, currentUserName = null, onReset, onSubmitSuccess, theme = "dark", catalog = {}, role = "user", editSubmission = null, onEditSubmit = null, taskPrefill = null, onCardSubmitted = null, onExit = null, onLegacyJobs = null, canPickLine = false }) {
   // Normalize single/multi station-lock props into one list. A single assigned
   // station keeps the old fully-locked (disabled dropdown) behavior; multiple
   // assigned stations (same line, e.g. a station head over several stations)
   // instead show an enabled dropdown restricted to just those stations.
-  const lockedCodes = (lockedStations && lockedStations.length) ? lockedStations : (lockedStation ? [lockedStation] : []);
+  const ownCodes = (lockedStations && lockedStations.length) ? lockedStations : (lockedStation ? [lockedStation] : []);
+  // Granted people may work on another line: the line and station are then
+  // picked freely. A card that opens on a station that is not theirs (a task
+  // they ran on another line) starts that way.
+  const startCode = String(taskPrefill?.stationCode || editSubmission?.stationCode || String(prefillStation || "").split(":")[0] || "").trim();
+  const [borrow, setBorrow] = useState(() => canPickLine && ownCodes.length > 0 && !!startCode && !ownCodes.some(c => sameStationCode(c, startCode)));
+  const lockedCodes = borrow ? [] : ownCodes;
   const isMultiLocked = lockedCodes.length > 1;
   const isAdmin = role === "systemadmin" || role === "useradmin";
   const isSupervisor = role === "supervisor";
@@ -683,7 +689,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
       setLockedLineOf(Object.fromEntries(resolved.map(r => [r.station, r.lineName])));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lockedStation, JSON.stringify(lockedStations), busModel]);
+  }, [lockedStation, JSON.stringify(lockedStations), busModel, borrow]);
 
   // Prefill current user into reviewer (supervisor) or operators (station user)
   useEffect(() => {
@@ -1289,6 +1295,15 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
         {busModel && <>
           <div style={css.card}>
             <div style={css.cardHd}>Station</div>
+            {canPickLine && ownCodes.length > 0 && !taskPrefill && !editRec && (
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+                <button type="button" className={`kmc-btn${borrow ? " primary" : ""}`}
+                  onClick={() => { setBorrow(b => !b); setCurLine(""); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
+                  {borrow ? "Back to my stations" : "Work on another line"}
+                </button>
+                {borrow && <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b" }}>Working on another line, not your assigned stations</span>}
+              </div>
+            )}
             <div className="tc-grid-2" style={css.g2}>
               <Sel label="Production line" value={curLine} disabled={lockedCodes.length > 0} onChange={e => { setCurLine(e.target.value); setCurSt(""); setCurCode(""); setDesignedTime(0); setSelOps([]); setOperators([]); }}>
                 <option value="">Select line…</option>
@@ -1296,9 +1311,9 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
                 {curLine && !visibleLines.includes(curLine) && <option>{curLine}</option>}
               </Sel>
               <Sel
-                label={isMultiLocked ? "Station (assigned - choose one)" : lockedStation ? "Station (assigned - locked)" : "Station"}
+                label={isMultiLocked ? "Station (assigned - choose one)" : (lockedStation && !borrow) ? "Station (assigned - locked)" : "Station"}
                 value={curSt}
-                disabled={!!lockedStation && !isMultiLocked}
+                disabled={!!lockedStation && !borrow && !isMultiLocked}
                 onChange={e => { const v = e.target.value; if (isMultiLocked && lockedLineOf[v]) setCurLine(lockedLineOf[v]); onStation(v); }}
               >
                 <option value="">Select station…</option>

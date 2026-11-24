@@ -118,7 +118,7 @@ function OpenTaskRibbon({ n, task, now, onOpen, onClose }) {
 
 const STATUS = { pending_review: ['Pending', 'amber'], pending: ['Review', 'amber'], rejected: ['Rework', 'red'], approved: ['Approved', 'lime'] };
 
-export default function TravelCardHub({ username, currentUserName, catalog, catalogLoaded = false, onRefreshCatalog = null, lockedCodes = [], initialView = 'home', renderLegacy, onHome = null }) {
+export default function TravelCardHub({ username, currentUserName, catalog, catalogLoaded = false, onRefreshCatalog = null, lockedCodes = [], initialView = 'home', renderLegacy, onHome = null, canPickLine = false }) {
   const tasks = useTravelTasks(username);
 
   // Fresh catalog whenever the Travel Card opens, so Edit Catalog changes made
@@ -179,7 +179,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
 
   if (view.kind === 'jobs') return (
     <div className="tch"><style>{css}</style>{back}
-      <MyJobOrders catalog={catalog} lockedCodes={lockedCodes} openTasks={tasks.openTasks} onLegacy={legacyJobs}
+      <MyJobOrders catalog={catalog} lockedCodes={lockedCodes} canPickLine={canPickLine} openTasks={tasks.openTasks} onLegacy={legacyJobs}
         onStart={fields => { const t = tasks.start({ ...fields, ownerName: currentUserName || '' }); go({ kind: 'task', id: t.id }); }} />
     </div>
   );
@@ -201,7 +201,7 @@ export default function TravelCardHub({ username, currentUserName, catalog, cata
 
   if (view.kind === 'new') return (
     <div className="tch"><style>{css}</style>{back}
-      <TaskSetup catalog={catalog} lockedCodes={lockedCodes} openTasks={tasks.openTasks} onCancel={home}
+      <TaskSetup catalog={catalog} lockedCodes={lockedCodes} canPickLine={canPickLine} openTasks={tasks.openTasks} onCancel={home}
         onStart={fields => { const t = tasks.start({ ...fields, ownerName: currentUserName || '' }); go({ kind: 'task', id: t.id }); }} />
     </div>
   );

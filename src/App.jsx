@@ -35,7 +35,7 @@ import TypeApprovals from './components/TypeApprovals';
 import JobOrdersPage from './components/jobs/JobOrdersPage';
 import OtherProjectsPage from './components/jobs/OtherProjectsPage';
 import ShopFloor from './components/ShopFloor';
-import { isMachineShopLead, seesAllJobLines, viewLines } from './data/jobOrders';
+import { isMachineShopLead, seesAllJobLines, viewLines, mayWorkOtherLines } from './data/jobOrders';
 import { useSubmissionsData } from './hooks/useSubmissionsData';
 
 // ── Theme helpers ──────────────────────────────────────────────────────────────
@@ -313,6 +313,8 @@ export default function App() {
   const hasOtherProjects = isAdminRole || seesAllLines || (['supervisor', 'manager', 'director'].includes(role) && jobLines.length > 0);
   // My job orders: anyone on those lines (and admins).
   const hasMyJobs = isAdminRole || jobLines.length > 0 || roles.includes('otherlines');
+  // Work on another line (bus tasks, Travel Cards, job orders): see mayWorkOtherLines.
+  const canPickLine = mayWorkOtherLines(role, roles);
   // Shop floor: everyone who supervises.
   const hasShopFloor = ['supervisor', 'manager', 'director', 'systemadmin', 'useradmin'].includes(role);
 
@@ -552,6 +554,7 @@ export default function App() {
           catalogLoaded={catalogLoaded}
           onRefreshCatalog={refreshCatalog}
           lockedCodes={(assignedStations && assignedStations.length) ? assignedStations : (assignedStation ? [assignedStation] : [])}
+          canPickLine={canPickLine}
           initialView={editingSubmission || tcPrefill ? 'legacy' : tcView || 'home'}
           onHome={() => { setTcPrefill(null); setEditingSubmission(null); setTcView(''); }}
           renderLegacy={({ taskPrefill = null, onCardSubmitted = null, onExit = null, onLegacyJobs = null } = {}) => (
@@ -562,6 +565,7 @@ export default function App() {
               prefillStation={tcPrefill?.stationCode ?? ''}
               lockedStation={assignedStation}
               lockedStations={assignedStations}
+              canPickLine={canPickLine}
               currentUserName={currentUserName}
               onReset={() => { setTcPrefill(null); setEditingSubmission(null); }}
               onSubmitSuccess={refresh}
