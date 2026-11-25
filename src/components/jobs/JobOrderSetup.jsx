@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { BUS_MODELS } from '../../utils/tcCatalog';
 import { makeItem, parseCutListCsv } from '../../data/jobOrders';
 import { cleanVin } from '../../utils/vinUpload';
+import { vinProblem } from '../../utils/vinCheck';
 import { JOB_ERRORS } from '../../hooks/useJobData';
 import CutListEditor from './CutListEditor';
 
@@ -70,6 +71,8 @@ Cancel adds them to the end instead.`);
     setError('');
     if (!project || !busModel) return setError(JOB_ERRORS['missing-project-or-model']);
     if (!vins.length) return setError(JOB_ERRORS['missing-vins']);
+    const wrong = vinProblem(catalog.projectVins, { project, busModel, vin: vins.join(',') });
+    if (wrong) return setError(wrong);
     if (!items.some(it => it.cut)) return setError('Tick at least one part to cut.');
     setBusy(true);
     try {

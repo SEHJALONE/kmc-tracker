@@ -194,6 +194,7 @@ export { TC_LINES, ACTS, RES, LINE_MODELS, STATION_MODELS, mergeConsumables, use
 import { useStationConsumables } from '../hooks/useStationConsumables';
 import { TRAVEL_CARD_DOC } from '../data/travelCardRef';
 import { JO_LINES, catalogLineMatches } from '../data/jobOrders';
+import { vinProblem, registeredModels, keepLocalVin } from '../utils/vinCheck';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 const R = "#dc2626";
@@ -782,7 +783,13 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   // (which carry no model tag, so they always show once a project is picked).
   const catalogFleet = (curProj && catalog.projectVins && catalog.projectVins[curProj]) || [];
   const catalogVinsForModel = catalogFleet.filter(v => v && v.vin && (!busModel || !v.model || v.model === busModel)).map(v => v.vin);
-  const localVins = (curProj && projects[curProj] && projects[curProj].vins) || [];
+  // Remembered VINs the register files under another project or model are not offered.
+  const localVins = ((curProj && projects[curProj] && projects[curProj].vins) || []).filter(keepLocalVin(catalog.projectVins, curProj, busModel));
+  // A project with a VIN register only offers the models its buses are.
+  const projectModels = registeredModels(catalog.projectVins, curProj);
+  const modelAllowed = m => !projectModels.length || projectModels.includes(m) || m === busModel;
+  // Project, model and VIN must agree with the VIN register (see utils/vinCheck.js).
+  const vinWrong = () => vinProblem(catalog.projectVins, { project: curProj, busModel, vin });
   const vinOptions = [...new Set([...catalogVinsForModel, ...localVins])];
   const revName = reviewer === "__other__" ? revOther : reviewer;
 
@@ -885,6 +892,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
     if (!curSt) { alert("Select a station."); return; }
     if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Pick the line again, then the station.`); return; }
     if (!vin) { alert("Select or add a Bus VIN."); return; }
+    { const wrong = vinWrong(); if (wrong) { alert(wrong); return; } }
     // Editing an existing card shouldn't silently reset its original
     // clock-out to "now" — only a fresh submission auto-stamps it.
     if (!isEditMode && !fromTask && !clockOut) setClockOut(new Date().toISOString());
@@ -901,6 +909,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   const workDaysToSave = spanDays.length ? spanDays.map(({ date, worked, start, end }) => ({ date, worked, start, end })) : null;
 
   function p1next() {
+    { const wrong = vinWrong(); if (wrong) { alert(wrong); goTo(0); return; } }
     if (!clockIn) { alert("Enter a clock-in time."); return; }
     if (!clockOut) { alert("Enter a clock-out time."); return; }
     if (new Date(clockOut) <= new Date(clockIn)) { alert("Clock-out must be after clock-in."); return; }
@@ -1066,6 +1075,7 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
   }
 
   async function submit() {
+    { const wrong = vinWrong(); if (wrong) { alert(wrong); goTo(0); return; } }
     if (lineMismatch) { alert(`Station ${curCode} does not belong to ${saveLine}. Go back to the first page and pick the line and station again.`); return; }
     if (!revName) { alert("Enter a reviewer name."); return; }
     if (!appStatus) { alert("Select an approval status."); return; }
@@ -1276,17 +1286,17 @@ export default function TravelCard({ prefillVin = "", prefillModel = "", prefill
           <Sel label="Bus model" value={busModel} onChange={e => { setBusModel(e.target.value); setCurLine(""); setCurSt(""); setCurCode(""); }}>
             <option value="">Select model…</option>
             <optgroup label="KDC - Diesel Coach">
-              <option value="10.5m KDC">10.5m KDC</option>
-              <option value="12m KDC">12m KDC</option>
+              {modelAllowed("10.5m KDC") && <option value="10.5m KDC">10.5m KDC</option>}
+              {modelAllowed("12m KDC") && <option value="12m KDC">12m KDC</option>}
             </optgroup>
             <optgroup label="EVS - Electric City Bus">
-              <option value="7m EVS">7m EVS</option>
-              <option value="8.5m EVS">8.5m EVS</option>
-              <option value="10.5m EVS">10.5m EVS</option>
-              <option value="12m EVS">12m EVS</option>
+              {modelAllowed("7m EVS") && <option value="7m EVS">7m EVS</option>}
+              {modelAllowed("8.5m EVS") && <option value="8.5m EVS">8.5m EVS</option>}
+              {modelAllowed("10.5m EVS") && <option value="10.5m EVS">10.5m EVS</option>}
+              {modelAllowed("12m EVS") && <option value="12m EVS">12m EVS</option>}
             </optgroup>
             <optgroup label="KEC - Electric Coach">
-              <option value="13m KEC">13m KEC</option>
+              {modelAllowed("13m KEC") && <option value="13m KEC">13m KEC</option>}
             </optgroup>
           </Sel>
 

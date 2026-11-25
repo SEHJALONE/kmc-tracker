@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { sameStationCode } from '../data/stations';
 import { resolveTcCatalog, BUS_MODELS, modelKindOf, codeOf } from '../utils/tcCatalog';
+import { vinProblem, registeredModels, keepLocalVin } from '../utils/vinCheck';
 import { stationLabelForModel } from '../data/travelCardSeed';
 import { fetchStationTimes } from '../hooks/useStationTimes';
 import { workingMinutes, addWorkingMinutes } from '../utils/workTime';
@@ -83,8 +84,11 @@ export function TaskSetup({ catalog, lockedCodes: ownCodes = [], openTasks = [],
   const vinOptions = [...new Set([
     // VINs uploaded without a bus model show for every model.
     ...((catalog.projectVins || {})[project] || []).filter(v => v && v.vin && (!busModel || !v.model || v.model === busModel)).map(v => v.vin),
-    ...((localProjects[project] && localProjects[project].vins) || []),
+    ...((localProjects[project] && localProjects[project].vins) || []).filter(keepLocalVin(catalog.projectVins, project, busModel)),
   ])];
+  // A project with a VIN register only offers the models its buses are.
+  const projectModels = registeredModels(catalog.projectVins, project);
+  const modelOptions = projectModels.length ? BUS_MODELS.filter(m => projectModels.includes(m)) : BUS_MODELS;
 
   // Station-assigned users only see their own stations (and the line follows).
   const lockedOptions = useMemo(() => {
@@ -127,6 +131,8 @@ export function TaskSetup({ catalog, lockedCodes: ownCodes = [], openTasks = [],
     if (!busModel) return alert('Select a bus model.');
     if (!station) return alert('Select a station.');
     if (!vin.trim()) return alert('Select or type the bus VIN.');
+    const wrong = vinProblem(catalog.projectVins, { project, busModel, vin });
+    if (wrong) return alert(wrong);
     const startedAt = new Date().toISOString();
     const designedMin = Number(designed) || 0;
     onStart({
@@ -142,7 +148,7 @@ export function TaskSetup({ catalog, lockedCodes: ownCodes = [], openTasks = [],
       <div className="tr-grid">
         <div>
           <label style={lbl}>Bus project</label>
-          <select style={inp} value={project} onChange={e => { setProject(e.target.value); setVin(''); }}>
+          <select style={inp} value={project} onChange={e => { const p = e.target.value; setProject(p); setVin(''); const ms = registeredModels(catalog.projectVins, p); if (busModel && ms.length && !ms.includes(busModel)) { setBusModel(''); setLine(''); setStation(''); } }}>
             <option value="">Select project…</option>
             {projectNames.map(p => <option key={p}>{p}</option>)}
           </select>
@@ -151,7 +157,7 @@ export function TaskSetup({ catalog, lockedCodes: ownCodes = [], openTasks = [],
           <label style={lbl}>Bus model</label>
           <select style={inp} value={busModel} onChange={e => { setBusModel(e.target.value); setLine(''); setStation(''); setVin(''); setJobMode(false); }}>
             <option value="">Select model…</option>
-            {BUS_MODELS.map(m => <option key={m}>{m}</option>)}
+            {modelOptions.map(m => <option key={m}>{m}</option>)}
           </select>
         </div>
         {canPickLine && ownCodes.length > 0 && (

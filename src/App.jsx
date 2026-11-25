@@ -444,6 +444,7 @@ export default function App() {
       assignedStations={assignedStations}
       assignedLines={assignedLines}
       currentUserName={currentUserName}
+      catalog={catalog}
     />
   );
 

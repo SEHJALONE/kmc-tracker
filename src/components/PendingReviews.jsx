@@ -7,6 +7,7 @@ import { workingMinutes } from '../utils/workTime';
 import { delayLabel } from '../utils/delay';
 import { cleanActivityTimes } from '../utils/activityTimes';
 import { lineNeedsRepair, correctLineFor } from '../utils/stationLine';
+import { vinProblem } from '../utils/vinCheck';
 
 // "2026-11-14T08:30" for a datetime-local box, from whatever the sheet holds.
 function toLocalInput(v) {
@@ -69,7 +70,7 @@ const PAGE = 40;
 const searchText = r => [r.vin, r.stationCode, r.station, r.project, r.busModel, r.line, r.submittedBy, r.reviewer, ...(r.operators || [])].join(' ').toLowerCase();
 const newestFirst = (a, b) => String(b.timestamp).localeCompare(String(a.timestamp));
 
-export default function PendingReviews({ onBack, onToggleTheme = null, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLines = null, currentUserName = null }) {
+export default function PendingReviews({ onBack, onToggleTheme = null, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLines = null, currentUserName = null, catalog = null }) {
   const isDark = theme === 'dark';
   const bg      = 'transparent';
   const card    = 'var(--bg-card)';
@@ -100,6 +101,10 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   const pending = scoped.filter(r => PENDING_STATUSES.includes(r.approvalStatus));
   const approved = scoped.filter(r => r.approvalStatus === 'approved');
 
+  // Cards whose project, model and VIN disagree with the VIN register.
+  const projectVins = catalog?.projectVins || {};
+  const registerIssue = r => vinProblem(projectVins, r);
+
   const [tab, setTab] = useState('review');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE);
@@ -127,6 +132,12 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   async function saveReview() {
     if (!reviewFields.approvalStatus) { alert('Select an approval status.'); return; }
     if (!reviewFields.reviewer) { alert('Enter reviewer name.'); return; }
+    if (reviewFields.approvalStatus === 'approved') {
+      const wrongVin = registerIssue(draft ? { project: draft.project.trim(), busModel: draft.busModel.trim(), vin: draft.vin } : selected);
+      if (wrongVin) { alert(`${wrongVin}
+
+Correct it with Edit details before approving, or send the card back.`); return; }
+    }
     const review = {
       recordId: selected.recordId,
       approvalStatus: reviewFields.approvalStatus,
@@ -163,6 +174,8 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   // activity/consumable/operator rows), or an error message to show.
   function cardChanges(item, d) {
     if (!d.vin.trim()) return 'VIN cannot be empty.';
+    const wrongVin = vinProblem(projectVins, { project: d.project.trim(), busModel: d.busModel.trim(), vin: d.vin });
+    if (wrongVin) return wrongVin;
     if (!d.clockIn || !d.clockOut) return 'Enter both clock-in and clock-out.';
     const start = new Date(d.clockIn), end = new Date(d.clockOut);
     if (isNaN(start) || isNaN(end) || end <= start) return 'Clock-out must be after clock-in.';
@@ -274,9 +287,9 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
               }}>
                 {/* dark scrim */}
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(10,13,20,0.93) 0%, rgba(10,13,20,0.80) 55%, rgba(10,13,20,0.62) 100%)' }} />
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px 14px', padding: '16px 20px' }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} - {item.stationCode}</div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.84)', marginTop: 3 }}>{[item.project, item.busModel, item.line].filter(Boolean).join(' · ')}</div>
                     <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>
@@ -284,10 +297,15 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
                       {item.approvalStatus === 'approved' && item.reviewer ? ` · Approved by ${item.reviewer}${item.reviewDate ? ` on ${String(item.reviewDate).slice(0, 10)}` : ''}` : ''}
                     </div>
                   </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {registerIssue(item) && (
+                    <span title={registerIssue(item)} style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: '#dc2626cc', borderRadius: 999, padding: '4px 10px' }}>Check VIN / model</span>
+                  )}
                   {tab !== 'review' && (
                     <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: `${stColor}cc`, borderRadius: 999, padding: '4px 10px' }}>{stLabel}</span>
                   )}
                   <span className={`kmc-btn${canReview ? ' primary' : ''}`} style={{ padding: '7px 14px', flexShrink: 0, ...(canReview ? {} : { background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }) }}>{canReview ? 'Review →' : 'View →'}</span>
+                  </div>
                 </div>
               </div>
             );
@@ -314,6 +332,11 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
               </button>
             )}
           </div>
+          {registerIssue(selected) && (
+            <div style={{ fontSize: 12, color: R, border: `1px solid ${R}`, borderRadius: 6, padding: '8px 10px', marginBottom: 10 }}>
+              Does not match the VIN register: {registerIssue(selected)}{readOnly ? '' : ' Use Edit details to correct it before approving.'}
+            </div>
+          )}
           {!readOnly && lineNeedsRepair(selected.line, selected.stationCode, selected.busModel) && (
             <div style={{ fontSize: 12, color: R, border: `1px solid ${R}`, borderRadius: 6, padding: '8px 10px', marginBottom: 10 }}>
               This card was saved under {selected.line || 'no line'}, but {selected.stationCode} belongs to {correctLineFor(selected.line, selected.stationCode, selected.busModel)}. Submitting the review saves it under the right line.
