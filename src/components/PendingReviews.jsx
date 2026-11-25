@@ -51,6 +51,24 @@ const LINE_IMAGE = {
 // further review" or "rejected" was chosen previously.
 const PENDING_STATUSES = ['pending_review', 'pending', 'rejected', ''];
 
+// Status words and colours for the submissions list.
+const STATUS_LABEL = {
+  approved: ['Approved', '#10b981'], pending_review: ['Awaiting review', '#f59e0b'], '': ['Awaiting review', '#f59e0b'],
+  pending: ['Further review', '#0ea5e9'], rejected: ['Rework required', '#dc2626'],
+};
+const statusOf = s => STATUS_LABEL[s] || [s || 'Unknown', '#64748b'];
+
+// Three views of the same cards: everything filed, the review queue, and the approved record.
+const TABS = [
+  { id: 'review', label: 'To review' },
+  { id: 'all', label: 'All submissions' },
+  { id: 'approved', label: 'Approved' },
+];
+const PAGE = 40;
+
+const searchText = r => [r.vin, r.stationCode, r.station, r.project, r.busModel, r.line, r.submittedBy, r.reviewer, ...(r.operators || [])].join(' ').toLowerCase();
+const newestFirst = (a, b) => String(b.timestamp).localeCompare(String(a.timestamp));
+
 export default function PendingReviews({ onBack, onToggleTheme = null, theme = 'dark', role = 'supervisor', assignedStations = null, assignedLines = null, currentUserName = null }) {
   const isDark = theme === 'dark';
   const bg      = 'transparent';
@@ -74,13 +92,25 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
   // Filter by role scope: supervisor sees only their assigned stations,
   // director/admin sees everything. Scoped to still-pending items only —
   // already-approved cards don't belong in this queue.
-  const pending = submissions.filter(r => PENDING_STATUSES.includes(r.approvalStatus)).filter(r => {
+  const scoped = submissions.filter(r => {
     if (role === 'supervisor' && assignedStations?.length) return assignedStations.some(c => sameStationCode(c, r.stationCode));
     if (role === 'manager' && assignedLines?.length) return assignedLines.includes(stationLineOf(r.stationCode));
     return true;
-  });
+  }).sort(newestFirst);
+  const pending = scoped.filter(r => PENDING_STATUSES.includes(r.approvalStatus));
+  const approved = scoped.filter(r => r.approvalStatus === 'approved');
+
+  const [tab, setTab] = useState('review');
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(PAGE);
+  const tabRows = tab === 'review' ? pending : tab === 'approved' ? approved : scoped;
+  const q = query.trim().toLowerCase();
+  const listed = q ? tabRows.filter(r => searchText(r).includes(q)) : tabRows;
+  const tabCount = { review: pending.length, all: scoped.length, approved: approved.length };
 
   const [selected, setSelected] = useState(null);
+  // Approved cards open as a record: no edits, no new decision.
+  const readOnly = !!selected && !PENDING_STATUSES.includes(selected.approvalStatus);
   const [reviewFields, setReviewFields] = useState({ approvalStatus: '', reviewComments: '', reviewer: currentUserName || '' });
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState(null); // non-null while "Edit details" is open
@@ -180,8 +210,8 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14 }}>
           <button onClick={onBack} className="kmc-btn" style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff', backdropFilter: 'blur(6px)' }}>← Back</button>
           <div>
-            <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>Pending Reviews</div>
-            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Travel cards submitted by users - awaiting your review</div>
+            <div className="kmc-title" style={{ color: '#fff', fontSize: 34, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>Card Activity</div>
+            <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.78)', letterSpacing: '0.02em', marginTop: 4 }}>Travel cards filed at your stations: submissions, reviews and approvals</div>
           </div>
           <div style={{ marginLeft: 'auto', background: pending.length > 0 ? `${AM}33` : 'rgba(255,255,255,0.1)', color: pending.length > 0 ? AM : 'rgba(255,255,255,0.6)', border: `1px solid ${pending.length > 0 ? AM + '55' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 14px', fontSize: 12, fontWeight: 700, backdropFilter: 'blur(6px)' }}>
             {pending.length} pending
@@ -190,30 +220,50 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 22 }}>
-        <StatTile label="Awaiting review" value={pending.length} tone="amber" sub="travel cards in your scope" />
-        <StatTile label="First look" value={pending.filter(r => r.approvalStatus === 'pending_review').length} tone="teal" sub="never reviewed" />
+        <StatTile label="Submitted" value={scoped.length} tone="teal" sub="travel cards in your scope" />
+        <StatTile label="Awaiting review" value={pending.filter(r => r.approvalStatus === 'pending_review' || !r.approvalStatus).length} tone="amber" sub="never reviewed" />
         <StatTile label="Sent back" value={pending.filter(r => r.approvalStatus === 'pending' || r.approvalStatus === 'rejected').length} tone="red" sub="further review or rework" />
-        <StatTile label="Over designed time" value={pending.filter(r => Number(r.designedTime) > 0 && Number(r.actualTime) > Number(r.designedTime)).length} tone="pink" sub="check the downtime notes" />
+        <StatTile label="Approved" value={approved.length} tone="lime" sub={scoped.length ? `${Math.round((approved.length / scoped.length) * 100)}% of submissions` : 'none yet'} />
       </div>
 
-      {loading && pending.length === 0 && (
+      {!selected && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+          {TABS.map(t => (
+            <button key={t.id} className={`kmc-btn${tab === t.id ? ' primary' : ''}`} onClick={() => { setTab(t.id); setLimit(PAGE); }}>
+              {t.label}
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: tab === t.id ? 'rgba(255,255,255,0.22)' : 'var(--socket-bg)' }}>{tabCount[t.id]}</span>
+            </button>
+          ))}
+          <input value={query} onChange={e => { setQuery(e.target.value); setLimit(PAGE); }} placeholder="Search VIN, station, person…"
+            aria-label="Search cards" style={{ ...inp, width: 'auto', flex: '1 1 200px', maxWidth: 320, marginLeft: 'auto', borderRadius: 999, padding: '8px 14px' }} />
+        </div>
+      )}
+
+      {loading && scoped.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>Loading…</div>
       )}
 
-      {!loading && pending.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: dim }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>✓</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: GR }}>All reviews complete</div>
-          <div style={{ fontSize: 12, marginTop: 6 }}>No pending travel cards at this time.</div>
+      {!loading && !selected && listed.length === 0 && (
+        <div className="kmc-panel" style={{ textAlign: 'center', padding: '40px 20px', color: dim }}>
+          {q ? (
+            <div style={{ fontSize: 13 }}>No cards match "{query}".</div>
+          ) : tab === 'review' ? (<>
+            <div style={{ fontSize: 16, fontWeight: 700, color: GR }}>All reviews complete</div>
+            <div style={{ fontSize: 12, marginTop: 6 }}>No travel cards are waiting for a decision.</div>
+          </>) : (
+            <div style={{ fontSize: 13 }}>{tab === 'approved' ? 'No approved cards yet.' : 'No cards have been filed at your stations yet.'}</div>
+          )}
         </div>
       )}
 
       {/* List */}
-      {!selected && pending.length > 0 && (
+      {!selected && listed.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: '100%' }}>
-          {pending.map(item => {
+          {listed.slice(0, limit).map(item => {
             const lineId = stationLineOf(item.stationCode);
             const img = lineId ? LINE_IMAGE[lineId] : null;
+            const [stLabel, stColor] = statusOf(item.approvalStatus);
+            const canReview = PENDING_STATUSES.includes(item.approvalStatus);
             return (
               <div key={item.id} onClick={() => openReview(item)} style={{
                 borderRadius: 16, overflow: 'hidden', cursor: 'pointer', position: 'relative', boxShadow: 'var(--panel-shadow)',
@@ -225,17 +275,28 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
                 {/* dark scrim */}
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(10,13,20,0.93) 0%, rgba(10,13,20,0.80) 55%, rgba(10,13,20,0.62) 100%)' }} />
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: AM, flexShrink: 0 }} />
-                  <div style={{ flex: 1 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: stColor, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{item.vin} - {item.stationCode}</div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.84)', marginTop: 3 }}>{item.project} · {item.line}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>{new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '-'}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.84)', marginTop: 3 }}>{[item.project, item.busModel, item.line].filter(Boolean).join(' · ')}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.72)', fontFamily: mono, marginTop: 2 }}>
+                      {new Date(item.timestamp).toLocaleString()} · Operators: {(item.operators || []).join(', ') || '-'}
+                      {item.approvalStatus === 'approved' && item.reviewer ? ` · Approved by ${item.reviewer}${item.reviewDate ? ` on ${String(item.reviewDate).slice(0, 10)}` : ''}` : ''}
+                    </div>
                   </div>
-                  <span className="kmc-btn primary" style={{ padding: '7px 14px', flexShrink: 0 }}>Review →</span>
+                  {tab !== 'review' && (
+                    <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#fff', background: `${stColor}cc`, borderRadius: 999, padding: '4px 10px' }}>{stLabel}</span>
+                  )}
+                  <span className={`kmc-btn${canReview ? ' primary' : ''}`} style={{ padding: '7px 14px', flexShrink: 0, ...(canReview ? {} : { background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }) }}>{canReview ? 'Review →' : 'View →'}</span>
                 </div>
               </div>
             );
           })}
+          {listed.length > limit && (
+            <button className="kmc-btn" style={{ alignSelf: 'center', marginTop: 6 }} onClick={() => setLimit(n => n + PAGE)}>
+              Show more ({listed.length - limit} left)
+            </button>
+          )}
         </div>
       )}
 
@@ -245,11 +306,15 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
             <button onClick={() => setSelected(null)} style={{ background: 'transparent', border: `1px solid ${border}`, color: muted, borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontFamily: mono, letterSpacing: '0.08em' }}>← List</button>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{selected.vin} - {selected.stationCode}</div>
-            <button onClick={() => setDraft(d => d ? null : draftOf(selected))} className="kmc-btn" style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 11, borderColor: draft ? border : AM, color: draft ? muted : AM }}>
-              {draft ? 'Discard edits' : 'Edit details'}
-            </button>
+            {readOnly ? (
+              <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: statusOf(selected.approvalStatus)[1], border: `1px solid ${statusOf(selected.approvalStatus)[1]}`, borderRadius: 999, padding: '4px 10px' }}>{statusOf(selected.approvalStatus)[0]}</span>
+            ) : (
+              <button onClick={() => setDraft(d => d ? null : draftOf(selected))} className="kmc-btn" style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 11, borderColor: draft ? border : AM, color: draft ? muted : AM }}>
+                {draft ? 'Discard edits' : 'Edit details'}
+              </button>
+            )}
           </div>
-          {lineNeedsRepair(selected.line, selected.stationCode, selected.busModel) && (
+          {!readOnly && lineNeedsRepair(selected.line, selected.stationCode, selected.busModel) && (
             <div style={{ fontSize: 12, color: R, border: `1px solid ${R}`, borderRadius: 6, padding: '8px 10px', marginBottom: 10 }}>
               This card was saved under {selected.line || 'no line'}, but {selected.stationCode} belongs to {correctLineFor(selected.line, selected.stationCode, selected.busModel)}. Submitting the review saves it under the right line.
             </div>
@@ -353,8 +418,26 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
             )}
           </div>
 
+          {/* Earlier decision on this card (the record for approved cards). */}
+          {selected.reviewer && (
+            <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '16px 20px', background: card, marginBottom: 14 }}>
+              <div style={{ fontSize: 9, fontWeight: 600, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: mono, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)` }}>{readOnly ? 'Review record' : 'Previous review'}</div>
+              {[
+                ['Decision', statusOf(selected.approvalStatus)[0]],
+                ['Reviewer', selected.reviewer],
+                ['Review date', selected.reviewDate ? String(selected.reviewDate).slice(0, 10) : '-'],
+                ['Comments', selected.reviewComments || '-'],
+              ].map(([l, v]) => (
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: `1px solid ${border}`, fontSize: 12 }}>
+                  <span style={{ color: dim, fontFamily: mono, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</span>
+                  <span style={{ fontWeight: 600, textAlign: 'right', maxWidth: '60%', wordBreak: 'break-word' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Review form */}
-          <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '16px 20px', background: card }}>
+          {!readOnly && <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: '16px 20px', background: card }}>
             <div style={{ fontSize: 9, fontWeight: 600, color: R, textTransform: 'uppercase', letterSpacing: '0.14em', fontFamily: mono, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid rgba(220,38,38,0.2)` }}>Your Review</div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ display: 'block', fontSize: 10, color: muted, fontFamily: mono, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 5 }}>Approval status</label>
@@ -376,7 +459,7 @@ export default function PendingReviews({ onBack, onToggleTheme = null, theme = '
             <button onClick={saveReview} disabled={saving} style={{ width: '100%', padding: '11px 0', background: R, color: '#fff', border: 'none', borderRadius: 4, fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', letterSpacing: '0', fontFamily: fm, opacity: saving ? 0.7 : 1 }}>
               {saving ? 'Submitting…' : 'Submit Review'}
             </button>
-          </div>
+          </div>}
         </div>
       )}
 

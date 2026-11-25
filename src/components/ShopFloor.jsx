@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sendViaAppsScript } from '../data/mailer';
 import { LINES, sameStationCode, stationLineOf, lookupStation } from '../data/stations';
 import { TaskRunning, TASK_RUNNER_CSS, fmtClock, fmtTime, useNow } from './TaskRunner';
+import StationReports from './StationReports';
 
 // Supervisors, managers, directors and admins: who is working where, right now.
 // Every open Start/End task in the shops you look after, line by line, each
 // shown with its bus model and the person who opened it. Tap one to watch its
 // running clock and the activities (or parts) already ticked off. Tasks closed
-// in the last 12 hours are listed underneath.
+// in the last 12 hours are listed underneath. The Station reports tab adds up
+// cards and job order runs per station (StationReports.jsx).
 // Server: listShopTasks_ in the Apps Script.
 
 const BUS_IMAGES = {
@@ -59,8 +61,10 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
   const [stamp, setStamp] = useState(null);
   const [all, setAll] = useState(false);
   const [watching, setWatching] = useState(null);
+  const [tab, setTab] = useState('live');
   const now = useNow(1000);
   const scope = useMemo(() => scopeFor(role, assignedStations, assignedLines), [role, assignedStations, assignedLines]);
+  const keep = useCallback(code => all || inScope({ stationCode: code }, scope), [all, scope]);
 
   const load = useCallback(async () => {
     try { const r = await sendViaAppsScript('listShopTasks', {}); setTasks(r.tasks || []); setError(''); setStamp(new Date()); }
@@ -121,9 +125,15 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
       <button className="kmc-btn" onClick={onBack} style={{ marginBottom: 16 }}>← Home</button>
       <div className="kmc-label" style={{ color: 'var(--accent-text)' }}>Supervision</div>
       <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 24, letterSpacing: '-0.01em', margin: '2px 0 6px', color: 'var(--text-heading)' }}>Shop floor</h1>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '8px 0 16px' }}>
+        <button className={`kmc-btn${tab === 'live' ? ' primary' : ''}`} onClick={() => setTab('live')}>Live tasks</button>
+        <button className={`kmc-btn${tab === 'reports' ? ' primary' : ''}`} onClick={() => setTab('reports')}>Station reports</button>
+        {scope && <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--text-secondary)', marginLeft: 6 }}><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} /> Show every shop</label>}
+      </div>
+      {tab === 'reports' && <StationReports keep={keep} />}
+      {tab === 'live' && <>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16, fontSize: 12, color: 'var(--text-secondary)' }}>
         <span><strong style={{ color: 'var(--text-heading)' }}>{open.length}</strong> task{open.length === 1 ? '' : 's'} running{scope && !all ? ' in your shops' : ''}</span>
-        {scope && <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} /> Show every shop</label>}
         <span style={{ flex: 1 }} />
         {stamp && <span>Updated {fmtTime(stamp.toISOString())} · every 30 s</span>}
         <button className="kmc-btn ghost" onClick={load}>↻ Refresh</button>
@@ -175,6 +185,7 @@ export default function ShopFloor({ role, assignedStations, assignedLines, onBac
           })}
         </div>
       )}
+      </>}
     </div>
   );
 }
